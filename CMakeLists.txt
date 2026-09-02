@@ -39,6 +39,8 @@ add_executable(sltest
     src/input.cpp
     src/error.cpp
     src/resource.cpp
+    src/config.cpp
+    src/noise.cpp
 )
 
 add_executable(slpack src/slpack.cpp)

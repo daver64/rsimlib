@@ -11,6 +11,8 @@
 #include <cstdarg>
 #include <cstdio>
 
+namespace simlib::display {
+
 /** Temporary OpenGL texture used to draw one rendered text string. */
 struct TextTexture {
     GLuint id = 0;
@@ -271,3 +273,5 @@ void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour
     va_end(arguments);
     textout(font, x, y, colour, buffer);
 }
+
+} // namespace simlib::display

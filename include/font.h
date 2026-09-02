@@ -11,6 +11,8 @@
 
 namespace simlib::data { class Archive; }
 
+namespace simlib::display {
+
 /** Load the first available platform monospace font into memory. */
 std::optional<std::vector<unsigned char>> load_font();
 /** Open the loaded font bytes as an SDL_ttf font. */
@@ -42,3 +44,5 @@ void gl_printf(
 void textout(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const std::string& text);
 /** Format and draw UTF-8 text at a screen position without a background. */
 void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const char* format, ...);
+
+} // namespace simlib::display

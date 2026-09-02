@@ -4,6 +4,7 @@
 #include "error.h"
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_opengl.h>
 
 namespace simlib::display {
@@ -11,6 +12,7 @@ namespace {
 
 SDL_Window* window = nullptr;
 SDL_GLContext context = nullptr;
+bool ttfInitialized = false;
 int width = 0;
 int height = 0;
 int logicalWidth = 0;
@@ -30,6 +32,13 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
         return false;
     }
 
+    if (TTF_Init() != 0) {
+        simlib::detail::set_error(TTF_GetError());
+        SDL_Quit();
+        return false;
+    }
+    ttfInitialized = true;
+
     window = SDL_CreateWindow(
         "simlib",
         SDL_WINDOWPOS_CENTERED,
@@ -40,6 +49,8 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     );
     if (!window) {
         simlib::detail::set_error(SDL_GetError());
+        TTF_Quit();
+        ttfInitialized = false;
         SDL_Quit();
         return false;
     }
@@ -49,6 +60,8 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
         simlib::detail::set_error(SDL_GetError());
         SDL_DestroyWindow(window);
         window = nullptr;
+        TTF_Quit();
+        ttfInitialized = false;
         SDL_Quit();
         return false;
     }
@@ -129,6 +142,10 @@ void shutdown() {
     if (window) {
         SDL_DestroyWindow(window);
         window = nullptr;
+    }
+    if (ttfInitialized) {
+        TTF_Quit();
+        ttfInitialized = false;
     }
     width = 0;
     height = 0;

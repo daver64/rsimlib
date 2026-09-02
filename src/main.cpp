@@ -15,12 +15,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    if (TTF_Init() != 0) {
-        simlib::display::shutdown();
-        return -1;
-    }
-
-    TTF_Font* font = open_monospace_font(22);
+    TTF_Font* font = simlib::display::open_monospace_font(16);
 
     if (!font) {
         std::cerr << "Failed to create font from loaded bytes.\n";
@@ -28,9 +23,9 @@ int main(int argc, char* argv[]) {
 
     //audio_test::initialize();
     //graphics_fx_test::initialise();
-    simlib::audio_fx::init();
-    simlib::audio_fx::Sample *sample=simlib::audio_fx::load_sample("assets/sfx/100.wav");
-    simlib::audio_fx::play_sample(sample);
+    //simlib::audio_fx::init();
+    //simlib::audio_fx::Sample *sample=simlib::audio_fx::load_sample("assets/sfx/100.wav");
+    //simlib::audio_fx::play_sample(sample);
 
     // Main loop
     bool running = true;
@@ -48,6 +43,8 @@ int main(int argc, char* argv[]) {
         }
 
         simlib::draw::clear_to_colour(simlib::draw::screen, simlib::draw::Colour{45, 48, 56});
+        simlib::display::textout(font, 1, 1,
+            simlib::draw::Colour{250, 0, 0}, "Hello, World!");
         //graphics_fx_test::render();
         simlib::display::show_video_bitmap();
     }
@@ -58,7 +55,6 @@ int main(int argc, char* argv[]) {
     }
     //audio_test::shutdown();
     //graphics_fx_test::shutdown();
-    TTF_Quit();
     simlib::display::shutdown();
     simlib::audio_fx::shutdown();
     return 0;
