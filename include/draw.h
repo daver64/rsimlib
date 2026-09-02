@@ -16,7 +16,7 @@ struct Colour {
     Uint8 alpha = 255;
 };
 
-enum class TextureKind {
+enum class BitmapKind {
     /** A bitmap that can retain pixel data in system memory. */
     Bitmap,
     /** The display framebuffer managed by the display subsystem. */
@@ -34,7 +34,7 @@ struct Bitmap {
     std::uint32_t gpu_texture = 0;
     bool ram_dirty = false;
     bool gpu_dirty = false;
-    TextureKind kind = TextureKind::Bitmap;
+    BitmapKind kind = BitmapKind::Bitmap;
 };
 
 /** The current display framebuffer, owned by the display subsystem. */
@@ -78,6 +78,8 @@ void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour 
 void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
 /** Draw a filled triangle. */
 void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
+/** Draw a line between two points. */
+void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour);
 
 void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
 void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
@@ -87,6 +89,12 @@ void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* tex
 void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
 void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
 void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+/** Copy pixels while treating fully transparent source pixels as transparent. */
+void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
+/** Scale and copy a bitmap region into a destination region. */
+void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight);
+/** Create a bitmap containing a copied rectangular region. */
+Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height);
 void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
 
 /** Synchronize a bitmap's RAM pixels to its GPU texture. */
@@ -95,6 +103,10 @@ bool upload_bitmap(Bitmap* bitmap);
 bool download_bitmap(Bitmap* bitmap);
 /** Draw a bitmap at the supplied top-left screen position. */
 void draw_sprite(Bitmap* bitmap, int x, int y);
+/** Draw a horizontally flipped bitmap. */
+void draw_sprite_h_flip(Bitmap* bitmap, int x, int y);
+/** Draw a vertically flipped bitmap. */
+void draw_sprite_v_flip(Bitmap* bitmap, int x, int y);
 
 namespace detail {
 

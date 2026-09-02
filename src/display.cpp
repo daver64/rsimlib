@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "draw.h"
+#include "error.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -12,18 +13,20 @@ SDL_Window* window = nullptr;
 SDL_GLContext context = nullptr;
 int width = 0;
 int height = 0;
+int logicalWidth = 0;
+int logicalHeight = 0;
 
 } // namespace
 
 bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtualWidth, int virtualHeight) {
-    (void)virtualWidth;
-    (void)virtualHeight;
     if (driver != GFX_AUTODETECT_WINDOWED || requestedWidth <= 0 || requestedHeight <= 0) {
+        simlib::detail::set_error("Invalid graphics mode or dimensions");
         return false;
     }
 
     shutdown();
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        simlib::detail::set_error(SDL_GetError());
         return false;
     }
 
@@ -36,12 +39,14 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
     );
     if (!window) {
+        simlib::detail::set_error(SDL_GetError());
         SDL_Quit();
         return false;
     }
 
     context = SDL_GL_CreateContext(window);
     if (!context) {
+        simlib::detail::set_error(SDL_GetError());
         SDL_DestroyWindow(window);
         window = nullptr;
         SDL_Quit();
@@ -49,8 +54,10 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     }
 
     SDL_GetWindowSize(window, &width, &height);
+    logicalWidth = virtualWidth > 0 ? virtualWidth : width;
+    logicalHeight = virtualHeight > 0 ? virtualHeight : height;
     glViewport(0, 0, width, height);
-    draw::detail::initialise_screen(width, height);
+    draw::detail::initialise_screen(logicalWidth, logicalHeight);
     return true;
 }
 
@@ -62,15 +69,39 @@ void handle_event(const SDL_Event& event) {
     width = event.window.data1;
     height = event.window.data2;
     glViewport(0, 0, width, height);
-    draw::detail::resize_screen(width, height);
+    draw::detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
+}
+
+void set_window_title(const char* title) {
+    if (window && title) SDL_SetWindowTitle(window, title);
+}
+
+bool set_fullscreen(bool enabled) {
+    return window && SDL_SetWindowFullscreen(window, enabled ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) == 0;
+}
+
+bool is_fullscreen() {
+    return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+bool set_vsync(bool enabled) {
+    return context && SDL_GL_SetSwapInterval(enabled ? 1 : 0) == 0;
 }
 
 int screen_width() {
-    return width;
+    return logicalWidth > 0 ? logicalWidth : width;
 }
 
 int screen_height() {
-    return height;
+    return logicalHeight > 0 ? logicalHeight : height;
+}
+
+int virtual_screen_width() {
+    return logicalWidth > 0 ? logicalWidth : width;
+}
+
+int virtual_screen_height() {
+    return logicalHeight > 0 ? logicalHeight : height;
 }
 
 void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha) {
@@ -101,6 +132,8 @@ void shutdown() {
     }
     width = 0;
     height = 0;
+    logicalWidth = 0;
+    logicalHeight = 0;
     SDL_Quit();
 }
 

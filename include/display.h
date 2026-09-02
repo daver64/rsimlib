@@ -12,11 +12,23 @@ constexpr int GFX_AUTODETECT_WINDOWED = 1;
 bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
 /** Apply window-related SDL events, including resize events. */
 void handle_event(const SDL_Event& event);
+/** Set the window title. */
+void set_window_title(const char* title);
+/** Enable or disable desktop fullscreen mode. */
+bool set_fullscreen(bool enabled);
+/** Return whether the display is currently fullscreen. */
+bool is_fullscreen();
+/** Set the OpenGL swap interval; zero disables vsync. */
+bool set_vsync(bool enabled);
 
 /** Return the current drawable width in pixels. */
 int screen_width();
 /** Return the current drawable height in pixels. */
 int screen_height();
+/** Return the configured logical screen width. */
+int virtual_screen_width();
+/** Return the configured logical screen height. */
+int virtual_screen_height();
 
 /** Clear the current framebuffer using an RGBA colour. */
 void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha = 255);

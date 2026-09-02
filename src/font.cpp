@@ -1,9 +1,14 @@
 #include "font.h"
 
+#include "display.h"
+#include "error.h"
+
 #include <SDL2/SDL_opengl.h>
 
 #include <filesystem>
 #include <fstream>
+#include <cstdarg>
+#include <cstdio>
 
 struct TextTexture {
     GLuint id = 0;
@@ -192,6 +197,22 @@ TTF_Font* open_monospace_font(int pointSize) {
     return TTF_OpenFontRW(rw, 1, pointSize);
 }
 
+TTF_Font* open_font(const std::string& path, int pointSize) {
+    TTF_Font* font = TTF_OpenFont(path.c_str(), pointSize);
+    if (!font) simlib::detail::set_error(TTF_GetError());
+    return font;
+}
+
+int text_length(TTF_Font* font, const std::string& text) {
+    int width = 0;
+    int height = 0;
+    return font && TTF_SizeUTF8(font, text.c_str(), &width, &height) == 0 ? width : 0;
+}
+
+int text_height(TTF_Font* font) {
+    return font ? TTF_FontHeight(font) : 0;
+}
+
 void gl_printf(
     TTF_Font* font,
     int x,
@@ -216,4 +237,18 @@ void gl_printf(
 
     TextTexture mutableTexture = *texture;
     destroy_text_texture(mutableTexture);
+}
+
+void textout(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const std::string& text) {
+    gl_printf(font, x, y, colour, {0, 0, 0, 0}, simlib::display::screen_width(), simlib::display::screen_height(), text);
+}
+
+void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const char* format, ...) {
+    if (!format) return;
+    char buffer[1024];
+    va_list arguments;
+    va_start(arguments, format);
+    std::vsnprintf(buffer, sizeof(buffer), format, arguments);
+    va_end(arguments);
+    textout(font, x, y, colour, buffer);
 }

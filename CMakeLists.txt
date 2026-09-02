@@ -33,6 +33,9 @@ add_executable(rvoid
     src/audio_fx.cpp
     src/audio_music.cpp
     src/audio_test.cpp
+    src/system.cpp
+    src/input.cpp
+    src/error.cpp
 )
 
 target_include_directories(rvoid PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

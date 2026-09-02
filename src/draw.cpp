@@ -1,6 +1,7 @@
 #include "draw.h"
 
 #include "display.h"
+#include "error.h"
 
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_opengl.h>
@@ -24,7 +25,7 @@ bool is_valid(const Bitmap* bitmap) {
 }
 
 bool is_screen(const Bitmap* bitmap) {
-	return bitmap && bitmap->kind == TextureKind::Screen;
+	return bitmap && bitmap->kind == BitmapKind::Screen;
 }
 
 std::size_t pixel_offset(const Bitmap& bitmap, int x, int y) {
@@ -93,7 +94,7 @@ void restore_projection() {
 	glMatrixMode(GL_MODELVIEW);
 }
 
-void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, int x, int y) {
+void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, int x, int y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false) {
 	if (!upload_bitmap(bitmap)) {
 		return;
 	}
@@ -109,13 +110,17 @@ void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int
 	const float topTexture = static_cast<float>(sourceY) / bitmap->height;
 	const float rightTexture = static_cast<float>(sourceX + width) / bitmap->width;
 	const float bottomTexture = static_cast<float>(sourceY + height) / bitmap->height;
-	const float right = static_cast<float>(x + width);
-	const float bottom = static_cast<float>(y + height);
+	const float right = static_cast<float>(x + (destinationWidth < 0 ? width : destinationWidth));
+	const float bottom = static_cast<float>(y + (destinationHeight < 0 ? height : destinationHeight));
+	const float textureLeft = flipHorizontal ? rightTexture : leftTexture;
+	const float textureRight = flipHorizontal ? leftTexture : rightTexture;
+	const float textureTop = flipVertical ? bottomTexture : topTexture;
+	const float textureBottom = flipVertical ? topTexture : bottomTexture;
 	glBegin(GL_QUADS);
-	glTexCoord2f(leftTexture, topTexture); glVertex2f(static_cast<float>(x), static_cast<float>(y));
-	glTexCoord2f(rightTexture, topTexture); glVertex2f(right, static_cast<float>(y));
-	glTexCoord2f(rightTexture, bottomTexture); glVertex2f(right, bottom);
-	glTexCoord2f(leftTexture, bottomTexture); glVertex2f(static_cast<float>(x), bottom);
+	glTexCoord2f(textureLeft, textureTop); glVertex2f(static_cast<float>(x), static_cast<float>(y));
+	glTexCoord2f(textureRight, textureTop); glVertex2f(right, static_cast<float>(y));
+	glTexCoord2f(textureRight, textureBottom); glVertex2f(right, bottom);
+	glTexCoord2f(textureLeft, textureBottom); glVertex2f(static_cast<float>(x), bottom);
 	glEnd();
 
 	glDisable(GL_BLEND);
@@ -241,6 +246,7 @@ void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Bit
 
 Bitmap* create_bitmap(int width, int height) {
 	if (width <= 0 || height <= 0) {
+		simlib::detail::set_error("Bitmap dimensions must be positive");
 		return nullptr;
 	}
 	Bitmap* bitmap = new Bitmap;
@@ -266,12 +272,14 @@ Bitmap* create_video_bitmap(int width, int height) {
 Bitmap* load_bitmap(const std::string& path) {
 	SDL_Surface* loaded = IMG_Load(path.c_str());
 	if (!loaded) {
+		simlib::detail::set_error(IMG_GetError());
 		return nullptr;
 	}
 
 	SDL_Surface* rgba = SDL_ConvertSurfaceFormat(loaded, SDL_PIXELFORMAT_RGBA32, 0);
 	SDL_FreeSurface(loaded);
 	if (!rgba) {
+		simlib::detail::set_error(SDL_GetError());
 		return nullptr;
 	}
 
@@ -299,6 +307,7 @@ bool save_bitmap(Bitmap* bitmap, const std::string& path) {
 
 	FILE* file = std::fopen(outputPath.string().c_str(), "wb");
 	if (!file) {
+		simlib::detail::set_error("Unable to open bitmap output file");
 		return false;
 	}
 
@@ -546,6 +555,12 @@ void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3
 	}
 }
 
+void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
+	if (bitmap) {
+		draw_line(bitmap, x1, y1, x2, y2, colour);
+	}
+}
+
 void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
 void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
 void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
@@ -586,6 +601,65 @@ void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int des
 		}
 	}
 	destination->ram_dirty = true;
+}
+
+void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
+	if (!source || !destination || width <= 0 || height <= 0 || !ensure_ram_pixels(source)) {
+		return;
+	}
+	if (is_screen(destination)) {
+		for (int y = 0; y < height; ++y) {
+			for (int x = 0; x < width; ++x) {
+				const int sourcePixelX = sourceX + x;
+				const int sourcePixelY = sourceY + y;
+				if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height) continue;
+				const std::size_t offset = pixel_offset(*source, sourcePixelX, sourcePixelY);
+				if (source->pixels[offset + 3] != 0) putpixel(destination, destinationX + x, destinationY + y, {source->pixels[offset], source->pixels[offset + 1], source->pixels[offset + 2], source->pixels[offset + 3]});
+			}
+		}
+		return;
+	}
+	if (!ensure_ram_pixels(destination)) return;
+	for (int y = 0; y < height; ++y) {
+		for (int x = 0; x < width; ++x) {
+			const int sourcePixelX = sourceX + x;
+			const int sourcePixelY = sourceY + y;
+			const int destinationPixelX = destinationX + x;
+			const int destinationPixelY = destinationY + y;
+			if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height || destinationPixelX < 0 || destinationPixelX >= destination->width || destinationPixelY < 0 || destinationPixelY >= destination->height) continue;
+			const std::size_t sourceOffset = pixel_offset(*source, sourcePixelX, sourcePixelY);
+			if (source->pixels[sourceOffset + 3] != 0) std::memcpy(destination->pixels.data() + pixel_offset(*destination, destinationPixelX, destinationPixelY), source->pixels.data() + sourceOffset, bytes_per_pixel);
+		}
+	}
+	destination->ram_dirty = true;
+}
+
+void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight) {
+	if (!source || !destination || sourceWidth <= 0 || sourceHeight <= 0 || destinationWidth <= 0 || destinationHeight <= 0) return;
+	if (is_screen(destination)) {
+		draw_textured_quad(source, sourceX, sourceY, sourceWidth, sourceHeight, destinationX, destinationY, destinationWidth, destinationHeight);
+		return;
+	}
+	if (!ensure_ram_pixels(source) || !ensure_ram_pixels(destination)) return;
+	for (int y = 0; y < destinationHeight; ++y) {
+		for (int x = 0; x < destinationWidth; ++x) {
+			const int sourcePixelX = sourceX + x * sourceWidth / destinationWidth;
+			const int sourcePixelY = sourceY + y * sourceHeight / destinationHeight;
+			const int destinationPixelX = destinationX + x;
+			const int destinationPixelY = destinationY + y;
+			if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height || destinationPixelX < 0 || destinationPixelX >= destination->width || destinationPixelY < 0 || destinationPixelY >= destination->height) continue;
+			std::memcpy(destination->pixels.data() + pixel_offset(*destination, destinationPixelX, destinationPixelY), source->pixels.data() + pixel_offset(*source, sourcePixelX, sourcePixelY), bytes_per_pixel);
+		}
+	}
+	destination->ram_dirty = true;
+}
+
+Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height) {
+	if (!parent || width <= 0 || height <= 0 || !ensure_ram_pixels(parent)) return nullptr;
+	Bitmap* bitmap = create_bitmap(width, height);
+	if (!bitmap) return nullptr;
+	blit(parent, bitmap, x, y, 0, 0, width, height);
+	return bitmap;
 }
 
 bool upload_bitmap(Bitmap* bitmap) {
@@ -640,6 +714,14 @@ void draw_sprite(Bitmap* bitmap, int x, int y) {
 	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y);
 }
 
+void draw_sprite_h_flip(Bitmap* bitmap, int x, int y) {
+	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
+}
+
+void draw_sprite_v_flip(Bitmap* bitmap, int x, int y) {
+	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
+}
+
 namespace detail {
 
 void initialise_screen(int width, int height) {
@@ -647,7 +729,7 @@ void initialise_screen(int width, int height) {
 	screen = new Bitmap;
 	screen->width = width;
 	screen->height = height;
-	screen->kind = TextureKind::Screen;
+	screen->kind = BitmapKind::Screen;
 }
 
 void resize_screen(int width, int height) {

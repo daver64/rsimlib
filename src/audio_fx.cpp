@@ -2,6 +2,7 @@
 #include "audio.h"
 
 #include "audio_backend.h"
+#include "error.h"
 
 #include <algorithm>
 #include <atomic>
@@ -118,7 +119,9 @@ void apply_pan(int channel, int pan) {
 } // namespace
 
 bool init() {
-	return worker.start();
+	const bool started = worker.start();
+	if (!started) simlib::detail::set_error(Mix_GetError());
+	return started;
 }
 
 void shutdown() {
@@ -132,6 +135,7 @@ Sample* load_sample(const std::string& path) {
 	return worker.call([path] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Chunk* chunk = Mix_LoadWAV(path.c_str());
+		if (!chunk) simlib::detail::set_error(Mix_GetError());
 		return chunk ? new Sample{chunk} : nullptr;
 	});
 }
@@ -202,6 +206,33 @@ void stop_sample(Sample* sample) {
 				++voice;
 			}
 		}
+	});
+}
+
+void stop_all_samples() {
+	if (!init()) return;
+	worker.enqueue([] {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		Mix_HaltChannel(-1);
+		voices.clear();
+	});
+}
+
+bool voice_is_playing(std::uint64_t voice) {
+	if (!init()) return false;
+	return worker.call([voice] {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		const auto found = voices.find(voice);
+		return found != voices.end() && Mix_Playing(found->second) != 0;
+	});
+}
+
+void set_pan(std::uint64_t voice, int pan) {
+	if (!init()) return;
+	worker.enqueue([voice, pan] {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		const auto found = voices.find(voice);
+		if (found != voices.end()) apply_pan(found->second, pan);
 	});
 }
 

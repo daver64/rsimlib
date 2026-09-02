@@ -32,6 +32,12 @@ std::uint64_t play_sample(
 void stop_voice(std::uint64_t voice);
 /** Stop every voice currently playing the sample. */
 void stop_sample(Sample* sample);
+/** Stop all active sound-effect voices. */
+void stop_all_samples();
+/** Return whether a voice is currently playing. */
+bool voice_is_playing(std::uint64_t voice);
+/** Set a voice's pan using the 0-255 Allegro convention. */
+void set_pan(std::uint64_t voice, int pan);
 /** Set the global sound effects volume. */
 void set_volume(int volume);
 

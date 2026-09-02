@@ -2,6 +2,7 @@
 #include "audio.h"
 
 #include "audio_backend.h"
+#include "error.h"
 
 #include <algorithm>
 #include <condition_variable>
@@ -106,7 +107,9 @@ int mixer_volume(int volume) {
 } // namespace
 
 bool init() {
-	return worker.start();
+	const bool started = worker.start();
+	if (!started) simlib::detail::set_error(Mix_GetError());
+	return started;
 }
 
 void shutdown() {
@@ -120,6 +123,7 @@ Stream* load_stream(const std::string& path) {
 	return worker.call([path] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Music* music = Mix_LoadMUS(path.c_str());
+		if (!music) simlib::detail::set_error(Mix_GetError());
 		return music ? new Stream{music} : nullptr;
 	});
 }
