@@ -154,4 +154,12 @@ void shutdown() {
     SDL_Quit();
 }
 
+SDL_Window* get_window() {
+    return window;
+}
+
+SDL_GLContext get_gl_context() {
+    return context;
+}
+
 } // namespace simlib::display

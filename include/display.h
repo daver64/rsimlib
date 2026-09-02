@@ -2,6 +2,7 @@
 
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_stdinc.h>
+#include <SDL2/SDL_video.h>
 
 namespace simlib::display {
 
@@ -36,5 +37,10 @@ void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha = 255);
 void show_video_bitmap();
 /** Release the OpenGL context, window, and SDL video state. */
 void shutdown();
+
+/** Return the active SDL window, or nullptr if not initialized. */
+SDL_Window* get_window();
+/** Return the active OpenGL context, or nullptr if not initialized. */
+SDL_GLContext get_gl_context();
 
 } // namespace simlib::display

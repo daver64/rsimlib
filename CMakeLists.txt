@@ -13,6 +13,27 @@ find_package(ZLIB REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf QUIET CONFIG)
 
+include(FetchContent)
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.9
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
+)
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL)
+
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
     set(SIMLIB_TTF_TARGET SDL2_ttf::SDL2_ttf)
@@ -41,6 +62,7 @@ add_executable(sltest
     src/resource.cpp
     src/config.cpp
     src/noise.cpp
+    src/gui.cpp
 )
 
 add_executable(slpack src/slpack.cpp)
@@ -88,7 +110,7 @@ if(Doxygen_FOUND)
     )
 endif()
 
-target_link_libraries(sltest PRIVATE OpenGL::GL PNG::PNG ZLIB::ZLIB)
+target_link_libraries(sltest PRIVATE OpenGL::GL PNG::PNG ZLIB::ZLIB imgui)
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(sltest PRIVATE SDL2::SDL2 SDL2::SDL2main)
