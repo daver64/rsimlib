@@ -39,26 +39,26 @@ void set_volume(int volume);
 
 namespace music {
 
-struct Track;
+struct Stream;
 
 /** Initialize the music mixer. */
 bool init();
 /** Shut down music playback and release mixer resources. */
 void shutdown();
 
-/** Load a MIDI track from a file. */
-Track* load_midi(const std::string& path);
-/** Destroy a track returned by load_midi(). */
-void destroy_midi(Track* track);
+/** Load a music stream from a file. */
+Stream* load_stream(const std::string& path);
+/** Destroy a stream returned by load_stream(). */
+void destroy_stream(Stream* stream);
 
 /** Start playback, looping forever by default. */
-void play_midi(Track* track, int loops = -1);
-/** Stop the current music track. */
-void stop_midi();
-/** Pause the current music track. */
-void pause_midi();
+void play_stream(Stream* stream, int loops = -1);
+/** Stop the current music stream. */
+void stop_stream();
+/** Pause the current music stream. */
+void pause_stream();
 /** Resume paused music playback. */
-void resume_midi();
+void resume_stream();
 /** Set the global music volume. */
 void set_volume(int volume);
 

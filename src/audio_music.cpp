@@ -14,7 +14,7 @@
 
 namespace simlib::music {
 
-struct Track {
+struct Stream {
 	Mix_Music* music = nullptr;
 };
 
@@ -113,41 +113,41 @@ void shutdown() {
 	worker.stop();
 }
 
-Track* load_midi(const std::string& path) {
+Stream* load_stream(const std::string& path) {
 	if (!init()) {
 		return nullptr;
 	}
 	return worker.call([path] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Music* music = Mix_LoadMUS(path.c_str());
-		return music ? new Track{music} : nullptr;
+		return music ? new Stream{music} : nullptr;
 	});
 }
 
-void destroy_midi(Track* track) {
-	if (!track || !init()) {
+void destroy_stream(Stream* stream) {
+	if (!stream || !init()) {
 		return;
 	}
-	worker.call([track] {
+	worker.call([stream] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_HaltMusic();
-		Mix_FreeMusic(track->music);
-		delete track;
+		Mix_FreeMusic(stream->music);
+		delete stream;
 	});
 }
 
-void play_midi(Track* track, int loops) {
-	if (!track || !init()) {
+void play_stream(Stream* stream, int loops) {
+	if (!stream || !init()) {
 		return;
 	}
-	worker.enqueue([track, loops] {
+	worker.enqueue([stream, loops] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_VolumeMusic(mixer_volume(master_volume));
-		Mix_PlayMusic(track->music, loops);
+		Mix_PlayMusic(stream->music, loops);
 	});
 }
 
-void stop_midi() {
+void stop_stream() {
 	if (!init()) {
 		return;
 	}
@@ -157,7 +157,7 @@ void stop_midi() {
 	});
 }
 
-void pause_midi() {
+void pause_stream() {
 	if (!init()) {
 		return;
 	}
@@ -167,7 +167,7 @@ void pause_midi() {
 	});
 }
 
-void resume_midi() {
+void resume_stream() {
 	if (!init()) {
 		return;
 	}

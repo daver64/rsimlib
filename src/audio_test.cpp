@@ -80,7 +80,7 @@ public:
             return;
         }
 
-        track_ = simlib::music::load_midi("assets/music/Solar Serenity.ogg");
+        track_ = simlib::music::load_stream("assets/music/Solar Serenity.ogg");
         if (!track_) {
             std::cerr << "Failed to load music: assets/music/Solar Serenity.ogg\n";
             simlib::music::shutdown();
@@ -89,25 +89,25 @@ public:
 
     void play() {
         if (track_) {
-            simlib::music::play_midi(track_, 0);
+            simlib::music::play_stream(track_, 0);
         }
     }
     void stop() {
         if (track_) {
-            simlib::music::stop_midi();
+            simlib::music::stop_stream();
         }
     }
     void shutdown() {
         if (track_) {
-            simlib::music::stop_midi();
-            simlib::music::destroy_midi(track_);
+            simlib::music::stop_stream();
+            simlib::music::destroy_stream(track_);
             track_ = nullptr;
         }
         simlib::music::shutdown();
     }
 
 private:
-    simlib::music::Track* track_ = nullptr;
+    simlib::music::Stream* track_ = nullptr;
 };
 
 AudioFxTest audio_fx_test;
