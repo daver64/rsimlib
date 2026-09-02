@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace rvoid::audio_fx {
+namespace simlib::audio_fx {
 
 struct Sample {
 	Mix_Chunk* chunk = nullptr;
@@ -216,4 +216,4 @@ void set_volume(int volume) {
 	});
 }
 
-} // namespace rvoid::audio_fx
+} // namespace simlib::audio_fx

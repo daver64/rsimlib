@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace rvoid::draw {
+namespace simlib::draw {
 
 /** An RGBA colour with 8-bit channels. */
 struct Colour {
@@ -27,7 +27,7 @@ enum class TextureKind {
  * A bitmap may retain pixels in RAM, on the GPU, or both. Pixel data is RGBA8.
  * The pixel origin and all primitive coordinates are in the top-left corner.
  */
-struct Texture {
+struct Bitmap {
     int width = 0;
     int height = 0;
     std::vector<Uint8> pixels;
@@ -38,63 +38,63 @@ struct Texture {
 };
 
 /** The current display framebuffer, owned by the display subsystem. */
-extern Texture* screen;
+extern Bitmap* screen;
 
 /** Create a RAM-backed bitmap, or return nullptr for invalid dimensions. */
-Texture* create_bitmap(int width, int height);
+Bitmap* create_bitmap(int width, int height);
 /** Create a GPU-backed bitmap, or return nullptr if allocation fails. */
-Texture* create_video_bitmap(int width, int height);
+Bitmap* create_video_bitmap(int width, int height);
 /** Load an image file into a bitmap, or return nullptr on failure. */
-Texture* load_bitmap(const std::string& path);
+Bitmap* load_bitmap(const std::string& path);
 /** Save a bitmap as an uncompressed PNG, appending .png when no extension is supplied. */
-bool save_bitmap(Texture* bitmap, const std::string& path);
+bool save_bitmap(Bitmap* bitmap, const std::string& path);
 /** Destroy a bitmap created by this module. */
-void destroy_bitmap(Texture* bitmap);
+void destroy_bitmap(Bitmap* bitmap);
 
 /** Acquire a bitmap for CPU access. */
-bool acquire_bitmap(Texture* bitmap);
+bool acquire_bitmap(Bitmap* bitmap);
 /** Release a bitmap acquired for CPU access. */
-bool release_bitmap(Texture* bitmap);
+bool release_bitmap(Bitmap* bitmap);
 
 /** Fill a bitmap with one colour. */
-void clear_to_colour(Texture* bitmap, Colour colour);
+void clear_to_colour(Bitmap* bitmap, Colour colour);
 /** Set one pixel if its coordinates are inside the bitmap. */
-void putpixel(Texture* bitmap, int x, int y, Colour colour);
+void putpixel(Bitmap* bitmap, int x, int y, Colour colour);
 /** Read one pixel, returning a zero colour for invalid coordinates. */
-Colour getpixel(Texture* bitmap, int x, int y);
+Colour getpixel(Bitmap* bitmap, int x, int y);
 /** Draw an outline circle. */
-void circle(Texture* bitmap, int x, int y, int radius, Colour colour);
+void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour);
 /** Draw a filled circle. */
-void circlefill(Texture* bitmap, int x, int y, int radius, Colour colour);
+void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour);
 /** Draw an outline rectangle using inclusive corner coordinates. */
-void rect(Texture* bitmap, int left, int top, int right, int bottom, Colour colour);
+void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour);
 /** Draw a filled rectangle using inclusive corner coordinates. */
-void rectfill(Texture* bitmap, int left, int top, int right, int bottom, Colour colour);
+void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour);
 /** Draw an outline ellipse. */
-void ellipse(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
+void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
 /** Draw a filled ellipse. */
-void ellipsefill(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
+void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
 /** Draw an outline triangle. */
-void triangle(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
+void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
 /** Draw a filled triangle. */
-void trianglefill(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
+void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
 
-void circle(Texture* bitmap, int x, int y, int radius, Texture* texture);
-void circlefill(Texture* bitmap, int x, int y, int radius, Texture* texture);
-void rect(Texture* bitmap, int left, int top, int right, int bottom, Texture* texture);
-void rectfill(Texture* bitmap, int left, int top, int right, int bottom, Texture* texture);
-void ellipse(Texture* bitmap, int x, int y, int radiusX, int radiusY, Texture* texture);
-void ellipsefill(Texture* bitmap, int x, int y, int radiusX, int radiusY, Texture* texture);
-void triangle(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Texture* texture);
-void trianglefill(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Texture* texture);
-void blit(Texture* source, Texture* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
+void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
 
 /** Synchronize a bitmap's RAM pixels to its GPU texture. */
-bool upload_bitmap(Texture* bitmap);
+bool upload_bitmap(Bitmap* bitmap);
 /** Synchronize a bitmap's GPU texture to RAM pixels. */
-bool download_bitmap(Texture* bitmap);
+bool download_bitmap(Bitmap* bitmap);
 /** Draw a bitmap at the supplied top-left screen position. */
-void draw_sprite(Texture* bitmap, int x, int y);
+void draw_sprite(Bitmap* bitmap, int x, int y);
 
 namespace detail {
 
@@ -104,4 +104,4 @@ void destroy_screen();
 
 } // namespace detail
 
-} // namespace rvoid::draw
+} // namespace simlib::draw

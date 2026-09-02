@@ -12,26 +12,26 @@
 #include <filesystem>
 #include <cstdio>
 
-namespace rvoid::draw {
-Texture* screen = nullptr;
+namespace simlib::draw {
+Bitmap* screen = nullptr;
 
 namespace {
 
 constexpr std::size_t bytes_per_pixel = 4;
 
-bool is_valid(const Texture* bitmap) {
+bool is_valid(const Bitmap* bitmap) {
 	return bitmap && bitmap->width > 0 && bitmap->height > 0;
 }
 
-bool is_screen(const Texture* bitmap) {
+bool is_screen(const Bitmap* bitmap) {
 	return bitmap && bitmap->kind == TextureKind::Screen;
 }
 
-std::size_t pixel_offset(const Texture& bitmap, int x, int y) {
+std::size_t pixel_offset(const Bitmap& bitmap, int x, int y) {
 	return (static_cast<std::size_t>(y) * bitmap.width + x) * bytes_per_pixel;
 }
 
-bool ensure_gpu_texture(Texture* bitmap) {
+bool ensure_gpu_texture(Bitmap* bitmap) {
 	if (!is_valid(bitmap)) {
 		return false;
 	}
@@ -53,7 +53,7 @@ bool ensure_gpu_texture(Texture* bitmap) {
 	return true;
 }
 
-bool ensure_ram_pixels(Texture* bitmap) {
+bool ensure_ram_pixels(Bitmap* bitmap) {
 	if (!is_valid(bitmap)) {
 		return false;
 	}
@@ -93,7 +93,7 @@ void restore_projection() {
 	glMatrixMode(GL_MODELVIEW);
 }
 
-void draw_textured_quad(Texture* bitmap, int sourceX, int sourceY, int width, int height, int x, int y) {
+void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, int x, int y) {
 	if (!upload_bitmap(bitmap)) {
 		return;
 	}
@@ -133,7 +133,7 @@ void begin_screen_plain(Colour colour) {
 	glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
 }
 
-bool begin_screen_texture(Texture* texture) {
+bool begin_screen_texture(Bitmap* texture) {
 	if (!texture || is_screen(texture) || !upload_bitmap(texture)) {
 		return false;
 	}
@@ -154,7 +154,7 @@ void end_screen_shape(bool textured) {
 	restore_projection();
 }
 
-void draw_line(Texture* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
+void draw_line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
 	const int deltaX = std::abs(x2 - x1);
 	const int stepX = x1 < x2 ? 1 : -1;
 	const int deltaY = -std::abs(y2 - y1);
@@ -177,7 +177,7 @@ void draw_line(Texture* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
 	}
 }
 
-void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Texture* texture, Colour colour) {
+void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Bitmap* texture, Colour colour) {
 	const int segments = std::max(16, std::min(256, std::max(radiusX, radiusY) * 2));
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
@@ -203,7 +203,7 @@ void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Te
 	end_screen_shape(textured);
 }
 
-void draw_screen_triangle(int x1, int y1, int x2, int y2, int x3, int y3, bool filled, Texture* texture, Colour colour) {
+void draw_screen_triangle(int x1, int y1, int x2, int y2, int x3, int y3, bool filled, Bitmap* texture, Colour colour) {
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
 		return;
@@ -219,7 +219,7 @@ void draw_screen_triangle(int x1, int y1, int x2, int y2, int x3, int y3, bool f
 	end_screen_shape(textured);
 }
 
-void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Texture* texture, Colour colour) {
+void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Bitmap* texture, Colour colour) {
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
 		return;
@@ -239,11 +239,11 @@ void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Tex
 
 } // namespace
 
-Texture* create_bitmap(int width, int height) {
+Bitmap* create_bitmap(int width, int height) {
 	if (width <= 0 || height <= 0) {
 		return nullptr;
 	}
-	Texture* bitmap = new Texture;
+	Bitmap* bitmap = new Bitmap;
 	bitmap->width = width;
 	bitmap->height = height;
 	bitmap->pixels.resize(static_cast<std::size_t>(width) * height * bytes_per_pixel);
@@ -251,8 +251,8 @@ Texture* create_bitmap(int width, int height) {
 	return bitmap;
 }
 
-Texture* create_video_bitmap(int width, int height) {
-	Texture* bitmap = create_bitmap(width, height);
+Bitmap* create_video_bitmap(int width, int height) {
+	Bitmap* bitmap = create_bitmap(width, height);
 	if (!bitmap || !upload_bitmap(bitmap)) {
 		destroy_bitmap(bitmap);
 		return nullptr;
@@ -263,7 +263,7 @@ Texture* create_video_bitmap(int width, int height) {
 	return bitmap;
 }
 
-Texture* load_bitmap(const std::string& path) {
+Bitmap* load_bitmap(const std::string& path) {
 	SDL_Surface* loaded = IMG_Load(path.c_str());
 	if (!loaded) {
 		return nullptr;
@@ -275,7 +275,7 @@ Texture* load_bitmap(const std::string& path) {
 		return nullptr;
 	}
 
-	Texture* bitmap = create_bitmap(rgba->w, rgba->h);
+	Bitmap* bitmap = create_bitmap(rgba->w, rgba->h);
 	if (bitmap) {
 		const std::size_t rowBytes = static_cast<std::size_t>(rgba->w) * bytes_per_pixel;
 		const auto* sourcePixels = static_cast<const Uint8*>(rgba->pixels);
@@ -287,7 +287,7 @@ Texture* load_bitmap(const std::string& path) {
 	return bitmap;
 }
 
-bool save_bitmap(Texture* bitmap, const std::string& path) {
+bool save_bitmap(Bitmap* bitmap, const std::string& path) {
 	if (!bitmap || path.empty() || !acquire_bitmap(bitmap)) {
 		return false;
 	}
@@ -343,7 +343,7 @@ bool save_bitmap(Texture* bitmap, const std::string& path) {
 	return true;
 }
 
-void destroy_bitmap(Texture* bitmap) {
+void destroy_bitmap(Bitmap* bitmap) {
 	if (!bitmap || is_screen(bitmap)) {
 		return;
 	}
@@ -354,21 +354,21 @@ void destroy_bitmap(Texture* bitmap) {
 	delete bitmap;
 }
 
-bool acquire_bitmap(Texture* bitmap) {
+bool acquire_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return download_bitmap(bitmap);
 	}
 	return ensure_ram_pixels(bitmap);
 }
 
-bool release_bitmap(Texture* bitmap) {
+bool release_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return false;
 	}
 	return upload_bitmap(bitmap);
 }
 
-void clear_to_colour(Texture* bitmap, Colour colour) {
+void clear_to_colour(Bitmap* bitmap, Colour colour) {
 	if (is_screen(bitmap)) {
 		glClearColor(
 			static_cast<float>(colour.red) / 255.0f,
@@ -389,7 +389,7 @@ void clear_to_colour(Texture* bitmap, Colour colour) {
 	}
 }
 
-void putpixel(Texture* bitmap, int x, int y, Colour colour) {
+void putpixel(Bitmap* bitmap, int x, int y, Colour colour) {
 	if (is_screen(bitmap)) {
 		if (x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
 			return;
@@ -414,7 +414,7 @@ void putpixel(Texture* bitmap, int x, int y, Colour colour) {
 	bitmap->ram_dirty = true;
 }
 
-Colour getpixel(Texture* bitmap, int x, int y) {
+Colour getpixel(Bitmap* bitmap, int x, int y) {
 	if (!ensure_ram_pixels(bitmap) || x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
 		return {};
 	}
@@ -422,7 +422,7 @@ Colour getpixel(Texture* bitmap, int x, int y) {
 	return {bitmap->pixels[offset], bitmap->pixels[offset + 1], bitmap->pixels[offset + 2], bitmap->pixels[offset + 3]};
 }
 
-void circle(Texture* bitmap, int x, int y, int radius, Colour colour) {
+void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	if (!bitmap || radius < 0) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radius, radius, false, nullptr, colour);
@@ -434,7 +434,7 @@ void circle(Texture* bitmap, int x, int y, int radius, Colour colour) {
 	}
 }
 
-void circlefill(Texture* bitmap, int x, int y, int radius, Colour colour) {
+void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	if (!bitmap || radius < 0) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radius, radius, true, nullptr, colour);
@@ -446,7 +446,7 @@ void circlefill(Texture* bitmap, int x, int y, int radius, Colour colour) {
 	}
 }
 
-void rect(Texture* bitmap, int left, int top, int right, int bottom, Colour colour) {
+void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_rect(left, top, right, bottom, false, nullptr, colour);
 		return;
@@ -457,7 +457,7 @@ void rect(Texture* bitmap, int left, int top, int right, int bottom, Colour colo
 	draw_line(bitmap, left, bottom, left, top, colour);
 }
 
-void rectfill(Texture* bitmap, int left, int top, int right, int bottom, Colour colour) {
+void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
 	if (is_screen(bitmap)) {
 		left = std::clamp(left, 0, bitmap->width);
 		right = std::clamp(right, 0, bitmap->width);
@@ -492,7 +492,7 @@ void rectfill(Texture* bitmap, int left, int top, int right, int bottom, Colour 
 	}
 }
 
-void ellipse(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
+void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
 	if (!bitmap || radiusX < 0 || radiusY < 0) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radiusX, radiusY, false, nullptr, colour);
@@ -504,7 +504,7 @@ void ellipse(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour col
 	}
 }
 
-void ellipsefill(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
+void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
 	if (!bitmap || radiusX < 0 || radiusY < 0) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radiusX, radiusY, true, nullptr, colour);
@@ -517,7 +517,7 @@ void ellipsefill(Texture* bitmap, int x, int y, int radiusX, int radiusY, Colour
 	}
 }
 
-void triangle(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
+void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour);
 		return;
@@ -527,7 +527,7 @@ void triangle(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, C
 	draw_line(bitmap, x3, y3, x1, y1, colour);
 }
 
-void trianglefill(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
+void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, nullptr, colour);
 		return;
@@ -546,16 +546,16 @@ void trianglefill(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y
 	}
 }
 
-void circle(Texture* bitmap, int x, int y, int radius, Texture* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
-void circlefill(Texture* bitmap, int x, int y, int radius, Texture* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
-void rect(Texture* bitmap, int left, int top, int right, int bottom, Texture* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
-void rectfill(Texture* bitmap, int left, int top, int right, int bottom, Texture* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, true, texture, {}); }
-void ellipse(Texture* bitmap, int x, int y, int radiusX, int radiusY, Texture* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}); }
-void ellipsefill(Texture* bitmap, int x, int y, int radiusX, int radiusY, Texture* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {}); }
-void triangle(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Texture* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}); }
-void trianglefill(Texture* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Texture* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {}); }
+void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
+void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
+void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
+void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, true, texture, {}); }
+void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}); }
+void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {}); }
+void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}); }
+void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {}); }
 
-void blit(Texture* source, Texture* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
+void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
 	if (is_screen(destination)) {
 		if (!source || is_screen(source)) {
 			return;
@@ -588,7 +588,7 @@ void blit(Texture* source, Texture* destination, int sourceX, int sourceY, int d
 	destination->ram_dirty = true;
 }
 
-bool upload_bitmap(Texture* bitmap) {
+bool upload_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return false;
 	}
@@ -606,7 +606,7 @@ bool upload_bitmap(Texture* bitmap) {
 	return true;
 }
 
-bool download_bitmap(Texture* bitmap) {
+bool download_bitmap(Bitmap* bitmap) {
 	if (!is_valid(bitmap)) {
 		return false;
 	}
@@ -633,7 +633,7 @@ bool download_bitmap(Texture* bitmap) {
 	return true;
 }
 
-void draw_sprite(Texture* bitmap, int x, int y) {
+void draw_sprite(Bitmap* bitmap, int x, int y) {
 	if (!bitmap || is_screen(bitmap) || display::screen_width() <= 0 || display::screen_height() <= 0) {
 		return;
 	}
@@ -644,7 +644,7 @@ namespace detail {
 
 void initialise_screen(int width, int height) {
 	destroy_screen();
-	screen = new Texture;
+	screen = new Bitmap;
 	screen->width = width;
 	screen->height = height;
 	screen->kind = TextureKind::Screen;
@@ -668,4 +668,4 @@ void destroy_screen() {
 
 } // namespace detail
 
-} // namespace rvoid::draw
+} // namespace simlib::draw

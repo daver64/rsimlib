@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <string>
 
-namespace rvoid::draw {
-struct Texture;
+namespace simlib::draw {
+struct Bitmap;
 }
 
-namespace rvoid::graphics_fx {
+namespace simlib::graphics_fx {
 
 /** Owns and applies an OpenGL shader program. */
 class Shader {
@@ -61,7 +61,7 @@ public:
     void set_threshold(float threshold);
     void set_intensity(float intensity);
     void set_radius(float radius);
-    void apply(draw::Texture* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+    void apply(draw::Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
 private:
     Shader shader_;
@@ -70,4 +70,4 @@ private:
     float radius_ = 1.5f;
 };
 
-} // namespace rvoid::graphics_fx
+} // namespace simlib::graphics_fx

@@ -11,7 +11,7 @@ struct TextTexture {
     int height = 0;
 };
 
-std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const rvoid::draw::Colour& colour) {
+std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const simlib::draw::Colour& colour) {
     const SDL_Color sdlColor{colour.red, colour.green, colour.blue, colour.alpha};
     SDL_Surface* rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
     if (!rendered) {
@@ -99,7 +99,7 @@ void draw_text_texture(const TextTexture& texture, int x, int y, int windowWidth
     glMatrixMode(GL_MODELVIEW);
 }
 
-void fill_rect(int x, int y, int width, int height, int windowWidth, int windowHeight, const rvoid::draw::Colour& colour) {
+void fill_rect(int x, int y, int width, int height, int windowWidth, int windowHeight, const simlib::draw::Colour& colour) {
     if (width <= 0 || height <= 0) {
         return;
     }
@@ -196,8 +196,8 @@ void gl_printf(
     TTF_Font* font,
     int x,
     int y,
-    const rvoid::draw::Colour& foreground,
-    const rvoid::draw::Colour& background,
+    const simlib::draw::Colour& foreground,
+    const simlib::draw::Colour& background,
     int windowWidth,
     int windowHeight,
     const std::string& text

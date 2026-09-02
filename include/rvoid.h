@@ -10,11 +10,11 @@
  * text rendering, shader effects, and SDL_mixer audio helpers.
  *
  * A typical application initializes the display with
- * rvoid::display::set_gfx_mode(), processes SDL events, renders through
- * rvoid::draw, and calls rvoid::display::shutdown() during cleanup.
+ * simlib::display::set_gfx_mode(), processes SDL events, renders through
+ * simlib::draw, and calls simlib::display::shutdown() during cleanup.
  */
-namespace rvoid {
+namespace simlib {
 
-} // namespace rvoid
+} // namespace simlib
 
 

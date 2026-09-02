@@ -5,10 +5,10 @@
 
 #include <mutex>
 
-namespace rvoid::audio_detail {
+namespace simlib::audio_detail {
 
 bool acquire_mixer();
 void release_mixer();
 std::mutex& mixer_mutex();
 
-} // namespace rvoid::audio_detail
+} // namespace simlib::audio_detail

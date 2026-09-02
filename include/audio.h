@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace rvoid {
+namespace simlib {
 
 namespace audio_fx {
 
@@ -64,4 +64,4 @@ void set_volume(int volume);
 
 } // namespace music
 
-} // namespace rvoid
+} // namespace simlib

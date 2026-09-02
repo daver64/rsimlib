@@ -12,7 +12,7 @@ namespace {
 class AudioFxTest {
 public:
     void initialize() {
-        if (!rvoid::audio_fx::init()) {
+        if (!simlib::audio_fx::init()) {
             std::cerr << "Failed to initialize audio effects.\n";
             return;
         }
@@ -25,7 +25,7 @@ public:
         }
         if (error || files_.empty()) {
             std::cerr << "No WAV files found in assets/sfx.\n";
-            rvoid::audio_fx::shutdown();
+            simlib::audio_fx::shutdown();
         }
     }
 
@@ -36,78 +36,78 @@ public:
 
         std::uniform_int_distribution<std::size_t> fileIndex(0, files_.size() - 1);
         const std::string& path = files_[fileIndex(engine_)];
-        rvoid::audio_fx::Sample* sample = rvoid::audio_fx::load_sample(path);
+        simlib::audio_fx::Sample* sample = simlib::audio_fx::load_sample(path);
         if (!sample) {
             std::cerr << "Failed to load sample: " << path << '\n';
             return;
         }
 
-        rvoid::audio_fx::play_sample(sample);
+        simlib::audio_fx::play_sample(sample);
         samples_.push_back(sample);
         if (samples_.size() > max_retained_samples) {
-            rvoid::audio_fx::stop_sample(samples_.front());
-            rvoid::audio_fx::destroy_sample(samples_.front());
+            simlib::audio_fx::stop_sample(samples_.front());
+            simlib::audio_fx::destroy_sample(samples_.front());
             samples_.erase(samples_.begin());
         }
     }
     void stop() {
-        for (rvoid::audio_fx::Sample* sample : samples_) {
-            rvoid::audio_fx::stop_sample(sample);
+        for (simlib::audio_fx::Sample* sample : samples_) {
+            simlib::audio_fx::stop_sample(sample);
         }
     }
     void shutdown() {
-        for (rvoid::audio_fx::Sample* sample : samples_) {
-            rvoid::audio_fx::stop_sample(sample);
-            rvoid::audio_fx::destroy_sample(sample);
+        for (simlib::audio_fx::Sample* sample : samples_) {
+            simlib::audio_fx::stop_sample(sample);
+            simlib::audio_fx::destroy_sample(sample);
         }
         samples_.clear();
-        rvoid::audio_fx::shutdown();
+        simlib::audio_fx::shutdown();
     }
 
 private:
     static constexpr std::size_t max_retained_samples = 16;
 
     std::vector<std::string> files_;
-    std::vector<rvoid::audio_fx::Sample*> samples_;
+    std::vector<simlib::audio_fx::Sample*> samples_;
     std::mt19937 engine_{std::random_device{}()};
 };
 
 class MusicTest {
 public:
     void initialize() {
-        if (!rvoid::music::init()) {
+        if (!simlib::music::init()) {
             std::cerr << "Failed to initialize music playback.\n";
             return;
         }
 
-        track_ = rvoid::music::load_midi("assets/music/Solar Serenity.ogg");
+        track_ = simlib::music::load_midi("assets/music/Solar Serenity.ogg");
         if (!track_) {
             std::cerr << "Failed to load music: assets/music/Solar Serenity.ogg\n";
-            rvoid::music::shutdown();
+            simlib::music::shutdown();
         }
     }
 
     void play() {
         if (track_) {
-            rvoid::music::play_midi(track_, 0);
+            simlib::music::play_midi(track_, 0);
         }
     }
     void stop() {
         if (track_) {
-            rvoid::music::stop_midi();
+            simlib::music::stop_midi();
         }
     }
     void shutdown() {
         if (track_) {
-            rvoid::music::stop_midi();
-            rvoid::music::destroy_midi(track_);
+            simlib::music::stop_midi();
+            simlib::music::destroy_midi(track_);
             track_ = nullptr;
         }
-        rvoid::music::shutdown();
+        simlib::music::shutdown();
     }
 
 private:
-    rvoid::music::Track* track_ = nullptr;
+    simlib::music::Track* track_ = nullptr;
 };
 
 AudioFxTest audio_fx_test;

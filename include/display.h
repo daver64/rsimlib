@@ -3,7 +3,7 @@
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_stdinc.h>
 
-namespace rvoid::display {
+namespace simlib::display {
 
 /** Select the windowed auto-detected graphics driver. */
 constexpr int GFX_AUTODETECT_WINDOWED = 1;
@@ -25,4 +25,4 @@ void show_video_bitmap();
 /** Release the OpenGL context, window, and SDL video state. */
 void shutdown();
 
-} // namespace rvoid::display
+} // namespace simlib::display

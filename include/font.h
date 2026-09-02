@@ -19,8 +19,8 @@ void gl_printf(
     TTF_Font* font,
     int x,
     int y,
-    const rvoid::draw::Colour& foreground,
-    const rvoid::draw::Colour& background,
+    const simlib::draw::Colour& foreground,
+    const simlib::draw::Colour& background,
     int windowWidth,
     int windowHeight,
     const std::string& text

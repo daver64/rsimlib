@@ -12,7 +12,7 @@
 #include <thread>
 #include <type_traits>
 
-namespace rvoid::music {
+namespace simlib::music {
 
 struct Track {
 	Mix_Music* music = nullptr;
@@ -188,4 +188,4 @@ void set_volume(int volume) {
 	});
 }
 
-} // namespace rvoid::music
+} // namespace simlib::music

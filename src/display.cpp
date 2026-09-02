@@ -5,7 +5,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 
-namespace rvoid::display {
+namespace simlib::display {
 namespace {
 
 SDL_Window* window = nullptr;
@@ -104,4 +104,4 @@ void shutdown() {
     SDL_Quit();
 }
 
-} // namespace rvoid::display
+} // namespace simlib::display

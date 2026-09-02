@@ -1,6 +1,6 @@
 #include "audio_backend.h"
 
-namespace rvoid::audio_detail {
+namespace simlib::audio_detail {
 namespace {
 
 std::mutex backend_mutex;
@@ -57,4 +57,4 @@ std::mutex& mixer_mutex() {
     return mixer_call_mutex;
 }
 
-} // namespace rvoid::audio_detail
+} // namespace simlib::audio_detail

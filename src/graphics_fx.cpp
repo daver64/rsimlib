@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace rvoid::graphics_fx {
+namespace simlib::graphics_fx {
 namespace {
 
 constexpr const char* fullscreen_vertex_source = R"(
@@ -278,7 +278,7 @@ void Bloom::set_radius(float radius) {
 	radius_ = std::max(radius, 0.0f);
 }
 
-void Bloom::apply(draw::Texture* source, int x, int y, int width, int height) const {
+void Bloom::apply(draw::Bitmap* source, int x, int y, int width, int height) const {
 	if (!source || !shader_.is_valid() || !draw::upload_bitmap(source)) {
 		return;
 	}
@@ -315,4 +315,4 @@ void Bloom::apply(draw::Texture* source, int x, int y, int width, int height) co
 	Shader::stop();
 }
 
-} // namespace rvoid::graphics_fx
+} // namespace simlib::graphics_fx

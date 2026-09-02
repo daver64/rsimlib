@@ -1,7 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-#include "audio_test.h"
+#include "audio.h"
 #include "display.h"
 #include "draw.h"
 #include "font.h"
@@ -10,12 +10,12 @@
 #include <iostream>
 
 int main(int argc, char* argv[]) {
-    if (!rvoid::display::set_gfx_mode(rvoid::display::GFX_AUTODETECT_WINDOWED, 800, 600)) {
+    if (!simlib::display::set_gfx_mode(simlib::display::GFX_AUTODETECT_WINDOWED, 800, 600)) {
         return -1;
     }
 
     if (TTF_Init() != 0) {
-        rvoid::display::shutdown();
+        simlib::display::shutdown();
         return -1;
     }
 
@@ -27,6 +27,9 @@ int main(int argc, char* argv[]) {
 
     //audio_test::initialize();
     //graphics_fx_test::initialise();
+    simlib::audio_fx::init();
+    simlib::audio_fx::Sample *sample=simlib::audio_fx::load_sample("assets/sfx/100.wav");
+    simlib::audio_fx::play_sample(sample);
 
     // Main loop
     bool running = true;
@@ -40,22 +43,22 @@ int main(int argc, char* argv[]) {
                 running = false;
             }
             //audio_test::handle_event(event);
-            rvoid::display::handle_event(event);
+            simlib::display::handle_event(event);
         }
 
-        rvoid::draw::clear_to_colour(rvoid::draw::screen, rvoid::draw::Colour{45, 48, 56});
+        simlib::draw::clear_to_colour(simlib::draw::screen, simlib::draw::Colour{45, 48, 56});
         //graphics_fx_test::render();
-        rvoid::display::show_video_bitmap();
+        simlib::display::show_video_bitmap();
     }
 
     // Clean up
     if (font) {
         TTF_CloseFont(font);
     }
-    audio_test::shutdown();
-    graphics_fx_test::shutdown();
+    //audio_test::shutdown();
+    //graphics_fx_test::shutdown();
     TTF_Quit();
-    rvoid::display::shutdown();
-
+    simlib::display::shutdown();
+    simlib::audio_fx::shutdown();
     return 0;
 }

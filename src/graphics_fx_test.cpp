@@ -7,11 +7,11 @@
 
 namespace {
 
-rvoid::draw::Texture* scene = nullptr;
-rvoid::graphics_fx::Bloom bloom;
+simlib::draw::Bitmap* scene = nullptr;
+simlib::graphics_fx::Bloom bloom;
 
 void draw_scene() {
-	using namespace rvoid::draw;
+	using namespace simlib::draw;
 
 	clear_to_colour(scene, {8, 10, 20});
 
@@ -41,7 +41,7 @@ void draw_scene() {
 namespace graphics_fx_test {
 
 void initialise() {
-	scene = rvoid::draw::create_video_bitmap(800, 600);
+	scene = simlib::draw::create_video_bitmap(800, 600);
 	if (!scene) {
 		return;
 	}
@@ -63,12 +63,12 @@ void render() {
 	if (bloom.is_valid()) {
 		bloom.apply(scene);
 	} else {
-		rvoid::draw::draw_sprite(scene, 0, 0);
+		simlib::draw::draw_sprite(scene, 0, 0);
 	}
 }
 
 void shutdown() {
-	rvoid::draw::destroy_bitmap(scene);
+	simlib::draw::destroy_bitmap(scene);
 	scene = nullptr;
 	bloom.shutdown();
 }

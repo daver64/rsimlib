@@ -4,11 +4,11 @@
 
 namespace {
 
-rvoid::draw::Texture* checker_texture = nullptr;
-rvoid::draw::Texture* ram_bitmap = nullptr;
+simlib::draw::Bitmap* checker_texture = nullptr;
+simlib::draw::Bitmap* ram_bitmap = nullptr;
 
 void build_checker_texture() {
-	checker_texture = rvoid::draw::create_bitmap(32, 32);
+	checker_texture = simlib::draw::create_bitmap(32, 32);
 	if (!checker_texture) {
 		return;
 	}
@@ -16,27 +16,27 @@ void build_checker_texture() {
 	for (int y = 0; y < checker_texture->height; ++y) {
 		for (int x = 0; x < checker_texture->width; ++x) {
 			const bool light = ((x / 8) + (y / 8)) % 2 == 0;
-			rvoid::draw::putpixel(
+			simlib::draw::putpixel(
 				checker_texture,
 				x,
 				y,
-				light ? rvoid::draw::Colour{245, 201, 81} : rvoid::draw::Colour{35, 128, 180}
+				light ? simlib::draw::Colour{245, 201, 81} : simlib::draw::Colour{35, 128, 180}
 			);
 		}
 	}
 }
 
 void build_ram_bitmap() {
-	ram_bitmap = rvoid::draw::create_bitmap(130, 110);
+	ram_bitmap = simlib::draw::create_bitmap(130, 110);
 	if (!ram_bitmap) {
 		return;
 	}
 
-	rvoid::draw::clear_to_colour(ram_bitmap, {31, 42, 56});
-	rvoid::draw::rect(ram_bitmap, 2, 2, 127, 107, {235, 235, 235});
-	rvoid::draw::circlefill(ram_bitmap, 35, 36, 22, {226, 92, 80});
-	rvoid::draw::ellipsefill(ram_bitmap, 94, 37, 28, 16, {77, 182, 112});
-	rvoid::draw::trianglefill(ram_bitmap, 20, 94, 65, 56, 110, 94, {104, 125, 219});
+	simlib::draw::clear_to_colour(ram_bitmap, {31, 42, 56});
+	simlib::draw::rect(ram_bitmap, 2, 2, 127, 107, {235, 235, 235});
+	simlib::draw::circlefill(ram_bitmap, 35, 36, 22, {226, 92, 80});
+	simlib::draw::ellipsefill(ram_bitmap, 94, 37, 28, 16, {77, 182, 112});
+	simlib::draw::trianglefill(ram_bitmap, 20, 94, 65, 56, 110, 94, {104, 125, 219});
 }
 
 } // namespace
@@ -49,7 +49,7 @@ void initialise() {
 }
 
 void render() {
-	using namespace rvoid::draw;
+	using namespace simlib::draw;
 
 	if (!screen) {
 		return;
@@ -81,9 +81,9 @@ void render() {
 }
 
 void shutdown() {
-	rvoid::draw::destroy_bitmap(ram_bitmap);
+	simlib::draw::destroy_bitmap(ram_bitmap);
 	ram_bitmap = nullptr;
-	rvoid::draw::destroy_bitmap(checker_texture);
+	simlib::draw::destroy_bitmap(checker_texture);
 	checker_texture = nullptr;
 }
 
