@@ -81,13 +81,21 @@ void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3
 /** Draw a line between two points. */
 void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour);
 
+/** Draw a textured circle outline on the screen bitmap. */
 void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+/** Draw a textured filled circle on the screen bitmap. */
 void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+/** Draw a textured rectangle outline on the screen bitmap. */
 void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+/** Draw a textured filled rectangle on the screen bitmap. */
 void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+/** Draw a textured ellipse outline on the screen bitmap. */
 void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+/** Draw a textured filled ellipse on the screen bitmap. */
 void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+/** Draw a textured triangle outline on the screen bitmap. */
 void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+/** Draw a textured filled triangle on the screen bitmap. */
 void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
 /** Copy pixels while treating fully transparent source pixels as transparent. */
 void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
@@ -95,6 +103,7 @@ void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, 
 void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight);
 /** Create a bitmap containing a copied rectangular region. */
 Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height);
+/** Copy a rectangular bitmap region without scaling. */
 void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
 
 /** Synchronize a bitmap's RAM pixels to its GPU texture. */
@@ -110,8 +119,11 @@ void draw_sprite_v_flip(Bitmap* bitmap, int x, int y);
 
 namespace detail {
 
+/** Create the display-owned screen bitmap. */
 void initialise_screen(int width, int height);
+/** Resize the display-owned screen bitmap. */
 void resize_screen(int width, int height);
+/** Destroy the display-owned screen bitmap. */
 void destroy_screen();
 
 } // namespace detail

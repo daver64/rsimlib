@@ -10,6 +10,7 @@ bool owns_audio_subsystem = false;
 
 } // namespace
 
+/** Acquire and initialize the process-wide SDL_mixer instance. */
 bool acquire_mixer() {
     std::lock_guard<std::mutex> lock(backend_mutex);
     if (client_count++ != 0) {
@@ -37,6 +38,7 @@ bool acquire_mixer() {
     return true;
 }
 
+/** Release one reference to the process-wide SDL_mixer instance. */
 void release_mixer() {
     std::lock_guard<std::mutex> lock(backend_mutex);
     if (client_count == 0 || --client_count != 0) {
@@ -53,6 +55,7 @@ void release_mixer() {
     }
 }
 
+/** Return the mutex protecting the shared mixer. */
 std::mutex& mixer_mutex() {
     return mixer_call_mutex;
 }

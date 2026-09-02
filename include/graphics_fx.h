@@ -58,9 +58,13 @@ public:
     /** Return the most recent initialization error. */
     const std::string& error() const;
 
+    /** Set the luminance threshold that contributes to bloom. */
     void set_threshold(float threshold);
+    /** Set the bloom brightness multiplier. */
     void set_intensity(float intensity);
+    /** Set the bloom blur radius. */
     void set_radius(float radius);
+    /** Apply bloom to a bitmap region. */
     void apply(draw::Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
 private:

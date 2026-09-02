@@ -15,14 +15,17 @@
 
 namespace simlib::music {
 
+/** Owns the SDL_mixer music object for one stream. */
 struct Stream {
 	Mix_Music* music = nullptr;
 };
 
 namespace {
 
+/** Serializes SDL_mixer music operations on a worker thread. */
 class MusicWorker {
 public:
+	/** Start the worker and acquire the shared mixer. */
 	bool start() {
 		std::lock_guard<std::mutex> lock(mutex_);
 		if (thread_.joinable()) {
@@ -36,6 +39,7 @@ public:
 		return true;
 	}
 
+	/** Stop the worker after draining queued commands. */
 	void stop() {
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -49,6 +53,7 @@ public:
 		audio_detail::release_mixer();
 	}
 
+	/** Run a command synchronously on the worker thread. */
 	template <typename Function>
 	auto call(Function&& function) -> decltype(function()) {
 		using Result = decltype(function());
@@ -65,6 +70,7 @@ public:
 		return future.get();
 	}
 
+	/** Queue a command for asynchronous execution. */
 	void enqueue(std::function<void()> command) {
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -74,6 +80,7 @@ public:
 	}
 
 private:
+	/** Process queued commands until shutdown is requested. */
 	void run() {
 		for (;;) {
 			std::function<void()> command;
@@ -100,7 +107,8 @@ private:
 MusicWorker worker;
 int master_volume = 255;
 
-int mixer_volume(int volume) {
+	/** Convert the public 0-255 volume range to SDL_mixer's range. */
+	int mixer_volume(int volume) {
 	return std::clamp(volume, 0, 255) * MIX_MAX_VOLUME / 255;
 }
 

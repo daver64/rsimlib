@@ -18,14 +18,17 @@
 
 namespace simlib::audio_fx {
 
+/** Owns the SDL_mixer chunk backing one sound effect. */
 struct Sample {
 	Mix_Chunk* chunk = nullptr;
 };
 
 namespace {
 
+/** Serializes SDL_mixer sound-effect operations on a worker thread. */
 class FxWorker {
 public:
+	/** Start the worker and acquire the shared mixer. */
 	bool start() {
 		std::lock_guard<std::mutex> lock(mutex_);
 		if (thread_.joinable()) {
@@ -39,6 +42,7 @@ public:
 		return true;
 	}
 
+	/** Stop the worker after draining queued commands. */
 	void stop() {
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -52,6 +56,7 @@ public:
 		audio_detail::release_mixer();
 	}
 
+	/** Run a command synchronously on the worker thread. */
 	template <typename Function>
 	auto call(Function&& function) -> decltype(function()) {
 		using Result = decltype(function());
@@ -68,6 +73,7 @@ public:
 		return future.get();
 	}
 
+	/** Queue a command for asynchronous execution. */
 	void enqueue(std::function<void()> command) {
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -77,6 +83,7 @@ public:
 	}
 
 private:
+	/** Process queued commands until shutdown is requested. */
 	void run() {
 		for (;;) {
 			std::function<void()> command;
@@ -105,11 +112,13 @@ std::atomic<std::uint64_t> next_voice{1};
 std::unordered_map<std::uint64_t, int> voices;
 int master_volume = 255;
 
-int mixer_volume(int volume) {
+	/** Convert the public 0-255 volume range to SDL_mixer's range. */
+	int mixer_volume(int volume) {
 	return std::clamp(volume, 0, 255) * MIX_MAX_VOLUME / 255;
 }
 
-void apply_pan(int channel, int pan) {
+	/** Apply the public 0-255 pan range to one mixer channel. */
+	void apply_pan(int channel, int pan) {
 	pan = std::clamp(pan, 0, 255);
 	const Uint8 left = static_cast<Uint8>(pan <= 128 ? 255 : 255 - ((pan - 128) * 255 / 127));
 	const Uint8 right = static_cast<Uint8>(pan >= 128 ? 255 : pan * 255 / 128);

@@ -10,6 +10,7 @@ namespace {
 simlib::draw::Bitmap* scene = nullptr;
 simlib::graphics_fx::Bloom bloom;
 
+/** Build the shader-effect test scene. */
 void draw_scene() {
 	using namespace simlib::draw;
 

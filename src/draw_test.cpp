@@ -7,6 +7,7 @@ namespace {
 simlib::draw::Bitmap* checker_texture = nullptr;
 simlib::draw::Bitmap* ram_bitmap = nullptr;
 
+/** Build the textured primitive test image. */
 void build_checker_texture() {
 	checker_texture = simlib::draw::create_bitmap(32, 32);
 	if (!checker_texture) {
@@ -26,6 +27,7 @@ void build_checker_texture() {
 	}
 }
 
+/** Build the RAM bitmap primitive test image. */
 void build_ram_bitmap() {
 	ram_bitmap = simlib::draw::create_bitmap(130, 110);
 	if (!ram_bitmap) {

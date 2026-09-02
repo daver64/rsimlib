@@ -1,12 +1,11 @@
-
 #pragma once
 
 #include <cstdint>
 #include <string>
 
-/** @mainpage rvoid
+/** @mainpage simlib
  *
- * rvoid provides a small SDL2/OpenGL rendering layer with bitmap primitives,
+ * simlib provides a small SDL2/OpenGL rendering layer with bitmap primitives,
  * text rendering, shader effects, and SDL_mixer audio helpers.
  *
  * A typical application initializes the display with
@@ -16,5 +15,3 @@
 namespace simlib {
 
 } // namespace simlib
-
-

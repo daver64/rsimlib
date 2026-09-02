@@ -9,6 +9,7 @@
 
 #include <iostream>
 
+/** Initialize subsystems and run the SDL event/render loop. */
 int main(int argc, char* argv[]) {
     if (!simlib::display::set_gfx_mode(simlib::display::GFX_AUTODETECT_WINDOWED, 800, 600)) {
         return -1;

@@ -9,7 +9,7 @@ namespace audio_fx {
 
 struct Sample;
 
-/** Volume and pan match Allegro 4's 0-255 convention. */
+/** Sound effects use Allegro 4's 0-255 volume and pan conventions. */
 /** Initialize the sound effects mixer. */
 bool init();
 /** Shut down sound effects and release mixer resources. */

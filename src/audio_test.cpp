@@ -9,8 +9,10 @@
 
 namespace {
 
+/** Interactive sound-effect test harness. */
 class AudioFxTest {
 public:
+    /** Initialize audio effects and discover test samples. */
     void initialize() {
         if (!simlib::audio_fx::init()) {
             std::cerr << "Failed to initialize audio effects.\n";
@@ -29,6 +31,7 @@ public:
         }
     }
 
+    /** Play one randomly selected test sample. */
     void play_random() {
         if (files_.empty()) {
             return;
@@ -50,11 +53,13 @@ public:
             samples_.erase(samples_.begin());
         }
     }
+    /** Stop all samples retained by the test harness. */
     void stop() {
         for (simlib::audio_fx::Sample* sample : samples_) {
             simlib::audio_fx::stop_sample(sample);
         }
     }
+    /** Release all samples and shut down audio effects. */
     void shutdown() {
         for (simlib::audio_fx::Sample* sample : samples_) {
             simlib::audio_fx::stop_sample(sample);
@@ -72,8 +77,10 @@ private:
     std::mt19937 engine_{std::random_device{}()};
 };
 
+/** Interactive music-stream test harness. */
 class MusicTest {
 public:
+    /** Initialize music playback and load the test stream. */
     void initialize() {
         if (!simlib::music::init()) {
             std::cerr << "Failed to initialize music playback.\n";
@@ -87,16 +94,19 @@ public:
         }
     }
 
+    /** Start the loaded test stream. */
     void play() {
         if (track_) {
             simlib::music::play_stream(track_, 0);
         }
     }
+    /** Stop the test stream. */
     void stop() {
         if (track_) {
             simlib::music::stop_stream();
         }
     }
+    /** Release the test stream and shut down music playback. */
     void shutdown() {
         if (track_) {
             simlib::music::stop_stream();

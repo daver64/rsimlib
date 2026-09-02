@@ -1,4 +1,4 @@
-PROJECT_NAME           = rvoid
+PROJECT_NAME           = simlib
 PROJECT_BRIEF          = A small SDL2 and OpenGL graphics and audio library
 OUTPUT_DIRECTORY       = .
 CREATE_SUBDIRS         = NO

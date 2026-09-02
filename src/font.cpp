@@ -10,12 +10,14 @@
 #include <cstdarg>
 #include <cstdio>
 
+/** Temporary OpenGL texture used to draw one rendered text string. */
 struct TextTexture {
     GLuint id = 0;
     int width = 0;
     int height = 0;
 };
 
+/** Convert a UTF-8 string into a temporary GPU text texture. */
 std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const simlib::draw::Colour& colour) {
     const SDL_Color sdlColor{colour.red, colour.green, colour.blue, colour.alpha};
     SDL_Surface* rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
@@ -56,6 +58,7 @@ std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string&
     return texture;
 }
 
+/** Release a temporary text texture. */
 void destroy_text_texture(TextTexture& texture) {
     if (texture.id != 0) {
         glDeleteTextures(1, &texture.id);
@@ -63,6 +66,7 @@ void destroy_text_texture(TextTexture& texture) {
     }
 }
 
+/** Draw a temporary text texture in screen coordinates. */
 void draw_text_texture(const TextTexture& texture, int x, int y, int windowWidth, int windowHeight) {
     if (texture.id == 0) {
         return;
@@ -104,6 +108,7 @@ void draw_text_texture(const TextTexture& texture, int x, int y, int windowWidth
     glMatrixMode(GL_MODELVIEW);
 }
 
+/** Draw a solid rectangle behind rendered text. */
 void fill_rect(int x, int y, int width, int height, int windowWidth, int windowHeight, const simlib::draw::Colour& colour) {
     if (width <= 0 || height <= 0) {
         return;

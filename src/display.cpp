@@ -31,7 +31,7 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     }
 
     window = SDL_CreateWindow(
-        "rvoid",
+        "simlib",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         requestedWidth,
