@@ -1,0 +1,31 @@
+PROJECT_NAME           = rvoid
+PROJECT_BRIEF          = A small SDL2 and OpenGL graphics and audio library
+OUTPUT_DIRECTORY       = .
+CREATE_SUBDIRS         = NO
+
+INPUT                  = include src
+FILE_PATTERNS          = *.h *.cpp
+RECURSIVE              = NO
+EXCLUDE                = build assets
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+FULL_PATH_NAMES        = NO
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+
+HAVE_DOT               = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+UML_LOOK               = NO
+
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+QUIET                  = NO

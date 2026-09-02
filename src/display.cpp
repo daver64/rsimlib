@@ -1,0 +1,107 @@
+#include "display.h"
+
+#include "draw.h"
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
+
+namespace rvoid::display {
+namespace {
+
+SDL_Window* window = nullptr;
+SDL_GLContext context = nullptr;
+int width = 0;
+int height = 0;
+
+} // namespace
+
+bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtualWidth, int virtualHeight) {
+    (void)virtualWidth;
+    (void)virtualHeight;
+    if (driver != GFX_AUTODETECT_WINDOWED || requestedWidth <= 0 || requestedHeight <= 0) {
+        return false;
+    }
+
+    shutdown();
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        return false;
+    }
+
+    window = SDL_CreateWindow(
+        "rvoid",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        requestedWidth,
+        requestedHeight,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+    );
+    if (!window) {
+        SDL_Quit();
+        return false;
+    }
+
+    context = SDL_GL_CreateContext(window);
+    if (!context) {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+        SDL_Quit();
+        return false;
+    }
+
+    SDL_GetWindowSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+    draw::detail::initialise_screen(width, height);
+    return true;
+}
+
+void handle_event(const SDL_Event& event) {
+    if (event.type != SDL_WINDOWEVENT || event.window.event != SDL_WINDOWEVENT_SIZE_CHANGED) {
+        return;
+    }
+
+    width = event.window.data1;
+    height = event.window.data2;
+    glViewport(0, 0, width, height);
+    draw::detail::resize_screen(width, height);
+}
+
+int screen_width() {
+    return width;
+}
+
+int screen_height() {
+    return height;
+}
+
+void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha) {
+    glClearColor(
+        static_cast<float>(red) / 255.0f,
+        static_cast<float>(green) / 255.0f,
+        static_cast<float>(blue) / 255.0f,
+        static_cast<float>(alpha) / 255.0f
+    );
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void show_video_bitmap() {
+    if (window) {
+        SDL_GL_SwapWindow(window);
+    }
+}
+
+void shutdown() {
+    draw::detail::destroy_screen();
+    if (context) {
+        SDL_GL_DeleteContext(context);
+        context = nullptr;
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+    }
+    width = 0;
+    height = 0;
+    SDL_Quit();
+}
+
+} // namespace rvoid::display
