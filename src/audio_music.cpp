@@ -3,6 +3,7 @@
 
 #include "audio_backend.h"
 #include "error.h"
+#include "resource.h"
 
 #include <algorithm>
 #include <condition_variable>
@@ -134,6 +135,23 @@ Stream* load_stream(const std::string& path) {
 		if (!music) simlib::detail::set_error(Mix_GetError());
 		return music ? new Stream{music} : nullptr;
 	});
+}
+
+Stream* load_stream_from_memory(const std::uint8_t* data, std::size_t size) {
+	if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init()) return nullptr;
+	std::vector<std::uint8_t> bytes(data, data + size);
+	return worker.call([bytes = std::move(bytes)] {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
+		Mix_Music* music = rw ? Mix_LoadMUS_RW(rw, 1) : nullptr;
+		if (!music) simlib::detail::set_error(Mix_GetError());
+		return music ? new Stream{music} : nullptr;
+	});
+}
+
+Stream* load_stream(const simlib::data::Archive& archive, const std::string& name) {
+	const auto bytes = archive.read(name);
+	return load_stream_from_memory(bytes.data(), bytes.size());
 }
 
 void destroy_stream(Stream* stream) {

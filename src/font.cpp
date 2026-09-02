@@ -2,6 +2,7 @@
 
 #include "display.h"
 #include "error.h"
+#include "resource.h"
 
 #include <SDL2/SDL_opengl.h>
 
@@ -206,6 +207,19 @@ TTF_Font* open_font(const std::string& path, int pointSize) {
     TTF_Font* font = TTF_OpenFont(path.c_str(), pointSize);
     if (!font) simlib::detail::set_error(TTF_GetError());
     return font;
+}
+
+TTF_Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int pointSize) {
+    if (!data || size == 0 || size > std::numeric_limits<int>::max()) return nullptr;
+    SDL_RWops* rw = SDL_RWFromConstMem(data, static_cast<int>(size));
+    TTF_Font* font = rw ? TTF_OpenFontRW(rw, 1, pointSize) : nullptr;
+    if (!font) simlib::detail::set_error(TTF_GetError());
+    return font;
+}
+
+TTF_Font* open_font(const simlib::data::Archive& archive, const std::string& name, int pointSize) {
+    const auto bytes = archive.read(name);
+    return open_font_from_memory(bytes.data(), bytes.size(), pointSize);
 }
 
 int text_length(TTF_Font* font, const std::string& text) {

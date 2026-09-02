@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(simlib LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -36,7 +38,41 @@ add_executable(sltest
     src/system.cpp
     src/input.cpp
     src/error.cpp
+    src/resource.cpp
 )
+
+add_executable(slpack src/slpack.cpp)
+target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
+set_target_properties(slpack PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+if(BUILD_TESTING)
+    add_executable(resource_test
+        src/resource_test.cpp
+        src/resource.cpp
+        src/error.cpp
+    )
+    target_include_directories(resource_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(resource_test PRIVATE ZLIB::ZLIB)
+
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/stored.txt "stored entry\n")
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/deflated.txt "deflated entry with enough repeated text to exercise compression\n")
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip
+        COMMAND ${CMAKE_COMMAND} -E tar cf ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip
+                --format=zip stored.txt deflated.txt
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture
+        DEPENDS
+            ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/stored.txt
+            ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/deflated.txt
+        VERBATIM
+    )
+    add_custom_target(resource_test_fixture DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip)
+    add_dependencies(resource_test resource_test_fixture)
+    add_test(NAME resource_archive COMMAND resource_test ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip)
+endif()
 
 target_include_directories(sltest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

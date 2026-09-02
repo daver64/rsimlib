@@ -3,6 +3,7 @@
 
 #include "audio_backend.h"
 #include "error.h"
+#include "resource.h"
 
 #include <algorithm>
 #include <atomic>
@@ -147,6 +148,23 @@ Sample* load_sample(const std::string& path) {
 		if (!chunk) simlib::detail::set_error(Mix_GetError());
 		return chunk ? new Sample{chunk} : nullptr;
 	});
+}
+
+Sample* load_sample_from_memory(const std::uint8_t* data, std::size_t size) {
+	if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init()) return nullptr;
+	std::vector<std::uint8_t> bytes(data, data + size);
+	return worker.call([bytes = std::move(bytes)] {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
+		Mix_Chunk* chunk = rw ? Mix_LoadWAV_RW(rw, 1) : nullptr;
+		if (!chunk) simlib::detail::set_error(Mix_GetError());
+		return chunk ? new Sample{chunk} : nullptr;
+	});
+}
+
+Sample* load_sample(const simlib::data::Archive& archive, const std::string& name) {
+	const auto bytes = archive.read(name);
+	return load_sample_from_memory(bytes.data(), bytes.size());
 }
 
 void destroy_sample(Sample* sample) {

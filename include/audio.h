@@ -5,6 +5,8 @@
 
 namespace simlib {
 
+namespace data { class Archive; }
+
 namespace audio_fx {
 
 struct Sample;
@@ -17,6 +19,10 @@ void shutdown();
 
 /** Load a sample from an audio file. */
 Sample* load_sample(const std::string& path);
+/** Load a sound effect from memory. */
+Sample* load_sample_from_memory(const std::uint8_t* data, std::size_t size);
+/** Load a sound-effect entry from a ZIP archive. */
+Sample* load_sample(const simlib::data::Archive& archive, const std::string& name);
 /** Destroy a sample returned by load_sample(). */
 void destroy_sample(Sample* sample);
 
@@ -54,6 +60,10 @@ void shutdown();
 
 /** Load a music stream from a file. */
 Stream* load_stream(const std::string& path);
+/** Load a music stream from memory. */
+Stream* load_stream_from_memory(const std::uint8_t* data, std::size_t size);
+/** Load a music-stream entry from a ZIP archive. */
+Stream* load_stream(const simlib::data::Archive& archive, const std::string& name);
 /** Destroy a stream returned by load_stream(). */
 void destroy_stream(Stream* stream);
 

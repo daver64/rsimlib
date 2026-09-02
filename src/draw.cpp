@@ -2,6 +2,7 @@
 
 #include "display.h"
 #include "error.h"
+#include "resource.h"
 
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_opengl.h>
@@ -259,7 +260,7 @@ void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Bit
 
 } // namespace
 
-/** @copydoc create_bitmap(int, int) */
+/** Create a RAM-backed bitmap. */
 Bitmap* create_bitmap(int width, int height) {
 	if (width <= 0 || height <= 0) {
 		simlib::detail::set_error("Bitmap dimensions must be positive");
@@ -273,7 +274,7 @@ Bitmap* create_bitmap(int width, int height) {
 	return bitmap;
 }
 
-/** @copydoc create_video_bitmap(int, int) */
+/** Create a GPU-backed bitmap. */
 Bitmap* create_video_bitmap(int width, int height) {
 	Bitmap* bitmap = create_bitmap(width, height);
 	if (!bitmap || !upload_bitmap(bitmap)) {
@@ -286,11 +287,9 @@ Bitmap* create_video_bitmap(int width, int height) {
 	return bitmap;
 }
 
-/** @copydoc load_bitmap(const std::string&) */
-Bitmap* load_bitmap(const std::string& path) {
-	SDL_Surface* loaded = IMG_Load(path.c_str());
+/** Load an image file into a bitmap. */
+Bitmap* load_bitmap_from_surface(SDL_Surface* loaded) {
 	if (!loaded) {
-		simlib::detail::set_error(IMG_GetError());
 		return nullptr;
 	}
 
@@ -313,7 +312,30 @@ Bitmap* load_bitmap(const std::string& path) {
 	return bitmap;
 }
 
-/** @copydoc save_bitmap(Bitmap*, const std::string&) */
+Bitmap* load_bitmap(const std::string& path) {
+	SDL_Surface* loaded = IMG_Load(path.c_str());
+	if (!loaded) simlib::detail::set_error(IMG_GetError());
+	return load_bitmap_from_surface(loaded);
+}
+
+Bitmap* load_bitmap_from_memory(const std::uint8_t* data, std::size_t size) {
+	if (!data || size == 0 || size > std::numeric_limits<int>::max()) return nullptr;
+	SDL_RWops* rw = SDL_RWFromConstMem(data, static_cast<int>(size));
+	if (!rw) {
+		simlib::detail::set_error(SDL_GetError());
+		return nullptr;
+	}
+	SDL_Surface* loaded = IMG_Load_RW(rw, 1);
+	if (!loaded) simlib::detail::set_error(IMG_GetError());
+	return load_bitmap_from_surface(loaded);
+}
+
+Bitmap* load_bitmap(const simlib::data::Archive& archive, const std::string& name) {
+	const auto bytes = archive.read(name);
+	return load_bitmap_from_memory(bytes.data(), bytes.size());
+}
+
+/** Save a bitmap as an uncompressed PNG. */
 bool save_bitmap(Bitmap* bitmap, const std::string& path) {
 	if (!bitmap || path.empty() || !acquire_bitmap(bitmap)) {
 		return false;
@@ -371,7 +393,7 @@ bool save_bitmap(Bitmap* bitmap, const std::string& path) {
 	return true;
 }
 
-/** @copydoc destroy_bitmap(Bitmap*) */
+/** Destroy a bitmap and its GPU resources. */
 void destroy_bitmap(Bitmap* bitmap) {
 	if (!bitmap || is_screen(bitmap)) {
 		return;
@@ -383,7 +405,7 @@ void destroy_bitmap(Bitmap* bitmap) {
 	delete bitmap;
 }
 
-/** @copydoc acquire_bitmap(Bitmap*) */
+/** Make a bitmap's pixels available in RAM. */
 bool acquire_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return download_bitmap(bitmap);
@@ -391,7 +413,7 @@ bool acquire_bitmap(Bitmap* bitmap) {
 	return ensure_ram_pixels(bitmap);
 }
 
-/** @copydoc release_bitmap(Bitmap*) */
+/** Upload a bitmap's modified RAM pixels to the GPU. */
 bool release_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return false;
@@ -399,7 +421,7 @@ bool release_bitmap(Bitmap* bitmap) {
 	return upload_bitmap(bitmap);
 }
 
-/** @copydoc clear_to_colour(Bitmap*, Colour) */
+/** Fill a bitmap with one colour. */
 void clear_to_colour(Bitmap* bitmap, Colour colour) {
 	if (is_screen(bitmap)) {
 		glClearColor(
@@ -421,7 +443,7 @@ void clear_to_colour(Bitmap* bitmap, Colour colour) {
 	}
 }
 
-/** @copydoc putpixel(Bitmap*, int, int, Colour) */
+/** Set one pixel in a bitmap. */
 void putpixel(Bitmap* bitmap, int x, int y, Colour colour) {
 	if (is_screen(bitmap)) {
 		if (x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
@@ -447,7 +469,7 @@ void putpixel(Bitmap* bitmap, int x, int y, Colour colour) {
 	bitmap->ram_dirty = true;
 }
 
-/** @copydoc getpixel(Bitmap*, int, int) */
+/** Read one pixel from a bitmap. */
 Colour getpixel(Bitmap* bitmap, int x, int y) {
 	if (!ensure_ram_pixels(bitmap) || x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
 		return {};
@@ -456,7 +478,7 @@ Colour getpixel(Bitmap* bitmap, int x, int y) {
 	return {bitmap->pixels[offset], bitmap->pixels[offset + 1], bitmap->pixels[offset + 2], bitmap->pixels[offset + 3]};
 }
 
-/** @copydoc circle(Bitmap*, int, int, int, Colour) */
+/** Draw an outline circle. */
 void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	if (!bitmap || radius < 0) return;
 	if (is_screen(bitmap)) {
@@ -469,7 +491,7 @@ void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	}
 }
 
-/** @copydoc circlefill(Bitmap*, int, int, int, Colour) */
+/** Draw a filled circle. */
 void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	if (!bitmap || radius < 0) return;
 	if (is_screen(bitmap)) {
@@ -482,7 +504,7 @@ void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
 	}
 }
 
-/** @copydoc rect(Bitmap*, int, int, int, int, Colour) */
+/** Draw an outline rectangle. */
 void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_rect(left, top, right, bottom, false, nullptr, colour);
@@ -494,7 +516,7 @@ void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colou
 	draw_line(bitmap, left, bottom, left, top, colour);
 }
 
-/** @copydoc rectfill(Bitmap*, int, int, int, int, Colour) */
+/** Draw a filled rectangle. */
 void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
 	if (is_screen(bitmap)) {
 		left = std::clamp(left, 0, bitmap->width);
@@ -530,7 +552,7 @@ void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour c
 	}
 }
 
-/** @copydoc ellipse(Bitmap*, int, int, int, int, Colour) */
+/** Draw an outline ellipse. */
 void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
 	if (!bitmap || radiusX < 0 || radiusY < 0) return;
 	if (is_screen(bitmap)) {
@@ -543,7 +565,7 @@ void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colo
 	}
 }
 
-/** @copydoc ellipsefill(Bitmap*, int, int, int, int, Colour) */
+/** Draw a filled ellipse. */
 void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
 	if (!bitmap || radiusX < 0 || radiusY < 0) return;
 	if (is_screen(bitmap)) {
@@ -557,7 +579,7 @@ void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour 
 	}
 }
 
-/** @copydoc triangle(Bitmap*, int, int, int, int, int, int, Colour) */
+/** Draw an outline triangle. */
 void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour);
@@ -568,7 +590,7 @@ void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Co
 	draw_line(bitmap, x3, y3, x1, y1, colour);
 }
 
-/** @copydoc trianglefill(Bitmap*, int, int, int, int, int, int, Colour) */
+/** Draw a filled triangle. */
 void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, nullptr, colour);
@@ -588,31 +610,31 @@ void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3
 	}
 }
 
-/** @copydoc line(Bitmap*, int, int, int, int, Colour) */
+/** Draw a line between two points. */
 void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
 	if (bitmap) {
 		draw_line(bitmap, x1, y1, x2, y2, colour);
 	}
 }
 
-/** @copydoc circle(Bitmap*, int, int, int, Bitmap*) */
+/** Draw a textured circle outline. */
 void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
-/** @copydoc circlefill(Bitmap*, int, int, int, Bitmap*) */
+/** Draw a textured filled circle. */
 void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
-/** @copydoc rect(Bitmap*, int, int, int, int, Bitmap*) */
+/** Draw a textured rectangle outline. */
 void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
-/** @copydoc rectfill(Bitmap*, int, int, int, int, Bitmap*) */
+/** Draw a textured filled rectangle. */
 void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, true, texture, {}); }
-/** @copydoc ellipse(Bitmap*, int, int, int, int, Bitmap*) */
+/** Draw a textured ellipse outline. */
 void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}); }
-/** @copydoc ellipsefill(Bitmap*, int, int, int, int, Bitmap*) */
+/** Draw a textured filled ellipse. */
 void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {}); }
-/** @copydoc triangle(Bitmap*, int, int, int, int, int, int, Bitmap*) */
+/** Draw a textured triangle outline. */
 void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}); }
-/** @copydoc trianglefill(Bitmap*, int, int, int, int, int, int, Bitmap*) */
+/** Draw a textured filled triangle. */
 void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {}); }
 
-/** @copydoc blit(Bitmap*, Bitmap*, int, int, int, int, int, int) */
+/** Copy a rectangular bitmap region without scaling. */
 void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
 	if (is_screen(destination)) {
 		if (!source || is_screen(source)) {
@@ -646,7 +668,7 @@ void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int des
 	destination->ram_dirty = true;
 }
 
-/** @copydoc masked_blit(Bitmap*, Bitmap*, int, int, int, int, int, int) */
+/** Copy a bitmap region while skipping transparent pixels. */
 void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
 	if (!source || !destination || width <= 0 || height <= 0 || !ensure_ram_pixels(source)) {
 		return;
@@ -678,7 +700,7 @@ void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, 
 	destination->ram_dirty = true;
 }
 
-/** @copydoc stretch_blit(Bitmap*, Bitmap*, int, int, int, int, int, int, int, int) */
+/** Scale and copy a bitmap region. */
 void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight) {
 	if (!source || !destination || sourceWidth <= 0 || sourceHeight <= 0 || destinationWidth <= 0 || destinationHeight <= 0) return;
 	if (is_screen(destination)) {
@@ -699,7 +721,7 @@ void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY,
 	destination->ram_dirty = true;
 }
 
-/** @copydoc create_sub_bitmap(Bitmap*, int, int, int, int) */
+/** Create a bitmap containing a copied rectangular region. */
 Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height) {
 	if (!parent || width <= 0 || height <= 0 || !ensure_ram_pixels(parent)) return nullptr;
 	Bitmap* bitmap = create_bitmap(width, height);
@@ -708,7 +730,7 @@ Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height) {
 	return bitmap;
 }
 
-/** @copydoc upload_bitmap(Bitmap*) */
+/** Upload a bitmap's RAM pixels to its GPU texture. */
 bool upload_bitmap(Bitmap* bitmap) {
 	if (is_screen(bitmap)) {
 		return false;
@@ -727,7 +749,7 @@ bool upload_bitmap(Bitmap* bitmap) {
 	return true;
 }
 
-/** @copydoc download_bitmap(Bitmap*) */
+/** Download a bitmap's GPU texture into RAM pixels. */
 bool download_bitmap(Bitmap* bitmap) {
 	if (!is_valid(bitmap)) {
 		return false;
@@ -755,7 +777,7 @@ bool download_bitmap(Bitmap* bitmap) {
 	return true;
 }
 
-/** @copydoc draw_sprite(Bitmap*, int, int) */
+/** Draw a bitmap at a screen position. */
 void draw_sprite(Bitmap* bitmap, int x, int y) {
 	if (!bitmap || is_screen(bitmap) || display::screen_width() <= 0 || display::screen_height() <= 0) {
 		return;
@@ -763,19 +785,19 @@ void draw_sprite(Bitmap* bitmap, int x, int y) {
 	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y);
 }
 
-/** @copydoc draw_sprite_h_flip(Bitmap*, int, int) */
+/** Draw a horizontally flipped bitmap. */
 void draw_sprite_h_flip(Bitmap* bitmap, int x, int y) {
 	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
 }
 
-/** @copydoc draw_sprite_v_flip(Bitmap*, int, int) */
+/** Draw a vertically flipped bitmap. */
 void draw_sprite_v_flip(Bitmap* bitmap, int x, int y) {
 	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
 }
 
 namespace detail {
 
-/** @copydoc initialise_screen(int, int) */
+/** Create the display-owned screen bitmap. */
 void initialise_screen(int width, int height) {
 	destroy_screen();
 	screen = new Bitmap;
@@ -784,7 +806,7 @@ void initialise_screen(int width, int height) {
 	screen->kind = BitmapKind::Screen;
 }
 
-/** @copydoc resize_screen(int, int) */
+/** Resize the display-owned screen bitmap. */
 void resize_screen(int width, int height) {
 	if (!screen) {
 		initialise_screen(width, height);
@@ -796,7 +818,7 @@ void resize_screen(int width, int height) {
 	screen->ram_dirty = false;
 }
 
-/** @copydoc destroy_screen() */
+/** Destroy the display-owned screen bitmap. */
 void destroy_screen() {
 	delete screen;
 	screen = nullptr;

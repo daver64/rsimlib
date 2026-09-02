@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+namespace simlib::data { class Archive; }
+
 namespace simlib::draw {
 
 /** An RGBA colour with 8-bit channels. */
@@ -46,6 +48,10 @@ Bitmap* create_bitmap(int width, int height);
 Bitmap* create_video_bitmap(int width, int height);
 /** Load an image file into a bitmap, or return nullptr on failure. */
 Bitmap* load_bitmap(const std::string& path);
+/** Load an image from memory. */
+Bitmap* load_bitmap_from_memory(const std::uint8_t* data, std::size_t size);
+/** Load an image entry from a ZIP archive. */
+Bitmap* load_bitmap(const simlib::data::Archive& archive, const std::string& name);
 /** Save a bitmap as an uncompressed PNG, appending .png when no extension is supplied. */
 bool save_bitmap(Bitmap* bitmap, const std::string& path);
 /** Destroy a bitmap created by this module. */
