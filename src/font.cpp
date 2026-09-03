@@ -191,6 +191,12 @@ std::optional<std::vector<unsigned char>> load_font() {
     return std::nullopt;
 }
 
+
+TTF_Font *sl_default_monospace_font = nullptr;
+
+TTF_Font *get_default_monospace_font() {
+    return sl_default_monospace_font;
+}
 TTF_Font* open_monospace_font(int pointSize) {
     const auto fontBytes = load_font();
     if (!fontBytes) {

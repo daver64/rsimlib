@@ -49,6 +49,7 @@ add_executable(sltest
     src/main.cpp
     src/display.cpp
     src/draw.cpp
+    src/atlas.cpp
     src/graphics_fx_test.cpp
     src/font.cpp
     src/graphics_fx.cpp

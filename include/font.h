@@ -15,6 +15,8 @@ namespace simlib::display {
 
 /** Load the first available platform monospace font into memory. */
 std::optional<std::vector<unsigned char>> load_font();
+/** Get the default monospace font. */
+TTF_Font *get_default_monospace_font() ;
 /** Open the loaded font bytes as an SDL_ttf font. */
 TTF_Font* open_monospace_font(int pointSize);
 /** Open a font from an explicit file path. */

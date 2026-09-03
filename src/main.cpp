@@ -7,62 +7,57 @@
 #include "font.h"
 #include "graphics_fx_test.h"
 #include "gui.h"
+#include "system.h"
 
 #include <imgui.h>
-#include <iostream>
 
 /** Initialize subsystems and run the SDL event/render loop. */
-int main(int argc, char* argv[]) {
-    if (!simlib::display::set_gfx_mode(simlib::display::GFX_AUTODETECT_WINDOWED, 800, 600)) {
+int main(int argc, char *argv[])
+{
+    if (!simlib::display::set_gfx_mode(simlib::display::GFX_AUTODETECT_WINDOWED, 800, 600))
+    {
         return -1;
     }
 
     simlib::gui::init();
 
-    TTF_Font* font = simlib::display::open_monospace_font(16);
+    TTF_Font *font = simlib::display::get_default_monospace_font();
 
-    if (!font) {
-        std::cerr << "Failed to create font from loaded bytes.\n";
-    }
-
-    //audio_test::initialize();
-    //graphics_fx_test::initialise();
-    //simlib::audio_fx::init();
-    //simlib::audio_fx::Sample *sample=simlib::audio_fx::load_sample("assets/sfx/100.wav");
-    //simlib::audio_fx::play_sample(sample);
+    simlib::system::set_fps(0);
 
     // Main loop
     bool running = true;
-    while (running) {
+    while (running)
+    {
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_QUIT)
+            {
                 running = false;
             }
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+            {
                 running = false;
             }
-            //audio_test::handle_event(event);
+            // audio_test::handle_event(event);
             simlib::display::handle_event(event);
             simlib::gui::handle_event(event);
         }
 
         simlib::draw::clear_to_colour(simlib::draw::screen, simlib::draw::Colour{45, 48, 56});
         simlib::display::textout(font, 1, 1,
-            simlib::draw::Colour{250, 0, 0}, "Hello, World!");
-        //graphics_fx_test::render();
-        simlib::gui::new_frame();
-        simlib::gui::show_demo_window();
-        simlib::gui::render();
+                                 simlib::draw::Colour{250, 0, 0}, "Hello, World!");
+        const double frame_time = simlib::system::get_frame_time();
+        simlib::display::textprintf(font, 1, 1 + simlib::display::text_height(font),
+                                    simlib::draw::Colour{250, 0, 0}, "frame time: %.2f ms (%.1f fps)",
+                                    frame_time, frame_time > 0.0 ? 1000.0 / frame_time : 0.0);
+
         simlib::display::show_video_bitmap();
+        simlib::system::end_frame();
     }
 
     // Clean up
-    if (font) {
-        TTF_CloseFont(font);
-    }
-    //audio_test::shutdown();
-    //graphics_fx_test::shutdown();
     simlib::gui::shutdown();
     simlib::display::shutdown();
     simlib::audio_fx::shutdown();

@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "draw.h"
+#include "font.h"
 #include "error.h"
 
 #include <SDL2/SDL.h>
@@ -8,6 +9,9 @@
 #include <SDL2/SDL_opengl.h>
 
 namespace simlib::display {
+
+extern TTF_Font *sl_default_monospace_font;
+
 namespace {
 
 SDL_Window* window = nullptr;
@@ -17,7 +21,6 @@ int width = 0;
 int height = 0;
 int logicalWidth = 0;
 int logicalHeight = 0;
-
 } // namespace
 
 bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtualWidth, int virtualHeight) {
@@ -71,6 +74,7 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     logicalHeight = virtualHeight > 0 ? virtualHeight : height;
     glViewport(0, 0, width, height);
     draw::detail::initialise_screen(logicalWidth, logicalHeight);
+    sl_default_monospace_font = open_monospace_font(12);
     return true;
 }
 
@@ -143,7 +147,14 @@ void shutdown() {
         SDL_DestroyWindow(window);
         window = nullptr;
     }
+
+    if (sl_default_monospace_font && ttfInitialized) {
+        TTF_CloseFont(sl_default_monospace_font);
+        sl_default_monospace_font = nullptr;
+    }
+
     if (ttfInitialized) {
+        
         TTF_Quit();
         ttfInitialized = false;
     }
