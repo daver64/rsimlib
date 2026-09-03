@@ -17,161 +17,190 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace simlib::audio_fx {
+namespace simlib::audio_fx
+{
 
-/** Owns the SDL_mixer chunk backing one sound effect. */
-struct Sample {
-	Mix_Chunk* chunk = nullptr;
-};
+	/** Owns the SDL_mixer chunk backing one sound effect. */
+	struct Sample
+	{
+		Mix_Chunk *chunk = nullptr;
+	};
 
-namespace {
+	namespace
+	{
 
-/** Serializes SDL_mixer sound-effect operations on a worker thread. */
-class FxWorker {
-public:
-	/** Start the worker and acquire the shared mixer. */
-	bool start() {
-		std::lock_guard<std::mutex> lock(mutex_);
-		if (thread_.joinable()) {
-			return true;
-		}
-		if (!audio_detail::acquire_mixer()) {
-			return false;
-		}
-		stopping_ = false;
-		thread_ = std::thread([this] { run(); });
-		return true;
-	}
-
-	/** Stop the worker after draining queued commands. */
-	void stop() {
+		/** Serializes SDL_mixer sound-effect operations on a worker thread. */
+		class FxWorker
 		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			if (!thread_.joinable()) {
-				return;
+		public:
+			/** Start the worker and acquire the shared mixer. */
+			bool start()
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				if (thread_.joinable())
+				{
+					return true;
+				}
+				if (!audio_detail::acquire_mixer())
+				{
+					return false;
+				}
+				stopping_ = false;
+				thread_ = std::thread([this]
+									  { run(); });
+				return true;
 			}
-			stopping_ = true;
-		}
-		condition_.notify_one();
-		thread_.join();
-		audio_detail::release_mixer();
-	}
 
-	/** Run a command synchronously on the worker thread. */
-	template <typename Function>
-	auto call(Function&& function) -> decltype(function()) {
-		using Result = decltype(function());
-		auto result = std::make_shared<std::promise<Result>>();
-		auto future = result->get_future();
-		enqueue([function = std::forward<Function>(function), result]() mutable {
+			/** Stop the worker after draining queued commands. */
+			void stop()
+			{
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					if (!thread_.joinable())
+					{
+						return;
+					}
+					stopping_ = true;
+				}
+				condition_.notify_one();
+				thread_.join();
+				audio_detail::release_mixer();
+			}
+
+			/** Run a command synchronously on the worker thread. */
+			template <typename Function>
+			auto call(Function &&function) -> decltype(function())
+			{
+				using Result = decltype(function());
+				auto result = std::make_shared<std::promise<Result>>();
+				auto future = result->get_future();
+				enqueue([function = std::forward<Function>(function), result]() mutable
+						{
 			if constexpr (std::is_void_v<Result>) {
 				function();
 				result->set_value();
 			} else {
 				result->set_value(function());
+			} });
+				return future.get();
 			}
-		});
-		return future.get();
-	}
 
-	/** Queue a command for asynchronous execution. */
-	void enqueue(std::function<void()> command) {
-		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			commands_.push_back(std::move(command));
-		}
-		condition_.notify_one();
-	}
-
-private:
-	/** Process queued commands until shutdown is requested. */
-	void run() {
-		for (;;) {
-			std::function<void()> command;
+			/** Queue a command for asynchronous execution. */
+			void enqueue(std::function<void()> command)
 			{
-				std::unique_lock<std::mutex> lock(mutex_);
-				condition_.wait(lock, [this] { return stopping_ || !commands_.empty(); });
-				if (commands_.empty() && stopping_) {
-					return;
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					commands_.push_back(std::move(command));
 				}
-				command = std::move(commands_.front());
-				commands_.pop_front();
+				condition_.notify_one();
 			}
-			command();
+
+		private:
+			/** Process queued commands until shutdown is requested. */
+			void run()
+			{
+				for (;;)
+				{
+					std::function<void()> command;
+					{
+						std::unique_lock<std::mutex> lock(mutex_);
+						condition_.wait(lock, [this]
+										{ return stopping_ || !commands_.empty(); });
+						if (commands_.empty() && stopping_)
+						{
+							return;
+						}
+						command = std::move(commands_.front());
+						commands_.pop_front();
+					}
+					command();
+				}
+			}
+
+			std::mutex mutex_;
+			std::condition_variable condition_;
+			std::deque<std::function<void()>> commands_;
+			std::thread thread_;
+			bool stopping_ = false;
+		};
+
+		FxWorker worker;
+		std::atomic<std::uint64_t> next_voice{1};
+		std::unordered_map<std::uint64_t, int> voices;
+		int master_volume = 255;
+
+		/** Convert the public 0-255 volume range to SDL_mixer's range. */
+		int mixer_volume(int volume)
+		{
+			return std::clamp(volume, 0, 255) * MIX_MAX_VOLUME / 255;
 		}
+
+		/** Apply the public 0-255 pan range to one mixer channel. */
+		void apply_pan(int channel, int pan)
+		{
+			pan = std::clamp(pan, 0, 255);
+			const Uint8 left = static_cast<Uint8>(pan <= 128 ? 255 : 255 - ((pan - 128) * 255 / 127));
+			const Uint8 right = static_cast<Uint8>(pan >= 128 ? 255 : pan * 255 / 128);
+			Mix_SetPanning(channel, left, right);
+		}
+
+	} // namespace
+
+	bool init()
+	{
+		const bool started = worker.start();
+		if (!started)
+			simlib::detail::set_error(Mix_GetError());
+		return started;
 	}
 
-	std::mutex mutex_;
-	std::condition_variable condition_;
-	std::deque<std::function<void()>> commands_;
-	std::thread thread_;
-	bool stopping_ = false;
-};
-
-FxWorker worker;
-std::atomic<std::uint64_t> next_voice{1};
-std::unordered_map<std::uint64_t, int> voices;
-int master_volume = 255;
-
-	/** Convert the public 0-255 volume range to SDL_mixer's range. */
-	int mixer_volume(int volume) {
-	return std::clamp(volume, 0, 255) * MIX_MAX_VOLUME / 255;
-}
-
-	/** Apply the public 0-255 pan range to one mixer channel. */
-	void apply_pan(int channel, int pan) {
-	pan = std::clamp(pan, 0, 255);
-	const Uint8 left = static_cast<Uint8>(pan <= 128 ? 255 : 255 - ((pan - 128) * 255 / 127));
-	const Uint8 right = static_cast<Uint8>(pan >= 128 ? 255 : pan * 255 / 128);
-	Mix_SetPanning(channel, left, right);
-}
-
-} // namespace
-
-bool init() {
-	const bool started = worker.start();
-	if (!started) simlib::detail::set_error(Mix_GetError());
-	return started;
-}
-
-void shutdown() {
-	worker.stop();
-}
-
-Sample* load_sample(const std::string& path) {
-	if (!init()) {
-		return nullptr;
+	void shutdown()
+	{
+		worker.stop();
 	}
-	return worker.call([path] {
+
+	Sample *load_sample(const std::string &path)
+	{
+		if (!init())
+		{
+			return nullptr;
+		}
+		return worker.call([path]
+						   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Chunk* chunk = Mix_LoadWAV(path.c_str());
 		if (!chunk) simlib::detail::set_error(Mix_GetError());
-		return chunk ? new Sample{chunk} : nullptr;
-	});
-}
+		return chunk ? new Sample{chunk} : nullptr; });
+	}
 
-Sample* load_sample_from_memory(const std::uint8_t* data, std::size_t size) {
-	if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init()) return nullptr;
-	std::vector<std::uint8_t> bytes(data, data + size);
-	return worker.call([bytes = std::move(bytes)] {
+	Sample *load_sample_from_memory(const std::uint8_t *data, std::size_t size)
+	{
+		if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init())
+			return nullptr;
+		std::vector<std::uint8_t> bytes(data, data + size);
+		return worker.call([bytes = std::move(bytes)]
+						   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
 		Mix_Chunk* chunk = rw ? Mix_LoadWAV_RW(rw, 1) : nullptr;
 		if (!chunk) simlib::detail::set_error(Mix_GetError());
-		return chunk ? new Sample{chunk} : nullptr;
-	});
-}
-
-Sample* load_sample(const simlib::data::Archive& archive, const std::string& name) {
-	const auto bytes = archive.read(name);
-	return load_sample_from_memory(bytes.data(), bytes.size());
-}
-
-void destroy_sample(Sample* sample) {
-	if (!sample || !init()) {
-		return;
+		return chunk ? new Sample{chunk} : nullptr; });
 	}
-	worker.call([sample] {
+
+	Sample *load_sample(const simlib::data::Archive &archive, const std::string &name)
+	{
+		const auto bytes = archive.read(name);
+		return load_sample_from_memory(bytes.data(), bytes.size());
+	}
+
+	void destroy_sample(Sample *sample)
+	{
+		if (!sample || !init())
+		{
+			return;
+		}
+		worker.call([sample]
+					{
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		for (auto voice = voices.begin(); voice != voices.end();) {
 			if (Mix_GetChunk(voice->second) == sample->chunk) {
@@ -182,17 +211,19 @@ void destroy_sample(Sample* sample) {
 			}
 		}
 		Mix_FreeChunk(sample->chunk);
-		delete sample;
-	});
-}
-
-std::uint64_t play_sample(Sample* sample, int volume, int pan, int frequency, int loops) {
-	if (!sample || !init()) {
-		return 0;
+		delete sample; });
 	}
-	(void)frequency;
-	const std::uint64_t voice = next_voice++;
-	worker.enqueue([sample, volume, pan, loops, voice] {
+
+	std::uint64_t play_sample(Sample *sample, int volume, int pan, int frequency, int loops)
+	{
+		if (!sample || !init())
+		{
+			return 0;
+		}
+		(void)frequency;
+		const std::uint64_t voice = next_voice++;
+		worker.enqueue([sample, volume, pan, loops, voice]
+					   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		const int channel = Mix_PlayChannel(-1, sample->chunk, std::max(loops, 0));
 		if (channel < 0) {
@@ -200,30 +231,34 @@ std::uint64_t play_sample(Sample* sample, int volume, int pan, int frequency, in
 		}
 		voices[voice] = channel;
 		Mix_Volume(channel, mixer_volume(volume) * master_volume / 255);
-		apply_pan(channel, pan);
-	});
-	return voice;
-}
-
-void stop_voice(std::uint64_t voice) {
-	if (!init()) {
-		return;
+		apply_pan(channel, pan); });
+		return voice;
 	}
-	worker.enqueue([voice] {
+
+	void stop_voice(std::uint64_t voice)
+	{
+		if (!init())
+		{
+			return;
+		}
+		worker.enqueue([voice]
+					   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		const auto found = voices.find(voice);
 		if (found != voices.end()) {
 			Mix_HaltChannel(found->second);
 			voices.erase(found);
-		}
-	});
-}
-
-void stop_sample(Sample* sample) {
-	if (!sample || !init()) {
-		return;
+		} });
 	}
-	worker.enqueue([sample] {
+
+	void stop_sample(Sample *sample)
+	{
+		if (!sample || !init())
+		{
+			return;
+		}
+		worker.enqueue([sample]
+					   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		for (auto voice = voices.begin(); voice != voices.end();) {
 			if (Mix_GetChunk(voice->second) == sample->chunk) {
@@ -232,46 +267,53 @@ void stop_sample(Sample* sample) {
 			} else {
 				++voice;
 			}
-		}
-	});
-}
+		} });
+	}
 
-void stop_all_samples() {
-	if (!init()) return;
-	worker.enqueue([] {
+	void stop_all_samples()
+	{
+		if (!init())
+			return;
+		worker.enqueue([]
+					   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_HaltChannel(-1);
-		voices.clear();
-	});
-}
-
-bool voice_is_playing(std::uint64_t voice) {
-	if (!init()) return false;
-	return worker.call([voice] {
-		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
-		const auto found = voices.find(voice);
-		return found != voices.end() && Mix_Playing(found->second) != 0;
-	});
-}
-
-void set_pan(std::uint64_t voice, int pan) {
-	if (!init()) return;
-	worker.enqueue([voice, pan] {
-		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
-		const auto found = voices.find(voice);
-		if (found != voices.end()) apply_pan(found->second, pan);
-	});
-}
-
-void set_volume(int volume) {
-	if (!init()) {
-		return;
+		voices.clear(); });
 	}
-	worker.enqueue([volume] {
+
+	bool voice_is_playing(std::uint64_t voice)
+	{
+		if (!init())
+			return false;
+		return worker.call([voice]
+						   {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		const auto found = voices.find(voice);
+		return found != voices.end() && Mix_Playing(found->second) != 0; });
+	}
+
+	void set_pan(std::uint64_t voice, int pan)
+	{
+		if (!init())
+			return;
+		worker.enqueue([voice, pan]
+					   {
+		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+		const auto found = voices.find(voice);
+		if (found != voices.end()) apply_pan(found->second, pan); });
+	}
+
+	void set_volume(int volume)
+	{
+		if (!init())
+		{
+			return;
+		}
+		worker.enqueue([volume]
+					   {
 		master_volume = std::clamp(volume, 0, 255);
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
-		Mix_Volume(-1, mixer_volume(master_volume));
-	});
-}
+		Mix_Volume(-1, mixer_volume(master_volume)); });
+	}
 
 } // namespace simlib::audio_fx

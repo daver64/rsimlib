@@ -25,12 +25,14 @@ std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string&
     const SDL_Color sdlColor{colour.red, colour.green, colour.blue, colour.alpha};
     SDL_Surface* rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
     if (!rendered) {
+        simlib::detail::set_error(TTF_GetError());
         return std::nullopt;
     }
 
     SDL_Surface* rgba = SDL_ConvertSurfaceFormat(rendered, SDL_PIXELFORMAT_RGBA32, 0);
     SDL_FreeSurface(rendered);
     if (!rgba) {
+        simlib::detail::set_error(SDL_GetError());
         return std::nullopt;
     }
 

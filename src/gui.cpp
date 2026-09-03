@@ -9,6 +9,9 @@
 namespace simlib::gui {
 
 void init() {
+    if (!display::get_window() || !display::get_gl_context()) {
+        return;
+    }
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
