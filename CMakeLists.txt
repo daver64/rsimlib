@@ -47,6 +47,7 @@ endif()
 
 add_executable(sltest
     src/main.cpp
+    src/game.cpp
     src/display.cpp
     src/draw.cpp
     src/atlas.cpp
