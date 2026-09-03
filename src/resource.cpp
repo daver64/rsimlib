@@ -10,7 +10,7 @@
 #include <fstream>
 #include <limits>
 
-namespace simlib::data {
+namespace simlib {
 namespace {
 
 constexpr std::uint32_t localSignature = 0x04034b50;
@@ -161,4 +161,4 @@ std::vector<std::uint8_t> Archive::read(const std::string& name) const {
     return result;
 }
 
-} // namespace simlib::data
+} // namespace simlib

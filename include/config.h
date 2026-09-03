@@ -4,7 +4,7 @@
 
 #include "json.hpp"
 
-namespace simlib::config {
+namespace simlib {
 
 /** A JSON-backed application configuration document. */
 class Config {
@@ -57,4 +57,4 @@ private:
     nlohmann::json document_ = nlohmann::json::object();
 };
 
-} // namespace simlib::config
+} // namespace simlib

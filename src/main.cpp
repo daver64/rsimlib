@@ -18,22 +18,22 @@ namespace game
 {
     bool running = true;
 
-    void gprintf(int x, int y, simlib::draw::Colour colour, const char *fmt, ...)
+    void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...)
     {
-        TTF_Font *font = simlib::display::get_default_monospace_font();
+        TTF_Font *font = simlib::get_default_monospace_font();
         char buffer[1024];
         va_list args;
         va_start(args, fmt);
         std::vsnprintf(buffer, sizeof(buffer), fmt, args);
         va_end(args);
-        simlib::display::textout(font, x, y, colour, buffer);
+        simlib::textout(font, x, y, colour, buffer);
     }
 
     void shutdown_game()
     {
-        simlib::gui::shutdown();
-        simlib::display::shutdown();
-        simlib::audio_fx::shutdown();
+        simlib::gui_shutdown();
+        simlib::display_shutdown();
+        simlib::audio_fx_shutdown();
     }
 
     bool handle_events()
@@ -49,34 +49,38 @@ namespace game
             {
                 running = false;
             }
-            simlib::display::handle_event(event);
-            simlib::gui::handle_event(event);
+            simlib::display_handle_event(event);
+            simlib::gui_handle_event(event);
         }
         return true;
     }
 
     bool initialise_game()
     {
-        if (!simlib::display::set_gfx_mode(simlib::display::GFX_AUTODETECT_WINDOWED, 800, 600))
+        if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
         {
             return false;
         }
-        simlib::gui::init();
-        simlib::system::set_fps(60);
+        simlib::gui_init();
+        simlib::set_fps(60);
         return true;
     }
 
     void update_and_render()
     {
-        TTF_Font *font = simlib::display::get_default_monospace_font();
-        simlib::draw::clear_to_colour(simlib::draw::screen, simlib::draw::Colour{45, 48, 56});
+        TTF_Font *font = simlib::get_default_monospace_font();
+        const int fontheight = simlib::text_height(font);
+        simlib::Colour text_colour{0, 255, 0};
+        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
-        const double frame_time = simlib::system::get_frame_time();
-        gprintf(1, 1 + simlib::display::text_height(font),
-                simlib::draw::Colour{250, 0, 0}, "frame time: %.2f ms (%.1f fps)",
+        const double frame_time = simlib::get_frame_time();
+        const int x = 1;
+        const int y = 1;
+        gprintf(x, y+fontheight,
+                text_colour, "frame time: %.2f ms (%.1f fps)",
                 frame_time, frame_time > 0.0 ? 1000.0 / frame_time : 0.0);
-        simlib::display::show_video_bitmap();
-        simlib::system::end_frame();
+        simlib::show_video_bitmap();
+        simlib::end_frame();
     }
 }
 

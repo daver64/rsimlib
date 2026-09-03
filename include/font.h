@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-namespace simlib::data { class Archive; }
+namespace simlib { class Archive; }
 
-namespace simlib::display {
+namespace simlib {
 
 /** Load the first available platform monospace font into memory. */
 std::optional<std::vector<unsigned char>> load_font();
@@ -24,7 +24,7 @@ TTF_Font* open_font(const std::string& path, int pointSize);
 /** Open a font from memory. */
 TTF_Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int pointSize);
 /** Open a font entry from a ZIP archive. */
-TTF_Font* open_font(const simlib::data::Archive& archive, const std::string& name, int pointSize);
+TTF_Font* open_font(const Archive& archive, const std::string& name, int pointSize);
 /** Return the rendered width of UTF-8 text in pixels. */
 int text_length(TTF_Font* font, const std::string& text);
 /** Return the rendered height of a font in pixels. */
@@ -35,16 +35,16 @@ void gl_printf(
     TTF_Font* font,
     int x,
     int y,
-    const simlib::draw::Colour& foreground,
-    const simlib::draw::Colour& background,
+    const Colour& foreground,
+    const Colour& background,
     int windowWidth,
     int windowHeight,
     const std::string& text
 );
 
 /** Draw UTF-8 text at a screen position without a background. */
-void textout(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const std::string& text);
+void textout(TTF_Font* font, int x, int y, const Colour& colour, const std::string& text);
 /** Format and draw UTF-8 text at a screen position without a background. */
-void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const char* format, ...);
+void textprintf(TTF_Font* font, int x, int y, const Colour& colour, const char* format, ...);
 
-} // namespace simlib::display
+} // namespace simlib

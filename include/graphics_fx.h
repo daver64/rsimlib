@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <string>
 
-namespace simlib::draw {
+namespace simlib {
 struct Bitmap;
 }
 
-namespace simlib::graphics_fx {
+namespace simlib {
 
 /** Owns and applies an OpenGL shader program. */
 class Shader {
@@ -65,7 +65,7 @@ public:
     /** Set the bloom blur radius. */
     void set_radius(float radius);
     /** Apply bloom to a bitmap region. */
-    void apply(draw::Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+    void apply(Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
 private:
     Shader shader_;
@@ -74,4 +74,4 @@ private:
     float radius_ = 1.5f;
 };
 
-} // namespace simlib::graphics_fx
+} // namespace simlib

@@ -2,7 +2,7 @@
 
 #include <SDL2/SDL.h>
 
-namespace simlib::system {
+namespace simlib {
 namespace {
 
 int target_fps = 0;
@@ -55,4 +55,4 @@ double get_frame_time() {
 	return last_frame_time_ms;
 }
 
-} // namespace simlib::system
+} // namespace simlib

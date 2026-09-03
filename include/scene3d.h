@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace simlib::scene3d {
+namespace simlib {
 
 /** A perspective camera using right-handed GLM coordinates. */
 struct Camera {
@@ -35,4 +35,4 @@ inline glm::mat4 model_matrix(const glm::vec3& position, const glm::vec3& rotati
     return glm::scale(model, scale);
 }
 
-} // namespace simlib::scene3d
+} // namespace simlib

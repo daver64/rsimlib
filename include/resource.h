@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace simlib::data {
+namespace simlib {
 
 /** A read-only ZIP resource archive. */
 class Archive {
@@ -41,4 +41,4 @@ private:
     std::vector<Entry> entries_;
 };
 
-} // namespace simlib::data
+} // namespace simlib

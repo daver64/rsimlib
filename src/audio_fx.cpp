@@ -17,7 +17,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace simlib::audio_fx
+namespace simlib
 {
 
 	/** Owns the SDL_mixer chunk backing one sound effect. */
@@ -146,7 +146,7 @@ namespace simlib::audio_fx
 
 	} // namespace
 
-	bool init()
+	bool audio_fx_init()
 	{
 		const bool started = worker.start();
 		if (!started)
@@ -154,14 +154,14 @@ namespace simlib::audio_fx
 		return started;
 	}
 
-	void shutdown()
+	void audio_fx_shutdown()
 	{
 		worker.stop();
 	}
 
 	Sample *load_sample(const std::string &path)
 	{
-		if (!init())
+		if (!audio_fx_init())
 		{
 			return nullptr;
 		}
@@ -175,7 +175,7 @@ namespace simlib::audio_fx
 
 	Sample *load_sample_from_memory(const std::uint8_t *data, std::size_t size)
 	{
-		if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init())
+		if (!data || size == 0 || size > std::numeric_limits<int>::max() || !audio_fx_init())
 			return nullptr;
 		std::vector<std::uint8_t> bytes(data, data + size);
 		return worker.call([bytes = std::move(bytes)]
@@ -187,7 +187,7 @@ namespace simlib::audio_fx
 		return chunk ? new Sample{chunk} : nullptr; });
 	}
 
-	Sample *load_sample(const simlib::data::Archive &archive, const std::string &name)
+	Sample *load_sample(const Archive &archive, const std::string &name)
 	{
 		const auto bytes = archive.read(name);
 		return load_sample_from_memory(bytes.data(), bytes.size());
@@ -195,7 +195,7 @@ namespace simlib::audio_fx
 
 	void destroy_sample(Sample *sample)
 	{
-		if (!sample || !init())
+		if (!sample || !audio_fx_init())
 		{
 			return;
 		}
@@ -216,7 +216,7 @@ namespace simlib::audio_fx
 
 	std::uint64_t play_sample(Sample *sample, int volume, int pan, int frequency, int loops)
 	{
-		if (!sample || !init())
+		if (!sample || !audio_fx_init())
 		{
 			return 0;
 		}
@@ -237,7 +237,7 @@ namespace simlib::audio_fx
 
 	void stop_voice(std::uint64_t voice)
 	{
-		if (!init())
+		if (!audio_fx_init())
 		{
 			return;
 		}
@@ -253,7 +253,7 @@ namespace simlib::audio_fx
 
 	void stop_sample(Sample *sample)
 	{
-		if (!sample || !init())
+		if (!sample || !audio_fx_init())
 		{
 			return;
 		}
@@ -272,7 +272,7 @@ namespace simlib::audio_fx
 
 	void stop_all_samples()
 	{
-		if (!init())
+		if (!audio_fx_init())
 			return;
 		worker.enqueue([]
 					   {
@@ -283,7 +283,7 @@ namespace simlib::audio_fx
 
 	bool voice_is_playing(std::uint64_t voice)
 	{
-		if (!init())
+		if (!audio_fx_init())
 			return false;
 		return worker.call([voice]
 						   {
@@ -294,7 +294,7 @@ namespace simlib::audio_fx
 
 	void set_pan(std::uint64_t voice, int pan)
 	{
-		if (!init())
+		if (!audio_fx_init())
 			return;
 		worker.enqueue([voice, pan]
 					   {
@@ -303,9 +303,9 @@ namespace simlib::audio_fx
 		if (found != voices.end()) apply_pan(found->second, pan); });
 	}
 
-	void set_volume(int volume)
+	void audio_fx_set_volume(int volume)
 	{
-		if (!init())
+		if (!audio_fx_init())
 		{
 			return;
 		}
@@ -316,4 +316,4 @@ namespace simlib::audio_fx
 		Mix_Volume(-1, mixer_volume(master_volume)); });
 	}
 
-} // namespace simlib::audio_fx
+} // namespace simlib

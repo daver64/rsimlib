@@ -4,7 +4,7 @@
 
 #include <fstream>
 
-namespace simlib::config {
+namespace simlib {
 
 bool Config::load(const std::string& path) {
     std::ifstream file(path);
@@ -57,4 +57,4 @@ const nlohmann::json& Config::document() const {
     return document_;
 }
 
-} // namespace simlib::config
+} // namespace simlib

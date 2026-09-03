@@ -11,7 +11,7 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace simlib::display {
+namespace simlib {
 
 /** Temporary OpenGL texture used to draw one rendered text string. */
 struct TextTexture {
@@ -21,7 +21,7 @@ struct TextTexture {
 };
 
 /** Convert a UTF-8 string into a temporary GPU text texture. */
-std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const simlib::draw::Colour& colour) {
+std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const Colour& colour) {
     const SDL_Color sdlColor{colour.red, colour.green, colour.blue, colour.alpha};
     SDL_Surface* rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
     if (!rendered) {
@@ -114,7 +114,7 @@ void draw_text_texture(const TextTexture& texture, int x, int y, int windowWidth
 }
 
 /** Draw a solid rectangle behind rendered text. */
-void fill_rect(int x, int y, int width, int height, int windowWidth, int windowHeight, const simlib::draw::Colour& colour) {
+void fill_rect(int x, int y, int width, int height, int windowWidth, int windowHeight, const Colour& colour) {
     if (width <= 0 || height <= 0) {
         return;
     }
@@ -227,7 +227,7 @@ TTF_Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int 
     return font;
 }
 
-TTF_Font* open_font(const simlib::data::Archive& archive, const std::string& name, int pointSize) {
+TTF_Font* open_font(const Archive& archive, const std::string& name, int pointSize) {
     const auto bytes = archive.read(name);
     return open_font_from_memory(bytes.data(), bytes.size(), pointSize);
 }
@@ -246,8 +246,8 @@ void gl_printf(
     TTF_Font* font,
     int x,
     int y,
-    const simlib::draw::Colour& foreground,
-    const simlib::draw::Colour& background,
+    const Colour& foreground,
+    const Colour& background,
     int windowWidth,
     int windowHeight,
     const std::string& text
@@ -268,11 +268,11 @@ void gl_printf(
     destroy_text_texture(mutableTexture);
 }
 
-void textout(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const std::string& text) {
-    gl_printf(font, x, y, colour, {0, 0, 0, 0}, simlib::display::screen_width(), simlib::display::screen_height(), text);
+void textout(TTF_Font* font, int x, int y, const Colour& colour, const std::string& text) {
+    gl_printf(font, x, y, colour, {0, 0, 0, 0}, screen_width(), screen_height(), text);
 }
 
-void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour, const char* format, ...) {
+void textprintf(TTF_Font* font, int x, int y, const Colour& colour, const char* format, ...) {
     if (!format) return;
     char buffer[1024];
     va_list arguments;
@@ -282,4 +282,4 @@ void textprintf(TTF_Font* font, int x, int y, const simlib::draw::Colour& colour
     textout(font, x, y, colour, buffer);
 }
 
-} // namespace simlib::display
+} // namespace simlib

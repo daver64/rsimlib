@@ -2,7 +2,7 @@
 
 #include "draw.h"
 
-namespace simlib::draw {
+namespace simlib {
 
 /** A bitmap sliced into a uniform grid of equally sized tiles. */
 struct Atlas {
@@ -25,4 +25,4 @@ void atlas_blit(const Atlas& atlas, Bitmap* destination, int tile_index, int des
 /** Draw one atlas tile scaled into a destination rectangle. */
 void atlas_stretch_blit(const Atlas& atlas, Bitmap* destination, int tile_index, int destinationX, int destinationY, int destinationWidth, int destinationHeight);
 
-} // namespace simlib::draw
+} // namespace simlib

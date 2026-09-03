@@ -4,7 +4,7 @@
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_video.h>
 
-namespace simlib::display {
+namespace simlib {
 
 /** Select the windowed auto-detected graphics driver. */
 constexpr int GFX_AUTODETECT_WINDOWED = 1;
@@ -12,7 +12,7 @@ constexpr int GFX_AUTODETECT_WINDOWED = 1;
 /** Create an OpenGL window and initialize the drawing screen. */
 bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
 /** Apply window-related SDL events, including resize events. */
-void handle_event(const SDL_Event& event);
+void display_handle_event(const SDL_Event& event);
 /** Set the window title. */
 void set_window_title(const char* title);
 /** Enable or disable desktop fullscreen mode. */
@@ -36,11 +36,11 @@ void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha = 255);
 /** Present the current OpenGL framebuffer to the window. */
 void show_video_bitmap();
 /** Release the OpenGL context, window, and SDL video state. */
-void shutdown();
+void display_shutdown();
 
 /** Return the active SDL window, or nullptr if not initialized. */
 SDL_Window* get_window();
 /** Return the active OpenGL context, or nullptr if not initialized. */
 SDL_GLContext get_gl_context();
 
-} // namespace simlib::display
+} // namespace simlib

@@ -14,7 +14,7 @@ class AudioFxTest {
 public:
     /** Initialize audio effects and discover test samples. */
     void initialize() {
-        if (!simlib::audio_fx::init()) {
+        if (!simlib::audio_fx_init()) {
             std::cerr << "Failed to initialize audio effects.\n";
             return;
         }
@@ -27,7 +27,7 @@ public:
         }
         if (error || files_.empty()) {
             std::cerr << "No WAV files found in assets/sfx.\n";
-            simlib::audio_fx::shutdown();
+            simlib::audio_fx_shutdown();
         }
     }
 
@@ -39,41 +39,41 @@ public:
 
         std::uniform_int_distribution<std::size_t> fileIndex(0, files_.size() - 1);
         const std::string& path = files_[fileIndex(engine_)];
-        simlib::audio_fx::Sample* sample = simlib::audio_fx::load_sample(path);
+        simlib::Sample* sample = simlib::load_sample(path);
         if (!sample) {
             std::cerr << "Failed to load sample: " << path << '\n';
             return;
         }
 
-        simlib::audio_fx::play_sample(sample);
+        simlib::play_sample(sample);
         samples_.push_back(sample);
         if (samples_.size() > max_retained_samples) {
-            simlib::audio_fx::stop_sample(samples_.front());
-            simlib::audio_fx::destroy_sample(samples_.front());
+            simlib::stop_sample(samples_.front());
+            simlib::destroy_sample(samples_.front());
             samples_.erase(samples_.begin());
         }
     }
     /** Stop all samples retained by the test harness. */
     void stop() {
-        for (simlib::audio_fx::Sample* sample : samples_) {
-            simlib::audio_fx::stop_sample(sample);
+        for (simlib::Sample* sample : samples_) {
+            simlib::stop_sample(sample);
         }
     }
     /** Release all samples and shut down audio effects. */
     void shutdown() {
-        for (simlib::audio_fx::Sample* sample : samples_) {
-            simlib::audio_fx::stop_sample(sample);
-            simlib::audio_fx::destroy_sample(sample);
+        for (simlib::Sample* sample : samples_) {
+            simlib::stop_sample(sample);
+            simlib::destroy_sample(sample);
         }
         samples_.clear();
-        simlib::audio_fx::shutdown();
+        simlib::audio_fx_shutdown();
     }
 
 private:
     static constexpr std::size_t max_retained_samples = 16;
 
     std::vector<std::string> files_;
-    std::vector<simlib::audio_fx::Sample*> samples_;
+    std::vector<simlib::Sample*> samples_;
     std::mt19937 engine_{std::random_device{}()};
 };
 
@@ -82,42 +82,42 @@ class MusicTest {
 public:
     /** Initialize music playback and load the test stream. */
     void initialize() {
-        if (!simlib::music::init()) {
+        if (!simlib::music_init()) {
             std::cerr << "Failed to initialize music playback.\n";
             return;
         }
 
-        track_ = simlib::music::load_stream("assets/music/Solar Serenity.ogg");
+        track_ = simlib::load_stream("assets/music/Solar Serenity.ogg");
         if (!track_) {
             std::cerr << "Failed to load music: assets/music/Solar Serenity.ogg\n";
-            simlib::music::shutdown();
+            simlib::music_shutdown();
         }
     }
 
     /** Start the loaded test stream. */
     void play() {
         if (track_) {
-            simlib::music::play_stream(track_, 0);
+            simlib::play_stream(track_, 0);
         }
     }
     /** Stop the test stream. */
     void stop() {
         if (track_) {
-            simlib::music::stop_stream();
+            simlib::stop_stream();
         }
     }
     /** Release the test stream and shut down music playback. */
     void shutdown() {
         if (track_) {
-            simlib::music::stop_stream();
-            simlib::music::destroy_stream(track_);
+            simlib::stop_stream();
+            simlib::destroy_stream(track_);
             track_ = nullptr;
         }
-        simlib::music::shutdown();
+        simlib::music_shutdown();
     }
 
 private:
-    simlib::music::Stream* track_ = nullptr;
+    simlib::Stream* track_ = nullptr;
 };
 
 AudioFxTest audio_fx_test;

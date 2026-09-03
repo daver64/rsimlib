@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace simlib::input {
+namespace simlib {
 
 /** Poll the next SDL event, returning false when the queue is empty. */
 bool poll_event(SDL_Event* event);
@@ -18,4 +18,4 @@ int mouse_y();
 /** Return the current mouse button bitmask. */
 std::uint32_t mouse_buttons();
 
-} // namespace simlib::input
+} // namespace simlib

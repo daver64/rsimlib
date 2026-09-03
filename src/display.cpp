@@ -8,7 +8,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_opengl.h>
 
-namespace simlib::display {
+namespace simlib {
 
 extern TTF_Font *sl_default_monospace_font;
 
@@ -29,7 +29,7 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
         return false;
     }
 
-    shutdown();
+    display_shutdown();
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         simlib::detail::set_error(SDL_GetError());
         return false;
@@ -73,12 +73,12 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     logicalWidth = virtualWidth > 0 ? virtualWidth : width;
     logicalHeight = virtualHeight > 0 ? virtualHeight : height;
     glViewport(0, 0, width, height);
-    draw::detail::initialise_screen(logicalWidth, logicalHeight);
+    detail::initialise_screen(logicalWidth, logicalHeight);
     sl_default_monospace_font = open_monospace_font(12);
     return true;
 }
 
-void handle_event(const SDL_Event& event) {
+void display_handle_event(const SDL_Event& event) {
     if (event.type != SDL_WINDOWEVENT || event.window.event != SDL_WINDOWEVENT_SIZE_CHANGED) {
         return;
     }
@@ -86,7 +86,7 @@ void handle_event(const SDL_Event& event) {
     width = event.window.data1;
     height = event.window.data2;
     glViewport(0, 0, width, height);
-    draw::detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
+    detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
 }
 
 void set_window_title(const char* title) {
@@ -137,8 +137,8 @@ void show_video_bitmap() {
     }
 }
 
-void shutdown() {
-    draw::detail::destroy_screen();
+void display_shutdown() {
+    detail::destroy_screen();
     if (context) {
         SDL_GL_DeleteContext(context);
         context = nullptr;
@@ -173,4 +173,4 @@ SDL_GLContext get_gl_context() {
     return context;
 }
 
-} // namespace simlib::display
+} // namespace simlib

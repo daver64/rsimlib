@@ -8,7 +8,7 @@
 int main(int argc, char* argv[]) {
     assert(argc == 2);
 
-    simlib::data::Archive archive;
+    simlib::Archive archive;
     assert(archive.open(argv[1]));
     assert(archive.contains("stored.txt"));
     assert(archive.contains("deflated.txt"));

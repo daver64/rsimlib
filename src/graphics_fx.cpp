@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace simlib::graphics_fx {
+namespace simlib {
 namespace {
 
 constexpr const char* fullscreen_vertex_source = R"(
@@ -104,8 +104,8 @@ void set_screen_projection() {
 	glLoadIdentity();
 	glOrtho(
 		0.0,
-		static_cast<double>(display::screen_width()),
-		static_cast<double>(display::screen_height()),
+		static_cast<double>(screen_width()),
+		static_cast<double>(screen_height()),
 		0.0,
 		-1.0,
 		1.0
@@ -278,16 +278,16 @@ void Bloom::set_radius(float radius) {
 	radius_ = std::max(radius, 0.0f);
 }
 
-void Bloom::apply(draw::Bitmap* source, int x, int y, int width, int height) const {
-	if (!source || !shader_.is_valid() || !draw::upload_bitmap(source)) {
+void Bloom::apply(Bitmap* source, int x, int y, int width, int height) const {
+	if (!source || !shader_.is_valid() || !upload_bitmap(source)) {
 		return;
 	}
 
 	if (width <= 0) {
-		width = display::screen_width();
+		width = screen_width();
 	}
 	if (height <= 0) {
-		height = display::screen_height();
+		height = screen_height();
 	}
 	if (width <= 0 || height <= 0) {
 		return;
@@ -315,4 +315,4 @@ void Bloom::apply(draw::Bitmap* source, int x, int y, int width, int height) con
 	Shader::stop();
 }
 
-} // namespace simlib::graphics_fx
+} // namespace simlib

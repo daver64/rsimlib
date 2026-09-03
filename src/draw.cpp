@@ -14,7 +14,7 @@
 #include <filesystem>
 #include <cstdio>
 
-namespace simlib::draw {
+namespace simlib {
 Bitmap* screen = nullptr;
 
 namespace {
@@ -83,8 +83,8 @@ void set_projection() {
 	glLoadIdentity();
 	glOrtho(
 		0.0,
-		static_cast<double>(display::screen_width()),
-		static_cast<double>(display::screen_height()),
+		static_cast<double>(screen_width()),
+		static_cast<double>(screen_height()),
 		0.0,
 		-1.0,
 		1.0
@@ -330,7 +330,7 @@ Bitmap* load_bitmap_from_memory(const std::uint8_t* data, std::size_t size) {
 	return load_bitmap_from_surface(loaded);
 }
 
-Bitmap* load_bitmap(const simlib::data::Archive& archive, const std::string& name) {
+Bitmap* load_bitmap(const Archive& archive, const std::string& name) {
 	const auto bytes = archive.read(name);
 	return load_bitmap_from_memory(bytes.data(), bytes.size());
 }
@@ -779,7 +779,7 @@ bool download_bitmap(Bitmap* bitmap) {
 
 /** Draw a bitmap at a screen position. */
 void draw_sprite(Bitmap* bitmap, int x, int y) {
-	if (!bitmap || is_screen(bitmap) || display::screen_width() <= 0 || display::screen_height() <= 0) {
+	if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0) {
 		return;
 	}
 	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y);
@@ -787,12 +787,12 @@ void draw_sprite(Bitmap* bitmap, int x, int y) {
 
 /** Draw a horizontally flipped bitmap. */
 void draw_sprite_h_flip(Bitmap* bitmap, int x, int y) {
-	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
+	if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
 }
 
 /** Draw a vertically flipped bitmap. */
 void draw_sprite_v_flip(Bitmap* bitmap, int x, int y) {
-	if (bitmap && !is_screen(bitmap) && display::screen_width() > 0 && display::screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
+	if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
 }
 
 namespace detail {
@@ -826,4 +826,4 @@ void destroy_screen() {
 
 } // namespace detail
 
-} // namespace simlib::draw
+} // namespace simlib

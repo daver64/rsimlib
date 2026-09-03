@@ -14,7 +14,7 @@
 #include <thread>
 #include <type_traits>
 
-namespace simlib::music {
+namespace simlib {
 
 /** Owns the SDL_mixer music object for one stream. */
 struct Stream {
@@ -115,18 +115,18 @@ int master_volume = 255;
 
 } // namespace
 
-bool init() {
+bool music_init() {
 	const bool started = worker.start();
 	if (!started) simlib::detail::set_error(Mix_GetError());
 	return started;
 }
 
-void shutdown() {
+void music_shutdown() {
 	worker.stop();
 }
 
 Stream* load_stream(const std::string& path) {
-	if (!init()) {
+	if (!music_init()) {
 		return nullptr;
 	}
 	return worker.call([path] {
@@ -138,7 +138,7 @@ Stream* load_stream(const std::string& path) {
 }
 
 Stream* load_stream_from_memory(const std::uint8_t* data, std::size_t size) {
-	if (!data || size == 0 || size > std::numeric_limits<int>::max() || !init()) return nullptr;
+	if (!data || size == 0 || size > std::numeric_limits<int>::max() || !music_init()) return nullptr;
 	std::vector<std::uint8_t> bytes(data, data + size);
 	return worker.call([bytes = std::move(bytes)] {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
@@ -149,13 +149,13 @@ Stream* load_stream_from_memory(const std::uint8_t* data, std::size_t size) {
 	});
 }
 
-Stream* load_stream(const simlib::data::Archive& archive, const std::string& name) {
+Stream* load_stream(const Archive& archive, const std::string& name) {
 	const auto bytes = archive.read(name);
 	return load_stream_from_memory(bytes.data(), bytes.size());
 }
 
 void destroy_stream(Stream* stream) {
-	if (!stream || !init()) {
+	if (!stream || !music_init()) {
 		return;
 	}
 	worker.call([stream] {
@@ -167,7 +167,7 @@ void destroy_stream(Stream* stream) {
 }
 
 void play_stream(Stream* stream, int loops) {
-	if (!stream || !init()) {
+	if (!stream || !music_init()) {
 		return;
 	}
 	worker.enqueue([stream, loops] {
@@ -178,7 +178,7 @@ void play_stream(Stream* stream, int loops) {
 }
 
 void stop_stream() {
-	if (!init()) {
+	if (!music_init()) {
 		return;
 	}
 	worker.enqueue([] {
@@ -188,7 +188,7 @@ void stop_stream() {
 }
 
 void pause_stream() {
-	if (!init()) {
+	if (!music_init()) {
 		return;
 	}
 	worker.enqueue([] {
@@ -198,7 +198,7 @@ void pause_stream() {
 }
 
 void resume_stream() {
-	if (!init()) {
+	if (!music_init()) {
 		return;
 	}
 	worker.enqueue([] {
@@ -207,8 +207,8 @@ void resume_stream() {
 	});
 }
 
-void set_volume(int volume) {
-	if (!init()) {
+void music_set_volume(int volume) {
+	if (!music_init()) {
 		return;
 	}
 	worker.enqueue([volume] {
@@ -218,4 +218,4 @@ void set_volume(int volume) {
 	});
 }
 
-} // namespace simlib::music
+} // namespace simlib

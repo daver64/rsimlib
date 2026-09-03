@@ -1,6 +1,6 @@
 #include "atlas.h"
 
-namespace simlib::draw {
+namespace simlib {
 
 Atlas create_atlas(Bitmap* bitmap, int tile_width, int tile_height, int spacing, int margin) {
 	Atlas atlas;
@@ -63,4 +63,4 @@ void atlas_stretch_blit(const Atlas& atlas, Bitmap* destination, int tile_index,
 	stretch_blit(atlas.bitmap, destination, x, y, width, height, destinationX, destinationY, destinationWidth, destinationHeight);
 }
 
-} // namespace simlib::draw
+} // namespace simlib

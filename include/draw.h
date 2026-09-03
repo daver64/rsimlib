@@ -6,9 +6,9 @@
 #include <string>
 #include <vector>
 
-namespace simlib::data { class Archive; }
+namespace simlib { class Archive; }
 
-namespace simlib::draw {
+namespace simlib {
 
 /** An RGBA colour with 8-bit channels. */
 struct Colour {
@@ -51,7 +51,7 @@ Bitmap* load_bitmap(const std::string& path);
 /** Load an image from memory. */
 Bitmap* load_bitmap_from_memory(const std::uint8_t* data, std::size_t size);
 /** Load an image entry from a ZIP archive. */
-Bitmap* load_bitmap(const simlib::data::Archive& archive, const std::string& name);
+Bitmap* load_bitmap(const Archive& archive, const std::string& name);
 /** Save a bitmap as an uncompressed PNG, appending .png when no extension is supplied. */
 bool save_bitmap(Bitmap* bitmap, const std::string& path);
 /** Destroy a bitmap created by this module. */
@@ -134,4 +134,4 @@ void destroy_screen();
 
 } // namespace detail
 
-} // namespace simlib::draw
+} // namespace simlib

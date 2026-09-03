@@ -2,7 +2,7 @@
 
 #include <SDL2/SDL.h>
 
-namespace simlib::input {
+namespace simlib {
 
 bool poll_event(SDL_Event* event) {
 	return event && SDL_PollEvent(event) != 0;
@@ -30,4 +30,4 @@ std::uint32_t mouse_buttons() {
 	return SDL_GetMouseState(nullptr, nullptr);
 }
 
-} // namespace simlib::input
+} // namespace simlib

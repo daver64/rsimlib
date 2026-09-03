@@ -1,6 +1,6 @@
 #include "noise.h"
 
-namespace simlib::noise {
+namespace simlib {
 
 Generator::Generator(int seed)
     : generator_(seed) {
@@ -22,4 +22,4 @@ float Generator::get(float x, float y, float z) const {
     return generator_.GetNoise(x, y, z);
 }
 
-} // namespace simlib::noise
+} // namespace simlib
