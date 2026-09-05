@@ -21,7 +21,7 @@ struct TextTexture {
 };
 
 /** Convert a UTF-8 string into a temporary GPU text texture. */
-std::optional<TextTexture> build_text_texture(TTF_Font* font, const std::string& text, const Colour& colour) {
+std::optional<TextTexture> build_text_texture(Font* font, const std::string& text, const Colour& colour) {
     const SDL_Color sdlColor{colour.red, colour.green, colour.blue, colour.alpha};
     SDL_Surface* rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
     if (!rendered) {
@@ -194,12 +194,12 @@ std::optional<std::vector<unsigned char>> load_font() {
 }
 
 
-TTF_Font *sl_default_monospace_font = nullptr;
+Font *sl_default_monospace_font = nullptr;
 
-TTF_Font *get_default_monospace_font() {
+Font *get_default_monospace_font() {
     return sl_default_monospace_font;
 }
-TTF_Font* open_monospace_font(int pointSize) {
+Font* open_monospace_font(int pointSize) {
     const auto fontBytes = load_font();
     if (!fontBytes) {
         return nullptr;
@@ -213,37 +213,37 @@ TTF_Font* open_monospace_font(int pointSize) {
     return TTF_OpenFontRW(rw, 1, pointSize);
 }
 
-TTF_Font* open_font(const std::string& path, int pointSize) {
-    TTF_Font* font = TTF_OpenFont(path.c_str(), pointSize);
+Font* open_font(const std::string& path, int pointSize) {
+    Font* font = TTF_OpenFont(path.c_str(), pointSize);
     if (!font) simlib::detail::set_error(TTF_GetError());
     return font;
 }
 
-TTF_Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int pointSize) {
+Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int pointSize) {
     if (!data || size == 0 || size > std::numeric_limits<int>::max()) return nullptr;
     SDL_RWops* rw = SDL_RWFromConstMem(data, static_cast<int>(size));
-    TTF_Font* font = rw ? TTF_OpenFontRW(rw, 1, pointSize) : nullptr;
+    Font* font = rw ? TTF_OpenFontRW(rw, 1, pointSize) : nullptr;
     if (!font) simlib::detail::set_error(TTF_GetError());
     return font;
 }
 
-TTF_Font* open_font(const Archive& archive, const std::string& name, int pointSize) {
+Font* open_font(const Archive& archive, const std::string& name, int pointSize) {
     const auto bytes = archive.read(name);
     return open_font_from_memory(bytes.data(), bytes.size(), pointSize);
 }
 
-int text_length(TTF_Font* font, const std::string& text) {
+int text_length(Font* font, const std::string& text) {
     int width = 0;
     int height = 0;
     return font && TTF_SizeUTF8(font, text.c_str(), &width, &height) == 0 ? width : 0;
 }
 
-int text_height(TTF_Font* font) {
+int text_height(Font* font) {
     return font ? TTF_FontHeight(font) : 0;
 }
 
 void gl_printf(
-    TTF_Font* font,
+    Font* font,
     int x,
     int y,
     const Colour& foreground,
@@ -268,11 +268,11 @@ void gl_printf(
     destroy_text_texture(mutableTexture);
 }
 
-void textout(TTF_Font* font, int x, int y, const Colour& colour, const std::string& text) {
+void textout(Font* font, int x, int y, const Colour& colour, const std::string& text) {
     gl_printf(font, x, y, colour, {0, 0, 0, 0}, screen_width(), screen_height(), text);
 }
 
-void textprintf(TTF_Font* font, int x, int y, const Colour& colour, const char* format, ...) {
+void textprintf(Font* font, int x, int y, const Colour& colour, const char* format, ...) {
     if (!format) return;
     char buffer[1024];
     va_list arguments;

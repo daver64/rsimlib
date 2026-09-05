@@ -3,11 +3,11 @@
 
 namespace game
 {
-    bool running = true;
+    std::atomic<bool> running{true};
 
     void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...)
     {
-        TTF_Font *font = simlib::get_default_monospace_font();
+        simlib::Font *font = simlib::get_default_monospace_font();
         char buffer[1024];
         va_list args;
         va_start(args, fmt);
@@ -55,7 +55,7 @@ namespace game
 
     void update_and_render()
     {
-        TTF_Font *font = simlib::get_default_monospace_font();
+        simlib::Font *font = simlib::get_default_monospace_font();
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});

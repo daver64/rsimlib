@@ -3,6 +3,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 
@@ -16,7 +17,7 @@
 #include <imgui.h>
 
 namespace game {
-    extern bool running;
+    extern std::atomic<bool> running;
 
     void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...);
     void shutdown();

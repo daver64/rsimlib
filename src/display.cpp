@@ -10,7 +10,7 @@
 
 namespace simlib {
 
-extern TTF_Font *sl_default_monospace_font;
+extern Font *sl_default_monospace_font;
 
 namespace {
 
