@@ -24,12 +24,16 @@ namespace game {
     extern Mode current_mode;
     extern std::atomic<bool> running;
 
+    extern simlib::Bitmap* red_balloon;
+    extern simlib::Bitmap* blue_balloon;
+    extern simlib::Bitmap* green_balloon;
+
     void shutdown();
     bool handle_events();
     bool initialise();
     void update_and_render();
     bool is_running();
-    
+
     /// module input functions
     void handle_menu_input(SDL_Event event);
     void handle_playing_input(SDL_Event event);

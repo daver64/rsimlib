@@ -25,6 +25,12 @@ namespace game
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
         simlib::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
+
+        simlib::draw_sprite(red_balloon, 100, 100);
+        simlib::draw_sprite(blue_balloon, 400, 100);
+        simlib::draw_sprite(green_balloon, 400, 400);
+
+
         simlib::show_video_bitmap();
         simlib::end_frame();
     }

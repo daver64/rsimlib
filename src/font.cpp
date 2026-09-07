@@ -200,7 +200,9 @@ Font *get_default_monospace_font() {
     return sl_default_monospace_font;
 }
 Font* open_monospace_font(int pointSize) {
-    const auto fontBytes = load_font();
+    // TTF_OpenFontRW reads glyph data from this buffer for the font's entire
+    // lifetime, so it must outlive this call rather than being freed here
+    static const std::optional<std::vector<unsigned char>> fontBytes = load_font();
     if (!fontBytes) {
         return nullptr;
     }

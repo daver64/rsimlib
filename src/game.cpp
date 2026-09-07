@@ -5,6 +5,10 @@ namespace game
     std::atomic<bool> running{true};
     Mode current_mode{Mode::menu};
 
+    simlib::Bitmap* red_balloon = nullptr;
+    simlib::Bitmap* blue_balloon = nullptr;
+    simlib::Bitmap* green_balloon = nullptr;    
+
     void shutdown()
     {
         simlib::gui_shutdown();
@@ -71,6 +75,10 @@ namespace game
         simlib::music_init();
         simlib::audio_fx_init();
         SDL_StopTextInput();
+
+        red_balloon = simlib::load_bitmap("assets/textures/balloon_red.png");
+        blue_balloon = simlib::load_bitmap("assets/textures/balloon_blue.png");
+        green_balloon = simlib::load_bitmap("assets/textures/balloon_green.png");
         return true;
     }
 
