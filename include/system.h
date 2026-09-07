@@ -8,7 +8,7 @@ namespace simlib {
 std::uint64_t time_ms();
 /** Delay execution for approximately the requested number of milliseconds. */
 void rest(std::uint32_t milliseconds);
-
+void shutdown();
 /** Set the target frame rate for end_frame() to maintain; 0 runs uncapped. */
 void set_fps(int fps);
 /** Return the currently configured target frame rate (0 = uncapped). */

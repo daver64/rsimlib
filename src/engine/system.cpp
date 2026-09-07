@@ -12,6 +12,9 @@ bool frame_started = false;
 
 } // namespace
 
+void shutdown() {
+	SDL_Quit();
+}
 std::uint64_t time_ms() {
 	return SDL_GetTicks64();
 }

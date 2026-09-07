@@ -15,7 +15,7 @@ namespace game
         simlib::display_shutdown();
         simlib::audio_fx_shutdown();
         simlib::music_shutdown();
-        SDL_Quit();
+        simlib::shutdown();
     }
 
     bool is_running()
