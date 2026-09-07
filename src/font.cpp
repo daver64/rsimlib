@@ -282,6 +282,29 @@ void textprintf(Font* font, int x, int y, const Colour& colour, const char* form
     textout(font, x, y, colour, buffer);
 }
 
+void gprintf(int x, int y, const Colour& colour, const char* fmt, ...) {
+    if (!fmt) return;
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    textout(get_default_monospace_font(), x, y, colour, buffer);
+}
+
+void gprintf_center(int y, const Colour& colour, const char* fmt, ...) {
+    if (!fmt) return;
+    Font* font = get_default_monospace_font();
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    const int text_width = text_length(font, buffer);
+    const int x = (screen->width - text_width) / 2;
+    textout(font, x, y, colour, buffer);
+}
+
 struct TextCache {
     std::string text;
     Font* font = nullptr;

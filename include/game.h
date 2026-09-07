@@ -24,13 +24,12 @@ namespace game {
     extern Mode current_mode;
     extern std::atomic<bool> running;
 
-    void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...);
-    void gprintf_center(int y, simlib::Colour colour, const char *fmt, ...);
     void shutdown();
     bool handle_events();
     bool initialise();
     void update_and_render();
-
+    bool is_running();
+    
     /// module input functions
     void handle_menu_input(SDL_Event event);
     void handle_playing_input(SDL_Event event);

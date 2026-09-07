@@ -22,11 +22,11 @@ namespace game
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-        gprintf_center(1+fontheight,text_colour,  "Settings");
-        gprintf_center(1+3*fontheight,text_colour,"1....Option 1");
-        gprintf_center(1+5*fontheight,text_colour,"2....Option 2");
-        gprintf_center(1+7*fontheight,text_colour,"3....Option 3");
-        gprintf_center(1+9*fontheight,text_colour,"ESC..Back    ");
+        simlib::gprintf_center(1+fontheight,text_colour,  "Settings");
+        simlib::gprintf_center(1+3*fontheight,text_colour,"1....Option 1");
+        simlib::gprintf_center(1+5*fontheight,text_colour,"2....Option 2");
+        simlib::gprintf_center(1+7*fontheight,text_colour,"3....Option 3");
+        simlib::gprintf_center(1+9*fontheight,text_colour,"ESC..Back    ");
         simlib::show_video_bitmap();
         simlib::end_frame();
     }

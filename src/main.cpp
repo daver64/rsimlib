@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     }
 
     // Main loop
-    while (game::running)
+    while (game::is_running())
     {
         game::handle_events();
         game::update_and_render();

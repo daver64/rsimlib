@@ -103,7 +103,7 @@ void restore_projection() {
 }
 
 /** Draw a bitmap region as a scaled and optionally flipped quad. */
-void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, int x, int y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false) {
+void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, float x, float y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false) {
 	if (!upload_bitmap(bitmap)) {
 		return;
 	}
@@ -119,17 +119,17 @@ void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int
 	const float topTexture = static_cast<float>(sourceY) / bitmap->height;
 	const float rightTexture = static_cast<float>(sourceX + width) / bitmap->width;
 	const float bottomTexture = static_cast<float>(sourceY + height) / bitmap->height;
-	const float right = static_cast<float>(x + (destinationWidth < 0 ? width : destinationWidth));
-	const float bottom = static_cast<float>(y + (destinationHeight < 0 ? height : destinationHeight));
+	const float right = x + static_cast<float>(destinationWidth < 0 ? width : destinationWidth);
+	const float bottom = y + static_cast<float>(destinationHeight < 0 ? height : destinationHeight);
 	const float textureLeft = flipHorizontal ? rightTexture : leftTexture;
 	const float textureRight = flipHorizontal ? leftTexture : rightTexture;
 	const float textureTop = flipVertical ? bottomTexture : topTexture;
 	const float textureBottom = flipVertical ? topTexture : bottomTexture;
 	glBegin(GL_QUADS);
-	glTexCoord2f(textureLeft, textureTop); glVertex2f(static_cast<float>(x), static_cast<float>(y));
-	glTexCoord2f(textureRight, textureTop); glVertex2f(right, static_cast<float>(y));
+	glTexCoord2f(textureLeft, textureTop); glVertex2f(x, y);
+	glTexCoord2f(textureRight, textureTop); glVertex2f(right, y);
 	glTexCoord2f(textureRight, textureBottom); glVertex2f(right, bottom);
-	glTexCoord2f(textureLeft, textureBottom); glVertex2f(static_cast<float>(x), bottom);
+	glTexCoord2f(textureLeft, textureBottom); glVertex2f(x, bottom);
 	glEnd();
 
 	glDisable(GL_BLEND);
@@ -196,8 +196,8 @@ void draw_line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
 }
 
 /** Render a plain or textured ellipse directly to the screen. */
-void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Bitmap* texture, Colour colour) {
-	const int segments = std::max(16, std::min(256, std::max(radiusX, radiusY) * 2));
+void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap* texture, Colour colour) {
+	const int segments = std::max(16, std::min(256, static_cast<int>(std::max(radiusX, radiusY) * 2.0f)));
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
 		return;
@@ -207,7 +207,7 @@ void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Bi
 		if (textured) {
 			glTexCoord2f(0.5f, 0.5f);
 		}
-		glVertex2i(x, y);
+		glVertex2f(x, y);
 	}
 	for (int index = 0; index <= (filled ? segments : segments - 1); ++index) {
 		const float angle = 2.0f * pi * index / segments;
@@ -223,37 +223,37 @@ void draw_screen_ellipse(int x, int y, int radiusX, int radiusY, bool filled, Bi
 }
 
 /** Render a plain or textured triangle directly to the screen. */
-void draw_screen_triangle(int x1, int y1, int x2, int y2, int x3, int y3, bool filled, Bitmap* texture, Colour colour) {
+void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap* texture, Colour colour) {
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
 		return;
 	}
 	glBegin(filled ? GL_TRIANGLES : GL_LINE_LOOP);
 	if (textured) glTexCoord2f(0.0f, 0.0f);
-	glVertex2i(x1, y1);
+	glVertex2f(x1, y1);
 	if (textured) glTexCoord2f(1.0f, 0.0f);
-	glVertex2i(x2, y2);
+	glVertex2f(x2, y2);
 	if (textured) glTexCoord2f(0.5f, 1.0f);
-	glVertex2i(x3, y3);
+	glVertex2f(x3, y3);
 	glEnd();
 	end_screen_shape(textured);
 }
 
 /** Render a plain or textured rectangle directly to the screen. */
-void draw_screen_rect(int left, int top, int right, int bottom, bool filled, Bitmap* texture, Colour colour) {
+void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap* texture, Colour colour) {
 	const bool textured = texture != nullptr;
 	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
 		return;
 	}
 	glBegin(filled ? GL_QUADS : GL_LINE_LOOP);
 	if (textured) glTexCoord2f(0.0f, 0.0f);
-	glVertex2i(left, top);
+	glVertex2f(left, top);
 	if (textured) glTexCoord2f(1.0f, 0.0f);
-	glVertex2i(right, top);
+	glVertex2f(right, top);
 	if (textured) glTexCoord2f(1.0f, 1.0f);
-	glVertex2i(right, bottom);
+	glVertex2f(right, bottom);
 	if (textured) glTexCoord2f(0.0f, 1.0f);
-	glVertex2i(left, bottom);
+	glVertex2f(left, bottom);
 	glEnd();
 	end_screen_shape(textured);
 }
@@ -479,60 +479,70 @@ Colour getpixel(Bitmap* bitmap, int x, int y) {
 }
 
 /** Draw an outline circle. */
-void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
-	if (!bitmap || radius < 0) return;
+void circle(Bitmap* bitmap, float x, float y, float radius, Colour colour) {
+	if (!bitmap || radius < 0.0f) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radius, radius, false, nullptr, colour);
 		return;
 	}
+	const int ix = static_cast<int>(std::lround(x));
+	const int iy = static_cast<int>(std::lround(y));
+	const int iradius = static_cast<int>(std::lround(radius));
 	for (int degrees = 0; degrees < 360; ++degrees) {
 		const float angle = degrees * pi / 180.0f;
-		putpixel(bitmap, x + static_cast<int>(std::lround(radius * std::cos(angle))), y + static_cast<int>(std::lround(radius * std::sin(angle))), colour);
+		putpixel(bitmap, ix + static_cast<int>(std::lround(iradius * std::cos(angle))), iy + static_cast<int>(std::lround(iradius * std::sin(angle))), colour);
 	}
 }
 
 /** Draw a filled circle. */
-void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour) {
-	if (!bitmap || radius < 0) return;
+void circlefill(Bitmap* bitmap, float x, float y, float radius, Colour colour) {
+	if (!bitmap || radius < 0.0f) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radius, radius, true, nullptr, colour);
 		return;
 	}
-	for (int offsetY = -radius; offsetY <= radius; ++offsetY) {
-		const int halfWidth = static_cast<int>(std::sqrt(radius * radius - offsetY * offsetY));
-		for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX) putpixel(bitmap, x + offsetX, y + offsetY, colour);
+	const int ix = static_cast<int>(std::lround(x));
+	const int iy = static_cast<int>(std::lround(y));
+	const int iradius = static_cast<int>(std::lround(radius));
+	for (int offsetY = -iradius; offsetY <= iradius; ++offsetY) {
+		const int halfWidth = static_cast<int>(std::sqrt(iradius * iradius - offsetY * offsetY));
+		for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX) putpixel(bitmap, ix + offsetX, iy + offsetY, colour);
 	}
 }
 
 /** Draw an outline rectangle. */
-void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
+void rect(Bitmap* bitmap, float left, float top, float right, float bottom, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_rect(left, top, right, bottom, false, nullptr, colour);
 		return;
 	}
-	draw_line(bitmap, left, top, right, top, colour);
-	draw_line(bitmap, right, top, right, bottom, colour);
-	draw_line(bitmap, right, bottom, left, bottom, colour);
-	draw_line(bitmap, left, bottom, left, top, colour);
+	const int ileft = static_cast<int>(std::lround(left));
+	const int itop = static_cast<int>(std::lround(top));
+	const int iright = static_cast<int>(std::lround(right));
+	const int ibottom = static_cast<int>(std::lround(bottom));
+	draw_line(bitmap, ileft, itop, iright, itop, colour);
+	draw_line(bitmap, iright, itop, iright, ibottom, colour);
+	draw_line(bitmap, iright, ibottom, ileft, ibottom, colour);
+	draw_line(bitmap, ileft, ibottom, ileft, itop, colour);
 }
 
 /** Draw a filled rectangle. */
-void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour) {
+void rectfill(Bitmap* bitmap, float left, float top, float right, float bottom, Colour colour) {
 	if (is_screen(bitmap)) {
-		left = std::clamp(left, 0, bitmap->width);
-		right = std::clamp(right, 0, bitmap->width);
-		top = std::clamp(top, 0, bitmap->height);
-		bottom = std::clamp(bottom, 0, bitmap->height);
+		left = std::clamp(left, 0.0f, static_cast<float>(bitmap->width));
+		right = std::clamp(right, 0.0f, static_cast<float>(bitmap->width));
+		top = std::clamp(top, 0.0f, static_cast<float>(bitmap->height));
+		bottom = std::clamp(bottom, 0.0f, static_cast<float>(bitmap->height));
 		set_projection();
 		glDisable(GL_TEXTURE_2D);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
 		glBegin(GL_QUADS);
-		glVertex2i(left, top);
-		glVertex2i(right, top);
-		glVertex2i(right, bottom);
-		glVertex2i(left, bottom);
+		glVertex2f(left, top);
+		glVertex2f(right, top);
+		glVertex2f(right, bottom);
+		glVertex2f(left, bottom);
 		glEnd();
 		glDisable(GL_BLEND);
 		restore_projection();
@@ -541,101 +551,113 @@ void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour c
 	if (!ensure_ram_pixels(bitmap)) {
 		return;
 	}
-	left = std::clamp(left, 0, bitmap->width);
-	right = std::clamp(right, 0, bitmap->width);
-	top = std::clamp(top, 0, bitmap->height);
-	bottom = std::clamp(bottom, 0, bitmap->height);
-	for (int y = top; y < bottom; ++y) {
-		for (int x = left; x < right; ++x) {
+	const int ileft = std::clamp(static_cast<int>(std::lround(left)), 0, bitmap->width);
+	const int iright = std::clamp(static_cast<int>(std::lround(right)), 0, bitmap->width);
+	const int itop = std::clamp(static_cast<int>(std::lround(top)), 0, bitmap->height);
+	const int ibottom = std::clamp(static_cast<int>(std::lround(bottom)), 0, bitmap->height);
+	for (int y = itop; y < ibottom; ++y) {
+		for (int x = ileft; x < iright; ++x) {
 			putpixel(bitmap, x, y, colour);
 		}
 	}
 }
 
 /** Draw an outline ellipse. */
-void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
-	if (!bitmap || radiusX < 0 || radiusY < 0) return;
+void ellipse(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Colour colour) {
+	if (!bitmap || radiusX < 0.0f || radiusY < 0.0f) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radiusX, radiusY, false, nullptr, colour);
 		return;
 	}
+	const int ix = static_cast<int>(std::lround(x));
+	const int iy = static_cast<int>(std::lround(y));
 	for (int degrees = 0; degrees < 360; ++degrees) {
 		const float angle = degrees * pi / 180.0f;
-		putpixel(bitmap, x + static_cast<int>(std::lround(radiusX * std::cos(angle))), y + static_cast<int>(std::lround(radiusY * std::sin(angle))), colour);
+		putpixel(bitmap, ix + static_cast<int>(std::lround(radiusX * std::cos(angle))), iy + static_cast<int>(std::lround(radiusY * std::sin(angle))), colour);
 	}
 }
 
 /** Draw a filled ellipse. */
-void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour) {
-	if (!bitmap || radiusX < 0 || radiusY < 0) return;
+void ellipsefill(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Colour colour) {
+	if (!bitmap || radiusX < 0.0f || radiusY < 0.0f) return;
 	if (is_screen(bitmap)) {
 		draw_screen_ellipse(x, y, radiusX, radiusY, true, nullptr, colour);
 		return;
 	}
-	for (int offsetY = -radiusY; offsetY <= radiusY; ++offsetY) {
-		const float ratio = radiusY == 0 ? 0.0f : static_cast<float>(offsetY) / radiusY;
+	const int ix = static_cast<int>(std::lround(x));
+	const int iy = static_cast<int>(std::lround(y));
+	const int iradiusY = static_cast<int>(std::lround(radiusY));
+	for (int offsetY = -iradiusY; offsetY <= iradiusY; ++offsetY) {
+		const float ratio = iradiusY == 0 ? 0.0f : static_cast<float>(offsetY) / iradiusY;
 		const int halfWidth = static_cast<int>(std::sqrt(std::max(0.0f, 1.0f - ratio * ratio)) * radiusX);
-		for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX) putpixel(bitmap, x + offsetX, y + offsetY, colour);
+		for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX) putpixel(bitmap, ix + offsetX, iy + offsetY, colour);
 	}
 }
 
 /** Draw an outline triangle. */
-void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
+void triangle(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour);
 		return;
 	}
-	draw_line(bitmap, x1, y1, x2, y2, colour);
-	draw_line(bitmap, x2, y2, x3, y3, colour);
-	draw_line(bitmap, x3, y3, x1, y1, colour);
+	draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
+	draw_line(bitmap, static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), colour);
+	draw_line(bitmap, static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), colour);
 }
 
 /** Draw a filled triangle. */
-void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour) {
+void trianglefill(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour) {
 	if (is_screen(bitmap)) {
 		draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, nullptr, colour);
 		return;
 	}
-	const int minimumX = std::min({x1, x2, x3});
-	const int maximumX = std::max({x1, x2, x3});
-	const int minimumY = std::min({y1, y2, y3});
-	const int maximumY = std::max({y1, y2, y3});
-	const int area = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1);
+	const int ix1 = static_cast<int>(std::lround(x1));
+	const int iy1 = static_cast<int>(std::lround(y1));
+	const int ix2 = static_cast<int>(std::lround(x2));
+	const int iy2 = static_cast<int>(std::lround(y2));
+	const int ix3 = static_cast<int>(std::lround(x3));
+	const int iy3 = static_cast<int>(std::lround(y3));
+	const int minimumX = std::min({ix1, ix2, ix3});
+	const int maximumX = std::max({ix1, ix2, ix3});
+	const int minimumY = std::min({iy1, iy2, iy3});
+	const int maximumY = std::max({iy1, iy2, iy3});
+	const int area = (ix2 - ix1) * (iy3 - iy1) - (iy2 - iy1) * (ix3 - ix1);
 	if (area == 0) return;
 	for (int y = minimumY; y <= maximumY; ++y) for (int x = minimumX; x <= maximumX; ++x) {
-		const int a = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
-		const int b = (x3 - x2) * (y - y2) - (y3 - y2) * (x - x2);
-		const int c = (x1 - x3) * (y - y3) - (y1 - y3) * (x - x3);
+		const int a = (ix2 - ix1) * (y - iy1) - (iy2 - iy1) * (x - ix1);
+		const int b = (ix3 - ix2) * (y - iy2) - (iy3 - iy2) * (x - ix2);
+		const int c = (ix1 - ix3) * (y - iy3) - (iy1 - iy3) * (x - ix3);
 		if ((a >= 0 && b >= 0 && c >= 0) || (a <= 0 && b <= 0 && c <= 0)) putpixel(bitmap, x, y, colour);
 	}
 }
 
 /** Draw a line between two points. */
-void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
-	if (bitmap) {
-		draw_line(bitmap, x1, y1, x2, y2, colour);
+void line(Bitmap* bitmap, float x1, float y1, float x2, float y2, Colour colour) {
+	if (!bitmap) {
+		return;
 	}
+	draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
 }
 
 /** Draw a textured circle outline. */
-void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
+void circle(Bitmap* bitmap, float x, float y, float radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0.0f) draw_screen_ellipse(x, y, radius, radius, false, texture, {}); }
 /** Draw a textured filled circle. */
-void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
+void circlefill(Bitmap* bitmap, float x, float y, float radius, Bitmap* texture) { if (is_screen(bitmap) && radius >= 0.0f) draw_screen_ellipse(x, y, radius, radius, true, texture, {}); }
 /** Draw a textured rectangle outline. */
-void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
+void rect(Bitmap* bitmap, float left, float top, float right, float bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, false, texture, {}); }
 /** Draw a textured filled rectangle. */
-void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, true, texture, {}); }
+void rectfill(Bitmap* bitmap, float left, float top, float right, float bottom, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_rect(left, top, right, bottom, true, texture, {}); }
 /** Draw a textured ellipse outline. */
-void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}); }
+void ellipse(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f) draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}); }
 /** Draw a textured filled ellipse. */
-void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0 && radiusY >= 0) draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {}); }
+void ellipsefill(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Bitmap* texture) { if (is_screen(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f) draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {}); }
 /** Draw a textured triangle outline. */
-void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}); }
+void triangle(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}); }
 /** Draw a textured filled triangle. */
-void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {}); }
+void trianglefill(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap* texture) { if (is_screen(bitmap)) draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {}); }
 
 /** Copy a rectangular bitmap region without scaling. */
-void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
+void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, float destinationX, float destinationY, int width, int height) {
 	if (is_screen(destination)) {
 		if (!source || is_screen(source)) {
 			return;
@@ -645,19 +667,21 @@ void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int des
 		const int clippedWidth = std::min(width - (clippedSourceX - sourceX), source->width - clippedSourceX);
 		const int clippedHeight = std::min(height - (clippedSourceY - sourceY), source->height - clippedSourceY);
 		if (clippedWidth > 0 && clippedHeight > 0) {
-			draw_textured_quad(source, clippedSourceX, clippedSourceY, clippedWidth, clippedHeight, destinationX + (clippedSourceX - sourceX), destinationY + (clippedSourceY - sourceY));
+			draw_textured_quad(source, clippedSourceX, clippedSourceY, clippedWidth, clippedHeight, destinationX + static_cast<float>(clippedSourceX - sourceX), destinationY + static_cast<float>(clippedSourceY - sourceY));
 		}
 		return;
 	}
 	if (!ensure_ram_pixels(source) || !ensure_ram_pixels(destination) || width <= 0 || height <= 0) {
 		return;
 	}
+	const int idestinationX = static_cast<int>(std::lround(destinationX));
+	const int idestinationY = static_cast<int>(std::lround(destinationY));
 	for (int y = 0; y < height; ++y) {
 		for (int x = 0; x < width; ++x) {
 			const int fromX = sourceX + x;
 			const int fromY = sourceY + y;
-			const int toX = destinationX + x;
-			const int toY = destinationY + y;
+			const int toX = idestinationX + x;
+			const int toY = idestinationY + y;
 			if (fromX >= 0 && fromX < source->width && fromY >= 0 && fromY < source->height && toX >= 0 && toX < destination->width && toY >= 0 && toY < destination->height) {
 				const std::size_t sourceOffset = pixel_offset(*source, fromX, fromY);
 				const std::size_t destinationOffset = pixel_offset(*destination, toX, toY);
@@ -669,10 +693,12 @@ void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int des
 }
 
 /** Copy a bitmap region while skipping transparent pixels. */
-void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height) {
+void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, float destinationX, float destinationY, int width, int height) {
 	if (!source || !destination || width <= 0 || height <= 0 || !ensure_ram_pixels(source)) {
 		return;
 	}
+	const int idestinationX = static_cast<int>(std::lround(destinationX));
+	const int idestinationY = static_cast<int>(std::lround(destinationY));
 	if (is_screen(destination)) {
 		for (int y = 0; y < height; ++y) {
 			for (int x = 0; x < width; ++x) {
@@ -680,7 +706,7 @@ void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, 
 				const int sourcePixelY = sourceY + y;
 				if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height) continue;
 				const std::size_t offset = pixel_offset(*source, sourcePixelX, sourcePixelY);
-				if (source->pixels[offset + 3] != 0) putpixel(destination, destinationX + x, destinationY + y, {source->pixels[offset], source->pixels[offset + 1], source->pixels[offset + 2], source->pixels[offset + 3]});
+				if (source->pixels[offset + 3] != 0) putpixel(destination, idestinationX + x, idestinationY + y, {source->pixels[offset], source->pixels[offset + 1], source->pixels[offset + 2], source->pixels[offset + 3]});
 			}
 		}
 		return;
@@ -690,8 +716,8 @@ void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, 
 		for (int x = 0; x < width; ++x) {
 			const int sourcePixelX = sourceX + x;
 			const int sourcePixelY = sourceY + y;
-			const int destinationPixelX = destinationX + x;
-			const int destinationPixelY = destinationY + y;
+			const int destinationPixelX = idestinationX + x;
+			const int destinationPixelY = idestinationY + y;
 			if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height || destinationPixelX < 0 || destinationPixelX >= destination->width || destinationPixelY < 0 || destinationPixelY >= destination->height) continue;
 			const std::size_t sourceOffset = pixel_offset(*source, sourcePixelX, sourcePixelY);
 			if (source->pixels[sourceOffset + 3] != 0) std::memcpy(destination->pixels.data() + pixel_offset(*destination, destinationPixelX, destinationPixelY), source->pixels.data() + sourceOffset, bytes_per_pixel);
@@ -701,19 +727,21 @@ void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, 
 }
 
 /** Scale and copy a bitmap region. */
-void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight) {
+void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, float destinationX, float destinationY, int destinationWidth, int destinationHeight) {
 	if (!source || !destination || sourceWidth <= 0 || sourceHeight <= 0 || destinationWidth <= 0 || destinationHeight <= 0) return;
 	if (is_screen(destination)) {
 		draw_textured_quad(source, sourceX, sourceY, sourceWidth, sourceHeight, destinationX, destinationY, destinationWidth, destinationHeight);
 		return;
 	}
 	if (!ensure_ram_pixels(source) || !ensure_ram_pixels(destination)) return;
+	const int idestinationX = static_cast<int>(std::lround(destinationX));
+	const int idestinationY = static_cast<int>(std::lround(destinationY));
 	for (int y = 0; y < destinationHeight; ++y) {
 		for (int x = 0; x < destinationWidth; ++x) {
 			const int sourcePixelX = sourceX + x * sourceWidth / destinationWidth;
 			const int sourcePixelY = sourceY + y * sourceHeight / destinationHeight;
-			const int destinationPixelX = destinationX + x;
-			const int destinationPixelY = destinationY + y;
+			const int destinationPixelX = idestinationX + x;
+			const int destinationPixelY = idestinationY + y;
 			if (sourcePixelX < 0 || sourcePixelX >= source->width || sourcePixelY < 0 || sourcePixelY >= source->height || destinationPixelX < 0 || destinationPixelX >= destination->width || destinationPixelY < 0 || destinationPixelY >= destination->height) continue;
 			std::memcpy(destination->pixels.data() + pixel_offset(*destination, destinationPixelX, destinationPixelY), source->pixels.data() + pixel_offset(*source, sourcePixelX, sourcePixelY), bytes_per_pixel);
 		}
@@ -778,7 +806,7 @@ bool download_bitmap(Bitmap* bitmap) {
 }
 
 /** Draw a bitmap at a screen position. */
-void draw_sprite(Bitmap* bitmap, int x, int y) {
+void draw_sprite(Bitmap* bitmap, float x, float y) {
 	if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0) {
 		return;
 	}
@@ -786,12 +814,12 @@ void draw_sprite(Bitmap* bitmap, int x, int y) {
 }
 
 /** Draw a horizontally flipped bitmap. */
-void draw_sprite_h_flip(Bitmap* bitmap, int x, int y) {
+void draw_sprite_h_flip(Bitmap* bitmap, float x, float y) {
 	if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
 }
 
 /** Draw a vertically flipped bitmap. */
-void draw_sprite_v_flip(Bitmap* bitmap, int x, int y) {
+void draw_sprite_v_flip(Bitmap* bitmap, float x, float y) {
 	if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
 }
 

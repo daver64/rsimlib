@@ -69,59 +69,59 @@ void putpixel(Bitmap* bitmap, int x, int y, Colour colour);
 /** Read one pixel, returning a zero colour for invalid coordinates. */
 Colour getpixel(Bitmap* bitmap, int x, int y);
 /** Draw an outline circle. */
-void circle(Bitmap* bitmap, int x, int y, int radius, Colour colour);
+void circle(Bitmap* bitmap, float x, float y, float radius, Colour colour);
 /** Draw a filled circle. */
-void circlefill(Bitmap* bitmap, int x, int y, int radius, Colour colour);
+void circlefill(Bitmap* bitmap, float x, float y, float radius, Colour colour);
 /** Draw an outline rectangle using inclusive corner coordinates. */
-void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour);
+void rect(Bitmap* bitmap, float left, float top, float right, float bottom, Colour colour);
 /** Draw a filled rectangle using inclusive corner coordinates. */
-void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Colour colour);
+void rectfill(Bitmap* bitmap, float left, float top, float right, float bottom, Colour colour);
 /** Draw an outline ellipse. */
-void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
+void ellipse(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Colour colour);
 /** Draw a filled ellipse. */
-void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Colour colour);
+void ellipsefill(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Colour colour);
 /** Draw an outline triangle. */
-void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
+void triangle(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
 /** Draw a filled triangle. */
-void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Colour colour);
+void trianglefill(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
 /** Draw a line between two points. */
-void line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour);
+void line(Bitmap* bitmap, float x1, float y1, float x2, float y2, Colour colour);
 
 /** Draw a textured circle outline on the screen bitmap. */
-void circle(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+void circle(Bitmap* bitmap, float x, float y, float radius, Bitmap* texture);
 /** Draw a textured filled circle on the screen bitmap. */
-void circlefill(Bitmap* bitmap, int x, int y, int radius, Bitmap* texture);
+void circlefill(Bitmap* bitmap, float x, float y, float radius, Bitmap* texture);
 /** Draw a textured rectangle outline on the screen bitmap. */
-void rect(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+void rect(Bitmap* bitmap, float left, float top, float right, float bottom, Bitmap* texture);
 /** Draw a textured filled rectangle on the screen bitmap. */
-void rectfill(Bitmap* bitmap, int left, int top, int right, int bottom, Bitmap* texture);
+void rectfill(Bitmap* bitmap, float left, float top, float right, float bottom, Bitmap* texture);
 /** Draw a textured ellipse outline on the screen bitmap. */
-void ellipse(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+void ellipse(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Bitmap* texture);
 /** Draw a textured filled ellipse on the screen bitmap. */
-void ellipsefill(Bitmap* bitmap, int x, int y, int radiusX, int radiusY, Bitmap* texture);
+void ellipsefill(Bitmap* bitmap, float x, float y, float radiusX, float radiusY, Bitmap* texture);
 /** Draw a textured triangle outline on the screen bitmap. */
-void triangle(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+void triangle(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap* texture);
 /** Draw a textured filled triangle on the screen bitmap. */
-void trianglefill(Bitmap* bitmap, int x1, int y1, int x2, int y2, int x3, int y3, Bitmap* texture);
+void trianglefill(Bitmap* bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap* texture);
 /** Copy pixels while treating fully transparent source pixels as transparent. */
-void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
+void masked_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, float destinationX, float destinationY, int width, int height);
 /** Scale and copy a bitmap region into a destination region. */
-void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, int destinationX, int destinationY, int destinationWidth, int destinationHeight);
+void stretch_blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int sourceWidth, int sourceHeight, float destinationX, float destinationY, int destinationWidth, int destinationHeight);
 /** Create a bitmap containing a copied rectangular region. */
 Bitmap* create_sub_bitmap(Bitmap* parent, int x, int y, int width, int height);
 /** Copy a rectangular bitmap region without scaling. */
-void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, int destinationX, int destinationY, int width, int height);
+void blit(Bitmap* source, Bitmap* destination, int sourceX, int sourceY, float destinationX, float destinationY, int width, int height);
 
 /** Synchronize a bitmap's RAM pixels to its GPU texture. */
 bool upload_bitmap(Bitmap* bitmap);
 /** Synchronize a bitmap's GPU texture to RAM pixels. */
 bool download_bitmap(Bitmap* bitmap);
 /** Draw a bitmap at the supplied top-left screen position. */
-void draw_sprite(Bitmap* bitmap, int x, int y);
+void draw_sprite(Bitmap* bitmap, float x, float y);
 /** Draw a horizontally flipped bitmap. */
-void draw_sprite_h_flip(Bitmap* bitmap, int x, int y);
+void draw_sprite_h_flip(Bitmap* bitmap, float x, float y);
 /** Draw a vertically flipped bitmap. */
-void draw_sprite_v_flip(Bitmap* bitmap, int x, int y);
+void draw_sprite_v_flip(Bitmap* bitmap, float x, float y);
 
 namespace detail {
 

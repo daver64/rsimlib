@@ -50,6 +50,11 @@ void textout(Font* font, int x, int y, const Colour& colour, const std::string& 
 /** Format and draw UTF-8 text at a screen position without a background. */
 void textprintf(Font* font, int x, int y, const Colour& colour, const char* format, ...);
 
+/** Format and draw text with the default monospace font at a screen position. */
+void gprintf(int x, int y, const Colour& colour, const char* fmt, ...);
+/** Format and draw text with the default monospace font, horizontally centred on screen. */
+void gprintf_center(int y, const Colour& colour, const char* fmt, ...);
+
 /** Opaque cache holding one GPU text texture, rebuilt only when its text/font/colour change. */
 struct TextCache;
 

@@ -23,7 +23,7 @@ namespace game
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-        gprintf_center(1+fontheight,text_colour,  "Help Mode");
+        simlib::gprintf_center(1+fontheight,text_colour,  "Help Mode");
 
         simlib::show_video_bitmap();
         simlib::end_frame();

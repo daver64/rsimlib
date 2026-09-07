@@ -4,29 +4,6 @@ namespace game
 {
     std::atomic<bool> running{true};
     Mode current_mode{Mode::menu};
-    void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...)
-    {
-        simlib::Font *font = simlib::get_default_monospace_font();
-        char buffer[1024];
-        va_list args;
-        va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
-        va_end(args);
-        simlib::textout(font, x, y, colour, buffer);
-    }
-
-    void gprintf_center(int y, simlib::Colour colour, const char *fmt, ...)
-    {
-        simlib::Font *font = simlib::get_default_monospace_font();
-        char buffer[1024];
-        va_list args;
-        va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
-        va_end(args);
-        const int text_width = simlib::text_length(font, buffer);
-        const int x = (simlib::screen->width - text_width) / 2;
-        simlib::textout(font, x, y, colour, buffer);
-    }
 
     void shutdown()
     {
@@ -37,6 +14,10 @@ namespace game
         SDL_Quit();
     }
 
+    bool is_running()
+    {
+        return running;
+    }
     bool handle_events()
     {
         SDL_Event event;
@@ -89,7 +70,6 @@ namespace game
         simlib::set_fps(60);
         simlib::music_init();
         simlib::audio_fx_init();
-        // text input is enabled by default; only the Lua console needs it
         SDL_StopTextInput();
         return true;
     }
