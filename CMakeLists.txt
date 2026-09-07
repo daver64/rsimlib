@@ -76,37 +76,73 @@ else()
     set(SIMLIB_TTF_TARGET PkgConfig::SDL2_TTF)
 endif()
 
-add_executable(sltest
-    src/main.cpp
-    src/game.cpp
-    src/game_menu.cpp
-    src/game_playing.cpp
-    src/entity.cpp
-    src/game_paused.cpp
-    src/game_help.cpp
-    src/game_gameover.cpp
-    src/game_settings.cpp
-    src/game_lua.cpp
-    src/display.cpp
-    src/draw.cpp
-    src/atlas.cpp
-    src/graphics_fx_test.cpp
-    src/font.cpp
-    src/graphics_fx.cpp
-    src/audio_backend.cpp
-    src/audio_fx.cpp
-    src/audio_music.cpp
-    src/audio_test.cpp
-    src/system.cpp
-    src/input.cpp
-    src/error.cpp
-    src/resource.cpp
-    src/config.cpp
-    src/noise.cpp
-    src/gui.cpp
+add_library(simlib STATIC
+    src/engine/display.cpp
+    src/engine/draw.cpp
+    src/engine/atlas.cpp
+    src/engine/graphics_fx_test.cpp
+    src/engine/font.cpp
+    src/engine/graphics_fx.cpp
+    src/engine/audio_backend.cpp
+    src/engine/audio_fx.cpp
+    src/engine/audio_music.cpp
+    src/engine/audio_test.cpp
+    src/engine/system.cpp
+    src/engine/input.cpp
+    src/engine/error.cpp
+    src/engine/resource.cpp
+    src/engine/config.cpp
+    src/engine/noise.cpp
+    src/engine/gui.cpp
 )
+target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui)
 
-add_executable(slpack src/slpack.cpp)
+if(TARGET SDL2::SDL2main)
+    target_link_libraries(simlib PUBLIC SDL2::SDL2 SDL2::SDL2main)
+else()
+    target_link_libraries(simlib PUBLIC SDL2::SDL2)
+endif()
+
+target_link_libraries(simlib PUBLIC ${SIMLIB_TTF_TARGET})
+
+find_package(SDL2_image QUIET CONFIG)
+if(TARGET SDL2_image::SDL2_image)
+    target_link_libraries(simlib PUBLIC SDL2_image::SDL2_image)
+elseif(TARGET SDL2_image::SDL2_image-static)
+    target_link_libraries(simlib PUBLIC SDL2_image::SDL2_image-static)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2_IMAGE REQUIRED IMPORTED_TARGET SDL2_image)
+    target_link_libraries(simlib PUBLIC PkgConfig::SDL2_IMAGE)
+endif()
+
+find_package(SDL2_mixer QUIET CONFIG)
+if(TARGET SDL2_mixer::SDL2_mixer)
+    target_link_libraries(simlib PUBLIC SDL2_mixer::SDL2_mixer)
+elseif(TARGET SDL2_mixer::SDL2_mixer-static)
+    target_link_libraries(simlib PUBLIC SDL2_mixer::SDL2_mixer-static)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2_MIXER REQUIRED IMPORTED_TARGET SDL2_mixer)
+    target_link_libraries(simlib PUBLIC PkgConfig::SDL2_MIXER)
+endif()
+
+add_executable(sltest
+    src/applications/game/main.cpp
+    src/applications/game/game.cpp
+    src/applications/game/game_menu.cpp
+    src/applications/game/game_playing.cpp
+    src/applications/game/entity.cpp
+    src/applications/game/game_paused.cpp
+    src/applications/game/game_help.cpp
+    src/applications/game/game_gameover.cpp
+    src/applications/game/game_settings.cpp
+    src/applications/game/game_lua.cpp
+)
+target_link_libraries(sltest PRIVATE simlib lua sol2)
+
+add_executable(slpack src/applications/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 set_target_properties(slpack PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -114,9 +150,9 @@ set_target_properties(slpack PROPERTIES
 
 if(BUILD_TESTING)
     add_executable(resource_test
-        src/resource_test.cpp
-        src/resource.cpp
-        src/error.cpp
+        src/engine/resource_test.cpp
+        src/engine/resource.cpp
+        src/engine/error.cpp
     )
     target_include_directories(resource_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
     target_link_libraries(resource_test PRIVATE ZLIB::ZLIB)
@@ -139,8 +175,6 @@ if(BUILD_TESTING)
     add_test(NAME resource_archive COMMAND resource_test ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip)
 endif()
 
-target_include_directories(sltest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
 find_package(Doxygen QUIET)
 if(Doxygen_FOUND)
     add_custom_target(docs
@@ -149,38 +183,6 @@ if(Doxygen_FOUND)
         COMMENT "Generating simlib API documentation"
         VERBATIM
     )
-endif()
-
-target_link_libraries(sltest PRIVATE OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
-
-if(TARGET SDL2::SDL2main)
-    target_link_libraries(sltest PRIVATE SDL2::SDL2 SDL2::SDL2main)
-else()
-    target_link_libraries(sltest PRIVATE SDL2::SDL2)
-endif()
-
-target_link_libraries(sltest PRIVATE ${SIMLIB_TTF_TARGET})
-
-find_package(SDL2_image QUIET CONFIG)
-if(TARGET SDL2_image::SDL2_image)
-    target_link_libraries(sltest PRIVATE SDL2_image::SDL2_image)
-elseif(TARGET SDL2_image::SDL2_image-static)
-    target_link_libraries(sltest PRIVATE SDL2_image::SDL2_image-static)
-else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(SDL2_IMAGE REQUIRED IMPORTED_TARGET SDL2_image)
-    target_link_libraries(sltest PRIVATE PkgConfig::SDL2_IMAGE)
-endif()
-
-find_package(SDL2_mixer QUIET CONFIG)
-if(TARGET SDL2_mixer::SDL2_mixer)
-    target_link_libraries(sltest PRIVATE SDL2_mixer::SDL2_mixer)
-elseif(TARGET SDL2_mixer::SDL2_mixer-static)
-    target_link_libraries(sltest PRIVATE SDL2_mixer::SDL2_mixer-static)
-else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(SDL2_MIXER REQUIRED IMPORTED_TARGET SDL2_mixer)
-    target_link_libraries(sltest PRIVATE PkgConfig::SDL2_MIXER)
 endif()
 
 set_target_properties(sltest PROPERTIES
