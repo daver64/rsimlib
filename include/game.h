@@ -25,10 +25,20 @@ namespace game {
     extern std::atomic<bool> running;
 
     void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...);
+    void gprintf_center(int y, simlib::Colour colour, const char *fmt, ...);
     void shutdown();
     bool handle_events();
     bool initialise();
     void update_and_render();
+
+    /// module input functions
+    void handle_menu_input(SDL_Event event);
+    void handle_playing_input(SDL_Event event);
+    void handle_paused_input(SDL_Event event);
+    void handle_help_input(SDL_Event event);
+    void handle_gameover_input(SDL_Event event);
+    void handle_settings_input(SDL_Event event);
+    // module rendering functions
     void update_and_render_menu();
     void update_and_render_playing();
     void update_and_render_paused();

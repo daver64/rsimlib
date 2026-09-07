@@ -1,6 +1,5 @@
 #include "game.h"
 
-
 namespace game
 {
     std::atomic<bool> running{true};
@@ -13,6 +12,19 @@ namespace game
         va_start(args, fmt);
         std::vsnprintf(buffer, sizeof(buffer), fmt, args);
         va_end(args);
+        simlib::textout(font, x, y, colour, buffer);
+    }
+
+    void gprintf_center(int y, simlib::Colour colour, const char *fmt, ...)
+    {
+        simlib::Font *font = simlib::get_default_monospace_font();
+        char buffer[1024];
+        va_list args;
+        va_start(args, fmt);
+        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        va_end(args);
+        const int text_width = simlib::text_length(font, buffer);
+        const int x = (simlib::screen->width - text_width) / 2;
         simlib::textout(font, x, y, colour, buffer);
     }
 
@@ -32,10 +44,29 @@ namespace game
             {
                 running = false;
             }
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+
+            switch (current_mode)
             {
-                running = false;
+            case Mode::menu:
+                handle_menu_input(event);
+                break;
+            case Mode::playing:
+                handle_playing_input(event);
+                break;
+            case Mode::paused:
+                handle_paused_input(event);
+                break;
+            case Mode::help:
+                handle_help_input(event);
+                break;
+            case Mode::gameover:
+                handle_gameover_input(event);
+                break;
+            case Mode::settings:
+                handle_settings_input(event);
+                break;
             }
+
             simlib::display_handle_event(event);
             simlib::gui_handle_event(event);
         }
@@ -77,6 +108,5 @@ namespace game
             update_and_render_settings();
             break;
         }
-
     }
 }
