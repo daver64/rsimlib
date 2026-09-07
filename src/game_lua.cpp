@@ -3,6 +3,7 @@
 #include <sol/sol.hpp>
 
 #include <algorithm>
+#include <ctime>
 #include <deque>
 #include <string>
 
@@ -46,9 +47,25 @@ namespace game
                 return;
             }
             lua_initialised = true;
+            // sandboxed: no io/package/debug/os libraries, so scripts cannot touch
+            // the filesystem or spawn processes beyond what we explicitly expose
             lua_state.open_libraries(
                 sol::lib::base, sol::lib::string, sol::lib::math,
-                sol::lib::table, sol::lib::os);
+                sol::lib::table);
+            lua_state["dofile"] = sol::nil;
+            lua_state["loadfile"] = sol::nil;
+            lua_state["load"] = sol::nil;
+
+            sol::table os_table = lua_state.create_named_table("os");
+            os_table.set_function("time", []() { return static_cast<lua_Integer>(std::time(nullptr)); });
+            os_table.set_function("clock", []() { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; });
+
+            // future app/library bindings must be attached under this table,
+            // never to globals or to real io/os/package libraries
+            sol::table app_table = lua_state.create_named_table("app");
+            app_table.set_function("quit", []() { running = false; });
+            lua_state["quit"] = app_table["quit"];
+
             lua_state.set_function("print", [](sol::variadic_args args)
             {
                 std::string line;
