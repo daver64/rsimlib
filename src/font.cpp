@@ -282,4 +282,54 @@ void textprintf(Font* font, int x, int y, const Colour& colour, const char* form
     textout(font, x, y, colour, buffer);
 }
 
+struct TextCache {
+    std::string text;
+    Font* font = nullptr;
+    Colour colour{};
+    TextTexture texture;
+    bool has_texture = false;
+};
+
+TextCache* create_text_cache() {
+    return new TextCache();
+}
+
+void destroy_text_cache(TextCache* cache) {
+    if (!cache) {
+        return;
+    }
+    if (cache->has_texture) {
+        destroy_text_texture(cache->texture);
+    }
+    delete cache;
+}
+
+void textout_cached(TextCache* cache, Font* font, int x, int y, const Colour& colour, const std::string& text) {
+    if (!cache || !font || text.empty()) {
+        return;
+    }
+
+    const bool same_colour = cache->colour.red == colour.red && cache->colour.green == colour.green &&
+        cache->colour.blue == colour.blue && cache->colour.alpha == colour.alpha;
+    const bool up_to_date = cache->has_texture && cache->font == font && cache->text == text && same_colour;
+
+    if (!up_to_date) {
+        if (cache->has_texture) {
+            destroy_text_texture(cache->texture);
+            cache->has_texture = false;
+        }
+        const auto texture = build_text_texture(font, text, colour);
+        if (!texture) {
+            return;
+        }
+        cache->texture = *texture;
+        cache->has_texture = true;
+        cache->font = font;
+        cache->text = text;
+        cache->colour = colour;
+    }
+
+    draw_text_texture(cache->texture, x, y, screen_width(), screen_height());
+}
+
 } // namespace simlib

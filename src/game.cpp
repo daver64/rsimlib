@@ -33,6 +33,8 @@ namespace game
         simlib::gui_shutdown();
         simlib::display_shutdown();
         simlib::audio_fx_shutdown();
+        simlib::music_shutdown();
+        SDL_Quit();
     }
 
     bool handle_events()
@@ -85,6 +87,8 @@ namespace game
         current_mode = Mode::menu;
         simlib::gui_init();
         simlib::set_fps(60);
+        simlib::music_init();
+        simlib::audio_fx_init();
         // text input is enabled by default; only the Lua console needs it
         SDL_StopTextInput();
         return true;

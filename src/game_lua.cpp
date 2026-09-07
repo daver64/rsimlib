@@ -14,10 +14,19 @@ namespace game
         constexpr std::size_t max_console_lines = 1000;
         constexpr const char *prompt = "> ";
 
+        // one line of scrollback plus its cached GPU texture, rebuilt only
+        // when the line's text changes rather than on every frame
+        struct ConsoleLine
+        {
+            std::string text;
+            simlib::TextCache *cache = nullptr;
+        };
+
         sol::state lua_state;
         bool lua_initialised = false;
         bool console_active = false;
-        std::deque<std::string> console_lines;
+        std::deque<ConsoleLine> console_lines;
+        simlib::TextCache *input_cache = nullptr;
         std::string input_line;
 
         void console_append(const std::string &text)
@@ -26,16 +35,19 @@ namespace game
             while (true)
             {
                 const std::size_t pos = text.find('\n', start);
+                const std::string line = pos == std::string::npos
+                    ? text.substr(start)
+                    : text.substr(start, pos - start);
+                console_lines.push_back(ConsoleLine{line, simlib::create_text_cache()});
                 if (pos == std::string::npos)
                 {
-                    console_lines.push_back(text.substr(start));
                     break;
                 }
-                console_lines.push_back(text.substr(start, pos - start));
                 start = pos + 1;
             }
             while (console_lines.size() > max_console_lines)
             {
+                simlib::destroy_text_cache(console_lines.front().cache);
                 console_lines.pop_front();
             }
         }
@@ -66,8 +78,12 @@ namespace game
             app_table.set_function("quit", []() { running = false; });
             lua_state["quit"] = app_table["quit"];
 
-            lua_state.set_function("print", [](sol::variadic_args args)
+            lua_state.set_function("print", [](sol::this_state ts, sol::variadic_args args)
             {
+                // convert in place with luaL_tolstring rather than calling back into
+                // the global tostring: a nested call would shift the stack indices
+                // that "args" points at and corrupt sibling arguments
+                lua_State *L = ts;
                 std::string line;
                 for (auto arg : args)
                 {
@@ -75,7 +91,10 @@ namespace game
                     {
                         line += '\t';
                     }
-                    line += lua_state["tostring"](arg).get<std::string>();
+                    std::size_t length = 0;
+                    const char *text = luaL_tolstring(L, arg.stack_index(), &length);
+                    line.append(text, length);
+                    lua_pop(L, 1);
                 }
                 console_append(line);
             });
@@ -88,11 +107,19 @@ namespace game
             if (!input_line.empty())
             {
                 sol::protected_function_result result =
-                    lua_state.script(input_line, sol::script_pass_on_error);
+                    lua_state.safe_script(input_line, sol::script_pass_on_error);
                 if (!result.valid())
                 {
                     sol::error error = result;
-                    console_append(std::string("Error: ") + error.what());
+                    // sol always appends "stack traceback: ..." to the message; a
+                    // console error only needs the first line
+                    std::string message = error.what();
+                    const std::size_t traceback_pos = message.find("\nstack traceback:");
+                    if (traceback_pos != std::string::npos)
+                    {
+                        message.resize(traceback_pos);
+                    }
+                    console_append(std::string("Error: ") + message);
                 }
             }
             input_line.clear();
@@ -107,6 +134,12 @@ namespace game
                 input_line += event.text.text;
                 break;
             case SDL_KEYDOWN:
+                // ignore OS auto-repeat: held Enter/Backspace would otherwise
+                // resubmit the (already-cleared) line or delete repeatedly
+                if (event.key.repeat)
+                {
+                    break;
+                }
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_ESCAPE:
@@ -135,6 +168,10 @@ namespace game
         {
             console_active = true;
             console_ensure_lua_initialised();
+            if (!input_cache)
+            {
+                input_cache = simlib::create_text_cache();
+            }
             SDL_StartTextInput();
         }
 
@@ -155,10 +192,10 @@ namespace game
         int y = margin;
         for (std::size_t i = first_line; i < total_lines; ++i)
         {
-            gprintf(margin, y, text_colour, "%s", console_lines[i].c_str());
+            simlib::textout_cached(console_lines[i].cache, font, margin, y, text_colour, console_lines[i].text);
             y += fontheight;
         }
-        gprintf(margin, y, text_colour, "%s%s_", prompt, input_line.c_str());
+        simlib::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
 
         simlib::show_video_bitmap();
         simlib::end_frame();

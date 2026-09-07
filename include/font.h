@@ -50,4 +50,17 @@ void textout(Font* font, int x, int y, const Colour& colour, const std::string& 
 /** Format and draw UTF-8 text at a screen position without a background. */
 void textprintf(Font* font, int x, int y, const Colour& colour, const char* format, ...);
 
+/** Opaque cache holding one GPU text texture, rebuilt only when its text/font/colour change. */
+struct TextCache;
+
+/** Create an empty text cache. */
+TextCache* create_text_cache();
+/** Destroy a text cache and any GPU resources it holds. */
+void destroy_text_cache(TextCache* cache);
+/**
+ * Draw text using a cache, without a background. The GPU texture is only
+ * rebuilt when the text, font, or colour differ from the previous call.
+ */
+void textout_cached(TextCache* cache, Font* font, int x, int y, const Colour& colour, const std::string& text);
+
 } // namespace simlib
