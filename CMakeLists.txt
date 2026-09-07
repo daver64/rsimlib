@@ -48,6 +48,12 @@ endif()
 add_executable(sltest
     src/main.cpp
     src/game.cpp
+    src/game_menu.cpp
+    src/game_playing.cpp
+    src/game_paused.cpp
+    src/game_help.cpp
+    src/game_gameover.cpp
+    src/game_settings.cpp
     src/display.cpp
     src/draw.cpp
     src/atlas.cpp

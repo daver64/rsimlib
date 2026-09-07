@@ -1,0 +1,21 @@
+#include "game.h"
+
+namespace game
+{
+    void update_and_render_menu()
+    {
+        simlib::Font *font = simlib::get_default_monospace_font();
+        const int fontheight = simlib::text_height(font);
+        simlib::Colour text_colour{0, 255, 0};
+        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+
+        const double frame_time = simlib::get_frame_time();
+        const int x = 1;
+        const int y = 1;
+        gprintf(x, y+fontheight,
+                text_colour, "frame time: %.2f ms (%.1f fps)",
+                frame_time, frame_time > 0.0 ? 1000.0 / frame_time : 0.0);
+        simlib::show_video_bitmap();
+        simlib::end_frame();
+    }
+}

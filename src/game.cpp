@@ -4,7 +4,7 @@
 namespace game
 {
     std::atomic<bool> running{true};
-
+    Mode current_mode{Mode::menu};
     void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...)
     {
         simlib::Font *font = simlib::get_default_monospace_font();
@@ -48,6 +48,7 @@ namespace game
         {
             return false;
         }
+        current_mode = Mode::menu;
         simlib::gui_init();
         simlib::set_fps(60);
         return true;
@@ -55,18 +56,27 @@ namespace game
 
     void update_and_render()
     {
-        simlib::Font *font = simlib::get_default_monospace_font();
-        const int fontheight = simlib::text_height(font);
-        simlib::Colour text_colour{0, 255, 0};
-        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+        switch (current_mode)
+        {
+        case Mode::menu:
+            update_and_render_menu();
+            break;
+        case Mode::playing:
+            update_and_render_playing();
+            break;
+        case Mode::paused:
+            update_and_render_paused();
+            break;
+        case Mode::help:
+            update_and_render_help();
+            break;
+        case Mode::gameover:
+            update_and_render_gameover();
+            break;
+        case Mode::settings:
+            update_and_render_settings();
+            break;
+        }
 
-        const double frame_time = simlib::get_frame_time();
-        const int x = 1;
-        const int y = 1;
-        gprintf(x, y+fontheight,
-                text_colour, "frame time: %.2f ms (%.1f fps)",
-                frame_time, frame_time > 0.0 ? 1000.0 / frame_time : 0.0);
-        simlib::show_video_bitmap();
-        simlib::end_frame();
     }
 }

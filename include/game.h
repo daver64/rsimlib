@@ -17,6 +17,11 @@
 #include <imgui.h>
 
 namespace game {
+
+    enum class Mode {
+        menu,playing,paused,help,gameover,settings
+    };
+    extern Mode current_mode;
     extern std::atomic<bool> running;
 
     void gprintf(int x, int y, simlib::Colour colour, const char *fmt, ...);
@@ -24,4 +29,10 @@ namespace game {
     bool handle_events();
     bool initialise();
     void update_and_render();
+    void update_and_render_menu();
+    void update_and_render_playing();
+    void update_and_render_paused();
+    void update_and_render_help();
+    void update_and_render_gameover();
+    void update_and_render_settings();
 }
