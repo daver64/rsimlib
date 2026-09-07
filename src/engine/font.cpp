@@ -2,9 +2,12 @@
 
 #include "display.h"
 #include "error.h"
+#include "gl2d.h"
 #include "resource.h"
 
+#define GL_GLEXT_PROTOTYPES
 #include <SDL2/SDL_opengl.h>
+#include <SDL2/SDL_opengl_glext.h>
 
 #include <filesystem>
 #include <fstream>
@@ -77,40 +80,20 @@ void draw_text_texture(const TextTexture& texture, int x, int y, int windowWidth
         return;
     }
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, static_cast<double>(windowWidth), static_cast<double>(windowHeight), 0.0, -1.0, 1.0);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBindTexture(GL_TEXTURE_2D, texture.id);
-    glColor3f(1.0f, 1.0f, 1.0f);
+    detail::gl2d_begin(windowWidth, windowHeight);
 
     const float x0 = static_cast<float>(x);
     const float y0 = static_cast<float>(y);
     const float x1 = static_cast<float>(x + texture.width);
     const float y1 = static_cast<float>(y + texture.height);
 
-    glBegin(GL_QUADS);
-    glTexCoord2f(0.0f, 0.0f); glVertex2f(x0, y0);
-    glTexCoord2f(1.0f, 0.0f); glVertex2f(x1, y0);
-    glTexCoord2f(1.0f, 1.0f); glVertex2f(x1, y1);
-    glTexCoord2f(0.0f, 1.0f); glVertex2f(x0, y1);
-    glEnd();
-
-    glDisable(GL_BLEND);
-    glDisable(GL_TEXTURE_2D);
-
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    const detail::GLVertex vertices[4] = {
+        {x0, y0, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+        {x1, y0, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+        {x1, y1, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+        {x0, y1, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+    };
+    detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture.id);
 }
 
 /** Draw a solid rectangle behind rendered text. */
@@ -119,38 +102,24 @@ void fill_rect(int x, int y, int width, int height, int windowWidth, int windowH
         return;
     }
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, static_cast<double>(windowWidth), static_cast<double>(windowHeight), 0.0, -1.0, 1.0);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-
-    glDisable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
+    detail::gl2d_begin(windowWidth, windowHeight);
 
     const float x0 = static_cast<float>(x);
     const float y0 = static_cast<float>(y);
     const float x1 = static_cast<float>(x + width);
     const float y1 = static_cast<float>(y + height);
+    const float r = static_cast<float>(colour.red) / 255.0f;
+    const float g = static_cast<float>(colour.green) / 255.0f;
+    const float b = static_cast<float>(colour.blue) / 255.0f;
+    const float a = static_cast<float>(colour.alpha) / 255.0f;
 
-    glBegin(GL_QUADS);
-    glVertex2f(x0, y0);
-    glVertex2f(x1, y0);
-    glVertex2f(x1, y1);
-    glVertex2f(x0, y1);
-    glEnd();
-
-    glDisable(GL_BLEND);
-
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    const detail::GLVertex vertices[4] = {
+        {x0, y0, 0.0f, 0.0f, r, g, b, a},
+        {x1, y0, 0.0f, 0.0f, r, g, b, a},
+        {x1, y1, 0.0f, 0.0f, r, g, b, a},
+        {x0, y1, 0.0f, 0.0f, r, g, b, a},
+    };
+    detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4);
 }
 
 std::optional<std::vector<unsigned char>> load_font() {

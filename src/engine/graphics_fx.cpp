@@ -4,6 +4,7 @@
 
 #include "display.h"
 #include "draw.h"
+#include "gl2d.h"
 
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
@@ -16,41 +17,47 @@ namespace simlib {
 namespace {
 
 constexpr const char* fullscreen_vertex_source = R"(
-#version 120
-varying vec2 uv;
+#version 330 core
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+
+uniform mat4 uProjection;
+
+out vec2 uv;
 
 void main() {
-	gl_Position = ftransform();
-	uv = gl_MultiTexCoord0.xy;
+	gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
+	uv = aTexCoord;
 }
 )";
 
 constexpr const char* bloom_fragment_source = R"(
-#version 120
+#version 330 core
 uniform sampler2D source;
 uniform vec2 texel;
 uniform float threshold;
 uniform float intensity;
 uniform float radius;
-varying vec2 uv;
+in vec2 uv;
+out vec4 fragColor;
 
 vec3 bright(vec3 colour) {
 	return max(colour - vec3(threshold), vec3(0.0));
 }
 
 void main() {
-	vec4 base = texture2D(source, uv);
+	vec4 base = texture(source, uv);
 	vec3 bloom = vec3(0.0);
-	bloom += bright(texture2D(source, uv + texel * vec2(-radius, -radius)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(0.0, -radius)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(radius, -radius)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(-radius, 0.0)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(-radius, -radius)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(0.0, -radius)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(radius, -radius)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(-radius, 0.0)).rgb);
 	bloom += bright(base.rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(radius, 0.0)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(-radius, radius)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(0.0, radius)).rgb);
-	bloom += bright(texture2D(source, uv + texel * vec2(radius, radius)).rgb);
-	gl_FragColor = vec4(base.rgb + bloom * (intensity / 9.0), base.a);
+	bloom += bright(texture(source, uv + texel * vec2(radius, 0.0)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(-radius, radius)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(0.0, radius)).rgb);
+	bloom += bright(texture(source, uv + texel * vec2(radius, radius)).rgb);
+	fragColor = vec4(base.rgb + bloom * (intensity / 9.0), base.a);
 }
 )";
 
@@ -96,30 +103,6 @@ GLuint compile_shader(GLenum type, const std::string& source, std::string& error
 	error = shader_log(shader);
 	glDeleteShader(shader);
 	return 0;
-}
-
-void set_screen_projection() {
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	glOrtho(
-		0.0,
-		static_cast<double>(screen_width()),
-		static_cast<double>(screen_height()),
-		0.0,
-		-1.0,
-		1.0
-	);
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-}
-
-void restore_projection() {
-	glPopMatrix();
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
 }
 
 } // namespace
@@ -250,6 +233,18 @@ bool Shader::set_uniform(const char* name, float x, float y) const {
 	return true;
 }
 
+bool Shader::set_uniform_mat4(const char* name, const float* matrix4x4) const {
+	if (!use() || !matrix4x4) {
+		return false;
+	}
+	const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
+	if (location < 0) {
+		return false;
+	}
+	glUniformMatrix4fv(location, 1, GL_FALSE, matrix4x4);
+	return true;
+}
+
 bool Bloom::initialise() {
 	return shader_.is_valid() || shader_.load(fullscreen_vertex_source, bloom_fragment_source);
 }
@@ -300,18 +295,21 @@ void Bloom::apply(Bitmap* source, int x, int y, int width, int height) const {
 	shader_.set_uniform("intensity", intensity_);
 	shader_.set_uniform("radius", radius_);
 
-	set_screen_projection();
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, source->gpu_texture);
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 0.0f); glVertex2i(x, y);
-	glTexCoord2f(1.0f, 0.0f); glVertex2i(x + width, y);
-	glTexCoord2f(1.0f, 1.0f); glVertex2i(x + width, y + height);
-	glTexCoord2f(0.0f, 1.0f); glVertex2i(x, y + height);
-	glEnd();
-	glDisable(GL_TEXTURE_2D);
-	restore_projection();
+	float projection[16];
+	detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+	shader_.set_uniform_mat4("uProjection", projection);
+
+	const float left = static_cast<float>(x);
+	const float top = static_cast<float>(y);
+	const float right = static_cast<float>(x + width);
+	const float bottom = static_cast<float>(y + height);
+	const detail::GLVertex vertices[4] = {
+		{left, top, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{right, top, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{right, bottom, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{left, bottom, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+	};
+	detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, source->gpu_texture);
 	Shader::stop();
 }
 

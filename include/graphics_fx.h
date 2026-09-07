@@ -41,6 +41,8 @@ public:
     bool set_uniform(const char* name, float value) const;
     /** Set a two-component floating-point shader uniform. */
     bool set_uniform(const char* name, float x, float y) const;
+    /** Set a 4x4 matrix shader uniform (column-major). */
+    bool set_uniform_mat4(const char* name, const float* matrix4x4) const;
 
 private:
     std::uint32_t program_ = 0;

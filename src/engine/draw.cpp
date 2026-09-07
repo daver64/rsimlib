@@ -1,11 +1,15 @@
+#define GL_GLEXT_PROTOTYPES
+
 #include "draw.h"
 
 #include "display.h"
 #include "error.h"
+#include "gl2d.h"
 #include "resource.h"
 
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_opengl.h>
+#include <SDL2/SDL_opengl_glext.h>
 #include <png.h>
 
 #include <algorithm>
@@ -13,6 +17,7 @@
 #include <cstring>
 #include <filesystem>
 #include <cstdio>
+#include <vector>
 
 namespace simlib {
 Bitmap* screen = nullptr;
@@ -76,30 +81,12 @@ bool ensure_ram_pixels(Bitmap* bitmap) {
 	return true;
 }
 
-/** Push the 2D top-left-origin screen projection. */
-void set_projection() {
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	glOrtho(
-		0.0,
-		static_cast<double>(screen_width()),
-		static_cast<double>(screen_height()),
-		0.0,
-		-1.0,
-		1.0
-	);
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-}
-
-/** Restore the projection and modelview stacks. */
-void restore_projection() {
-	glPopMatrix();
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
+/** Convert an 8-bit colour to the 0-1 float components the shared shader expects. */
+void colour_components(Colour colour, float& r, float& g, float& b, float& a) {
+	r = static_cast<float>(colour.red) / 255.0f;
+	g = static_cast<float>(colour.green) / 255.0f;
+	b = static_cast<float>(colour.blue) / 255.0f;
+	a = static_cast<float>(colour.alpha) / 255.0f;
 }
 
 /** Draw a bitmap region as a scaled and optionally flipped quad. */
@@ -108,12 +95,7 @@ void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int
 		return;
 	}
 
-	set_projection();
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glBindTexture(GL_TEXTURE_2D, bitmap->gpu_texture);
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	detail::gl2d_begin(screen_width(), screen_height());
 
 	const float leftTexture = static_cast<float>(sourceX) / bitmap->width;
 	const float topTexture = static_cast<float>(sourceY) / bitmap->height;
@@ -125,50 +107,103 @@ void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int
 	const float textureRight = flipHorizontal ? leftTexture : rightTexture;
 	const float textureTop = flipVertical ? bottomTexture : topTexture;
 	const float textureBottom = flipVertical ? topTexture : bottomTexture;
-	glBegin(GL_QUADS);
-	glTexCoord2f(textureLeft, textureTop); glVertex2f(x, y);
-	glTexCoord2f(textureRight, textureTop); glVertex2f(right, y);
-	glTexCoord2f(textureRight, textureBottom); glVertex2f(right, bottom);
-	glTexCoord2f(textureLeft, textureBottom); glVertex2f(x, bottom);
-	glEnd();
 
-	glDisable(GL_BLEND);
-	glDisable(GL_TEXTURE_2D);
-	restore_projection();
+	const detail::GLVertex vertices[4] = {
+		{x, y, textureLeft, textureTop, 1.0f, 1.0f, 1.0f, 1.0f},
+		{right, y, textureRight, textureTop, 1.0f, 1.0f, 1.0f, 1.0f},
+		{right, bottom, textureRight, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
+		{x, bottom, textureLeft, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
+	};
+	detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, bitmap->gpu_texture);
 }
 
 constexpr float pi = 3.14159265358979323846f;
 
-/** Begin an untextured screen primitive. */
-void begin_screen_plain(Colour colour) {
-	set_projection();
-	glDisable(GL_TEXTURE_2D);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
+/** Render a plain or textured ellipse directly to the screen. */
+void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap* texture, Colour colour) {
+	std::uint32_t glTexture = 0;
+	if (texture) {
+		if (is_screen(texture) || !upload_bitmap(texture)) {
+			return;
+		}
+		glTexture = texture->gpu_texture;
+	}
+	float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+	if (!texture) {
+		colour_components(colour, r, g, b, a);
+	}
+
+	const int segments = std::max(16, std::min(256, static_cast<int>(std::max(radiusX, radiusY) * 2.0f)));
+	detail::gl2d_begin(screen_width(), screen_height());
+
+	std::vector<detail::GLVertex> vertices;
+	if (filled) {
+		vertices.reserve(static_cast<std::size_t>(segments) + 2);
+		vertices.push_back({x, y, 0.5f, 0.5f, r, g, b, a});
+		for (int index = 0; index <= segments; ++index) {
+			const float angle = 2.0f * pi * index / segments;
+			const float u = 0.5f + 0.5f * std::cos(angle);
+			const float v = 0.5f + 0.5f * std::sin(angle);
+			vertices.push_back({x + radiusX * std::cos(angle), y + radiusY * std::sin(angle), u, v, r, g, b, a});
+		}
+		detail::gl2d_submit(GL_TRIANGLE_FAN, vertices.data(), static_cast<int>(vertices.size()), glTexture);
+	} else {
+		vertices.reserve(static_cast<std::size_t>(segments));
+		for (int index = 0; index < segments; ++index) {
+			const float angle = 2.0f * pi * index / segments;
+			const float u = 0.5f + 0.5f * std::cos(angle);
+			const float v = 0.5f + 0.5f * std::sin(angle);
+			vertices.push_back({x + radiusX * std::cos(angle), y + radiusY * std::sin(angle), u, v, r, g, b, a});
+		}
+		detail::gl2d_submit(GL_LINE_LOOP, vertices.data(), static_cast<int>(vertices.size()), glTexture);
+	}
 }
 
-/** Begin a textured screen primitive. */
-bool begin_screen_texture(Bitmap* texture) {
-	if (!texture || is_screen(texture) || !upload_bitmap(texture)) {
-		return false;
+/** Render a plain or textured triangle directly to the screen. */
+void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap* texture, Colour colour) {
+	std::uint32_t glTexture = 0;
+	if (texture) {
+		if (is_screen(texture) || !upload_bitmap(texture)) {
+			return;
+		}
+		glTexture = texture->gpu_texture;
 	}
-	set_projection();
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glBindTexture(GL_TEXTURE_2D, texture->gpu_texture);
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	return true;
+	float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+	if (!texture) {
+		colour_components(colour, r, g, b, a);
+	}
+
+	detail::gl2d_begin(screen_width(), screen_height());
+	const detail::GLVertex vertices[3] = {
+		{x1, y1, 0.0f, 0.0f, r, g, b, a},
+		{x2, y2, 1.0f, 0.0f, r, g, b, a},
+		{x3, y3, 0.5f, 1.0f, r, g, b, a},
+	};
+	detail::gl2d_submit(filled ? GL_TRIANGLES : GL_LINE_LOOP, vertices, 3, glTexture);
 }
 
-/** End a screen primitive and restore OpenGL state. */
-void end_screen_shape(bool textured) {
-	glDisable(GL_BLEND);
-	if (textured) {
-		glDisable(GL_TEXTURE_2D);
+/** Render a plain or textured rectangle directly to the screen. */
+void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap* texture, Colour colour) {
+	std::uint32_t glTexture = 0;
+	if (texture) {
+		if (is_screen(texture) || !upload_bitmap(texture)) {
+			return;
+		}
+		glTexture = texture->gpu_texture;
 	}
-	restore_projection();
+	float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+	if (!texture) {
+		colour_components(colour, r, g, b, a);
+	}
+
+	detail::gl2d_begin(screen_width(), screen_height());
+	const detail::GLVertex vertices[4] = {
+		{left, top, 0.0f, 0.0f, r, g, b, a},
+		{right, top, 1.0f, 0.0f, r, g, b, a},
+		{right, bottom, 1.0f, 1.0f, r, g, b, a},
+		{left, bottom, 0.0f, 1.0f, r, g, b, a},
+	};
+	detail::gl2d_submit(filled ? GL_TRIANGLE_FAN : GL_LINE_LOOP, vertices, 4, glTexture);
 }
 
 /** Rasterize a line into a bitmap using integer coordinates. */
@@ -193,69 +228,6 @@ void draw_line(Bitmap* bitmap, int x1, int y1, int x2, int y2, Colour colour) {
 			y1 += stepY;
 		}
 	}
-}
-
-/** Render a plain or textured ellipse directly to the screen. */
-void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap* texture, Colour colour) {
-	const int segments = std::max(16, std::min(256, static_cast<int>(std::max(radiusX, radiusY) * 2.0f)));
-	const bool textured = texture != nullptr;
-	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
-		return;
-	}
-	glBegin(filled ? GL_TRIANGLE_FAN : GL_LINE_LOOP);
-	if (filled) {
-		if (textured) {
-			glTexCoord2f(0.5f, 0.5f);
-		}
-		glVertex2f(x, y);
-	}
-	for (int index = 0; index <= (filled ? segments : segments - 1); ++index) {
-		const float angle = 2.0f * pi * index / segments;
-		const float u = 0.5f + 0.5f * std::cos(angle);
-		const float v = 0.5f + 0.5f * std::sin(angle);
-		if (textured) {
-			glTexCoord2f(u, v);
-		}
-		glVertex2f(x + radiusX * std::cos(angle), y + radiusY * std::sin(angle));
-	}
-	glEnd();
-	end_screen_shape(textured);
-}
-
-/** Render a plain or textured triangle directly to the screen. */
-void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap* texture, Colour colour) {
-	const bool textured = texture != nullptr;
-	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
-		return;
-	}
-	glBegin(filled ? GL_TRIANGLES : GL_LINE_LOOP);
-	if (textured) glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(x1, y1);
-	if (textured) glTexCoord2f(1.0f, 0.0f);
-	glVertex2f(x2, y2);
-	if (textured) glTexCoord2f(0.5f, 1.0f);
-	glVertex2f(x3, y3);
-	glEnd();
-	end_screen_shape(textured);
-}
-
-/** Render a plain or textured rectangle directly to the screen. */
-void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap* texture, Colour colour) {
-	const bool textured = texture != nullptr;
-	if (textured ? !begin_screen_texture(texture) : (begin_screen_plain(colour), false)) {
-		return;
-	}
-	glBegin(filled ? GL_QUADS : GL_LINE_LOOP);
-	if (textured) glTexCoord2f(0.0f, 0.0f);
-	glVertex2f(left, top);
-	if (textured) glTexCoord2f(1.0f, 0.0f);
-	glVertex2f(right, top);
-	if (textured) glTexCoord2f(1.0f, 1.0f);
-	glVertex2f(right, bottom);
-	if (textured) glTexCoord2f(0.0f, 1.0f);
-	glVertex2f(left, bottom);
-	glEnd();
-	end_screen_shape(textured);
 }
 
 } // namespace
@@ -449,13 +421,11 @@ void putpixel(Bitmap* bitmap, int x, int y, Colour colour) {
 		if (x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
 			return;
 		}
-		set_projection();
-		glDisable(GL_TEXTURE_2D);
-		glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
-		glBegin(GL_POINTS);
-		glVertex2i(x, y);
-		glEnd();
-		restore_projection();
+		float r, g, b, a;
+		colour_components(colour, r, g, b, a);
+		detail::gl2d_begin(screen_width(), screen_height());
+		const detail::GLVertex vertex{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 0.0f, 0.0f, r, g, b, a};
+		detail::gl2d_submit(GL_POINTS, &vertex, 1);
 		return;
 	}
 	if (!ensure_ram_pixels(bitmap) || x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height) {
@@ -533,19 +503,7 @@ void rectfill(Bitmap* bitmap, float left, float top, float right, float bottom, 
 		right = std::clamp(right, 0.0f, static_cast<float>(bitmap->width));
 		top = std::clamp(top, 0.0f, static_cast<float>(bitmap->height));
 		bottom = std::clamp(bottom, 0.0f, static_cast<float>(bitmap->height));
-		set_projection();
-		glDisable(GL_TEXTURE_2D);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glColor4ub(colour.red, colour.green, colour.blue, colour.alpha);
-		glBegin(GL_QUADS);
-		glVertex2f(left, top);
-		glVertex2f(right, top);
-		glVertex2f(right, bottom);
-		glVertex2f(left, bottom);
-		glEnd();
-		glDisable(GL_BLEND);
-		restore_projection();
+		draw_screen_rect(left, top, right, bottom, true, nullptr, colour);
 		return;
 	}
 	if (!ensure_ram_pixels(bitmap)) {

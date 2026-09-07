@@ -22,10 +22,10 @@ namespace game
 
             GameObject red = make_circle_object(red_balloon, 100.0f, 100.0f, 16.0f, 1.0f);
             GameObject blue = make_circle_object(blue_balloon, 400.0f, 100.0f, 16.0f, 1.5f);
-            GameObject green = make_circle_object(green_balloon, 400.0f, 400.0f, 16.0f, 1.0f);
-            red.restitution = 0.6f;
+            GameObject green = make_circle_object(green_balloon, 600.0f, 400.0f, 16.0f, 1.0f);
+            red.restitution = 0.2f;
             blue.restitution = 0.6f;
-            green.restitution = 0.6f;
+            green.restitution = 0.8f;
 
             playing_objects = {red, blue, green};
             playing_objects_initial = playing_objects;

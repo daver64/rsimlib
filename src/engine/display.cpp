@@ -42,6 +42,11 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     }
     ttfInitialized = true;
 
+    // require a core profile so no legacy fixed-function GL state is available
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+
     window = SDL_CreateWindow(
         "simlib",
         SDL_WINDOWPOS_CENTERED,
