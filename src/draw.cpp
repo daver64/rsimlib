@@ -812,7 +812,14 @@ void draw_sprite(Bitmap* bitmap, float x, float y) {
 	}
 	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y);
 }
-
+/** Draw a stretched sprite. */
+void draw_sprite_stretched(Bitmap* bitmap, float x, float y, int width, int height)
+{
+	if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0) {
+		return;
+	}
+	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, width, height);	
+}
 /** Draw a horizontally flipped bitmap. */
 void draw_sprite_h_flip(Bitmap* bitmap, float x, float y) {
 	if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0) draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);

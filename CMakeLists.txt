@@ -81,6 +81,7 @@ add_executable(sltest
     src/game.cpp
     src/game_menu.cpp
     src/game_playing.cpp
+    src/entity.cpp
     src/game_paused.cpp
     src/game_help.cpp
     src/game_gameover.cpp

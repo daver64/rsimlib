@@ -118,6 +118,8 @@ bool upload_bitmap(Bitmap* bitmap);
 bool download_bitmap(Bitmap* bitmap);
 /** Draw a bitmap at the supplied top-left screen position. */
 void draw_sprite(Bitmap* bitmap, float x, float y);
+/** Draw a stretched sprite */
+void draw_sprite_stretched(Bitmap* bitmap, float x, float y, int width, int height);
 /** Draw a horizontally flipped bitmap. */
 void draw_sprite_h_flip(Bitmap* bitmap, float x, float y);
 /** Draw a vertically flipped bitmap. */
