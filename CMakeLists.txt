@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(simlib LANGUAGES CXX)
+project(simlib LANGUAGES C CXX)
 
 include(CTest)
 
@@ -33,6 +33,37 @@ add_library(imgui STATIC
 )
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL)
+
+FetchContent_Declare(
+    lua
+    GIT_REPOSITORY https://github.com/lua/lua.git
+    GIT_TAG v5.4.7
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(lua)
+
+file(GLOB LUA_SOURCES ${lua_SOURCE_DIR}/*.c)
+list(REMOVE_ITEM LUA_SOURCES
+    ${lua_SOURCE_DIR}/lua.c
+    ${lua_SOURCE_DIR}/luac.c
+)
+add_library(lua STATIC ${LUA_SOURCES})
+target_include_directories(lua PUBLIC ${lua_SOURCE_DIR})
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
+    target_link_libraries(lua PUBLIC m dl)
+elseif(APPLE)
+    target_compile_definitions(lua PRIVATE LUA_USE_MACOSX)
+    target_link_libraries(lua PUBLIC m dl)
+endif()
+
+FetchContent_Declare(
+    sol2
+    GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+    GIT_TAG v3.3.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(sol2)
 
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
@@ -118,7 +149,7 @@ if(Doxygen_FOUND)
     )
 endif()
 
-target_link_libraries(sltest PRIVATE OpenGL::GL PNG::PNG ZLIB::ZLIB imgui)
+target_link_libraries(sltest PRIVATE OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(sltest PRIVATE SDL2::SDL2 SDL2::SDL2main)
