@@ -51,7 +51,15 @@ private:
 
 class Bloom {
 public:
-    /** Compile the bloom shader and prepare the effect. */
+    Bloom() = default;
+    ~Bloom();
+
+    Bloom(const Bloom&) = delete;
+    Bloom& operator=(const Bloom&) = delete;
+    Bloom(Bloom&& other) noexcept;
+    Bloom& operator=(Bloom&& other) noexcept;
+
+    /** Compile the bloom shaders and prepare the effect. */
     bool initialise();
     /** Release resources owned by the effect. */
     void shutdown();
@@ -64,16 +72,36 @@ public:
     void set_threshold(float threshold);
     /** Set the bloom brightness multiplier. */
     void set_intensity(float intensity);
-    /** Set the bloom blur radius. */
+    /** Set the blur sample spacing, in downsampled-buffer texels. */
     void set_radius(float radius);
-    /** Apply bloom to a bitmap region. */
-    void apply(Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+    /**
+     * Set how many times smaller the internal blur buffers are than the source
+     * (e.g. 4 blurs at quarter resolution). Bigger values give a wider, softer,
+     * cheaper glow; smaller values look tighter and costlier. Takes effect on
+     * the next apply() call.
+     */
+    void set_downsample(int factor);
+
+    /**
+     * Apply a wide-area glow to a bitmap region: thresholds bright pixels,
+     * downsamples, blurs with a separable Gaussian, then composites the result
+     * back over the original at full resolution. Set flipVertical for
+     * render-target sources (see create_render_target()).
+     */
+    void apply(Bitmap* source, int x = 0, int y = 0, int width = 0, int height = 0, bool flipVertical = false) const;
 
 private:
-    Shader shader_;
+    Shader brightShader_;
+    Shader blurShader_;
+    Shader compositeShader_;
     float threshold_ = 0.7f;
     float intensity_ = 0.9f;
     float radius_ = 1.5f;
+    int downsample_ = 2;
+    mutable Bitmap* blurTargetA_ = nullptr;
+    mutable Bitmap* blurTargetB_ = nullptr;
+
+    bool ensure_targets(int width, int height) const;
 };
 
 } // namespace simlib

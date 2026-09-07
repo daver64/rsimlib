@@ -34,6 +34,8 @@ struct Bitmap {
     int height = 0;
     std::vector<Uint8> pixels;
     std::uint32_t gpu_texture = 0;
+    /** Non-zero if this bitmap is an offscreen render target (see create_render_target()). */
+    std::uint32_t fbo = 0;
     bool ram_dirty = false;
     bool gpu_dirty = false;
     BitmapKind kind = BitmapKind::Bitmap;
@@ -46,6 +48,20 @@ extern Bitmap* screen;
 Bitmap* create_bitmap(int width, int height);
 /** Create a GPU-backed bitmap, or return nullptr if allocation fails. */
 Bitmap* create_video_bitmap(int width, int height);
+/**
+ * Create an offscreen render target: a GPU texture with a framebuffer attached,
+ * usable as a draw destination for sprites/particles/text (see begin_render_target()).
+ * Note: because of how framebuffer textures are rasterized, its content samples
+ * vertically flipped compared to a normal loaded image; use draw_sprite_v_flip()
+ * (not draw_sprite()) when compositing it back onto the screen.
+ */
+Bitmap* create_render_target(int width, int height);
+/** Redirect subsequent sprite/particle/text drawing to a render target created with create_render_target(). */
+bool begin_render_target(Bitmap* target);
+/** Stop rendering to a target and restore drawing to the window. */
+void end_render_target();
+/** Clear the currently bound render target (call between begin_render_target() and end_render_target()). */
+void clear_render_target(Colour colour);
 /** Load an image file into a bitmap, or return nullptr on failure. */
 Bitmap* load_bitmap(const std::string& path);
 /** Load an image from memory. */

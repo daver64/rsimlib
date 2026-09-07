@@ -30,6 +30,13 @@ int screen_height();
 int virtual_screen_width();
 /** Return the configured logical screen height. */
 int virtual_screen_height();
+/** Restore the GL viewport to the actual window size (used after rendering to an offscreen target). */
+void restore_window_viewport();
+
+namespace detail {
+/** Override screen_width()/screen_height() while an offscreen render target is bound; 0 clears it. */
+void set_render_target_size(int width, int height);
+} // namespace detail
 
 /** Clear the current framebuffer using an RGBA colour. */
 void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha = 255);

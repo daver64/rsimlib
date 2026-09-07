@@ -21,6 +21,8 @@ int width = 0;
 int height = 0;
 int logicalWidth = 0;
 int logicalHeight = 0;
+int renderTargetWidth = 0;
+int renderTargetHeight = 0;
 } // namespace
 
 bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtualWidth, int virtualHeight) {
@@ -111,10 +113,16 @@ bool set_vsync(bool enabled) {
 }
 
 int screen_width() {
+    if (renderTargetWidth > 0) {
+        return renderTargetWidth;
+    }
     return logicalWidth > 0 ? logicalWidth : width;
 }
 
 int screen_height() {
+    if (renderTargetHeight > 0) {
+        return renderTargetHeight;
+    }
     return logicalHeight > 0 ? logicalHeight : height;
 }
 
@@ -125,6 +133,17 @@ int virtual_screen_width() {
 int virtual_screen_height() {
     return logicalHeight > 0 ? logicalHeight : height;
 }
+
+void restore_window_viewport() {
+    glViewport(0, 0, width, height);
+}
+
+namespace detail {
+void set_render_target_size(int targetWidth, int targetHeight) {
+    renderTargetWidth = targetWidth;
+    renderTargetHeight = targetHeight;
+}
+} // namespace detail
 
 void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha) {
     glClearColor(

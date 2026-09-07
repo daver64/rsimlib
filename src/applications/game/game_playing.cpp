@@ -1,5 +1,7 @@
 #include "game.h"
 #include "entity.h"
+#include "particles.h"
+#include "graphics_fx.h"
 
 #include <algorithm>
 #include <vector>
@@ -11,6 +13,11 @@ namespace game
         std::vector<GameObject> playing_objects;
         std::vector<GameObject> playing_objects_initial;
         bool playing_objects_initialised = false;
+        simlib::ParticleEmitter fountain_emitter;
+        simlib::ParticleEmitter trail_emitter;
+        simlib::Bitmap *particle_target = nullptr;
+        simlib::Bloom particle_glow;
+        bool glow_enabled = true;
 
         void ensure_playing_objects_initialised()
         {
@@ -29,11 +36,49 @@ namespace game
 
             playing_objects = {red, blue, green};
             playing_objects_initial = playing_objects;
+
+            // static fountain: fixed position, sprays upward
+            simlib::EmitterConfig fountain_config;
+            fountain_config.emit_rate = 60.0f;
+            fountain_config.particle_lifetime = 1.2f;
+            fountain_config.min_speed = 80.0f;
+            fountain_config.max_speed = 560.0f;
+            fountain_config.direction_degrees = -90.0f;
+            fountain_config.spread_degrees = 20.0f;
+            fountain_config.gravity = 300.0f;
+            fountain_config.start_size = 60.0f;
+            fountain_config.end_size = 1.0f;
+            fountain_config.start_colour = simlib::Colour{255, 220, 80, 255};
+            fountain_config.end_colour = simlib::Colour{255, 60, 0, 0};
+            fountain_emitter = simlib::ParticleEmitter(fountain_config, 200.0f, 550.0f);
+
+            // moving emitter: follows the red balloon every frame, like a trail
+            simlib::EmitterConfig trail_config;
+            trail_config.emit_rate = 40.0f;
+            trail_config.particle_lifetime = 0.5f;
+            trail_config.min_speed = 5.0f;
+            trail_config.max_speed = 20.0f;
+            trail_config.spread_degrees = 180.0f;
+            trail_config.gravity = 0.0f;
+            trail_config.start_size = 10.0f;
+            trail_config.end_size = 0.0f;
+            trail_config.start_colour = simlib::Colour{120, 200, 255, 200};
+            trail_config.end_colour = simlib::Colour{120, 200, 255, 0};
+            trail_emitter = simlib::ParticleEmitter(trail_config, red.x, red.y);
+
+            particle_target = simlib::create_render_target(simlib::screen_width(), simlib::screen_height());
+            particle_glow.initialise();
+            particle_glow.set_threshold(0.1f);
+            particle_glow.set_intensity(2.0f);
+            particle_glow.set_radius(2.0f);
+            particle_glow.set_downsample(2);
         }
 
         void reset_playing_objects()
         {
             playing_objects = playing_objects_initial;
+            fountain_emitter.clear();
+            trail_emitter.clear();
         }
     }
 
@@ -50,6 +95,9 @@ namespace game
                     case SDLK_SPACE:
                         reset_playing_objects();
                         break;
+                    case SDLK_g:
+                        glow_enabled = !glow_enabled;
+                        break;
                 }
                 break;
         }
@@ -65,14 +113,45 @@ namespace game
         resolve_collisions(playing_objects);
         constrain_to_screen(playing_objects);
 
+        if (!playing_objects.empty())
+        {
+            trail_emitter.set_position(playing_objects[0].x, playing_objects[0].y);
+        }
+        fountain_emitter.update(dt_seconds);
+        trail_emitter.update(dt_seconds);
+
+        // render particles into their own offscreen target, isolated from the rest of the scene
+        if (particle_target && simlib::begin_render_target(particle_target))
+        {
+            simlib::clear_render_target(simlib::Colour{0, 0, 0, 0});
+            fountain_emitter.render();
+            trail_emitter.render();
+            simlib::end_render_target();
+        }
+
         simlib::Font *font = simlib::get_default_monospace_font();
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
         simlib::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
+        simlib::gprintf_center(1+11*fontheight,text_colour, glow_enabled ? "G....Glow: on " : "G....Glow: off");
 
         render_objects(playing_objects);
+
+        // composite the offscreen particle target back over the scene; render targets
+        // sample bottom-up, so this always needs the vertical flip
+        if (particle_target)
+        {
+            if (glow_enabled)
+            {
+                particle_glow.apply(particle_target, 0, 0, particle_target->width, particle_target->height, true);
+            }
+            else
+            {
+                simlib::draw_sprite_v_flip(particle_target, 0.0f, 0.0f);
+            }
+        }
 
         simlib::show_video_bitmap();
         simlib::end_frame();

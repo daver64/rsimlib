@@ -95,6 +95,7 @@ add_library(simlib STATIC
     src/engine/noise.cpp
     src/engine/gui.cpp
     src/engine/gl2d.cpp
+    src/engine/particles.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui)

@@ -259,6 +259,73 @@ Bitmap* create_video_bitmap(int width, int height) {
 	return bitmap;
 }
 
+/** Create an offscreen render target: a GPU texture with a framebuffer attached. */
+Bitmap* create_render_target(int width, int height) {
+	if (width <= 0 || height <= 0) {
+		simlib::detail::set_error("Render target dimensions must be positive");
+		return nullptr;
+	}
+
+	GLuint texture = 0;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+	GLuint fbo = 0;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+	const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		simlib::detail::set_error("Unable to create framebuffer for render target");
+		glDeleteFramebuffers(1, &fbo);
+		glDeleteTextures(1, &texture);
+		return nullptr;
+	}
+
+	Bitmap* bitmap = new Bitmap;
+	bitmap->width = width;
+	bitmap->height = height;
+	bitmap->gpu_texture = texture;
+	bitmap->fbo = fbo;
+	return bitmap;
+}
+
+/** Redirect subsequent GPU drawing to a render target's framebuffer. */
+bool begin_render_target(Bitmap* target) {
+	if (!target || target->fbo == 0) {
+		return false;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, target->fbo);
+	glViewport(0, 0, target->width, target->height);
+	detail::set_render_target_size(target->width, target->height);
+	return true;
+}
+
+/** Stop rendering to a target and restore drawing to the window. */
+void end_render_target() {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	restore_window_viewport();
+	detail::set_render_target_size(0, 0);
+}
+
+/** Clear the currently bound render target. */
+void clear_render_target(Colour colour) {
+	glClearColor(
+		static_cast<float>(colour.red) / 255.0f,
+		static_cast<float>(colour.green) / 255.0f,
+		static_cast<float>(colour.blue) / 255.0f,
+		static_cast<float>(colour.alpha) / 255.0f
+	);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
 /** Load an image file into a bitmap. */
 Bitmap* load_bitmap_from_surface(SDL_Surface* loaded) {
 	if (!loaded) {
@@ -369,6 +436,10 @@ bool save_bitmap(Bitmap* bitmap, const std::string& path) {
 void destroy_bitmap(Bitmap* bitmap) {
 	if (!bitmap || is_screen(bitmap)) {
 		return;
+	}
+	if (bitmap->fbo != 0) {
+		const GLuint fbo = bitmap->fbo;
+		glDeleteFramebuffers(1, &fbo);
 	}
 	if (bitmap->gpu_texture != 0) {
 		const GLuint texture = bitmap->gpu_texture;
