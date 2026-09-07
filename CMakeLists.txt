@@ -154,6 +154,12 @@ set_target_properties(slpack PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(slunpack src/applications/slunpack/slunpack.cpp)
+target_link_libraries(slunpack PRIVATE simlib)
+set_target_properties(slunpack PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 if(BUILD_TESTING)
     add_executable(resource_test
         src/engine/resource_test.cpp
