@@ -65,6 +65,9 @@ namespace game
             case Mode::settings:
                 handle_settings_input(event);
                 break;
+            case Mode::lua_console:
+                handle_lua_console_input(event);
+                break;
             }
 
             simlib::display_handle_event(event);
@@ -82,6 +85,8 @@ namespace game
         current_mode = Mode::menu;
         simlib::gui_init();
         simlib::set_fps(60);
+        // text input is enabled by default; only the Lua console needs it
+        SDL_StopTextInput();
         return true;
     }
 
@@ -106,6 +111,9 @@ namespace game
             break;
         case Mode::settings:
             update_and_render_settings();
+            break;
+        case Mode::lua_console:
+            update_and_render_lua_console();
             break;
         }
     }

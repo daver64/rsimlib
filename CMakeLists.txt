@@ -85,6 +85,7 @@ add_executable(sltest
     src/game_help.cpp
     src/game_gameover.cpp
     src/game_settings.cpp
+    src/game_lua.cpp
     src/display.cpp
     src/draw.cpp
     src/atlas.cpp

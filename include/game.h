@@ -19,7 +19,7 @@
 namespace game {
 
     enum class Mode {
-        menu,playing,paused,help,gameover,settings
+        menu,playing,paused,help,gameover,settings,lua_console
     };
     extern Mode current_mode;
     extern std::atomic<bool> running;
@@ -38,6 +38,8 @@ namespace game {
     void handle_help_input(SDL_Event event);
     void handle_gameover_input(SDL_Event event);
     void handle_settings_input(SDL_Event event);
+    void handle_lua_console_input(SDL_Event event);
+
     // module rendering functions
     void update_and_render_menu();
     void update_and_render_playing();
@@ -45,4 +47,5 @@ namespace game {
     void update_and_render_help();
     void update_and_render_gameover();
     void update_and_render_settings();
+    void update_and_render_lua_console();
 }

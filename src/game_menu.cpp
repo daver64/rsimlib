@@ -19,6 +19,9 @@ namespace game
                 case SDLK_3:
                     current_mode = Mode::help;
                     break;
+                case SDLK_4:
+                    current_mode = Mode::lua_console;
+                    break;
                 case SDLK_ESCAPE:
                     running = false;
                     break;
@@ -36,10 +39,11 @@ namespace game
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
         gprintf_center(1+fontheight,text_colour,  "Menu");
-        gprintf_center(1+3*fontheight,text_colour,"1....Play    ");
-        gprintf_center(1+5*fontheight,text_colour,"2....Settings");
-        gprintf_center(1+7*fontheight,text_colour,"3....Help    ");
-        gprintf_center(1+9*fontheight,text_colour,"ESC..Quit    "); 
+        gprintf_center(1+3*fontheight,text_colour,"1....Play        ");
+        gprintf_center(1+5*fontheight,text_colour,"2....Settings    ");
+        gprintf_center(1+7*fontheight,text_colour,"3....Help        ");
+        gprintf_center(1+9*fontheight,text_colour,"4....Lua Console ");
+        gprintf_center(1+13*fontheight,text_colour,"ESC..Quit       "); 
 
 
         //const double frame_time = simlib::get_frame_time();
