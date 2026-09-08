@@ -18,11 +18,11 @@ int main(int argc, char *argv[])
     bool running = true;
     while (running)
     {
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
+        simlib::Event event;
+        while (simlib::poll_event(&event))
         {
-            if (event.type == SDL_QUIT ||
-                (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE))
+            if (event.type() == simlib::Event::Type::quit ||
+                (event.type() == simlib::Event::Type::key_down && event.key() == simlib::Event::Key::escape))
             {
                 running = false;
             }

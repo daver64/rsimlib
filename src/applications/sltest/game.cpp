@@ -29,10 +29,10 @@ namespace game
     /** @brief Poll SDL, route mode input, and notify display and ImGui backends of each event. */
     bool handle_events()
     {
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
+        simlib::Event event;
+        while (simlib::poll_event(&event))
         {
-            if (event.type == SDL_QUIT)
+            if (event.type() == simlib::Event::Type::quit)
             {
                 running = false;
             }

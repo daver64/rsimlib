@@ -27,13 +27,13 @@ int main(int argc, char* argv[])
     simlib::show_video_bitmap();
     simlib::end_frame();
 
-    SDL_Event event;
+    simlib::Event event;
     bool running = true;
     while (running)
     {
-        while (SDL_PollEvent(&event))
+        while (simlib::poll_event(&event))
         {
-            running = event.type != SDL_QUIT && event.type != SDL_KEYDOWN;
+            running = event.type() != simlib::Event::Type::quit && event.type() != simlib::Event::Type::key_down;
         }
     }
 

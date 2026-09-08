@@ -3,14 +3,14 @@
 namespace game
 {
     /** @brief Return to the main menu when Escape is pressed. */
-    void handle_gameover_input(SDL_Event event)
+    void handle_gameover_input(const simlib::Event &event)
     {
-        switch (event.type)
+        switch (event.type())
         {
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.sym)
+            case simlib::Event::Type::key_down:
+                switch (event.key())
                 {
-                    case SDLK_ESCAPE:
+                    case simlib::Event::Key::escape:
                         current_mode = Mode::menu;
                         break;
                 }

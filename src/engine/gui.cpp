@@ -19,8 +19,8 @@ void gui_init() {
     ImGui_ImplOpenGL3_Init("#version 330 core");
 }
 
-void gui_handle_event(const SDL_Event& event) {
-    ImGui_ImplSDL2_ProcessEvent(&event);
+void gui_handle_event(const Event& event) {
+    ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event*>(detail::event_handle(event)));
 }
 
 void new_frame() {

@@ -3,27 +3,27 @@
 namespace game
 {
     /** @brief Map numeric shortcuts and Escape to main-menu actions. */
-    void handle_menu_input(SDL_Event event)
+    void handle_menu_input(const simlib::Event &event)
     {
 
-        switch (event.type)
+        switch (event.type())
         {
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.sym)
+            case simlib::Event::Type::key_down:
+                switch (event.key())
                 {
-                case SDLK_1:
+                case simlib::Event::Key::digit_1:
                     current_mode = Mode::playing;
                     break;
-                case SDLK_2:
+                case simlib::Event::Key::digit_2:
                     current_mode = Mode::settings;
                     break;
-                case SDLK_3:
+                case simlib::Event::Key::digit_3:
                     current_mode = Mode::help;
                     break;
-                case SDLK_4:
+                case simlib::Event::Key::digit_4:
                     current_mode = Mode::lua_console;
                     break;
-                case SDLK_ESCAPE:
+                case simlib::Event::Key::escape:
                     running = false;
                     break;
                 }

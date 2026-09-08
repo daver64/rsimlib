@@ -78,6 +78,7 @@ endif()
 
 add_library(simlib STATIC
     src/engine/display.cpp
+    src/engine/event.cpp
     src/engine/draw.cpp
     src/engine/atlas.cpp
     src/engine/graphics_fx_test.cpp
@@ -204,6 +205,10 @@ set_target_properties(slunpack PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(event_test tests/event_test.cpp)
+    target_link_libraries(event_test PRIVATE simlib)
+    add_test(NAME event COMMAND event_test)
+
     add_executable(lua_canvas_test tests/lua_canvas_test.cpp)
     target_link_libraries(lua_canvas_test PRIVATE simlib)
     add_test(NAME lua_canvas COMMAND lua_canvas_test)

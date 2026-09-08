@@ -84,17 +84,17 @@ namespace game
     }
 
     /** @brief Handle gameplay reset and return-to-menu keyboard actions. */
-    void handle_playing_input(SDL_Event event)
+    void handle_playing_input(const simlib::Event &event)
     {
-        switch (event.type)
+        switch (event.type())
         {
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.sym)
+            case simlib::Event::Type::key_down:
+                switch (event.key())
                 {
-                    case SDLK_ESCAPE:
+                    case simlib::Event::Key::escape:
                         current_mode = Mode::menu;
                         break;
-                    case SDLK_SPACE:
+                    case simlib::Event::Key::space:
                         reset_playing_objects();
                         break;
                 }

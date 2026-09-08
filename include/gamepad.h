@@ -1,7 +1,6 @@
 #pragma once
 
-#include <SDL2/SDL_events.h>
-
+#include "event.h"
 #include <string>
 
 namespace simlib {
@@ -40,7 +39,7 @@ bool gamepad_init();
 /** Close open controllers and release SDL's game-controller subsystem. */
 void gamepad_shutdown();
 /** Process SDL controller device events so connected devices stay current. */
-void gamepad_handle_event(const SDL_Event& event);
+void gamepad_handle_event(const Event& event);
 /** Return the number of currently connected mapped gamepads. */
 int gamepad_count();
 /** Return whether @p index identifies a connected gamepad. */

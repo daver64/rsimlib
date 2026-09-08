@@ -4,10 +4,6 @@
 
 namespace simlib {
 
-bool poll_event(SDL_Event* event) {
-	return event && SDL_PollEvent(event) != 0;
-}
-
 bool key_down(SDL_Scancode key) {
 	SDL_PumpEvents();
 	const Uint8* state = SDL_GetKeyboardState(nullptr);

@@ -1,8 +1,9 @@
 #pragma once
 
-#include <SDL2/SDL_events.h>
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_video.h>
+
+#include "event.h"
 
 namespace simlib {
 
@@ -12,7 +13,7 @@ constexpr int GFX_AUTODETECT_WINDOWED = 1;
 /** Create an OpenGL window and initialize the drawing screen. */
 bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
 /** Apply window-related SDL events, including resize events. */
-void display_handle_event(const SDL_Event& event);
+void display_handle_event(const Event& event);
 /** Set the window title. */
 void set_window_title(const char* title);
 /** Enable or disable desktop fullscreen mode. */

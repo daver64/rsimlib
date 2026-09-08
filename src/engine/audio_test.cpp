@@ -132,16 +132,16 @@ void initialize() {
     music_test.initialize();
 }
 
-void handle_event(const SDL_Event& event) {
-    if (event.type != SDL_KEYDOWN || event.key.repeat != 0) {
+void handle_event(const simlib::Event& event) {
+    if (event.type() != simlib::Event::Type::key_down || event.key_repeat()) {
         return;
     }
 
-    if (event.key.keysym.sym == SDLK_s) {
+    if (event.key() == simlib::Event::Key::letter_s) {
         audio_fx_test.play_random();
-    } else if (event.key.keysym.sym == SDLK_m) {
+    } else if (event.key() == simlib::Event::Key::letter_m) {
         music_test.play();
-    } else if (event.key.keysym.sym==SDLK_SPACE) {
+    } else if (event.key() == simlib::Event::Key::space) {
         audio_fx_test.stop();
         music_test.stop();
     }

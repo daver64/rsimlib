@@ -95,13 +95,13 @@ void gamepad_shutdown() {
     subsystem_initialised = false;
 }
 
-void gamepad_handle_event(const SDL_Event& event) {
+void gamepad_handle_event(const Event& event) {
     if (!subsystem_initialised) return;
-    if (event.type == SDL_CONTROLLERDEVICEADDED) {
-        open_controller(event.cdevice.which);
-    } else if (event.type == SDL_CONTROLLERDEVICEREMOVED) {
+    if (event.type() == Event::Type::gamepad_added) {
+        open_controller(event.gamepad_device_index());
+    } else if (event.type() == Event::Type::gamepad_removed) {
         const auto gamepad = std::find_if(controllers.begin(), controllers.end(), [&event](const ConnectedGamepad& connected) {
-            return connected.instance_id == event.cdevice.which;
+            return connected.instance_id == event.gamepad_instance_id();
         });
         if (gamepad != controllers.end()) {
             SDL_GameControllerClose(gamepad->controller);

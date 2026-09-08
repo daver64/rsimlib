@@ -5,11 +5,11 @@ void process_input()
     bool running=true;
     while (running)
     {
-        SDL_Event event;
+        simlib::Event event;
         
-        while (SDL_PollEvent(&event))
+        while (simlib::poll_event(&event))
         {
-            if (event.type == SDL_KEYDOWN || event.type==SDL_QUIT)
+            if (event.type() == simlib::Event::Type::key_down || event.type() == simlib::Event::Type::quit)
             {
                 running = false;
             }   // Handle input here

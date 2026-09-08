@@ -35,22 +35,22 @@ namespace game {
     bool is_running();
 
     /** @name Mode input handlers
-     * Each receives an SDL event after the central event loop has selected the active mode.
+    * Each receives a simlib event after the central event loop has selected the active mode.
      * @{ */
     /** @brief Handle main-menu keyboard shortcuts. */
-    void handle_menu_input(SDL_Event event);
+    void handle_menu_input(const simlib::Event &event);
     /** @brief Handle gameplay controls, including reset and return-to-menu. */
-    void handle_playing_input(SDL_Event event);
+    void handle_playing_input(const simlib::Event &event);
     /** @brief Handle paused-screen navigation. */
-    void handle_paused_input(SDL_Event event);
+    void handle_paused_input(const simlib::Event &event);
     /** @brief Handle help-screen navigation. */
-    void handle_help_input(SDL_Event event);
+    void handle_help_input(const simlib::Event &event);
     /** @brief Handle game-over-screen navigation. */
-    void handle_gameover_input(SDL_Event event);
+    void handle_gameover_input(const simlib::Event &event);
     /** @brief Handle settings-screen navigation. */
-    void handle_settings_input(SDL_Event event);
+    void handle_settings_input(const simlib::Event &event);
     /** @brief Handle text entry and commands for the Lua REPL. */
-    void handle_lua_console_input(SDL_Event event);
+    void handle_lua_console_input(const simlib::Event &event);
     /** @} */
 
     /** @name Mode renderers

@@ -106,13 +106,13 @@ target_link_libraries(my_app PRIVATE simlib)
 ## Event loop and input
 
 ```cpp
-SDL_Event event;
+simlib::Event event;
 bool running = true;
 while (running)
 {
-    while (SDL_PollEvent(&event))
+    while (simlib::poll_event(&event))
     {
-        if (event.type == SDL_QUIT) running = false;
+        if (event.type() == simlib::Event::Type::quit) running = false;
         simlib::display_handle_event(event);
     }
 
@@ -122,6 +122,12 @@ while (running)
     simlib::end_frame();
 }
 ```
+
+`Event::Type` covers the complete SDL2 event taxonomy. `Event::Key` names the
+normal desktop keyboard: printable keys, letters, digits, navigation keys,
+F1-F12, modifiers, and keypad keys. Specialized media, international, and
+platform keys are reported as `Event::Key::other` with their lossless backend
+value available through `event.key_code()`.
 
 ## Gamepads
 

@@ -21,6 +21,7 @@
 #include "display.h"
 #include "draw.h"
 #include "error.h"
+#include "event.h"
 #include "font.h"
 #include "graphics_fx.h"
 #include "gamepad.h"

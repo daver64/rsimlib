@@ -78,26 +78,26 @@ void console_execute_input()
  * Escape stops SDL text input and leaves the console, Enter executes the current command,
  * and Backspace removes one byte from the pending UTF-8 input string.
  */
-void handle_lua_console_input(SDL_Event event)
+void handle_lua_console_input(const simlib::Event &event)
 {
-    if (event.type == SDL_TEXTINPUT)
+    if (event.type() == simlib::Event::Type::text_input)
     {
-        input_line += event.text.text;
+        input_line += event.text();
     }
-    else if (event.type == SDL_KEYDOWN && !event.key.repeat)
+    else if (event.type() == simlib::Event::Type::key_down && !event.key_repeat())
     {
-        switch (event.key.keysym.sym)
+        switch (event.key())
         {
-        case SDLK_ESCAPE:
+        case simlib::Event::Key::escape:
             SDL_StopTextInput();
             console_active = false;
             running = false;
             break;
-        case SDLK_RETURN:
-        case SDLK_KP_ENTER:
+        case simlib::Event::Key::return_key:
+        case simlib::Event::Key::keypad_enter:
             console_execute_input();
             break;
-        case SDLK_BACKSPACE:
+        case simlib::Event::Key::backspace:
             if (!input_line.empty())
                 input_line.pop_back();
             break;
@@ -159,10 +159,10 @@ void shutdown_lua_console()
 /** @brief Poll SDL, route mode input, and notify display and ImGui backends of each event. */
 bool handle_events()
 {
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
+    simlib::Event event;
+    while (simlib::poll_event(&event))
     {
-        if (event.type == SDL_QUIT)
+        if (event.type() == simlib::Event::Type::quit)
         {
             running = false;
         }

@@ -85,13 +85,13 @@ bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtu
     return true;
 }
 
-void display_handle_event(const SDL_Event& event) {
-    if (event.type != SDL_WINDOWEVENT || event.window.event != SDL_WINDOWEVENT_SIZE_CHANGED) {
+void display_handle_event(const Event& event) {
+    if (event.type() != Event::Type::window_resized) {
         return;
     }
 
-    width = event.window.data1;
-    height = event.window.data2;
+    width = event.window_width();
+    height = event.window_height();
     glViewport(0, 0, width, height);
     detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
 }
