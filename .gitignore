@@ -1,10 +1,10 @@
-sltest
-slpack
-slunpack
-exhello
-extriangle
-exlua
 build
 html
 imgui.ini
 .vscode
+/slunpack
+/slpack
+/sltest
+/extriangle
+/exlua
+/exhello
