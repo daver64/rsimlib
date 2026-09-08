@@ -3,6 +3,7 @@ slpack
 slunpack
 exhello
 extriangle
+exlua
 build
 html
 imgui.ini

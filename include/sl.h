@@ -24,6 +24,7 @@
 #include "font.h"
 #include "graphics_fx.h"
 #include "input.h"
+#include "lua_canvas.h"
 #include "lua_runtime.h"
 #include "noise.h"
 #include "resource.h"

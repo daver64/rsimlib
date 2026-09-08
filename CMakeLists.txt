@@ -89,6 +89,7 @@ add_library(simlib STATIC
     src/engine/audio_test.cpp
     src/engine/system.cpp
     src/engine/input.cpp
+    src/engine/lua_canvas.cpp
     src/engine/lua_runtime.cpp
     src/engine/error.cpp
     src/engine/resource.cpp
@@ -151,9 +152,16 @@ set_target_properties(exhello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+
 add_executable(extriangle src/applications/triangle/extriangle.cpp)
 target_link_libraries(extriangle PRIVATE simlib)
 set_target_properties(extriangle PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exlua src/applications/exlua/exlua.cpp)
+target_link_libraries(exlua PRIVATE simlib lua sol2)
+set_target_properties(exlua PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
@@ -170,6 +178,10 @@ set_target_properties(slunpack PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(lua_canvas_test src/engine/lua_canvas_test.cpp)
+    target_link_libraries(lua_canvas_test PRIVATE simlib)
+    add_test(NAME lua_canvas COMMAND lua_canvas_test)
+
     add_executable(resource_test
         src/engine/resource_test.cpp
         src/engine/resource.cpp
