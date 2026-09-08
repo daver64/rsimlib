@@ -7,6 +7,63 @@
 
 namespace game {
 
+namespace {
+
+constexpr float ambient_temperature = 293.0f;
+constexpr float minimum_balloon_volume = 0.4f;
+constexpr float maximum_balloon_volume = 3.0f;
+constexpr float sea_level_air_density = 1.225f;
+constexpr float minimum_air_density = 0.25f;
+constexpr float balloon_gas_relative_density = 0.15f;
+constexpr float temperature_cooling_rate = 0.035f;
+constexpr float burner_heating_rate = 8.5f;
+constexpr float wind_response_rate = 0.7f;
+
+float wind_speed(float y)
+{
+    constexpr float layer_speeds[] = {18.0f, -14.0f, 22.0f, -17.0f};
+    const float height = std::max(1.0f, static_cast<float>(simlib::screen_height()));
+    const int layer = std::min(3, std::max(0, static_cast<int>(4.0f * y / height)));
+    return layer_speeds[layer];
+}
+
+void apply_wind(GameObject& object, float dt_seconds)
+{
+    if (!object.is_balloon)
+    {
+        return;
+    }
+    object.vx += (wind_speed(object.y) - object.vx) * wind_response_rate * dt_seconds;
+}
+
+float ambient_air_density(float y)
+{
+    const float height = std::max(1.0f, static_cast<float>(simlib::screen_height()));
+    const float altitude_fraction = std::clamp((height - y) / height, 0.0f, 1.0f);
+    return std::max(minimum_air_density, sea_level_air_density * (1.0f - 0.65f * altitude_fraction));
+}
+
+void apply_buoyancy(GameObject& object, float dt_seconds, float gravity)
+{
+    if (!object.is_balloon)
+    {
+        return;
+    }
+
+    const float heating = object.burner_active ? burner_heating_rate : 0.0f;
+    object.gas_temperature += (heating - (object.gas_temperature - ambient_temperature) * temperature_cooling_rate) * dt_seconds;
+    object.gas_temperature = std::max(ambient_temperature, object.gas_temperature);
+
+    const float air_density = ambient_air_density(object.y);
+    const float gas_density = air_density * balloon_gas_relative_density * ambient_temperature / object.gas_temperature;
+    const float displaced_air_mass = air_density * object.gas_bag_volume;
+    const float gas_mass = gas_density * object.gas_bag_volume;
+    const float buoyant_acceleration = gravity * (displaced_air_mass - gas_mass) / std::max(object.mass, 0.01f);
+    object.vy -= buoyant_acceleration * dt_seconds;
+}
+
+} // namespace
+
 /** @brief Create a circular physics object centred at @p x, @p y using @p bitmap as its sprite. */
 GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float radius, float mass) {
     GameObject object;
@@ -137,6 +194,8 @@ void physics_step(std::vector<GameObject>& objects, float dt_seconds, float grav
         if (object.is_static) {
             continue;
         }
+        apply_buoyancy(object, dt_seconds, gravity);
+        apply_wind(object, dt_seconds);
         object.vy += gravity * object.gravity_scale * dt_seconds;
         if (object.drag > 0.0f) {
             const float damping = std::clamp(1.0f - object.drag * dt_seconds, 0.0f, 1.0f);
@@ -146,6 +205,21 @@ void physics_step(std::vector<GameObject>& objects, float dt_seconds, float grav
         object.x += object.vx * dt_seconds;
         object.y += object.vy * dt_seconds;
     }
+}
+
+void adjust_balloon_volume(GameObject& object, float volume_delta)
+{
+    if (!object.is_balloon)
+    {
+        return;
+    }
+    object.gas_bag_volume = std::clamp(
+        object.gas_bag_volume + volume_delta,
+        minimum_balloon_volume,
+        maximum_balloon_volume);
+    object.radius = 16.0f * std::sqrt(object.gas_bag_volume);
+    object.width = object.radius * 2.0f;
+    object.height = object.radius * 2.0f;
 }
 
 /**
@@ -210,7 +284,13 @@ void constrain_to_screen(std::vector<GameObject>& objects) {
         const float halfWidth = object.shape == ColliderShape::circle ? object.radius : object.width * 0.5f;
         const float halfHeight = object.shape == ColliderShape::circle ? object.radius : object.height * 0.5f;
 
-        if (object.x - halfWidth < 0.0f) {
+        if (object.is_balloon) {
+            if (object.x + halfWidth < 0.0f) {
+                object.x = screenWidth + halfWidth;
+            } else if (object.x - halfWidth > screenWidth) {
+                object.x = -halfWidth;
+            }
+        } else if (object.x - halfWidth < 0.0f) {
             object.x = halfWidth;
             object.vx = -object.vx * object.restitution;
         } else if (object.x + halfWidth > screenWidth) {

@@ -23,6 +23,12 @@ struct GameObject {
     float restitution = 0.5f;
     bool is_static = false;
 
+    // balloon gas bag
+    bool is_balloon = false;
+    float gas_bag_volume = 1.0f;
+    float gas_temperature = 293.0f;
+    bool burner_active = false;
+
     // collider
     ColliderShape shape = ColliderShape::circle;
     float radius = 16.0f;
@@ -38,11 +44,13 @@ GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float ra
 /** Create an AABB-collider object centred at (x, y). */
 GameObject make_aabb_object(simlib::Bitmap* bitmap, float x, float y, float width, float height, float mass = 1.0f);
 
-/** Apply gravity/drag and integrate position for all objects. */
+/** Apply buoyancy, layered wind, gravity, drag, and integrate position for all objects. */
 void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity = 980.0f);
+/** Adjust a balloon's gas bag volume and its circular collider size. */
+void adjust_balloon_volume(GameObject& object, float volume_delta);
 /** Detect and resolve overlaps between all object pairs (circle and/or AABB). */
 void resolve_collisions(std::vector<GameObject>& objects);
-/** Keep objects inside the screen bounds, bouncing off the edges. */
+/** Keep objects inside the screen bounds; balloons wrap horizontally while other objects bounce. */
 void constrain_to_screen(std::vector<GameObject>& objects);
 /** Draw every object's sprite at its current position. */
 void render_objects(const std::vector<GameObject>& objects);
