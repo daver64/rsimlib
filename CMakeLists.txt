@@ -150,6 +150,12 @@ set_target_properties(exhello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(extriangle src/applications/triangle/extriangle.cpp)
+target_link_libraries(extriangle PRIVATE simlib)
+set_target_properties(extriangle PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 add_executable(slpack src/applications/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 set_target_properties(slpack PROPERTIES
