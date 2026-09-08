@@ -35,8 +35,11 @@ namespace game
         ImGui::BeginDisabled();
         ImGui::Button("Option 1", {-1.0f, 0.0f});
         ImGui::Button("Option 2", {-1.0f, 0.0f});
-        ImGui::Button("Option 3", {-1.0f, 0.0f});
         ImGui::EndDisabled();
+        if (ImGui::Button("Option 3", {-1.0f, 0.0f})) {
+            printf("Option 3 selected\n");
+        }
+        
         ImGui::Spacing();
         if (ImGui::Button("Back", {-1.0f, 0.0f})) {
             current_mode = Mode::menu;

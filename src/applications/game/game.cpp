@@ -11,6 +11,7 @@ namespace game
 
     void shutdown()
     {
+        shutdown_lua_console();
         simlib::gui_shutdown();
         simlib::display_shutdown();
         simlib::audio_fx_shutdown();

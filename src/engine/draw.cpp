@@ -665,6 +665,17 @@ void line(Bitmap* bitmap, float x1, float y1, float x2, float y2, Colour colour)
 	if (!bitmap) {
 		return;
 	}
+	if (is_screen(bitmap)) {
+		float red, green, blue, alpha;
+		colour_components(colour, red, green, blue, alpha);
+		detail::gl2d_begin(screen_width(), screen_height());
+		const detail::GLVertex vertices[2] = {
+			{x1, y1, 0.0f, 0.0f, red, green, blue, alpha},
+			{x2, y2, 1.0f, 1.0f, red, green, blue, alpha},
+		};
+		detail::gl2d_submit(GL_LINES, vertices, 2);
+		return;
+	}
 	draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
 }
 

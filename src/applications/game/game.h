@@ -16,6 +16,7 @@ namespace game {
     extern simlib::Bitmap* green_balloon;
 
     void shutdown();
+    void shutdown_lua_console();
     bool handle_events();
     bool initialise();
     void update_and_render();

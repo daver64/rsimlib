@@ -198,6 +198,53 @@ sol::table app = lua.create_named_table("app");
 app.set_function("quit", []() { /* ... */ });
 ```
 
+### `sltest` Lua drawing API
+
+The `sltest` console also exposes persistent drawing commands under `app`.
+Each call is replayed every frame until `app.clear_drawings()` is called.
+Colours use 8-bit RGB values with an optional alpha channel.
+
+```lua
+app.pixel(x, y, r, g, b [, a])
+app.line(x1, y1, x2, y2, r, g, b [, a])
+app.circle(x, y, radius, r, g, b [, a])
+app.circlefill(x, y, radius, r, g, b [, a])
+app.rect(left, top, right, bottom, r, g, b [, a])
+app.rectfill(left, top, right, bottom, r, g, b [, a])
+app.ellipse(x, y, radius_x, radius_y, r, g, b [, a])
+app.ellipsefill(x, y, radius_x, radius_y, r, g, b [, a])
+app.triangle(x1, y1, x2, y2, x3, y3, r, g, b [, a])
+app.trianglefill(x1, y1, x2, y2, x3, y3, r, g, b [, a])
+app.clear_drawings()
+```
+
+For example, this adds a persistent red diagonal behind the console text:
+
+```lua
+app.line(20, 120, 700, 500, 255, 0, 0)
+```
+
+Sprites are loaded once into a console-local cache and referred to by ID in
+draw commands. Paths are relative to `assets/`, and duplicate IDs are rejected.
+
+```lua
+ok, message = app.load_sprite("red_balloon", "textures/balloon_red.png")
+print(ok, message)
+
+app.sprite("red_balloon", 100, 150)
+app.sprite_stretched("red_balloon", 300, 150, 96, 128)
+```
+
+`app.sprite()` and `app.sprite_stretched()` return `false` when their ID has
+not been loaded. Sprite draw commands persist alongside shapes until cleared;
+unloading a sprite also removes its retained draw commands.
+
+```lua
+app.unload_sprite("red_balloon")
+app.clear_sprites()
+app.clear_drawings()
+```
+
 ## Simple physics / entities
 
 `sltest`'s playing screen (`src/applications/game/entity.cpp`) shows a small
