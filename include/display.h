@@ -20,6 +20,7 @@ void set_window_title(const char* title);
 bool set_fullscreen(bool enabled);
 /** Return whether the display is currently fullscreen. */
 bool is_fullscreen();
+bool toggle_fullscreen();
 /** Set the OpenGL swap interval; zero disables vsync. */
 bool set_vsync(bool enabled);
 

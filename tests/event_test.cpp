@@ -40,10 +40,14 @@ int main()
     resize_event.window.data1 = 640;
     resize_event.window.data2 = 480;
 
+    SDL_Event close_event{};
+    close_event.type = SDL_WINDOWEVENT;
+    close_event.window.event = SDL_WINDOWEVENT_CLOSE;
+
     SDL_Event user_event{};
     user_event.type = SDL_USEREVENT;
 
-    if (!push_event(key_event) || !push_event(function_key_event) || !push_event(keypad_key_event) || !push_event(resize_event) || !push_event(user_event))
+    if (!push_event(key_event) || !push_event(function_key_event) || !push_event(keypad_key_event) || !push_event(resize_event) || !push_event(close_event) || !push_event(user_event))
     {
         SDL_Quit();
         return 1;
@@ -57,6 +61,7 @@ int main()
         simlib::poll_event(&event) && event.key() == simlib::Event::Key::keypad_7 && event.key_code() == SDLK_KP_7 &&
         simlib::poll_event(&event) && event.type() == simlib::Event::Type::window_resized &&
         event.window_width() == 640 && event.window_height() == 480 &&
+        simlib::poll_event(&event) && event.type() == simlib::Event::Type::quit &&
         simlib::poll_event(&event) && event.type() == simlib::Event::Type::user;
 
     SDL_Quit();

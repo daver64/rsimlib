@@ -15,6 +15,7 @@ constexpr float maximum_balloon_volume = 3.0f;
 constexpr float sea_level_air_density = 1.225f;
 constexpr float minimum_air_density = 0.25f;
 constexpr float balloon_gas_relative_density = 0.15f;
+constexpr float thermal_lift_multiplier = 8.0f;
 constexpr float temperature_cooling_rate = 0.035f;
 constexpr float burner_heating_rate = 8.5f;
 constexpr float wind_response_rate = 0.7f;
@@ -55,7 +56,10 @@ void apply_buoyancy(GameObject& object, float dt_seconds, float gravity)
     object.gas_temperature = std::max(ambient_temperature, object.gas_temperature);
 
     const float air_density = ambient_air_density(object.y);
-    const float gas_density = air_density * balloon_gas_relative_density * ambient_temperature / object.gas_temperature;
+    const float thermal_expansion = 1.0f - ambient_temperature / object.gas_temperature;
+    const float effective_gas_density = balloon_gas_relative_density * std::max(
+        0.0f, 1.0f - thermal_lift_multiplier * thermal_expansion);
+    const float gas_density = air_density * effective_gas_density;
     const float displaced_air_mass = air_density * object.gas_bag_volume;
     const float gas_mass = gas_density * object.gas_bag_volume;
     const float buoyant_acceleration = gravity * (displaced_air_mass - gas_mass) / std::max(object.mass, 0.01f);

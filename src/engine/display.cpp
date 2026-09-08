@@ -107,7 +107,11 @@ bool set_fullscreen(bool enabled) {
 bool is_fullscreen() {
     return window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0;
 }
-
+bool toggle_fullscreen() {
+    if (!window) return false;
+    bool currently_fullscreen = is_fullscreen();
+    return set_fullscreen(!currently_fullscreen);
+}
 bool set_vsync(bool enabled) {
     return context && SDL_GL_SetSwapInterval(enabled ? 1 : 0) == 0;
 }

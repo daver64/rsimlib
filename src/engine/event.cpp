@@ -40,6 +40,7 @@ Event::Type event_type(const SDL_Event& event) {
     case SDL_CONTROLLERBUTTONDOWN: return Event::Type::gamepad_button_down;
     case SDL_CONTROLLERBUTTONUP: return Event::Type::gamepad_button_up;
     case SDL_WINDOWEVENT:
+        if (event.window.event == SDL_WINDOWEVENT_CLOSE) return Event::Type::quit;
         return event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ? Event::Type::window_resized : Event::Type::window;
     case SDL_CONTROLLERDEVICEADDED: return Event::Type::gamepad_added;
     case SDL_CONTROLLERDEVICEREMOVED: return Event::Type::gamepad_removed;
