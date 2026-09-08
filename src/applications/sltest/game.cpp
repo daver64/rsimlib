@@ -8,11 +8,23 @@ namespace game
     simlib::Bitmap* red_balloon = nullptr;
     simlib::Bitmap* blue_balloon = nullptr;
     simlib::Bitmap* green_balloon = nullptr;    
+    simlib::Bitmap* playing_background = nullptr;
+    simlib::Sample* thrust_sound = nullptr;
+    simlib::Sample* burner_sound = nullptr;
+    simlib::Stream* background_music = nullptr;
+    bool background_music_paused = false;
 
     /** @brief Release game-owned resources before their dependent simlib subsystems. */
     void shutdown()
     {
         shutdown_lua_console();
+        simlib::destroy_bitmap(playing_background);
+        simlib::destroy_bitmap(green_balloon);
+        simlib::destroy_bitmap(blue_balloon);
+        simlib::destroy_bitmap(red_balloon);
+        simlib::destroy_stream(background_music);
+        simlib::destroy_sample(thrust_sound);
+        simlib::destroy_sample(burner_sound);
         simlib::gamepad_shutdown();
         simlib::gui_shutdown();
         simlib::display_shutdown();
@@ -35,6 +47,20 @@ namespace game
             if (event.type() == simlib::Event::Type::quit)
             {
                 running = false;
+            }
+            else if (event.type() == simlib::Event::Type::key_down &&
+                     !event.key_repeat() && event.key() == simlib::Event::Key::letter_m &&
+                     background_music)
+            {
+                background_music_paused = !background_music_paused;
+                if (background_music_paused)
+                {
+                    simlib::pause_stream();
+                }
+                else
+                {
+                    simlib::resume_stream();
+                }
             }
 
             switch (current_mode)
@@ -84,12 +110,21 @@ namespace game
         }
         simlib::set_fps(60);
         simlib::music_init();
+        background_music = simlib::load_stream("assets/music/Solar Serenity.ogg");
+        if (background_music)
+        {
+            simlib::music_set_volume(20);
+            simlib::play_stream(background_music);
+        }
         simlib::audio_fx_init();
+        thrust_sound = simlib::load_sample("assets/sfx/sustain.wav");
+        burner_sound = simlib::load_sample("assets/sfx/engines.wav");
         SDL_StopTextInput();
 
         red_balloon = simlib::load_bitmap("assets/textures/balloon_red.png");
         blue_balloon = simlib::load_bitmap("assets/textures/balloon_blue.png");
         green_balloon = simlib::load_bitmap("assets/textures/balloon_green.png");
+        playing_background = simlib::load_bitmap("assets/textures/Bumpy_Sky-Blue_01-512x512.png");
         return true;
     }
 

@@ -20,6 +20,12 @@ namespace game {
     extern simlib::Bitmap* blue_balloon;
     /** @brief Balloon textures shared by the physics playground. */
     extern simlib::Bitmap* green_balloon;
+    /** @brief Sky texture drawn behind the physics playground. */
+    extern simlib::Bitmap* playing_background;
+    /** @brief Sustained sound effect played while red-balloon thrust is active. */
+    extern simlib::Sample* thrust_sound;
+    /** @brief Sustained sound effect played while the red-balloon burner is active. */
+    extern simlib::Sample* burner_sound;
 
     /** @brief Release game resources before simlib tears down its graphics context. */
     void shutdown();

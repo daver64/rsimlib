@@ -23,7 +23,36 @@ namespace game
         bool green_burner_active = false;
         bool red_thrust_left = false;
         bool red_thrust_right = false;
+        std::uint64_t red_thrust_voice = 0;
+        std::uint64_t red_burner_voice = 0;
         constexpr float red_thrust_acceleration = 180.0f;
+
+        void update_red_thrust_sound()
+        {
+            const bool thrust_active = red_thrust_left || red_thrust_right;
+            if (thrust_active && thrust_sound && red_thrust_voice == 0)
+            {
+                red_thrust_voice = simlib::play_sample(thrust_sound, 128, 128, 1000, -1);
+            }
+            else if (!thrust_active && red_thrust_voice != 0)
+            {
+                simlib::stop_voice(red_thrust_voice);
+                red_thrust_voice = 0;
+            }
+        }
+
+        void update_red_burner_sound(const GameObject &red_balloon_object)
+        {
+            if (red_balloon_object.burner_active && burner_sound && red_burner_voice == 0)
+            {
+                red_burner_voice = simlib::play_sample(burner_sound, 128, 128, 1000, -1);
+            }
+            else if (!red_balloon_object.burner_active && red_burner_voice != 0)
+            {
+                simlib::stop_voice(red_burner_voice);
+                red_burner_voice = 0;
+            }
+        }
 
         void reset_green_burner_cycle()
         {
@@ -92,6 +121,10 @@ namespace game
             reset_green_burner_cycle();
             red_thrust_left = false;
             red_thrust_right = false;
+            simlib::stop_voice(red_thrust_voice);
+            red_thrust_voice = 0;
+            simlib::stop_voice(red_burner_voice);
+            red_burner_voice = 0;
 
         }
     }
@@ -127,12 +160,15 @@ namespace game
                         break;
                     case simlib::Event::Key::letter_b:
                         red_balloon_object.burner_active = true;
+                        update_red_burner_sound(red_balloon_object);
                         break;
                     case simlib::Event::Key::arrow_left:
                         red_thrust_left = true;
+                        update_red_thrust_sound();
                         break;
                     case simlib::Event::Key::arrow_right:
                         red_thrust_right = true;
+                        update_red_thrust_sound();
                         break;
                     case simlib::Event::Key::f11:
                         simlib::toggle_fullscreen();
@@ -143,14 +179,17 @@ namespace game
                 if (event.key() == simlib::Event::Key::letter_b)
                 {
                     red_balloon_object.burner_active = false;
+                    update_red_burner_sound(red_balloon_object);
                 }
                 else if (event.key() == simlib::Event::Key::arrow_left)
                 {
                     red_thrust_left = false;
+                    update_red_thrust_sound();
                 }
                 else if (event.key() == simlib::Event::Key::arrow_right)
                 {
                     red_thrust_right = false;
+                    update_red_thrust_sound();
                 }
                 break;
         }
@@ -192,7 +231,16 @@ namespace game
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-
+        if (playing_background)
+        {
+            simlib::draw_sprite_stretched(
+                playing_background, 0.0f, 0.0f,
+                simlib::screen_width(), simlib::screen_height());
+        }
+        simlib::rectfill(simlib::screen,simlib::screen_width()/5,0,
+            simlib::screen_width()*4/5, 
+            1+10*fontheight, 
+            simlib::Colour{45, 48, 56, 128});  
         simlib::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
         simlib::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
         simlib::gprintf_center(1+3*fontheight,text_colour,  "+/-: red balloon volume, hold B: burner");
