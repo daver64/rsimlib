@@ -267,6 +267,117 @@ game::constrain_to_screen(objects);
 game::render_objects(objects);
 ```
 
+## `sltest` game source guide
+
+`sltest` is a small, deliberately direct example of how an application can
+compose `simlib` services. It is not a framework: game state is module-local,
+the `Mode` enum selects the current screen, and each screen provides one input
+handler and one update/render function.
+
+```mermaid
+flowchart TD
+    main[main.cpp] --> initialise[game::initialise]
+    main --> events[game::handle_events]
+    main --> render[game::update_and_render]
+    events --> mode_input[Current mode input handler]
+    render --> mode_render[Current mode renderer]
+    mode_render --> display[simlib display, drawing, ImGui, text, particles]
+```
+
+### `main.cpp`
+
+The executable entry point. It calls `game::initialise()`, repeatedly polls
+events and renders while `game::is_running()` is true, then calls
+`game::shutdown()`. This demonstrates the smallest application loop around
+`simlib`; timing is performed inside the active mode renderers via
+`simlib::end_frame()` and `simlib::get_frame_time()`.
+
+### `game.h`
+
+The game-facing contract shared by all source files. `Mode` is the screen state
+machine (`menu`, `playing`, `paused`, `help`, `gameover`, `settings`, and
+`lua_console`). It declares the two-function interface implemented by each
+screen: `handle_*_input(SDL_Event)` processes a relevant SDL event and
+`update_and_render_*()` draws one frame. It also exposes the three balloon
+`simlib::Bitmap` pointers loaded at startup for the physics example.
+
+### `game.cpp`
+
+Owns application-level state and routes work to the selected mode. `running`
+ends the main loop, while `current_mode` selects both event and rendering
+dispatch. `initialise()` creates an 800x600 SDL/OpenGL display through
+`simlib::set_gfx_mode()`, starts ImGui, audio, and frame pacing, then loads
+balloon textures with `simlib::load_bitmap()`. `handle_events()` receives SDL
+events, delegates them to the active mode, and forwards display resize and
+ImGui events through `simlib::display_handle_event()` and
+`simlib::gui_handle_event()`. `shutdown()` releases the Lua canvas before the
+graphics context and then shuts down GUI, display, audio, and core services.
+
+### `game_menu.cpp`
+
+Implements the main navigation screen. Numeric keys preserve keyboard access,
+while its ImGui buttons assign `current_mode` to enter gameplay, settings,
+help, or the Lua console. The renderer clears the `simlib::screen` bitmap,
+opens an ImGui frame with `simlib::new_frame()`, creates a fixed centred window,
+submits its widgets, calls `simlib::render()`, swaps with
+`simlib::show_video_bitmap()`, and caps the frame through `simlib::end_frame()`.
+
+### `game_settings.cpp`
+
+Provides a minimal settings-screen template using the same ImGui frame lifecycle
+as the menu. It demonstrates disabled controls with `ImGui::BeginDisabled()`
+and an active third option that currently writes a message to standard output.
+The Back button and Escape key return to the menu. This is the place to connect
+real configuration values to `simlib` or application settings in the future.
+
+### `game_help.cpp`, `game_paused.cpp`, and `game_gameover.cpp`
+
+These are intentionally small modal screens. Each clears the background, builds
+a fixed centred ImGui window, provides a Back/Return action, submits ImGui draw
+data, and presents the frame. Their input handlers also support Escape to return
+to the menu. Together they show that a mode needs no special base class: it only
+needs to participate in the dispatcher declared by `game.h`.
+
+### `game_playing.cpp`
+
+Contains the gameplay demonstration and owns its transient simulation state.
+On first entry, `ensure_playing_objects_initialised()` creates three circular
+`GameObject`s from the balloon bitmaps, assigns mass and restitution, and saves
+an initial copy for reset. It also configures two `simlib::ParticleEmitter`s:
+a stationary fountain and a trail that follows the red balloon.
+
+Each frame clamps `simlib::get_frame_time()` to avoid unstable physics after a
+stall, advances the objects with `physics_step()`, resolves collisions, and
+constrains them to `simlib::screen_width()` and `simlib::screen_height()`. It
+updates emitters, renders particles into a `simlib::create_render_target()`
+offscreen bitmap, draws the objects, then composites the target using
+`simlib::draw_sprite_v_flip()` because render-target texture coordinates are
+vertically inverted. Space resets the saved state; Escape returns to the menu.
+
+### `entity.cpp`
+
+Implements the small physics and rendering layer used by the playing mode.
+`make_circle_object()` and `make_aabb_object()` initialize the two supported
+collider shapes. `physics_step()` applies gravity, drag, and velocity
+integration. `resolve_collisions()` checks circle-circle, AABB-AABB, and mixed
+circle/AABB overlap, first correcting penetration by inverse mass and then
+applying an impulse based on restitution. `constrain_to_screen()` bounces
+dynamic objects from the display bounds obtained from `simlib`. Finally,
+`render_objects()` uses `simlib::draw_sprite_stretched()` to place each object’s
+bitmap around its physics centre.
+
+### `game_lua.cpp`
+
+Implements the interactive console UI, not the scripting renderer itself. It
+uses SDL text-input events to build a command line, keeps bounded scrollback in
+cached `simlib::TextCache` textures, and executes submitted text through an
+engine-owned `simlib::LuaCanvas`. `LuaCanvas::render(simlib::screen)` redraws
+the script’s retained background, shapes, and sprites before console text is
+drawn over it. The console adds only the game-specific `quit()` binding; the
+engine supplies the sandbox, Lua output callback, drawing commands, and sprite
+cache. `shutdown_lua_console()` resets canvas resources before the display’s
+OpenGL context is released.
+
 ## Project layout
 
 ```

@@ -9,6 +9,7 @@ namespace game
     simlib::Bitmap* blue_balloon = nullptr;
     simlib::Bitmap* green_balloon = nullptr;    
 
+    /** @brief Release game-owned resources before their dependent simlib subsystems. */
     void shutdown()
     {
         shutdown_lua_console();
@@ -19,10 +20,12 @@ namespace game
         simlib::shutdown();
     }
 
+    /** @brief Return the flag controlled by quit events and menu/Lua quit actions. */
     bool is_running()
     {
         return running;
     }
+    /** @brief Poll SDL, route mode input, and notify display and ImGui backends of each event. */
     bool handle_events()
     {
         SDL_Event event;
@@ -64,6 +67,7 @@ namespace game
         return true;
     }
 
+    /** @brief Create the window and initialise the simlib services used by the sample game. */
     bool initialise()
     {
         if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
@@ -83,6 +87,7 @@ namespace game
         return true;
     }
 
+    /** @brief Select the current mode's complete update-and-render operation. */
     void update_and_render()
     {
         switch (current_mode)

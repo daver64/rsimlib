@@ -7,6 +7,7 @@
 
 namespace game {
 
+/** @brief Create a circular physics object centred at @p x, @p y using @p bitmap as its sprite. */
 GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float radius, float mass) {
     GameObject object;
     object.bitmap = bitmap;
@@ -20,6 +21,7 @@ GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float ra
     return object;
 }
 
+/** @brief Create an axis-aligned box physics object centred at @p x, @p y. */
 GameObject make_aabb_object(simlib::Bitmap* bitmap, float x, float y, float width, float height, float mass) {
     GameObject object;
     object.bitmap = bitmap;
@@ -34,6 +36,7 @@ GameObject make_aabb_object(simlib::Bitmap* bitmap, float x, float y, float widt
 
 namespace {
 
+/** @brief Return zero for immovable objects or the reciprocal mass used by impulse resolution. */
 float inverse_mass(const GameObject& object) {
     if (object.is_static || object.mass <= 0.0f) {
         return 0.0f;
@@ -123,6 +126,12 @@ bool compute_overlap(const GameObject& a, const GameObject& b, float& normalX, f
 
 } // namespace
 
+/**
+ * @brief Integrate gravity, drag, and velocity into dynamic object positions.
+ * @param objects Mutable simulation objects.
+ * @param dt_seconds Elapsed frame time, normally clamped by the caller.
+ * @param gravity Downward acceleration in screen pixels per second squared.
+ */
 void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity) {
     for (GameObject& object : objects) {
         if (object.is_static) {
@@ -139,6 +148,12 @@ void physics_step(std::vector<GameObject>& objects, float dt_seconds, float grav
     }
 }
 
+/**
+ * @brief Resolve pairwise overlap using mass-weighted position correction and restitution impulses.
+ *
+ * Supports circle, AABB, and mixed circle/AABB pairs. Objects marked static participate in
+ * collision detection but do not move or receive velocity changes.
+ */
 void resolve_collisions(std::vector<GameObject>& objects) {
     for (std::size_t i = 0; i < objects.size(); ++i) {
         for (std::size_t j = i + 1; j < objects.size(); ++j) {
@@ -184,6 +199,7 @@ void resolve_collisions(std::vector<GameObject>& objects) {
     }
 }
 
+/** @brief Keep dynamic objects inside the current simlib display and bounce them from its edges. */
 void constrain_to_screen(std::vector<GameObject>& objects) {
     const float screenWidth = static_cast<float>(simlib::screen_width());
     const float screenHeight = static_cast<float>(simlib::screen_height());
@@ -212,6 +228,7 @@ void constrain_to_screen(std::vector<GameObject>& objects) {
     }
 }
 
+/** @brief Draw each object bitmap around its physics centre via simlib's scaled-sprite renderer. */
 void render_objects(const std::vector<GameObject>& objects) {
     for (const GameObject& object : objects) {
         if (!object.bitmap) {

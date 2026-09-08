@@ -25,6 +25,7 @@ namespace game
         simlib::TextCache *input_cache = nullptr;
         std::string input_line;
 
+        /** @brief Split Lua output into cached scrollback lines, retaining the newest 1,000. */
         void console_append(const std::string &text)
         {
             std::size_t start = 0;
@@ -43,6 +44,7 @@ namespace game
             }
         }
 
+        /** @brief Initialise the engine Lua canvas and attach the console-only quit binding. */
         void console_ensure_lua_initialised()
         {
             if (lua_canvas.is_initialised()) return;
@@ -53,6 +55,7 @@ namespace game
             console_append("Lua 5.4 console. Press ESC to return to the menu.");
         }
 
+        /** @brief Echo and execute the pending command, forwarding script errors to scrollback. */
         void console_execute_input()
         {
             console_append(std::string(prompt) + input_line);
@@ -65,6 +68,12 @@ namespace game
         }
     }
 
+    /**
+     * @brief Convert SDL text and key events into console input.
+     *
+     * Escape stops SDL text input and leaves the console, Enter executes the current command,
+     * and Backspace removes one byte from the pending UTF-8 input string.
+     */
     void handle_lua_console_input(SDL_Event event)
     {
         if (event.type == SDL_TEXTINPUT)
@@ -91,6 +100,12 @@ namespace game
         }
     }
 
+    /**
+     * @brief Render the persistent Lua canvas first, then overlay cached console scrollback.
+     *
+     * The first call starts SDL text input and initialises the Lua runtime; subsequent calls
+     * replay engine-owned drawing and sprite commands before drawing the REPL prompt.
+     */
     void update_and_render_lua_console()
     {
         if (!console_active)
@@ -123,6 +138,7 @@ namespace game
         simlib::end_frame();
     }
 
+    /** @brief Destroy Lua canvas GPU resources and cached console text before display shutdown. */
     void shutdown_lua_console()
     {
         lua_canvas.reset();

@@ -1,6 +1,11 @@
 #include "game.h"
 
-/** Initialize subsystems and run the SDL event/render loop. */
+/**
+ * @brief Initialise the sample game, run its event/render loop, and release it.
+ *
+ * The game namespace owns the selected screen and calls into simlib for display,
+ * timing, input, rendering, audio, and GUI integration.
+ */
 int main(int argc, char *argv[])
 {
     if (!game::initialise())

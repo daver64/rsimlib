@@ -2,6 +2,7 @@
 
 namespace game
 {
+    /** @brief Map numeric shortcuts and Escape to main-menu actions. */
     void handle_menu_input(SDL_Event event)
     {
 
@@ -31,6 +32,7 @@ namespace game
 
     }
 
+    /** @brief Build and present the centred ImGui menu over a simlib-cleared framebuffer. */
     void update_and_render_menu()
     {
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});

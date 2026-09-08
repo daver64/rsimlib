@@ -17,6 +17,12 @@ namespace game
         simlib::ParticleEmitter trail_emitter;
         simlib::Bitmap *particle_target = nullptr;
 
+        /**
+         * @brief Lazily create physics objects, emitters, and their particle render target.
+         *
+         * This avoids allocating mode-local resources until gameplay is actually entered and
+         * preserves a copy of the initial objects for the Space-key reset action.
+         */
         void ensure_playing_objects_initialised()
         {
             if (playing_objects_initialised)
@@ -68,6 +74,7 @@ namespace game
 
         }
 
+        /** @brief Restore the initial physics snapshot and discard particles from both emitters. */
         void reset_playing_objects()
         {
             playing_objects = playing_objects_initial;
@@ -76,6 +83,7 @@ namespace game
         }
     }
 
+    /** @brief Handle gameplay reset and return-to-menu keyboard actions. */
     void handle_playing_input(SDL_Event event)
     {
         switch (event.type)
@@ -94,6 +102,12 @@ namespace game
         }
     }
 
+    /**
+     * @brief Advance physics and particle emitters, then render the gameplay scene.
+     *
+     * The particle systems render to a simlib offscreen target before its vertically flipped
+     * texture is composited over balloon sprites and text on the display framebuffer.
+     */
     void update_and_render_playing()
     {
         ensure_playing_objects_initialised();

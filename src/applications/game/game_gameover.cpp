@@ -2,6 +2,7 @@
 
 namespace game
 {
+    /** @brief Return to the main menu when Escape is pressed. */
     void handle_gameover_input(SDL_Event event)
     {
         switch (event.type)
@@ -17,6 +18,7 @@ namespace game
         }
     }
 
+    /** @brief Draw the game-over modal window and its return action. */
     void update_and_render_gameover()
     {
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});

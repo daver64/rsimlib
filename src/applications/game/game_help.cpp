@@ -2,6 +2,7 @@
 
 namespace game
 {
+    /** @brief Return to the main menu when Escape is pressed. */
     void handle_help_input(SDL_Event event)
     {
         switch (event.type)
@@ -17,6 +18,7 @@ namespace game
         }
     }
 
+    /** @brief Draw the centred help window and its mouse-accessible Back action. */
     void update_and_render_help()
     {
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});

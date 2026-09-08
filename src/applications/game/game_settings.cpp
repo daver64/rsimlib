@@ -2,6 +2,7 @@
 
 namespace game
 {
+    /** @brief Return to the main menu when Escape is pressed. */
     void handle_settings_input(SDL_Event event)
     {
         switch (event.type)
@@ -16,6 +17,7 @@ namespace game
                 break;
         }
     }
+    /** @brief Present the settings UI and demonstrate disabled and actionable ImGui controls. */
     void update_and_render_settings()
     {
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});

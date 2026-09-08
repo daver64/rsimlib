@@ -2,6 +2,7 @@
 
 namespace game
 {
+    /** @brief Return to the main menu when Escape is pressed. */
     void handle_paused_input(SDL_Event event)
     {
         switch (event.type)
@@ -17,6 +18,7 @@ namespace game
         }
     }
 
+    /** @brief Draw the paused modal window using simlib's ImGui frame wrapper. */
     void update_and_render_paused()
     {
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
