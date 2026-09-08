@@ -165,6 +165,14 @@ set_target_properties(exlua PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exluaconsole src/applications/luaconsole/exluaconsole.cpp)
+target_link_libraries(exluaconsole PRIVATE simlib lua sol2)
+set_target_properties(exluaconsole PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+
+
 add_executable(slpack src/applications/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 set_target_properties(slpack PROPERTIES
