@@ -22,12 +22,16 @@ std::optional<std::vector<unsigned char>> load_font();
 Font *get_default_monospace_font() ;
 /** Open the loaded font bytes as an SDL_ttf font. */
 Font* open_monospace_font(int pointSize);
-/** Open a font from an explicit file path. */
+/** Open the first available platform sans-serif TrueType font. */
+Font* open_sans_font(int pointSize);
+/** Open a TrueType or OpenType font from an explicit file path. */
 Font* open_font(const std::string& path, int pointSize);
 /** Open a font from memory. */
 Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int pointSize);
 /** Open a font entry from a ZIP archive. */
 Font* open_font(const Archive& archive, const std::string& name, int pointSize);
+/** Close a font returned by an open_font or open_*_font function. */
+void close_font(Font* font);
 /** Return the rendered width of UTF-8 text in pixels. */
 int text_length(Font* font, const std::string& text);
 /** Return the rendered height of a font in pixels. */

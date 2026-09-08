@@ -153,6 +153,12 @@ set_target_properties(exhello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exfont src/applications/exfont/exfont.cpp)
+target_link_libraries(exfont PRIVATE simlib)
+set_target_properties(exfont PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 
 add_executable(extriangle src/applications/extriangle/extriangle.cpp)
 target_link_libraries(extriangle PRIVATE simlib)

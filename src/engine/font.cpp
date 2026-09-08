@@ -184,6 +184,28 @@ Font* open_monospace_font(int pointSize) {
     return TTF_OpenFontRW(rw, 1, pointSize);
 }
 
+Font* open_sans_font(int pointSize) {
+#ifdef _WIN32
+    static const std::vector<std::filesystem::path> candidates = {
+        R"(C:\Windows\Fonts\segoeui.ttf)",
+        R"(C:\Windows\Fonts\arial.ttf)"
+    };
+#else
+    static const std::vector<std::filesystem::path> candidates = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
+    };
+#endif
+
+    for (const std::filesystem::path& path : candidates) {
+        if (std::filesystem::exists(path)) {
+            return open_font(path.string(), pointSize);
+        }
+    }
+    return nullptr;
+}
+
 Font* open_font(const std::string& path, int pointSize) {
     Font* font = TTF_OpenFont(path.c_str(), pointSize);
     if (!font) simlib::detail::set_error(TTF_GetError());
@@ -201,6 +223,10 @@ Font* open_font_from_memory(const std::uint8_t* data, std::size_t size, int poin
 Font* open_font(const Archive& archive, const std::string& name, int pointSize) {
     const auto bytes = archive.read(name);
     return open_font_from_memory(bytes.data(), bytes.size(), pointSize);
+}
+
+void close_font(Font* font) {
+    if (font) TTF_CloseFont(font);
 }
 
 int text_length(Font* font, const std::string& text) {

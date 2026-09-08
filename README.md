@@ -16,6 +16,7 @@ This repository contains:
     menu, simple physics/entity system, and Lua REPL console (`src/applications/sltest/`).
 - **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/applications/slpack/`).
 - **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
+- **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
 
 ## Prerequisites
 
@@ -55,6 +56,7 @@ ctest --test-dir build
 
 ```bash
 ./exhello   # minimal window + text rendering demo
+./exfont    # proportional and monospace TrueType font demo
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -182,6 +184,25 @@ if (sprite)
 ```
 
 ## Text rendering
+
+`simlib` renders any TrueType or OpenType font supported by SDL_ttf, including
+proportional fonts. `text_length()` measures the actual rendered pixel width,
+so use it for centring or layout rather than assuming a fixed character width.
+
+```cpp
+simlib::Font *font = simlib::open_font("assets/fonts/my-font.otf", 24);
+if (font)
+{
+    const std::string text = "Proportional TrueType text";
+    const int x = (simlib::screen->width - simlib::text_length(font, text)) / 2;
+    simlib::textout(font, x, 40, {255, 255, 255}, text);
+    simlib::close_font(font);
+}
+```
+
+For a platform-provided sans-serif fallback, use `simlib::open_sans_font()`;
+`simlib::open_monospace_font()` remains available for fixed-width text. See
+`exfont` for a runnable comparison.
 
 ```cpp
 simlib::Font *font = simlib::get_default_monospace_font();
@@ -423,6 +444,7 @@ src/engine/               simlib library implementation
 src/applications/sltest/  sltest sample game (menu, physics, Lua console)
 src/applications/slpack/  slpack asset-packing CLI
 src/applications/exhello/ exhello minimal example
+src/applications/exfont/  exfont proportional-font example
 assets/                   Textures, music, and sound effects used by sltest
 ```
 
