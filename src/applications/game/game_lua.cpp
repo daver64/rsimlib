@@ -3,7 +3,6 @@
 #include <sol/sol.hpp>
 
 #include <algorithm>
-#include <ctime>
 #include <deque>
 #include <filesystem>
 #include <string>
@@ -53,8 +52,7 @@ namespace game
             std::string sprite_id;
         };
 
-        sol::state lua_state;
-        bool lua_initialised = false;
+        simlib::LuaRuntime lua_runtime;
         bool console_active = false;
         std::deque<ConsoleLine> console_lines;
         std::vector<DrawingCommand> drawing_commands;
@@ -199,23 +197,12 @@ namespace game
 
         void console_ensure_lua_initialised()
         {
-            if (lua_initialised)
+            if (lua_runtime.is_initialised())
             {
                 return;
             }
-            lua_initialised = true;
-            // sandboxed: no io/package/debug/os libraries, so scripts cannot touch
-            // the filesystem or spawn processes beyond what we explicitly expose
-            lua_state.open_libraries(
-                sol::lib::base, sol::lib::string, sol::lib::math,
-                sol::lib::table);
-            lua_state["dofile"] = sol::nil;
-            lua_state["loadfile"] = sol::nil;
-            lua_state["load"] = sol::nil;
-
-            sol::table os_table = lua_state.create_named_table("os");
-            os_table.set_function("time", []() { return static_cast<lua_Integer>(std::time(nullptr)); });
-            os_table.set_function("clock", []() { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; });
+            lua_runtime.initialise(console_append);
+            sol::state &lua_state = lua_runtime.state();
 
             // future app/library bindings must be attached under this table,
             // never to globals or to real io/os/package libraries
@@ -298,27 +285,6 @@ namespace game
                 });
             app_table.set_function("clear_drawings", []() { drawing_commands.clear(); });
             lua_state["quit"] = app_table["quit"];
-
-            lua_state.set_function("print", [](sol::this_state ts, sol::variadic_args args)
-            {
-                // convert in place with luaL_tolstring rather than calling back into
-                // the global tostring: a nested call would shift the stack indices
-                // that "args" points at and corrupt sibling arguments
-                lua_State *L = ts;
-                std::string line;
-                for (auto arg : args)
-                {
-                    if (!line.empty())
-                    {
-                        line += '\t';
-                    }
-                    std::size_t length = 0;
-                    const char *text = luaL_tolstring(L, arg.stack_index(), &length);
-                    line.append(text, length);
-                    lua_pop(L, 1);
-                }
-                console_append(line);
-            });
             console_append("Lua 5.4 console. Press ESC to return to the menu.");
         }
 
@@ -327,20 +293,10 @@ namespace game
             console_append(std::string(prompt) + input_line);
             if (!input_line.empty())
             {
-                sol::protected_function_result result =
-                    lua_state.safe_script(input_line, sol::script_pass_on_error);
-                if (!result.valid())
+                const simlib::LuaScriptResult result = lua_runtime.execute(input_line);
+                if (!result.success)
                 {
-                    sol::error error = result;
-                    // sol always appends "stack traceback: ..." to the message; a
-                    // console error only needs the first line
-                    std::string message = error.what();
-                    const std::size_t traceback_pos = message.find("\nstack traceback:");
-                    if (traceback_pos != std::string::npos)
-                    {
-                        message.resize(traceback_pos);
-                    }
-                    console_append(std::string("Error: ") + message);
+                    console_append(std::string("Error: ") + result.error);
                 }
             }
             input_line.clear();
@@ -490,7 +446,6 @@ namespace game
         console_lines.clear();
         simlib::destroy_text_cache(input_cache);
         input_cache = nullptr;
-        lua_state = sol::state{};
-        lua_initialised = false;
+        lua_runtime.reset();
     }
 }

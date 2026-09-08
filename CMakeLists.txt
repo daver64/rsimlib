@@ -89,6 +89,7 @@ add_library(simlib STATIC
     src/engine/audio_test.cpp
     src/engine/system.cpp
     src/engine/input.cpp
+    src/engine/lua_runtime.cpp
     src/engine/error.cpp
     src/engine/resource.cpp
     src/engine/config.cpp
@@ -98,7 +99,7 @@ add_library(simlib STATIC
     src/engine/particles.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui)
+target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(simlib PUBLIC SDL2::SDL2 SDL2::SDL2main)
