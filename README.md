@@ -335,10 +335,11 @@ if (event.type == SDL_KEYDOWN && !event.key.repeat)
 `"left"`, `"space"`, and `"escape"`, rather than exposing platform key codes
 to scripts.
 
-For arbitrary application events, use `LuaRuntime::emit()` directly. Optional
-callbacks may take no value, an integer, float, boolean, string, or a named
-two-dimensional position. Missing callbacks are successful no-ops; Lua errors
-are returned through `LuaScriptResult`.
+For arbitrary application events, use `LuaRuntime::emit()` directly. Execute
+the script that defines its callbacks successfully before emitting an event.
+Optional callbacks may take no value, an integer, float, boolean, string, or a
+named two-dimensional position. Missing callbacks are successful no-ops; Lua
+errors are returned through `LuaScriptResult`.
 
 ```lua
 function on_player_scored(points)
@@ -353,10 +354,29 @@ end
 ```cpp
 simlib::LuaRuntime runtime;
 runtime.initialise(log_lua_output);
-runtime.execute(script_text);
 
-runtime.emit("on_player_scored", 100);
-runtime.emit("on_enemy_spawned", "slime", 320.0f, 240.0f);
+const simlib::LuaScriptResult load_result = runtime.execute(script_text);
+if (load_result.success)
+{
+    runtime.emit("on_player_scored", 100);
+    runtime.emit("on_enemy_spawned", "slime", 320.0f, 240.0f);
+}
+else
+{
+    // Handle load_result.error. Callbacks were not registered.
+}
+```
+
+When using `LuaCanvas`, `run_text()` and `run_file()` both initialise the
+runtime and execute the script. Only emit callbacks after their result succeeds:
+
+```cpp
+simlib::LuaCanvas canvas;
+const simlib::LuaScriptResult load_result = canvas.run_file("assets/scripts/game.lua");
+if (load_result.success)
+{
+    canvas.runtime().emit("on_player_scored", 100);
+}
 ```
 
 ## Simple physics / entities
