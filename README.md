@@ -13,9 +13,9 @@ This repository contains:
 
 - **`simlib`** — the static engine library (`src/engine/`).
 - **`sltest`** — a sample game/test application built on `simlib`, with a
-  menu, simple physics/entity system, and Lua REPL console (`src/applications/game/`).
+    menu, simple physics/entity system, and Lua REPL console (`src/applications/sltest/`).
 - **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/applications/slpack/`).
-- **`exhello`** — a minimal "hello world" example (`src/applications/hello/`).
+- **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
 
 ## Prerequisites
 
@@ -119,6 +119,43 @@ while (running)
 }
 ```
 
+## Gamepads
+
+`simlib` provides polling for standard mapped controllers through SDL's game
+controller layer. Initialise it explicitly, forward SDL events to support
+controller hot-plugging, and shut it down before `simlib::shutdown()`.
+
+```cpp
+if (!simlib::gamepad_init())
+{
+    // No controller subsystem is available.
+}
+
+while (running)
+{
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        simlib::gamepad_handle_event(event);
+    }
+
+    if (simlib::gamepad_connected(0))
+    {
+        const float move_x = simlib::gamepad_axis(0, simlib::GamepadAxis::left_x);
+        if (simlib::gamepad_button(0, simlib::GamepadButton::south))
+        {
+            // Confirm, jump, or fire.
+        }
+    }
+}
+
+simlib::gamepad_shutdown();
+```
+
+`gamepad_count()` returns connected mapped controllers and `gamepad_name(index)`
+returns a device name. Axis values are normalized to $[-1, 1]$ and filtered by a
+default dead zone of $0.15$; configure it with `gamepad_set_deadzone()`.
+
 ## Drawing primitives
 
 All shape/sprite coordinates are `float`, so positions can move smoothly
@@ -183,7 +220,7 @@ if (archive.open("assets.zip"))
 ## Sandboxed Lua scripting
 
 `simlib`-based applications can embed a Lua console via
-[sol2](https://github.com/ThePhD/sol2); see `src/applications/game/game_lua.cpp`
+[sol2](https://github.com/ThePhD/sol2); see `src/applications/sltest/game_lua.cpp`
 in `sltest` for a complete example, including:
 
 - A restricted `open_libraries` set (no `io`, `package`, `debug`, or the real `os` library).
@@ -251,7 +288,7 @@ app.clear_drawings()
 
 ## Simple physics / entities
 
-`sltest`'s playing screen (`src/applications/game/entity.cpp`) shows a small
+`sltest`'s playing screen (`src/applications/sltest/entity.cpp`) shows a small
 `GameObject` system with gravity, mass, drag, and circle/AABB collision:
 
 ```cpp
@@ -383,9 +420,9 @@ OpenGL context is released.
 ```
 include/                 Public simlib headers (draw.h, font.h, audio.h, ...)
 src/engine/               simlib library implementation
-src/applications/game/    sltest sample game (menu, physics, Lua console)
+src/applications/sltest/  sltest sample game (menu, physics, Lua console)
 src/applications/slpack/  slpack asset-packing CLI
-src/applications/hello/   exhello minimal example
+src/applications/exhello/ exhello minimal example
 assets/                   Textures, music, and sound effects used by sltest
 ```
 

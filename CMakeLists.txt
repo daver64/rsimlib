@@ -83,6 +83,7 @@ add_library(simlib STATIC
     src/engine/graphics_fx_test.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
+    src/engine/gamepad.cpp
     src/engine/audio_backend.cpp
     src/engine/audio_fx.cpp
     src/engine/audio_music.cpp
@@ -133,27 +134,27 @@ else()
 endif()
 
 add_executable(sltest
-    src/applications/game/main.cpp
-    src/applications/game/game.cpp
-    src/applications/game/game_menu.cpp
-    src/applications/game/game_playing.cpp
-    src/applications/game/entity.cpp
-    src/applications/game/game_paused.cpp
-    src/applications/game/game_help.cpp
-    src/applications/game/game_gameover.cpp
-    src/applications/game/game_settings.cpp
-    src/applications/game/game_lua.cpp
+    src/applications/sltest/main.cpp
+    src/applications/sltest/game.cpp
+    src/applications/sltest/game_menu.cpp
+    src/applications/sltest/game_playing.cpp
+    src/applications/sltest/entity.cpp
+    src/applications/sltest/game_paused.cpp
+    src/applications/sltest/game_help.cpp
+    src/applications/sltest/game_gameover.cpp
+    src/applications/sltest/game_settings.cpp
+    src/applications/sltest/game_lua.cpp
 )
 target_link_libraries(sltest PRIVATE simlib lua sol2)
 
-add_executable(exhello src/applications/hello/exhello.cpp)
+add_executable(exhello src/applications/exhello/exhello.cpp)
 target_link_libraries(exhello PRIVATE simlib)
 set_target_properties(exhello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 
-add_executable(extriangle src/applications/triangle/extriangle.cpp)
+add_executable(extriangle src/applications/extriangle/extriangle.cpp)
 target_link_libraries(extriangle PRIVATE simlib)
 set_target_properties(extriangle PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -165,12 +166,17 @@ set_target_properties(exlua PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exluaconsole src/applications/luaconsole/exluaconsole.cpp)
+add_executable(exluaconsole src/applications/exluaconsole/exluaconsole.cpp)
 target_link_libraries(exluaconsole PRIVATE simlib lua sol2)
 set_target_properties(exluaconsole PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exbitmap src/applications/exbitmap/exbitmap.cpp)
+target_link_libraries(exbitmap PRIVATE simlib)
+set_target_properties(exbitmap PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 
 
 add_executable(slpack src/applications/slpack/slpack.cpp)

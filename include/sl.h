@@ -23,6 +23,7 @@
 #include "error.h"
 #include "font.h"
 #include "graphics_fx.h"
+#include "gamepad.h"
 #include "input.h"
 #include "lua_canvas.h"
 #include "lua_runtime.h"

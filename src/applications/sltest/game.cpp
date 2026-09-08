@@ -13,6 +13,7 @@ namespace game
     void shutdown()
     {
         shutdown_lua_console();
+        simlib::gamepad_shutdown();
         simlib::gui_shutdown();
         simlib::display_shutdown();
         simlib::audio_fx_shutdown();
@@ -62,6 +63,7 @@ namespace game
             }
 
             simlib::display_handle_event(event);
+            simlib::gamepad_handle_event(event);
             simlib::gui_handle_event(event);
         }
         return true;
@@ -76,6 +78,10 @@ namespace game
         }
         current_mode = Mode::menu;
         simlib::gui_init();
+        if (!simlib::gamepad_init())
+        {
+            return false;
+        }
         simlib::set_fps(60);
         simlib::music_init();
         simlib::audio_fx_init();
