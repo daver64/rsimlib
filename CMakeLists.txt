@@ -198,12 +198,12 @@ set_target_properties(slunpack PROPERTIES
 )
 
 if(BUILD_TESTING)
-    add_executable(lua_canvas_test src/engine/lua_canvas_test.cpp)
+    add_executable(lua_canvas_test tests/lua_canvas_test.cpp)
     target_link_libraries(lua_canvas_test PRIVATE simlib)
     add_test(NAME lua_canvas COMMAND lua_canvas_test)
 
     add_executable(resource_test
-        src/engine/resource_test.cpp
+        tests/resource_test.cpp
         src/engine/resource.cpp
         src/engine/error.cpp
     )

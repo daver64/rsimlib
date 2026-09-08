@@ -7,6 +7,39 @@
 
 namespace simlib
 {
+    namespace
+    {
+        LuaScriptResult script_error(sol::protected_function_result result)
+        {
+            sol::error error = result;
+            std::string message = error.what();
+            const std::size_t traceback_position = message.find("\nstack traceback:");
+            if (traceback_position != std::string::npos)
+            {
+                message.resize(traceback_position);
+            }
+            return {false, std::move(message)};
+        }
+
+        template <typename... Arguments>
+        LuaScriptResult invoke_callback(sol::state &state, const std::string &event_name, Arguments &&...arguments)
+        {
+            sol::object callback = state[event_name];
+            if (!callback.valid() || callback.get_type() == sol::type::nil)
+            {
+                return {true, {}};
+            }
+            if (!callback.is<sol::protected_function>())
+            {
+                return {false, "Lua callback '" + event_name + "' is not a function."};
+            }
+
+            sol::protected_function_result result =
+                callback.as<sol::protected_function>()(std::forward<Arguments>(arguments)...);
+            return result.valid() ? LuaScriptResult{true, {}} : script_error(std::move(result));
+        }
+    }
+
     LuaRuntime::LuaRuntime() = default;
 
     LuaRuntime::~LuaRuntime() = default;
@@ -74,14 +107,66 @@ namespace simlib
             return {true, {}};
         }
 
-        sol::error error = result;
-        std::string message = error.what();
-        const std::size_t traceback_position = message.find("\nstack traceback:");
-        if (traceback_position != std::string::npos)
+        return script_error(std::move(result));
+    }
+
+    LuaScriptResult LuaRuntime::call(const std::string &function_name, const std::string &argument)
+    {
+        return emit(function_name, argument);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name)
+    {
+        if (!state_)
         {
-            message.resize(traceback_position);
+            return {false, "Lua runtime has not been initialised."};
         }
-        return {false, std::move(message)};
+        return invoke_callback(*state_, event_name);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name, int value)
+    {
+        if (!state_)
+        {
+            return {false, "Lua runtime has not been initialised."};
+        }
+        return invoke_callback(*state_, event_name, value);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name, float value)
+    {
+        if (!state_)
+        {
+            return {false, "Lua runtime has not been initialised."};
+        }
+        return invoke_callback(*state_, event_name, value);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name, bool value)
+    {
+        if (!state_)
+        {
+            return {false, "Lua runtime has not been initialised."};
+        }
+        return invoke_callback(*state_, event_name, value);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name, const std::string &value)
+    {
+        if (!state_)
+        {
+            return {false, "Lua runtime has not been initialised."};
+        }
+        return invoke_callback(*state_, event_name, value);
+    }
+
+    LuaScriptResult LuaRuntime::emit(const std::string &event_name, const std::string &name, float x, float y)
+    {
+        if (!state_)
+        {
+            return {false, "Lua runtime has not been initialised."};
+        }
+        return invoke_callback(*state_, event_name, name, x, y);
     }
 
     sol::state &LuaRuntime::state()

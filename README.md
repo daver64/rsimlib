@@ -307,6 +307,58 @@ app.clear_sprites()
 app.clear_drawings()
 ```
 
+### LuaCanvas callbacks
+
+Lua scripts run by `simlib::LuaCanvas` can optionally define
+`on_keypress(key)`. The client application owns SDL event processing and
+dispatches stable, application-defined key names to the canvas.
+
+```lua
+function on_keypress(key)
+    if key == "space" then
+        app.clear_drawings()
+        app.circlefill(400, 300, 80, 255, 190, 70)
+    end
+end
+```
+
+```cpp
+if (event.type == SDL_KEYDOWN && !event.key.repeat)
+{
+    const simlib::LuaScriptResult result = canvas.dispatch_keypress("space");
+    // Handle result.error when result.success is false.
+}
+```
+
+`dispatch_keypress()` succeeds without doing anything when the script has no
+`on_keypress` function. Hosts should translate SDL events to names such as
+`"left"`, `"space"`, and `"escape"`, rather than exposing platform key codes
+to scripts.
+
+For arbitrary application events, use `LuaRuntime::emit()` directly. Optional
+callbacks may take no value, an integer, float, boolean, string, or a named
+two-dimensional position. Missing callbacks are successful no-ops; Lua errors
+are returned through `LuaScriptResult`.
+
+```lua
+function on_player_scored(points)
+    print("Score:", points)
+end
+
+function on_enemy_spawned(kind, x, y)
+    print(kind, "spawned at", x, y)
+end
+```
+
+```cpp
+simlib::LuaRuntime runtime;
+runtime.initialise(log_lua_output);
+runtime.execute(script_text);
+
+runtime.emit("on_player_scored", 100);
+runtime.emit("on_enemy_spawned", "slime", 320.0f, 240.0f);
+```
+
 ## Simple physics / entities
 
 `sltest`'s playing screen (`src/applications/sltest/entity.cpp`) shows a small

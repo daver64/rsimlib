@@ -265,6 +265,15 @@ namespace simlib
         return run_text(script.str());
     }
 
+    LuaScriptResult LuaCanvas::dispatch_keypress(const std::string &key)
+    {
+        if (!is_initialised())
+        {
+            initialise();
+        }
+        return implementation_->runtime.call("on_keypress", key);
+    }
+
     LuaRuntime &LuaCanvas::runtime()
     {
         if (!is_initialised())
