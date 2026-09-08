@@ -16,8 +16,6 @@ namespace game
         simlib::ParticleEmitter fountain_emitter;
         simlib::ParticleEmitter trail_emitter;
         simlib::Bitmap *particle_target = nullptr;
-        simlib::Bloom particle_glow;
-        bool glow_enabled = true;
 
         void ensure_playing_objects_initialised()
         {
@@ -46,7 +44,7 @@ namespace game
             fountain_config.direction_degrees = -90.0f;
             fountain_config.spread_degrees = 20.0f;
             fountain_config.gravity = 300.0f;
-            fountain_config.start_size = 60.0f;
+            fountain_config.start_size = 6.0f;
             fountain_config.end_size = 1.0f;
             fountain_config.start_colour = simlib::Colour{255, 220, 80, 255};
             fountain_config.end_colour = simlib::Colour{255, 60, 0, 0};
@@ -67,11 +65,7 @@ namespace game
             trail_emitter = simlib::ParticleEmitter(trail_config, red.x, red.y);
 
             particle_target = simlib::create_render_target(simlib::screen_width(), simlib::screen_height());
-            particle_glow.initialise();
-            particle_glow.set_threshold(0.1f);
-            particle_glow.set_intensity(2.0f);
-            particle_glow.set_radius(2.0f);
-            particle_glow.set_downsample(2);
+
         }
 
         void reset_playing_objects()
@@ -94,9 +88,6 @@ namespace game
                         break;
                     case SDLK_SPACE:
                         reset_playing_objects();
-                        break;
-                    case SDLK_g:
-                        glow_enabled = !glow_enabled;
                         break;
                 }
                 break;
@@ -135,22 +126,16 @@ namespace game
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
         simlib::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
-        simlib::gprintf_center(1+11*fontheight,text_colour, glow_enabled ? "G....Glow: on " : "G....Glow: off");
-
+        simlib::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
+        simlib::gprintf_center(1+3*fontheight,text_colour,  "Press ESC to return to menu");
+        
         render_objects(playing_objects);
 
         // composite the offscreen particle target back over the scene; render targets
         // sample bottom-up, so this always needs the vertical flip
         if (particle_target)
         {
-            if (glow_enabled)
-            {
-                particle_glow.apply(particle_target, 0, 0, particle_target->width, particle_target->height, true);
-            }
-            else
-            {
-                simlib::draw_sprite_v_flip(particle_target, 0.0f, 0.0f);
-            }
+            simlib::draw_sprite_v_flip(particle_target, 0.0f, 0.0f);
         }
 
         simlib::show_video_bitmap();

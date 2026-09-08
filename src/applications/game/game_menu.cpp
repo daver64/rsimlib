@@ -33,26 +33,39 @@ namespace game
 
     void update_and_render_menu()
     {
-        simlib::Font *font = simlib::get_default_monospace_font();
-        const int fontheight = simlib::text_height(font);
-        simlib::Colour text_colour{0, 255, 0};
         simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
 
-        simlib::gprintf_center(1+fontheight,text_colour,  "Menu");
-        simlib::gprintf_center(1+3*fontheight,text_colour,"1....Play        ");
-        simlib::gprintf_center(1+5*fontheight,text_colour,"2....Settings    ");
-        simlib::gprintf_center(1+7*fontheight,text_colour,"3....Help        ");
-        simlib::gprintf_center(1+9*fontheight,text_colour,"4....Lua Console ");
-        simlib::gprintf_center(1+13*fontheight,text_colour,"ESC..Quit       "); 
+        simlib::new_frame();
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        const ImVec2 window_size{260.0f, 250.0f};
+        ImGui::SetNextWindowPos(
+            {viewport->WorkPos.x + (viewport->WorkSize.x - window_size.x) * 0.5f,
+             viewport->WorkPos.y + (viewport->WorkSize.y - window_size.y) * 0.5f});
+        ImGui::SetNextWindowSize(window_size);
 
-
-        //const double frame_time = simlib::get_frame_time();
-        //const int x = 1;
-        //const int y = 1;
-        //gprintf(x, y + fontheight,
-        //        text_colour, "frame time: %.2f ms (%.1f fps)",
-        //        frame_time, frame_time > 0.0 ? 1000.0 / frame_time : 0.0);
-
+        constexpr ImGuiWindowFlags window_flags =
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        ImGui::Begin("Menu", nullptr, window_flags);
+        ImGui::TextUnformatted("Menu");
+        ImGui::Separator();
+        if (ImGui::Button("Play", {-1.0f, 0.0f})) {
+            current_mode = Mode::playing;
+        }
+        if (ImGui::Button("Settings", {-1.0f, 0.0f})) {
+            current_mode = Mode::settings;
+        }
+        if (ImGui::Button("Help", {-1.0f, 0.0f})) {
+            current_mode = Mode::help;
+        }
+        if (ImGui::Button("Lua Console", {-1.0f, 0.0f})) {
+            current_mode = Mode::lua_console;
+        }
+        ImGui::Spacing();
+        if (ImGui::Button("Quit", {-1.0f, 0.0f})) {
+            running = false;
+        }
+        ImGui::End();
+        simlib::render();
 
         simlib::show_video_bitmap();
         simlib::end_frame();
