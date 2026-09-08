@@ -89,6 +89,8 @@ void colour_components(Colour colour, float& r, float& g, float& b, float& a) {
 	a = static_cast<float>(colour.alpha) / 255.0f;
 }
 
+constexpr float pi = 3.14159265358979323846f;
+
 /** Draw a bitmap region as a scaled and optionally flipped quad. */
 void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int height, float x, float y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false) {
 	if (!upload_bitmap(bitmap)) {
@@ -117,7 +119,37 @@ void draw_textured_quad(Bitmap* bitmap, int sourceX, int sourceY, int width, int
 	detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, bitmap->gpu_texture);
 }
 
-constexpr float pi = 3.14159265358979323846f;
+/** Draw a bitmap as a scaled quad rotated around its screen-space centre. */
+void draw_textured_quad_rotated(Bitmap* bitmap, float centerX, float centerY, float angleDegrees, int destinationWidth = -1, int destinationHeight = -1) {
+	if (!upload_bitmap(bitmap)) {
+		return;
+	}
+
+	const float width = static_cast<float>(destinationWidth < 0 ? bitmap->width : destinationWidth);
+	const float height = static_cast<float>(destinationHeight < 0 ? bitmap->height : destinationHeight);
+	const float angleRadians = angleDegrees * pi / 180.0f;
+	const float cosine = std::cos(angleRadians);
+	const float sine = std::sin(angleRadians);
+	const auto rotate = [centerX, centerY, cosine, sine](float x, float y) {
+		return std::pair<float, float>{
+			centerX + x * cosine - y * sine,
+			centerY + x * sine + y * cosine};
+	};
+
+	const auto topLeft = rotate(-width * 0.5f, -height * 0.5f);
+	const auto topRight = rotate(width * 0.5f, -height * 0.5f);
+	const auto bottomRight = rotate(width * 0.5f, height * 0.5f);
+	const auto bottomLeft = rotate(-width * 0.5f, height * 0.5f);
+
+	detail::gl2d_begin(screen_width(), screen_height());
+	const detail::GLVertex vertices[4] = {
+		{topLeft.first, topLeft.second, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{topRight.first, topRight.second, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{bottomRight.first, bottomRight.second, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{bottomLeft.first, bottomLeft.second, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+	};
+	detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, bitmap->gpu_texture);
+}
 
 /** Render a plain or textured ellipse directly to the screen. */
 void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap* texture, Colour colour) {
@@ -859,6 +891,21 @@ void draw_sprite_stretched(Bitmap* bitmap, float x, float y, int width, int heig
 		return;
 	}
 	draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, width, height);	
+}
+/** Draw a sprite rotated around its centre. */
+void draw_sprite_rotated(Bitmap* bitmap, float centerX, float centerY, float angleDegrees) {
+	if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0) {
+		return;
+	}
+	draw_textured_quad_rotated(bitmap, centerX, centerY, angleDegrees);
+}
+
+/** Draw a stretched sprite rotated around its centre. */
+void draw_sprite_rotated_stretched(Bitmap* bitmap, float centerX, float centerY, float angleDegrees, int width, int height) {
+	if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0) {
+		return;
+	}
+	draw_textured_quad_rotated(bitmap, centerX, centerY, angleDegrees, width, height);
 }
 /** Draw a horizontally flipped bitmap. */
 void draw_sprite_h_flip(Bitmap* bitmap, float x, float y) {

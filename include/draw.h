@@ -230,6 +230,10 @@ namespace simlib
     void draw_sprite(Bitmap *bitmap, float x, float y);
     /** Draw a stretched sprite */
     void draw_sprite_stretched(Bitmap *bitmap, float x, float y, int width, int height);
+    /** Draw a sprite centred at (centerX, centerY), rotated clockwise by angleDegrees. */
+    void draw_sprite_rotated(Bitmap *bitmap, float centerX, float centerY, float angleDegrees);
+    /** Draw a stretched sprite centred at (centerX, centerY), rotated clockwise by angleDegrees. */
+    void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int width, int height);
     /** Draw a horizontally flipped bitmap. */
     void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
     /** Draw a vertically flipped bitmap. */

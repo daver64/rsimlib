@@ -27,7 +27,9 @@ namespace simlib
             triangle,
             trianglefill,
             sprite,
-            sprite_stretched
+            sprite_stretched,
+            sprite_rotated,
+            sprite_rotated_stretched
         };
 
         struct DrawingCommand
@@ -98,6 +100,18 @@ namespace simlib
             return true;
         }
 
+        bool add_rotated_sprite(const std::string &id, float center_x, float center_y, float angle_degrees, float width = 0.0f, float height = 0.0f)
+        {
+            if (sprites.find(id) == sprites.end())
+            {
+                return false;
+            }
+            commands.push_back({
+                width == 0.0f && height == 0.0f ? DrawingType::sprite_rotated : DrawingType::sprite_rotated_stretched,
+                center_x, center_y, width, height, angle_degrees, 0.0f, {}, id});
+            return true;
+        }
+
         bool unload_sprite(const std::string &id)
         {
             const auto sprite = sprites.find(id);
@@ -108,7 +122,8 @@ namespace simlib
             commands.erase(
                 std::remove_if(commands.begin(), commands.end(), [&id](const DrawingCommand &command)
                 {
-                    return (command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched) &&
+                        return (command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
+                            command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched) &&
                            command.sprite_id == id;
                 }),
                 commands.end());
@@ -122,7 +137,8 @@ namespace simlib
             commands.erase(
                 std::remove_if(commands.begin(), commands.end(), [](const DrawingCommand &command)
                 {
-                    return command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched;
+                          return command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
+                              command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched;
                 }),
                 commands.end());
             for (const auto &sprite : sprites)
@@ -171,6 +187,14 @@ namespace simlib
         app.set_function("sprite_stretched", [this](const std::string &id, float x, float y, float width, float height)
         {
             return implementation_->add_sprite(id, x, y, width, height);
+        });
+        app.set_function("sprite_rotated", [this](const std::string &id, float center_x, float center_y, float angle_degrees)
+        {
+            return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees);
+        });
+        app.set_function("sprite_rotated_stretched", [this](const std::string &id, float center_x, float center_y, float angle_degrees, float width, float height)
+        {
+            return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees, width, height);
         });
         app.set_function("unload_sprite", [this](const std::string &id)
         {
@@ -319,6 +343,18 @@ namespace simlib
             {
                 const auto sprite = implementation_->sprites.find(command.sprite_id);
                 if (sprite != implementation_->sprites.end()) draw_sprite_stretched(sprite->second, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                break;
+            }
+            case DrawingType::sprite_rotated:
+            {
+                const auto sprite = implementation_->sprites.find(command.sprite_id);
+                if (sprite != implementation_->sprites.end()) draw_sprite_rotated(sprite->second, command.x1, command.y1, command.x3);
+                break;
+            }
+            case DrawingType::sprite_rotated_stretched:
+            {
+                const auto sprite = implementation_->sprites.find(command.sprite_id);
+                if (sprite != implementation_->sprites.end()) draw_sprite_rotated_stretched(sprite->second, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             }

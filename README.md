@@ -17,6 +17,7 @@ This repository contains:
 - **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/applications/slpack/`).
 - **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
 - **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
+- **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 
 ## Prerequisites
 
@@ -57,6 +58,7 @@ ctest --test-dir build
 ```bash
 ./exhello   # minimal window + text rendering demo
 ./exfont    # proportional and monospace TrueType font demo
+./exrotatesprite # rotating sprite demo
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -180,8 +182,14 @@ if (sprite)
 {
     simlib::draw_sprite(sprite, 100.0f, 100.0f);
     simlib::draw_sprite_stretched(sprite, 200.0f, 100.0f, 64, 64);
+    simlib::draw_sprite_rotated(sprite, 400.0f, 200.0f, 45.0f);
+    simlib::draw_sprite_rotated_stretched(sprite, 600.0f, 200.0f, 90.0f, 96, 64);
 }
 ```
+
+Rotated sprites use their centre as the anchor. Angles are specified in degrees;
+because screen coordinates increase downward on the Y axis, positive angles
+rotate clockwise.
 
 ## Text rendering
 
@@ -295,11 +303,15 @@ print(ok, message)
 
 app.sprite("red_balloon", 100, 150)
 app.sprite_stretched("red_balloon", 300, 150, 96, 128)
+app.sprite_rotated("red_balloon", 500, 200, 45)
+app.sprite_rotated_stretched("red_balloon", 650, 200, 90, 96, 128)
 ```
 
 `app.sprite()` and `app.sprite_stretched()` return `false` when their ID has
-not been loaded. Sprite draw commands persist alongside shapes until cleared;
-unloading a sprite also removes its retained draw commands.
+not been loaded. `app.sprite_rotated()` and `app.sprite_rotated_stretched()`
+use a centre position and clockwise angle in degrees; unrotated sprite calls
+use a top-left position. Sprite draw commands persist alongside shapes until
+cleared; unloading a sprite also removes its retained draw commands.
 
 ```lua
 app.unload_sprite("red_balloon")
@@ -517,6 +529,7 @@ src/applications/sltest/  sltest sample game (menu, physics, Lua console)
 src/applications/slpack/  slpack asset-packing CLI
 src/applications/exhello/ exhello minimal example
 src/applications/exfont/  exfont proportional-font example
+src/applications/exrotatesprite/ exrotatesprite rotating-sprite example
 assets/                   Textures, music, and sound effects used by sltest
 ```
 

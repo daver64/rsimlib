@@ -21,7 +21,9 @@ int main()
         "function on_ready() app.pixel(2, 2, 20, 220, 80) end\n"
         "function on_spawned(name, x, y)\n"
         "  if name == 'marker' then app.pixel(x, y, 90, 120, 255) end\n"
-        "end\n");
+        "end\n"
+        "assert(not app.sprite_rotated('missing', 4, 4, 45))\n"
+        "assert(not app.sprite_rotated_stretched('missing', 4, 4, 45, 16, 16))\n");
     if (!result.success)
     {
         std::cerr << result.error << '\n';
