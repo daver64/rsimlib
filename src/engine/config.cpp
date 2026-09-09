@@ -4,7 +4,7 @@
 
 #include <fstream>
 
-namespace simlib
+namespace sl
 {
 
     bool Config::load(const std::string &path)
@@ -12,7 +12,7 @@ namespace simlib
         std::ifstream file(path);
         if (!file)
         {
-            simlib::detail::set_error("Unable to open configuration: " + path);
+            sl::detail::set_error("Unable to open configuration: " + path);
             return false;
         }
         try
@@ -20,14 +20,14 @@ namespace simlib
             file >> document_;
             if (!document_.is_object())
             {
-                simlib::detail::set_error("Configuration root must be a JSON object");
+                sl::detail::set_error("Configuration root must be a JSON object");
                 return false;
             }
             return true;
         }
         catch (const nlohmann::json::exception &exception)
         {
-            simlib::detail::set_error("Invalid JSON configuration: " + std::string(exception.what()));
+            sl::detail::set_error("Invalid JSON configuration: " + std::string(exception.what()));
             return false;
         }
     }
@@ -37,7 +37,7 @@ namespace simlib
         std::ofstream file(path);
         if (!file)
         {
-            simlib::detail::set_error("Unable to write configuration: " + path);
+            sl::detail::set_error("Unable to write configuration: " + path);
             return false;
         }
         file << document_.dump(indentation) << '\n';
@@ -74,4 +74,4 @@ namespace simlib
         return document_;
     }
 
-} // namespace simlib
+} // namespace sl

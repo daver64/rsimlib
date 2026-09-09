@@ -2,7 +2,7 @@
 
 #include <SDL2/SDL.h>
 
-namespace simlib
+namespace sl
 {
     namespace
     {
@@ -449,4 +449,4 @@ namespace simlib
         const void *event_handle(const Event &event) { return detail_event_handle(event); }
     } // namespace detail
 
-} // namespace simlib
+} // namespace sl

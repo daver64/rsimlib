@@ -8,7 +8,7 @@
 int main(int argc, char* argv[]) {
     assert(argc == 2);
 
-    simlib::Archive archive;
+    sl::Archive archive;
     assert(archive.open(argv[1]));
     assert(archive.contains("stored.txt"));
     assert(archive.contains("deflated.txt"));
@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     assert(std::string(deflated.begin(), deflated.end()) == "deflated entry with enough repeated text to exercise compression\n");
 
     assert(archive.read("missing.txt").empty());
-    assert(!simlib::last_error().empty());
+    assert(!sl::last_error().empty());
     archive.close();
     assert(!archive.contains("stored.txt"));
     return 0;

@@ -5,7 +5,7 @@
 
 #include "event.h"
 
-namespace simlib
+namespace sl
 {
 
     /** Select the windowed auto-detected graphics driver. */
@@ -54,4 +54,4 @@ namespace simlib
     /** Return the active OpenGL context, or nullptr if not initialized. */
     SDL_GLContext get_gl_context();
 
-} // namespace simlib
+} // namespace sl

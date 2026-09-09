@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
     const std::filesystem::path archivePath = argv[1];
     const std::filesystem::path outputDir = argc > 2 ? argv[2] : std::filesystem::path(".");
 
-    simlib::Archive archive;
+    sl::Archive archive;
     if (!archive.open(archivePath.string())) {
         std::cerr << "unable to open archive: " << archivePath << '\n';
         return 1;

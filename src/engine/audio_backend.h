@@ -5,7 +5,7 @@
 
 #include <mutex>
 
-namespace simlib::audio_detail
+namespace sl::audio_detail
 {
 
     /** Acquire and initialize the shared mixer. */
@@ -15,4 +15,4 @@ namespace simlib::audio_detail
     /** Return the mutex protecting mixer operations. */
     std::mutex &mixer_mutex();
 
-} // namespace simlib::audio_detail
+} // namespace sl::audio_detail

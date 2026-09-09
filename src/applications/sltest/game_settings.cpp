@@ -3,14 +3,14 @@
 namespace game
 {
     /** @brief Return to the main menu when Escape is pressed. */
-    void handle_settings_input(const simlib::Event &event)
+    void handle_settings_input(const sl::Event &event)
     {
         switch (event.type())
         {
-            case simlib::Event::Type::key_down:
+            case sl::Event::Type::key_down:
                 switch (event.key())
                 {
-                    case simlib::Event::Key::escape:
+                    case sl::Event::Key::escape:
                         request_mode(Mode::menu);
                         break;
                 }
@@ -20,8 +20,8 @@ namespace game
     /** @brief Present the settings UI and demonstrate disabled and actionable ImGui controls. */
     void update_and_render_settings()
     {
-        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-        simlib::new_frame();
+        sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
+        sl::new_frame();
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const ImVec2 window_size{260.0f, 220.0f};
@@ -47,10 +47,10 @@ namespace game
             request_mode(Mode::menu);
         }
         ImGui::End();
-        simlib::render();
+        sl::render();
 
         apply_mode_fade();
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
 }

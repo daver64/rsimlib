@@ -10,7 +10,7 @@
 #include <fstream>
 #include <limits>
 
-namespace simlib
+namespace sl
 {
     namespace
     {
@@ -62,7 +62,7 @@ namespace simlib
         const auto bytes = read_file(path);
         if (bytes.size() < 22)
         {
-            simlib::detail::set_error("Invalid or empty ZIP archive");
+            sl::detail::set_error("Invalid or empty ZIP archive");
             return false;
         }
 
@@ -74,7 +74,7 @@ namespace simlib
                 break;
             if (end == searchStart)
             {
-                simlib::detail::set_error("ZIP end-of-directory record not found");
+                sl::detail::set_error("ZIP end-of-directory record not found");
                 return false;
             }
             --end;
@@ -85,7 +85,7 @@ namespace simlib
         const std::uint32_t directoryOffset = read32(bytes, end + 16);
         if (!range_valid(directoryOffset, directorySize, bytes.size()) || read16(bytes, end + 8) != entryCount)
         {
-            simlib::detail::set_error("Invalid ZIP central directory");
+            sl::detail::set_error("Invalid ZIP central directory");
             return false;
         }
 
@@ -95,7 +95,7 @@ namespace simlib
             if (!range_valid(cursor, 46, bytes.size()) || read32(bytes, cursor) != centralSignature)
             {
                 close();
-                simlib::detail::set_error("Invalid ZIP central directory entry");
+                sl::detail::set_error("Invalid ZIP central directory entry");
                 return false;
             }
             const std::uint16_t nameSize = read16(bytes, cursor + 28);
@@ -105,7 +105,7 @@ namespace simlib
             if (!range_valid(cursor, recordSize, bytes.size()))
             {
                 close();
-                simlib::detail::set_error("Truncated ZIP central directory entry");
+                sl::detail::set_error("Truncated ZIP central directory entry");
                 return false;
             }
             Entry entry;
@@ -148,14 +148,14 @@ namespace simlib
                                         { return entry.name == name; });
         if (found == entries_.end())
         {
-            simlib::detail::set_error("ZIP entry not found: " + name);
+            sl::detail::set_error("ZIP entry not found: " + name);
             return {};
         }
         const auto bytes = read_file(path_);
         const std::size_t local = found->localHeaderOffset;
         if (!range_valid(local, 30, bytes.size()) || read32(bytes, local) != localSignature)
         {
-            simlib::detail::set_error("Invalid ZIP local header");
+            sl::detail::set_error("Invalid ZIP local header");
             return {};
         }
         const std::uint16_t nameSize = read16(bytes, local + 26);
@@ -163,7 +163,7 @@ namespace simlib
         const std::size_t dataOffset = local + 30ull + nameSize + extraSize;
         if (!range_valid(dataOffset, found->compressedSize, bytes.size()))
         {
-            simlib::detail::set_error("Truncated ZIP entry");
+            sl::detail::set_error("Truncated ZIP entry");
             return {};
         }
         const auto *source = bytes.data() + dataOffset;
@@ -173,7 +173,7 @@ namespace simlib
         }
         if (found->method != deflateMethod)
         {
-            simlib::detail::set_error("Unsupported ZIP compression method");
+            sl::detail::set_error("Unsupported ZIP compression method");
             return {};
         }
         std::vector<std::uint8_t> result(found->uncompressedSize);
@@ -185,11 +185,11 @@ namespace simlib
         if (inflateInit2(&stream, -MAX_WBITS) != Z_OK || inflate(&stream, Z_FINISH) != Z_STREAM_END || stream.total_out != found->uncompressedSize)
         {
             inflateEnd(&stream);
-            simlib::detail::set_error("Unable to decompress ZIP entry");
+            sl::detail::set_error("Unable to decompress ZIP entry");
             return {};
         }
         inflateEnd(&stream);
         return result;
     }
 
-} // namespace simlib
+} // namespace sl

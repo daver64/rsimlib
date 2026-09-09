@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
     namespace
     {
@@ -183,4 +183,4 @@ namespace simlib
 
     float gamepad_deadzone() { return deadzone; }
 
-} // namespace simlib
+} // namespace sl

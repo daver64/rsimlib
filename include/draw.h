@@ -6,12 +6,12 @@
 #include <string>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
     class Archive;
 }
 
-namespace simlib
+namespace sl
 {
 
     /** An RGBA colour with 8-bit channels. */
@@ -251,4 +251,4 @@ namespace simlib
 
     } // namespace detail
 
-} // namespace simlib
+} // namespace sl

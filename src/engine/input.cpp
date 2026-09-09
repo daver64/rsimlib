@@ -4,7 +4,7 @@
 
 #include <SDL2/SDL.h>
 
-namespace simlib
+namespace sl
 {
 
 	bool key_down(SDL_Scancode key)
@@ -58,4 +58,4 @@ namespace simlib
 		return SDL_GetMouseState(nullptr, nullptr);
 	}
 
-} // namespace simlib
+} // namespace sl

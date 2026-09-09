@@ -8,7 +8,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_opengl.h>
 
-namespace simlib
+namespace sl
 {
 
     extern Font *sl_default_monospace_font;
@@ -31,20 +31,20 @@ namespace simlib
     {
         if (driver != GFX_AUTODETECT_WINDOWED || requestedWidth <= 0 || requestedHeight <= 0)
         {
-            simlib::detail::set_error("Invalid graphics mode or dimensions");
+            sl::detail::set_error("Invalid graphics mode or dimensions");
             return false;
         }
 
         display_shutdown();
         if (SDL_Init(SDL_INIT_VIDEO) != 0)
         {
-            simlib::detail::set_error(SDL_GetError());
+            sl::detail::set_error(SDL_GetError());
             return false;
         }
 
         if (TTF_Init() != 0)
         {
-            simlib::detail::set_error(TTF_GetError());
+            sl::detail::set_error(TTF_GetError());
             SDL_Quit();
             return false;
         }
@@ -64,7 +64,7 @@ namespace simlib
             SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
         if (!window)
         {
-            simlib::detail::set_error(SDL_GetError());
+            sl::detail::set_error(SDL_GetError());
             TTF_Quit();
             ttfInitialized = false;
             SDL_Quit();
@@ -74,7 +74,7 @@ namespace simlib
         context = SDL_GL_CreateContext(window);
         if (!context)
         {
-            simlib::detail::set_error(SDL_GetError());
+            sl::detail::set_error(SDL_GetError());
             SDL_DestroyWindow(window);
             window = nullptr;
             TTF_Quit();
@@ -242,4 +242,4 @@ namespace simlib
         return context;
     }
 
-} // namespace simlib
+} // namespace sl

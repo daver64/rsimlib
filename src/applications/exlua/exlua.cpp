@@ -5,11 +5,11 @@ void process_input()
     bool running=true;
     while (running)
     {
-        simlib::Event event;
+        sl::Event event;
         
-        while (simlib::poll_event(&event))
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::key_down || event.type() == simlib::Event::Type::quit)
+            if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
             }   // Handle input here
@@ -20,23 +20,23 @@ void process_input()
 int main()
 {
 
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
 
     
-    simlib::LuaCanvas canvas;
+    sl::LuaCanvas canvas;
 
-    const simlib::LuaScriptResult result = canvas.run_file("assets/scripts/scene.lua");
+    const sl::LuaScriptResult result = canvas.run_file("assets/scripts/scene.lua");
     if (!result.success)
     {
         // Handle result.error
     }
 
 
-    canvas.render(simlib::screen);
-    simlib::show_video_bitmap();
+    canvas.render(sl::screen);
+    sl::show_video_bitmap();
     process_input();
     return 0;
 }

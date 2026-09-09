@@ -16,13 +16,13 @@ namespace game
         struct ConsoleLine
         {
             std::string text;
-            simlib::TextCache *cache = nullptr;
+            sl::TextCache *cache = nullptr;
         };
 
-        simlib::LuaCanvas lua_canvas;
+        sl::LuaCanvas lua_canvas;
         bool console_active = false;
         std::deque<ConsoleLine> console_lines;
-        simlib::TextCache *input_cache = nullptr;
+        sl::TextCache *input_cache = nullptr;
         std::string input_line;
 
         /** @brief Split Lua output into cached scrollback lines, retaining the newest 1,000. */
@@ -33,13 +33,13 @@ namespace game
             {
                 const std::size_t position = text.find('\n', start);
                 const std::string line = position == std::string::npos ? text.substr(start) : text.substr(start, position - start);
-                console_lines.push_back({line, simlib::create_text_cache()});
+                console_lines.push_back({line, sl::create_text_cache()});
                 if (position == std::string::npos) break;
                 start = position + 1;
             }
             while (console_lines.size() > max_console_lines)
             {
-                simlib::destroy_text_cache(console_lines.front().cache);
+                sl::destroy_text_cache(console_lines.front().cache);
                 console_lines.pop_front();
             }
         }
@@ -61,7 +61,7 @@ namespace game
             console_append(std::string(prompt) + input_line);
             if (!input_line.empty())
             {
-                const simlib::LuaScriptResult result = lua_canvas.run_text(input_line);
+                const sl::LuaScriptResult result = lua_canvas.run_text(input_line);
                 if (!result.success) console_append(std::string("Error: ") + result.error);
             }
             input_line.clear();
@@ -74,26 +74,26 @@ namespace game
      * Escape stops SDL text input and leaves the console, Enter executes the current command,
      * and Backspace removes one byte from the pending UTF-8 input string.
      */
-    void handle_lua_console_input(const simlib::Event &event)
+    void handle_lua_console_input(const sl::Event &event)
     {
-        if (event.type() == simlib::Event::Type::text_input)
+        if (event.type() == sl::Event::Type::text_input)
         {
             input_line += event.text();
         }
-        else if (event.type() == simlib::Event::Type::key_down && !event.key_repeat())
+        else if (event.type() == sl::Event::Type::key_down && !event.key_repeat())
         {
             switch (event.key())
             {
-            case simlib::Event::Key::escape:
+            case sl::Event::Key::escape:
                 SDL_StopTextInput();
                 console_active = false;
                 request_mode(Mode::menu);
                 break;
-            case simlib::Event::Key::return_key:
-            case simlib::Event::Key::keypad_enter:
+            case sl::Event::Key::return_key:
+            case sl::Event::Key::keypad_enter:
                 console_execute_input();
                 break;
-            case simlib::Event::Key::backspace:
+            case sl::Event::Key::backspace:
                 if (!input_line.empty()) input_line.pop_back();
                 break;
             }
@@ -112,17 +112,17 @@ namespace game
         {
             console_active = true;
             console_ensure_lua_initialised();
-            if (!input_cache) input_cache = simlib::create_text_cache();
+            if (!input_cache) input_cache = sl::create_text_cache();
             SDL_StartTextInput();
         }
 
-        simlib::Font *font = simlib::get_default_monospace_font();
-        const int fontheight = simlib::text_height(font);
-        const simlib::Colour text_colour{0, 255, 0};
-        lua_canvas.render(simlib::screen);
+        sl::Font *font = sl::get_default_monospace_font();
+        const int fontheight = sl::text_height(font);
+        const sl::Colour text_colour{0, 255, 0};
+        lua_canvas.render(sl::screen);
 
         const int margin = 1;
-        const int visible_rows = std::max(1, simlib::screen->height / fontheight - 1);
+        const int visible_rows = std::max(1, sl::screen->height / fontheight - 1);
         const std::size_t total_lines = console_lines.size();
         const std::size_t first_line = total_lines > static_cast<std::size_t>(visible_rows)
             ? total_lines - static_cast<std::size_t>(visible_rows) : 0;
@@ -130,22 +130,22 @@ namespace game
         int y = margin;
         for (std::size_t index = first_line; index < total_lines; ++index)
         {
-            simlib::textout_cached(console_lines[index].cache, font, margin, y, text_colour, console_lines[index].text);
+            sl::textout_cached(console_lines[index].cache, font, margin, y, text_colour, console_lines[index].text);
             y += fontheight;
         }
-        simlib::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
+        sl::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
         apply_mode_fade();
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
 
     /** @brief Destroy Lua canvas GPU resources and cached console text before display shutdown. */
     void shutdown_lua_console()
     {
         lua_canvas.reset();
-        for (ConsoleLine &line : console_lines) simlib::destroy_text_cache(line.cache);
+        for (ConsoleLine &line : console_lines) sl::destroy_text_cache(line.cache);
         console_lines.clear();
-        simlib::destroy_text_cache(input_cache);
+        sl::destroy_text_cache(input_cache);
         input_cache = nullptr;
     }
 }

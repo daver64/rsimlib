@@ -17,7 +17,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace simlib
+namespace sl
 {
 
 	/** Owns the SDL_mixer chunk backing one sound effect. */
@@ -150,7 +150,7 @@ namespace simlib
 	{
 		const bool started = worker.start();
 		if (!started)
-			simlib::detail::set_error(Mix_GetError());
+			sl::detail::set_error(Mix_GetError());
 		return started;
 	}
 
@@ -169,7 +169,7 @@ namespace simlib
 						   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Chunk* chunk = Mix_LoadWAV(path.c_str());
-		if (!chunk) simlib::detail::set_error(Mix_GetError());
+		if (!chunk) sl::detail::set_error(Mix_GetError());
 		return chunk ? new Sample{chunk} : nullptr; });
 	}
 
@@ -183,7 +183,7 @@ namespace simlib
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
 		Mix_Chunk* chunk = rw ? Mix_LoadWAV_RW(rw, 1) : nullptr;
-		if (!chunk) simlib::detail::set_error(Mix_GetError());
+		if (!chunk) sl::detail::set_error(Mix_GetError());
 		return chunk ? new Sample{chunk} : nullptr; });
 	}
 
@@ -316,4 +316,4 @@ namespace simlib
 		Mix_Volume(-1, mixer_volume(master_volume)); });
 	}
 
-} // namespace simlib
+} // namespace sl

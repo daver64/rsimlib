@@ -23,7 +23,7 @@ constexpr float wind_response_rate = 0.7f;
 float wind_speed(float y)
 {
     constexpr float layer_speeds[] = {18.0f, -14.0f, 22.0f, -17.0f};
-    const float height = std::max(1.0f, static_cast<float>(simlib::screen_height()));
+    const float height = std::max(1.0f, static_cast<float>(sl::screen_height()));
     const int layer = std::min(3, std::max(0, static_cast<int>(4.0f * y / height)));
     return layer_speeds[layer];
 }
@@ -39,7 +39,7 @@ void apply_wind(GameObject& object, float dt_seconds)
 
 float ambient_air_density(float y)
 {
-    const float height = std::max(1.0f, static_cast<float>(simlib::screen_height()));
+    const float height = std::max(1.0f, static_cast<float>(sl::screen_height()));
     const float altitude_fraction = std::clamp((height - y) / height, 0.0f, 1.0f);
     return std::max(minimum_air_density, sea_level_air_density * (1.0f - 0.65f * altitude_fraction));
 }
@@ -69,7 +69,7 @@ void apply_buoyancy(GameObject& object, float dt_seconds, float gravity)
 } // namespace
 
 /** @brief Create a circular physics object centred at @p x, @p y using @p bitmap as its sprite. */
-GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float radius, float mass) {
+GameObject make_circle_object(sl::Bitmap* bitmap, float x, float y, float radius, float mass) {
     GameObject object;
     object.bitmap = bitmap;
     object.x = x;
@@ -83,7 +83,7 @@ GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float ra
 }
 
 /** @brief Create an axis-aligned box physics object centred at @p x, @p y. */
-GameObject make_aabb_object(simlib::Bitmap* bitmap, float x, float y, float width, float height, float mass) {
+GameObject make_aabb_object(sl::Bitmap* bitmap, float x, float y, float width, float height, float mass) {
     GameObject object;
     object.bitmap = bitmap;
     object.x = x;
@@ -279,8 +279,8 @@ void resolve_collisions(std::vector<GameObject>& objects) {
 
 /** @brief Keep dynamic objects inside the current simlib display and bounce them from its edges. */
 void constrain_to_screen(std::vector<GameObject>& objects) {
-    const float screenWidth = static_cast<float>(simlib::screen_width());
-    const float screenHeight = static_cast<float>(simlib::screen_height());
+    const float screenWidth = static_cast<float>(sl::screen_width());
+    const float screenHeight = static_cast<float>(sl::screen_height());
     for (GameObject& object : objects) {
         if (object.is_static) {
             continue;
@@ -320,7 +320,7 @@ void render_objects(const std::vector<GameObject>& objects) {
         }
         const float halfWidth = object.shape == ColliderShape::circle ? object.radius : object.width * 0.5f;
         const float halfHeight = object.shape == ColliderShape::circle ? object.radius : object.height * 0.5f;
-        simlib::draw_sprite_stretched(
+        sl::draw_sprite_stretched(
             object.bitmap,
             object.x - halfWidth,
             object.y - halfHeight,

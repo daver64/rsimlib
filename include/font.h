@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
     class Archive;
 }
 
-namespace simlib
+namespace sl
 {
 
     /** Opaque alias hiding the SDL_ttf font type from callers. */
@@ -75,4 +75,4 @@ namespace simlib
      */
     void textout_cached(TextCache *cache, Font *font, int x, int y, const Colour &colour, const std::string &text);
 
-} // namespace simlib
+} // namespace sl

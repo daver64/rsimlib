@@ -1,6 +1,6 @@
 #include "audio_backend.h"
 
-namespace simlib::audio_detail
+namespace sl::audio_detail
 {
     namespace
     {
@@ -72,4 +72,4 @@ namespace simlib::audio_detail
         return mixer_call_mutex;
     }
 
-} // namespace simlib::audio_detail
+} // namespace sl::audio_detail

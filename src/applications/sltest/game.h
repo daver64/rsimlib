@@ -16,17 +16,17 @@ namespace game {
     extern std::atomic<bool> running;
 
     /** @brief Balloon textures shared by the physics playground, indexed the same as the balloon objects. */
-    extern std::vector<simlib::Bitmap*> balloon_textures;
+    extern std::vector<sl::Bitmap*> balloon_textures;
     /** @brief Sky texture drawn behind the physics playground. */
-    extern simlib::Bitmap* playing_background;
+    extern sl::Bitmap* playing_background;
     /** @brief Sub-surface terrain block texture. */
-    extern simlib::Bitmap* dirt_texture;
+    extern sl::Bitmap* dirt_texture;
     /** @brief Terrain block texture used for the topmost row of ground blocks. */
-    extern simlib::Bitmap* grass_texture;
+    extern sl::Bitmap* grass_texture;
     /** @brief Sustained sound effect played while red-balloon thrust is active. */
-    extern simlib::Sample* thrust_sound;
+    extern sl::Sample* thrust_sound;
     /** @brief Sustained sound effect played while the red-balloon burner is active. */
-    extern simlib::Sample* burner_sound;
+    extern sl::Sample* burner_sound;
 
     /** @brief Release game resources before simlib tears down its graphics context. */
     void shutdown();
@@ -51,19 +51,19 @@ namespace game {
     * Each receives a simlib event after the central event loop has selected the active mode.
      * @{ */
     /** @brief Handle main-menu keyboard shortcuts. */
-    void handle_menu_input(const simlib::Event &event);
+    void handle_menu_input(const sl::Event &event);
     /** @brief Handle gameplay controls, including reset and return-to-menu. */
-    void handle_playing_input(const simlib::Event &event);
+    void handle_playing_input(const sl::Event &event);
     /** @brief Handle paused-screen navigation. */
-    void handle_paused_input(const simlib::Event &event);
+    void handle_paused_input(const sl::Event &event);
     /** @brief Handle help-screen navigation. */
-    void handle_help_input(const simlib::Event &event);
+    void handle_help_input(const sl::Event &event);
     /** @brief Handle game-over-screen navigation. */
-    void handle_gameover_input(const simlib::Event &event);
+    void handle_gameover_input(const sl::Event &event);
     /** @brief Handle settings-screen navigation. */
-    void handle_settings_input(const simlib::Event &event);
+    void handle_settings_input(const sl::Event &event);
     /** @brief Handle text entry and commands for the Lua REPL. */
-    void handle_lua_console_input(const simlib::Event &event);
+    void handle_lua_console_input(const sl::Event &event);
     /** @} */
 
     /** @name Mode renderers

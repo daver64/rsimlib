@@ -4,7 +4,7 @@
 
 #include "json.hpp"
 
-namespace simlib
+namespace sl
 {
 
     /** A JSON-backed application configuration document. */
@@ -69,4 +69,4 @@ namespace simlib
         nlohmann::json document_ = nlohmann::json::object();
     };
 
-} // namespace simlib
+} // namespace sl

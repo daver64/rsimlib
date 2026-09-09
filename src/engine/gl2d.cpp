@@ -7,7 +7,7 @@
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
 
-namespace simlib
+namespace sl
 {
     namespace detail
     {
@@ -183,4 +183,4 @@ void main() {
         }
 
     } // namespace detail
-} // namespace simlib
+} // namespace sl

@@ -5,11 +5,11 @@ void process_input()
     bool running=true;
     while (running)
     {
-        simlib::Event event;
+        sl::Event event;
         
-        while (simlib::poll_event(&event))
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::key_down || event.type() == simlib::Event::Type::quit)
+            if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
             }   // Handle input here
@@ -18,24 +18,24 @@ void process_input()
 }
 int main(int argc, char *argv[])
 {
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
 
-    simlib::Bitmap *bitmap = simlib::load_bitmap("assets/textures/balloon_red.png");
+    sl::Bitmap *bitmap = sl::load_bitmap("assets/textures/balloon_red.png");
     if(!bitmap)
     {
         std::cerr << "Failed to load bitmap!" << std::endl;
         return -2;
     }
-    simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-    simlib::blit(bitmap, simlib::screen, 0, 0, 100, 100, bitmap->width, bitmap->height);
+    sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
+    sl::blit(bitmap, sl::screen, 0, 0, 100, 100, bitmap->width, bitmap->height);
 
 
-    simlib::show_video_bitmap();
-    simlib::end_frame();
+    sl::show_video_bitmap();
+    sl::end_frame();
     process_input();
-    simlib::shutdown();
+    sl::shutdown();
     return 0;
 }

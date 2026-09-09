@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-namespace simlib
+namespace sl
 {
 
 	class Archive;
@@ -72,4 +72,4 @@ namespace simlib
 	/** Set the global music volume. */
 	void music_set_volume(int volume);
 
-} // namespace simlib
+} // namespace sl

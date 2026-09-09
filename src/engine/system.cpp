@@ -2,7 +2,7 @@
 
 #include <SDL2/SDL.h>
 
-namespace simlib
+namespace sl
 {
 	namespace
 	{
@@ -70,4 +70,4 @@ namespace simlib
 		return last_frame_time_ms;
 	}
 
-} // namespace simlib
+} // namespace sl

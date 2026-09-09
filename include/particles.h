@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
 
     /** One live particle owned by a ParticleEmitter. */
@@ -85,4 +85,4 @@ namespace simlib
         std::vector<Particle> particles_;
     };
 
-} // namespace simlib
+} // namespace sl

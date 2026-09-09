@@ -8,13 +8,13 @@
 namespace
 {
 
-	simlib::Bitmap *scene = nullptr;
-	simlib::Bloom bloom;
+	sl::Bitmap *scene = nullptr;
+	sl::Bloom bloom;
 
 	/** Build the shader-effect test scene. */
 	void draw_scene()
 	{
-		using namespace simlib;
+		using namespace sl;
 
 		clear_to_colour(scene, {8, 10, 20});
 
@@ -49,7 +49,7 @@ namespace graphics_fx_test
 
 	void initialise()
 	{
-		scene = simlib::create_video_bitmap(800, 600);
+		scene = sl::create_video_bitmap(800, 600);
 		if (!scene)
 		{
 			return;
@@ -78,13 +78,13 @@ namespace graphics_fx_test
 		}
 		else
 		{
-			simlib::draw_sprite(scene, 0, 0);
+			sl::draw_sprite(scene, 0, 0);
 		}
 	}
 
 	void shutdown()
 	{
-		simlib::destroy_bitmap(scene);
+		sl::destroy_bitmap(scene);
 		scene = nullptr;
 		bloom.shutdown();
 	}

@@ -7,13 +7,13 @@ namespace game
     std::atomic<bool> running{true};
     Mode current_mode{Mode::menu};
 
-    std::vector<simlib::Bitmap*> balloon_textures;
-    simlib::Bitmap* playing_background = nullptr;
-    simlib::Bitmap* dirt_texture = nullptr;
-    simlib::Bitmap* grass_texture = nullptr;
-    simlib::Sample* thrust_sound = nullptr;
-    simlib::Sample* burner_sound = nullptr;
-    simlib::Stream* background_music = nullptr;
+    std::vector<sl::Bitmap*> balloon_textures;
+    sl::Bitmap* playing_background = nullptr;
+    sl::Bitmap* dirt_texture = nullptr;
+    sl::Bitmap* grass_texture = nullptr;
+    sl::Sample* thrust_sound = nullptr;
+    sl::Sample* burner_sound = nullptr;
+    sl::Stream* background_music = nullptr;
     bool background_music_paused = false;
     bool background_music_started = false;
     bool background_music_active = false;
@@ -26,7 +26,7 @@ namespace game
         float mode_fade_timer = 0.0f;
         constexpr float mode_fade_duration = 0.2f;
         std::uint8_t mode_fade_alpha = 0;
-        simlib::ScreenFade mode_fade;
+        sl::ScreenFade mode_fade;
     }
 
     /** @brief Begin a cross-fade to @p mode instead of switching current_mode immediately. */
@@ -50,7 +50,7 @@ namespace game
             mode_fade_alpha = 0;
             return;
         }
-        const float dt_seconds = static_cast<float>(simlib::get_frame_time()) / 1000.0f;
+        const float dt_seconds = static_cast<float>(sl::get_frame_time()) / 1000.0f;
         mode_fade_timer += dt_seconds;
         const float progress = std::clamp(mode_fade_timer / mode_fade_duration, 0.0f, 1.0f);
         const float alpha = mode_fading_out ? progress : 1.0f - progress;
@@ -79,7 +79,7 @@ namespace game
         {
             return;
         }
-        mode_fade.set_colour(simlib::Colour{0, 0, 0, mode_fade_alpha});
+        mode_fade.set_colour(sl::Colour{0, 0, 0, mode_fade_alpha});
         mode_fade.apply();
     }
 
@@ -95,19 +95,19 @@ namespace game
         {
             if (!background_music_started)
             {
-                simlib::music_set_volume(20);
-                simlib::play_stream(background_music);
+                sl::music_set_volume(20);
+                sl::play_stream(background_music);
                 background_music_started = true;
             }
             else
             {
-                simlib::resume_stream();
+                sl::resume_stream();
             }
             background_music_active = true;
         }
         else if (!want_active && background_music_active)
         {
-            simlib::pause_stream();
+            sl::pause_stream();
             background_music_active = false;
         }
     }
@@ -117,23 +117,23 @@ namespace game
     {
         shutdown_lua_console();
         shutdown_playing();
-        simlib::destroy_bitmap(playing_background);
-        simlib::destroy_bitmap(dirt_texture);
-        simlib::destroy_bitmap(grass_texture);
-        for (simlib::Bitmap* texture : balloon_textures)
+        sl::destroy_bitmap(playing_background);
+        sl::destroy_bitmap(dirt_texture);
+        sl::destroy_bitmap(grass_texture);
+        for (sl::Bitmap* texture : balloon_textures)
         {
-            simlib::destroy_bitmap(texture);
+            sl::destroy_bitmap(texture);
         }
         balloon_textures.clear();
-        simlib::destroy_stream(background_music);
-        simlib::destroy_sample(thrust_sound);
-        simlib::destroy_sample(burner_sound);
-        simlib::gamepad_shutdown();
-        simlib::gui_shutdown();
-        simlib::display_shutdown();
-        simlib::audio_fx_shutdown();
-        simlib::music_shutdown();
-        simlib::shutdown();
+        sl::destroy_stream(background_music);
+        sl::destroy_sample(thrust_sound);
+        sl::destroy_sample(burner_sound);
+        sl::gamepad_shutdown();
+        sl::gui_shutdown();
+        sl::display_shutdown();
+        sl::audio_fx_shutdown();
+        sl::music_shutdown();
+        sl::shutdown();
     }
 
     /** @brief Return the flag controlled by quit events and menu/Lua quit actions. */
@@ -144,15 +144,15 @@ namespace game
     /** @brief Poll SDL, route mode input, and notify display and ImGui backends of each event. */
     bool handle_events()
     {
-        simlib::Event event;
-        while (simlib::poll_event(&event))
+        sl::Event event;
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::quit)
+            if (event.type() == sl::Event::Type::quit)
             {
                 running = false;
             }
-            else if (event.type() == simlib::Event::Type::key_down &&
-                     !event.key_repeat() && event.key() == simlib::Event::Key::letter_m &&
+            else if (event.type() == sl::Event::Type::key_down &&
+                     !event.key_repeat() && event.key() == sl::Event::Key::letter_m &&
                      background_music)
             {
                 background_music_paused = !background_music_paused;
@@ -183,9 +183,9 @@ namespace game
                 break;
             }
 
-            simlib::display_handle_event(event);
-            simlib::gamepad_handle_event(event);
-            simlib::gui_handle_event(event);
+            sl::display_handle_event(event);
+            sl::gamepad_handle_event(event);
+            sl::gui_handle_event(event);
         }
         return true;
     }
@@ -193,33 +193,33 @@ namespace game
     /** @brief Create the window and initialise the simlib services used by the sample game. */
     bool initialise()
     {
-        if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+        if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
         {
             return false;
         }
-        simlib::set_window_title("Balloons!");
+        sl::set_window_title("Balloons!");
         current_mode = Mode::menu;
-        simlib::gui_init();
-        if (!simlib::gamepad_init())
+        sl::gui_init();
+        if (!sl::gamepad_init())
         {
             return false;
         }
-        simlib::set_fps(60);
-        simlib::music_init();
-        background_music = simlib::load_stream("assets/music/Solar Serenity.ogg");
-        simlib::audio_fx_init();
-        thrust_sound = simlib::load_sample("assets/sfx/sustain.wav");
-        burner_sound = simlib::load_sample("assets/sfx/engines.wav");
+        sl::set_fps(60);
+        sl::music_init();
+        background_music = sl::load_stream("assets/music/Solar Serenity.ogg");
+        sl::audio_fx_init();
+        thrust_sound = sl::load_sample("assets/sfx/sustain.wav");
+        burner_sound = sl::load_sample("assets/sfx/engines.wav");
         SDL_StopTextInput();
 
         balloon_textures = {
-            simlib::load_bitmap("assets/textures/balloon_red.png"),
-            simlib::load_bitmap("assets/textures/balloon_blue.png"),
-            simlib::load_bitmap("assets/textures/balloon_green.png"),
+            sl::load_bitmap("assets/textures/balloon_red.png"),
+            sl::load_bitmap("assets/textures/balloon_blue.png"),
+            sl::load_bitmap("assets/textures/balloon_green.png"),
         };
-        playing_background = simlib::load_bitmap("assets/textures/Bumpy_Sky-Blue_01-512x512.png");
-        dirt_texture = simlib::load_bitmap("assets/textures/dirt.png");
-        grass_texture = simlib::load_bitmap("assets/textures/grass.png");
+        playing_background = sl::load_bitmap("assets/textures/Bumpy_Sky-Blue_01-512x512.png");
+        dirt_texture = sl::load_bitmap("assets/textures/dirt.png");
+        grass_texture = sl::load_bitmap("assets/textures/grass.png");
         return true;
     }
 

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace simlib
+namespace sl
 {
     namespace detail
     {
@@ -38,4 +38,4 @@ namespace simlib
         void gl2d_ortho_matrix(int windowWidth, int windowHeight, float *outMatrix16);
 
     } // namespace detail
-} // namespace simlib
+} // namespace sl

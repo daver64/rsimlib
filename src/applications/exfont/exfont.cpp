@@ -2,45 +2,45 @@
 
 int main(int argc, char* argv[])
 {
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
 
-    simlib::Font* sans_font = simlib::open_sans_font(28);
-    simlib::Font* monospace_font = simlib::get_default_monospace_font();
-    simlib::clear_to_colour(simlib::screen, {45, 48, 56});
+    sl::Font* sans_font = sl::open_sans_font(28);
+    sl::Font* monospace_font = sl::get_default_monospace_font();
+    sl::clear_to_colour(sl::screen, {45, 48, 56});
 
     if (sans_font)
     {
         const std::string text = "Proportional TrueType: wide W, narrow i";
-        const int x = (simlib::screen->width - simlib::text_length(sans_font, text)) / 2;
-        simlib::textout(sans_font, x, 150, {255, 220, 90}, text);
+        const int x = (sl::screen->width - sl::text_length(sans_font, text)) / 2;
+        sl::textout(sans_font, x, 150, {255, 220, 90}, text);
     }
     if (monospace_font)
     {
         const std::string text = "Monospace TrueType: wide W, narrow i";
-        const int x = (simlib::screen->width - simlib::text_length(monospace_font, text)) / 2;
-        simlib::textout(monospace_font, x, 250, {110, 220, 255}, text);
+        const int x = (sl::screen->width - sl::text_length(monospace_font, text)) / 2;
+        sl::textout(monospace_font, x, 250, {110, 220, 255}, text);
     }
 
-    simlib::show_video_bitmap();
-    simlib::end_frame();
+    sl::show_video_bitmap();
+    sl::end_frame();
 
-    simlib::Event event;
+    sl::Event event;
     bool running = true;
     while (running)
     {
-        while (simlib::poll_event(&event))
+        while (sl::poll_event(&event))
         {
-            running = event.type() != simlib::Event::Type::quit && event.type() != simlib::Event::Type::key_down;
+            running = event.type() != sl::Event::Type::quit && event.type() != sl::Event::Type::key_down;
         }
     }
 
     if (sans_font)
     {
-        simlib::close_font(sans_font);
+        sl::close_font(sans_font);
     }
-    simlib::shutdown();
+    sl::shutdown();
     return 0;
 }

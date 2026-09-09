@@ -6,7 +6,7 @@
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_opengl3.h>
 
-namespace simlib
+namespace sl
 {
 
     void gui_init()
@@ -51,4 +51,4 @@ namespace simlib
     {
         ImGui::ShowDemoWindow();
     }
-} // namespace simlib
+} // namespace sl

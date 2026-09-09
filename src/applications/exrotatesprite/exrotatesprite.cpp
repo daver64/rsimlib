@@ -2,41 +2,41 @@
 
 int main(int argc, char *argv[])
 {
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
 
-    simlib::Bitmap *balloon = simlib::load_bitmap("assets/textures/balloon_red.png");
+    sl::Bitmap *balloon = sl::load_bitmap("assets/textures/balloon_red.png");
     if (!balloon)
     {
-        simlib::shutdown();
+        sl::shutdown();
         return -1;
     }
 
-    simlib::set_fps(60);
+    sl::set_fps(60);
     bool running = true;
     while (running)
     {
-        simlib::Event event;
-        while (simlib::poll_event(&event))
+        sl::Event event;
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::quit ||
-                (event.type() == simlib::Event::Type::key_down && event.key() == simlib::Event::Key::escape))
+            if (event.type() == sl::Event::Type::quit ||
+                (event.type() == sl::Event::Type::key_down && event.key() == sl::Event::Key::escape))
             {
                 running = false;
             }
         }
 
-        const float angle_degrees = static_cast<float>(simlib::time_ms() % 3600) * 0.1f;
-        simlib::clear_to_colour(simlib::screen, {45, 48, 56});
-        simlib::gprintf_center(32, {0, 255, 0}, "Rotating sprite example - press Escape to exit");
-        simlib::draw_sprite_rotated(balloon, 400.0f, 300.0f, angle_degrees);
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        const float angle_degrees = static_cast<float>(sl::time_ms() % 3600) * 0.1f;
+        sl::clear_to_colour(sl::screen, {45, 48, 56});
+        sl::gprintf_center(32, {0, 255, 0}, "Rotating sprite example - press Escape to exit");
+        sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, angle_degrees);
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
 
-    simlib::destroy_bitmap(balloon);
-    simlib::shutdown();
+    sl::destroy_bitmap(balloon);
+    sl::shutdown();
     return 0;
 }

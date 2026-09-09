@@ -1,6 +1,6 @@
 #include "noise.h"
 
-namespace simlib
+namespace sl
 {
 
     Generator::Generator(int seed)
@@ -28,4 +28,4 @@ namespace simlib
         return generator_.GetNoise(x, y, z);
     }
 
-} // namespace simlib
+} // namespace sl

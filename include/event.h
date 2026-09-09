@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-namespace simlib
+namespace sl
 {
 
     /** A backend-independent event supplied by poll_event(). */
@@ -248,4 +248,4 @@ namespace simlib
         const void *event_handle(const Event &event);
     }
 
-} // namespace simlib
+} // namespace sl

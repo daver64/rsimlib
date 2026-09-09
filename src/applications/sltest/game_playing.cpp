@@ -22,22 +22,22 @@ namespace game
         bool active_thrust_right = false;
         std::uint64_t active_thrust_voice = 0;
         std::uint64_t active_burner_voice = 0;
-        simlib::Bitmap *playing_scene = nullptr;
-        simlib::Vignette playing_vignette;
+        sl::Bitmap *playing_scene = nullptr;
+        sl::Vignette playing_vignette;
         constexpr float active_thrust_acceleration = 180.0f;
 
         bool ensure_playing_post_process()
         {
-            const int width = simlib::screen_width();
-            const int height = simlib::screen_height();
+            const int width = sl::screen_width();
+            const int height = sl::screen_height();
             if (width <= 0 || height <= 0)
             {
                 return false;
             }
             if (!playing_scene || playing_scene->width != width || playing_scene->height != height)
             {
-                simlib::destroy_bitmap(playing_scene);
-                playing_scene = simlib::create_render_target(width, height);
+                sl::destroy_bitmap(playing_scene);
+                playing_scene = sl::create_render_target(width, height);
             }
             if (!playing_vignette.is_valid())
             {
@@ -54,11 +54,11 @@ namespace game
             const bool thrust_active = active_thrust_left || active_thrust_right;
             if (thrust_active && thrust_sound && active_thrust_voice == 0)
             {
-                active_thrust_voice = simlib::play_sample(thrust_sound, 128, 128, 1000, -1);
+                active_thrust_voice = sl::play_sample(thrust_sound, 128, 128, 1000, -1);
             }
             else if (!thrust_active && active_thrust_voice != 0)
             {
-                simlib::stop_voice(active_thrust_voice);
+                sl::stop_voice(active_thrust_voice);
                 active_thrust_voice = 0;
             }
         }
@@ -67,11 +67,11 @@ namespace game
         {
             if (active_object.burner_active && burner_sound && active_burner_voice == 0)
             {
-                active_burner_voice = simlib::play_sample(burner_sound, 128, 128, 1000, -1);
+                active_burner_voice = sl::play_sample(burner_sound, 128, 128, 1000, -1);
             }
             else if (!active_object.burner_active && active_burner_voice != 0)
             {
-                simlib::stop_voice(active_burner_voice);
+                sl::stop_voice(active_burner_voice);
                 active_burner_voice = 0;
             }
         }
@@ -104,11 +104,11 @@ namespace game
             constexpr int max_height_blocks = 6;
 
             std::vector<GameObject> blocks;
-            simlib::Generator noise{1337};
+            sl::Generator noise{1337};
             noise.set_frequency(0.08f);
 
-            const int screen_w = simlib::screen_width();
-            const int screen_h = simlib::screen_height();
+            const int screen_w = sl::screen_width();
+            const int screen_h = sl::screen_height();
             const int columns = static_cast<int>(std::ceil(screen_w / block_size)) + 1;
             for (int column = 0; column < columns; ++column)
             {
@@ -173,9 +173,9 @@ namespace game
             active_balloon_index = 0;
             active_thrust_left = false;
             active_thrust_right = false;
-            simlib::stop_voice(active_thrust_voice);
+            sl::stop_voice(active_thrust_voice);
             active_thrust_voice = 0;
-            simlib::stop_voice(active_burner_voice);
+            sl::stop_voice(active_burner_voice);
             active_burner_voice = 0;
 
         }
@@ -183,18 +183,18 @@ namespace game
 
     void shutdown_playing()
     {
-        simlib::destroy_bitmap(playing_scene);
+        sl::destroy_bitmap(playing_scene);
         playing_scene = nullptr;
         playing_vignette.shutdown();
     }
 
     /** @brief Handle gameplay reset, balloon selection, and return-to-menu actions. */
-    void handle_playing_input(const simlib::Event &event)
+    void handle_playing_input(const sl::Event &event)
     {
-        if (event.type() == simlib::Event::Type::mouse_button_down)
+        if (event.type() == sl::Event::Type::mouse_button_down)
         {
             const int hit = find_balloon_at(
-                static_cast<float>(simlib::mouse_x()), static_cast<float>(simlib::mouse_y()));
+                static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()));
             if (hit >= 0)
             {
                 active_balloon_index = static_cast<std::size_t>(hit);
@@ -210,53 +210,53 @@ namespace game
         GameObject &active_object = playing_objects[active_balloon_index];
         switch (event.type())
         {
-            case simlib::Event::Type::key_down:
+            case sl::Event::Type::key_down:
                 switch (event.key())
                 {
-                    case simlib::Event::Key::escape:
+                    case sl::Event::Key::escape:
                         request_mode(Mode::menu);
                         break;
-                    case simlib::Event::Key::space:
+                    case sl::Event::Key::space:
                         reset_playing_objects();
                         break;
-                    case simlib::Event::Key::plus:
-                    case simlib::Event::Key::equals:
-                    case simlib::Event::Key::keypad_plus:
+                    case sl::Event::Key::plus:
+                    case sl::Event::Key::equals:
+                    case sl::Event::Key::keypad_plus:
                         adjust_balloon_volume(active_object, 0.1f);
                         break;
-                    case simlib::Event::Key::minus:
-                    case simlib::Event::Key::keypad_minus:
+                    case sl::Event::Key::minus:
+                    case sl::Event::Key::keypad_minus:
                         adjust_balloon_volume(active_object, -0.1f);
                         break;
-                    case simlib::Event::Key::letter_b:
+                    case sl::Event::Key::letter_b:
                         active_object.burner_active = true;
                         update_active_burner_sound(active_object);
                         break;
-                    case simlib::Event::Key::arrow_left:
+                    case sl::Event::Key::arrow_left:
                         active_thrust_left = true;
                         update_active_thrust_sound();
                         break;
-                    case simlib::Event::Key::arrow_right:
+                    case sl::Event::Key::arrow_right:
                         active_thrust_right = true;
                         update_active_thrust_sound();
                         break;
-                    case simlib::Event::Key::f11:
-                        simlib::toggle_fullscreen();
+                    case sl::Event::Key::f11:
+                        sl::toggle_fullscreen();
                         break;
                 }
                 break;
-            case simlib::Event::Type::key_up:
-                if (event.key() == simlib::Event::Key::letter_b)
+            case sl::Event::Type::key_up:
+                if (event.key() == sl::Event::Key::letter_b)
                 {
                     active_object.burner_active = false;
                     update_active_burner_sound(active_object);
                 }
-                else if (event.key() == simlib::Event::Key::arrow_left)
+                else if (event.key() == sl::Event::Key::arrow_left)
                 {
                     active_thrust_left = false;
                     update_active_thrust_sound();
                 }
-                else if (event.key() == simlib::Event::Key::arrow_right)
+                else if (event.key() == sl::Event::Key::arrow_right)
                 {
                     active_thrust_right = false;
                     update_active_thrust_sound();
@@ -278,15 +278,15 @@ namespace game
         bool post_process_ready = ensure_playing_post_process();
         if (post_process_ready)
         {
-            post_process_ready = simlib::begin_render_target(playing_scene);
+            post_process_ready = sl::begin_render_target(playing_scene);
             if (post_process_ready)
             {
-                simlib::clear_render_target(simlib::Colour{45, 48, 56});
+                sl::clear_render_target(sl::Colour{45, 48, 56});
             }
         }
 
         // clamp dt so a slow/paused frame doesn't cause a huge physics jump
-        const float dt_seconds = std::min(0.05f, static_cast<float>(simlib::get_frame_time()) / 1000.0f);
+        const float dt_seconds = std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f);
         if (active_balloon_index < playing_objects.size())
         {
             GameObject &active_object = playing_objects[active_balloon_index];
@@ -297,43 +297,43 @@ namespace game
         resolve_collisions(playing_objects);
         constrain_to_screen(playing_objects);
 
-        simlib::Font *font = simlib::get_default_monospace_font();
-        const int fontheight = simlib::text_height(font);
-        simlib::Colour text_colour{0, 255, 0};
+        sl::Font *font = sl::get_default_monospace_font();
+        const int fontheight = sl::text_height(font);
+        sl::Colour text_colour{0, 255, 0};
         if (!post_process_ready)
         {
-            simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+            sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
         }
         if (playing_background)
         {
-            simlib::draw_sprite_stretched(
+            sl::draw_sprite_stretched(
                 playing_background, 0.0f, 0.0f,
-                simlib::screen_width(), simlib::screen_height());
+                sl::screen_width(), sl::screen_height());
         }
-        simlib::rectfill(simlib::screen,simlib::screen_width()/6,0,
-            simlib::screen_width()*5/6, 
+        sl::rectfill(sl::screen,sl::screen_width()/6,0,
+            sl::screen_width()*5/6,
             1+10*fontheight, 
-            simlib::Colour{45, 48, 56, 128});  
-        simlib::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
-        simlib::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
-        simlib::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it");
-        simlib::gprintf_center(1+4*fontheight,text_colour,  "+/-: selected balloon volume, hold B: burner");
-        simlib::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
-        simlib::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");
-        simlib::gprintf_center(1+7*fontheight,text_colour,  "Press ESC to return to menu");
+            sl::Colour{45, 48, 56, 128});
+        sl::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
+        sl::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
+        sl::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it");
+        sl::gprintf_center(1+4*fontheight,text_colour,  "+/-: selected balloon volume, hold B: burner");
+        sl::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
+        sl::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");
+        sl::gprintf_center(1+7*fontheight,text_colour,  "Press ESC to return to menu");
 
         render_objects(playing_objects);
         if (active_balloon_index < playing_objects.size())
         {
             const GameObject &active_object = playing_objects[active_balloon_index];
-            simlib::rect(
-                simlib::screen,
+            sl::rect(
+                sl::screen,
                 active_object.x - active_object.radius, active_object.y - active_object.radius,
                 active_object.x + active_object.radius, active_object.y + active_object.radius,
-                simlib::Colour{0, 255, 0});
+                sl::Colour{0, 255, 0});
             const int label_x = static_cast<int>(active_object.x + active_object.radius) + 4;
             const int label_y = static_cast<int>(active_object.y - active_object.radius);
-            const float altitude = simlib::screen_height() - active_object.y;
+            const float altitude = sl::screen_height() - active_object.y;
             char burner_line[64];
             char volume_line[64];
             char altitude_line[64];
@@ -341,27 +341,27 @@ namespace game
             std::snprintf(volume_line, sizeof(volume_line), "Gas volume: %.1f", active_object.gas_bag_volume);
             std::snprintf(altitude_line, sizeof(altitude_line), "Altitude: %.0f", altitude);
             const int label_width = std::max({
-                simlib::text_length(font, burner_line),
-                simlib::text_length(font, volume_line),
-                simlib::text_length(font, altitude_line)});
-            simlib::rectfill(
-                simlib::screen,
+                sl::text_length(font, burner_line),
+                sl::text_length(font, volume_line),
+                sl::text_length(font, altitude_line)});
+            sl::rectfill(
+                sl::screen,
                 label_x - 4, label_y,
                 label_x + label_width + 4, label_y + 3 * fontheight,
-                simlib::Colour{45, 48, 56, 128});
-            simlib::gprintf(label_x, label_y, text_colour, "%s", burner_line);
-            simlib::gprintf(label_x, label_y + fontheight, text_colour, "%s", volume_line);
-            simlib::gprintf(label_x, label_y + 2 * fontheight, text_colour, "%s", altitude_line);
+                sl::Colour{45, 48, 56, 128});
+            sl::gprintf(label_x, label_y, text_colour, "%s", burner_line);
+            sl::gprintf(label_x, label_y + fontheight, text_colour, "%s", volume_line);
+            sl::gprintf(label_x, label_y + 2 * fontheight, text_colour, "%s", altitude_line);
         }
 
         if (post_process_ready)
         {
-            simlib::end_render_target();
+            sl::end_render_target();
             playing_vignette.apply(playing_scene, 0, 0,
-                simlib::screen_width(), simlib::screen_height(), true);
+                sl::screen_width(), sl::screen_height(), true);
         }
         apply_mode_fade();
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
 }

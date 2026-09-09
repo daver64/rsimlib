@@ -19,7 +19,7 @@
 #include <cstdio>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
 	Bitmap *screen = nullptr;
 
@@ -311,7 +311,7 @@ namespace simlib
 	{
 		if (width <= 0 || height <= 0)
 		{
-			simlib::detail::set_error("Bitmap dimensions must be positive");
+			sl::detail::set_error("Bitmap dimensions must be positive");
 			return nullptr;
 		}
 		Bitmap *bitmap = new Bitmap;
@@ -342,7 +342,7 @@ namespace simlib
 	{
 		if (width <= 0 || height <= 0)
 		{
-			simlib::detail::set_error("Render target dimensions must be positive");
+			sl::detail::set_error("Render target dimensions must be positive");
 			return nullptr;
 		}
 
@@ -364,7 +364,7 @@ namespace simlib
 
 		if (status != GL_FRAMEBUFFER_COMPLETE)
 		{
-			simlib::detail::set_error("Unable to create framebuffer for render target");
+			sl::detail::set_error("Unable to create framebuffer for render target");
 			glDeleteFramebuffers(1, &fbo);
 			glDeleteTextures(1, &texture);
 			return nullptr;
@@ -422,7 +422,7 @@ namespace simlib
 		SDL_FreeSurface(loaded);
 		if (!rgba)
 		{
-			simlib::detail::set_error(SDL_GetError());
+			sl::detail::set_error(SDL_GetError());
 			return nullptr;
 		}
 
@@ -444,7 +444,7 @@ namespace simlib
 	{
 		SDL_Surface *loaded = IMG_Load(path.c_str());
 		if (!loaded)
-			simlib::detail::set_error(IMG_GetError());
+			sl::detail::set_error(IMG_GetError());
 		return load_bitmap_from_surface(loaded);
 	}
 
@@ -455,12 +455,12 @@ namespace simlib
 		SDL_RWops *rw = SDL_RWFromConstMem(data, static_cast<int>(size));
 		if (!rw)
 		{
-			simlib::detail::set_error(SDL_GetError());
+			sl::detail::set_error(SDL_GetError());
 			return nullptr;
 		}
 		SDL_Surface *loaded = IMG_Load_RW(rw, 1);
 		if (!loaded)
-			simlib::detail::set_error(IMG_GetError());
+			sl::detail::set_error(IMG_GetError());
 		return load_bitmap_from_surface(loaded);
 	}
 
@@ -487,7 +487,7 @@ namespace simlib
 		FILE *file = std::fopen(outputPath.string().c_str(), "wb");
 		if (!file)
 		{
-			simlib::detail::set_error("Unable to open bitmap output file");
+			sl::detail::set_error("Unable to open bitmap output file");
 			return false;
 		}
 
@@ -1159,4 +1159,4 @@ namespace simlib
 
 	} // namespace detail
 
-} // namespace simlib
+} // namespace sl

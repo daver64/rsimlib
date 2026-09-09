@@ -3,27 +3,27 @@
 namespace game
 {
     /** @brief Map numeric shortcuts and Escape to main-menu actions. */
-    void handle_menu_input(const simlib::Event &event)
+    void handle_menu_input(const sl::Event &event)
     {
 
         switch (event.type())
         {
-            case simlib::Event::Type::key_down:
+            case sl::Event::Type::key_down:
                 switch (event.key())
                 {
-                case simlib::Event::Key::digit_1:
+                case sl::Event::Key::digit_1:
                     request_mode(Mode::playing);
                     break;
-                case simlib::Event::Key::digit_2:
+                case sl::Event::Key::digit_2:
                     request_mode(Mode::settings);
                     break;
-                case simlib::Event::Key::digit_3:
+                case sl::Event::Key::digit_3:
                     request_mode(Mode::help);
                     break;
-                case simlib::Event::Key::digit_4:
+                case sl::Event::Key::digit_4:
                     request_mode(Mode::lua_console);
                     break;
-                case simlib::Event::Key::escape:
+                case sl::Event::Key::escape:
                     running = false;
                     break;
                 }
@@ -35,9 +35,9 @@ namespace game
     /** @brief Build and present the centred ImGui menu over a simlib-cleared framebuffer. */
     void update_and_render_menu()
     {
-        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+        sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
 
-        simlib::new_frame();
+        sl::new_frame();
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const ImVec2 window_size{260.0f, 250.0f};
         ImGui::SetNextWindowPos(
@@ -67,10 +67,10 @@ namespace game
             running = false;
         }
         ImGui::End();
-        simlib::render();
+        sl::render();
 
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        sl::show_video_bitmap();
+        sl::end_frame();
     apply_mode_fade();
     }
 }

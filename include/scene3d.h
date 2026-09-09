@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace simlib
+namespace sl
 {
 
     /** A perspective camera using right-handed GLM coordinates. */
@@ -40,4 +40,4 @@ namespace simlib
         return glm::scale(model, scale);
     }
 
-} // namespace simlib
+} // namespace sl

@@ -5,12 +5,12 @@
 #include <cstdint>
 #include <string>
 
-namespace simlib
+namespace sl
 {
     struct Bitmap;
 }
 
-namespace simlib
+namespace sl
 {
 
     /** Owns and applies an OpenGL shader program. */
@@ -167,4 +167,4 @@ namespace simlib
         Colour colour_{0, 0, 0, 0};
     };
 
-} // namespace simlib
+} // namespace sl

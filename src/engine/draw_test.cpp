@@ -5,13 +5,13 @@
 namespace
 {
 
-	simlib::Bitmap *checker_texture = nullptr;
-	simlib::Bitmap *ram_bitmap = nullptr;
+	sl::Bitmap *checker_texture = nullptr;
+	sl::Bitmap *ram_bitmap = nullptr;
 
 	/** Build the textured primitive test image. */
 	void build_checker_texture()
 	{
-		checker_texture = simlib::create_bitmap(32, 32);
+		checker_texture = sl::create_bitmap(32, 32);
 		if (!checker_texture)
 		{
 			return;
@@ -22,11 +22,11 @@ namespace
 			for (int x = 0; x < checker_texture->width; ++x)
 			{
 				const bool light = ((x / 8) + (y / 8)) % 2 == 0;
-				simlib::putpixel(
+				sl::putpixel(
 					checker_texture,
 					x,
 					y,
-					light ? simlib::Colour{245, 201, 81} : simlib::Colour{35, 128, 180});
+					light ? sl::Colour{245, 201, 81} : sl::Colour{35, 128, 180});
 			}
 		}
 	}
@@ -34,17 +34,17 @@ namespace
 	/** Build the RAM bitmap primitive test image. */
 	void build_ram_bitmap()
 	{
-		ram_bitmap = simlib::create_bitmap(130, 110);
+		ram_bitmap = sl::create_bitmap(130, 110);
 		if (!ram_bitmap)
 		{
 			return;
 		}
 
-		simlib::clear_to_colour(ram_bitmap, {31, 42, 56});
-		simlib::rect(ram_bitmap, 2, 2, 127, 107, {235, 235, 235});
-		simlib::circlefill(ram_bitmap, 35, 36, 22, {226, 92, 80});
-		simlib::ellipsefill(ram_bitmap, 94, 37, 28, 16, {77, 182, 112});
-		simlib::trianglefill(ram_bitmap, 20, 94, 65, 56, 110, 94, {104, 125, 219});
+		sl::clear_to_colour(ram_bitmap, {31, 42, 56});
+		sl::rect(ram_bitmap, 2, 2, 127, 107, {235, 235, 235});
+		sl::circlefill(ram_bitmap, 35, 36, 22, {226, 92, 80});
+		sl::ellipsefill(ram_bitmap, 94, 37, 28, 16, {77, 182, 112});
+		sl::trianglefill(ram_bitmap, 20, 94, 65, 56, 110, 94, {104, 125, 219});
 	}
 
 } // namespace
@@ -60,7 +60,7 @@ namespace draw_test
 
 	void render()
 	{
-		using namespace simlib;
+		using namespace sl;
 
 		if (!screen)
 		{
@@ -96,9 +96,9 @@ namespace draw_test
 
 	void shutdown()
 	{
-		simlib::destroy_bitmap(ram_bitmap);
+		sl::destroy_bitmap(ram_bitmap);
 		ram_bitmap = nullptr;
-		simlib::destroy_bitmap(checker_texture);
+		sl::destroy_bitmap(checker_texture);
 		checker_texture = nullptr;
 	}
 

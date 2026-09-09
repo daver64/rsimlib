@@ -14,7 +14,7 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace simlib
+namespace sl
 {
 
     /** Temporary OpenGL texture used to draw one rendered text string. */
@@ -32,7 +32,7 @@ namespace simlib
         SDL_Surface *rendered = TTF_RenderUTF8_Blended(font, text.c_str(), sdlColor);
         if (!rendered)
         {
-            simlib::detail::set_error(TTF_GetError());
+            sl::detail::set_error(TTF_GetError());
             return std::nullopt;
         }
 
@@ -40,7 +40,7 @@ namespace simlib
         SDL_FreeSurface(rendered);
         if (!rgba)
         {
-            simlib::detail::set_error(SDL_GetError());
+            sl::detail::set_error(SDL_GetError());
             return std::nullopt;
         }
 
@@ -226,7 +226,7 @@ namespace simlib
     {
         Font *font = TTF_OpenFont(path.c_str(), pointSize);
         if (!font)
-            simlib::detail::set_error(TTF_GetError());
+            sl::detail::set_error(TTF_GetError());
         return font;
     }
 
@@ -237,7 +237,7 @@ namespace simlib
         SDL_RWops *rw = SDL_RWFromConstMem(data, static_cast<int>(size));
         Font *font = rw ? TTF_OpenFontRW(rw, 1, pointSize) : nullptr;
         if (!font)
-            simlib::detail::set_error(TTF_GetError());
+            sl::detail::set_error(TTF_GetError());
         return font;
     }
 
@@ -397,4 +397,4 @@ namespace simlib
         draw_text_texture(cache->texture, x, y, screen_width(), screen_height());
     }
 
-} // namespace simlib
+} // namespace sl

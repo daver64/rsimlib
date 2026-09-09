@@ -53,16 +53,16 @@ int main()
         return 1;
     }
 
-    simlib::Event event;
+    sl::Event event;
     const bool passed =
-        simlib::poll_event(&event) && event.type() == simlib::Event::Type::key_down &&
-        event.key() == simlib::Event::Key::escape && event.key_repeat() &&
-        simlib::poll_event(&event) && event.key() == simlib::Event::Key::f12 && event.key_code() == SDLK_F12 &&
-        simlib::poll_event(&event) && event.key() == simlib::Event::Key::keypad_7 && event.key_code() == SDLK_KP_7 &&
-        simlib::poll_event(&event) && event.type() == simlib::Event::Type::window_resized &&
+        sl::poll_event(&event) && event.type() == sl::Event::Type::key_down &&
+        event.key() == sl::Event::Key::escape && event.key_repeat() &&
+        sl::poll_event(&event) && event.key() == sl::Event::Key::f12 && event.key_code() == SDLK_F12 &&
+        sl::poll_event(&event) && event.key() == sl::Event::Key::keypad_7 && event.key_code() == SDLK_KP_7 &&
+        sl::poll_event(&event) && event.type() == sl::Event::Type::window_resized &&
         event.window_width() == 640 && event.window_height() == 480 &&
-        simlib::poll_event(&event) && event.type() == simlib::Event::Type::quit &&
-        simlib::poll_event(&event) && event.type() == simlib::Event::Type::user;
+        sl::poll_event(&event) && event.type() == sl::Event::Type::quit &&
+        sl::poll_event(&event) && event.type() == sl::Event::Type::user;
 
     SDL_Quit();
     return passed ? 0 : 1;

@@ -2,7 +2,7 @@
 
 #include "event.h"
 
-namespace simlib
+namespace sl
 {
 
     /** Create the ImGui context and attach it to the current SDL/GL window. */
@@ -18,4 +18,4 @@ namespace simlib
     /** Show the ImGui demo window. */
     void show_demo_window();
 
-} // namespace simlib
+} // namespace sl

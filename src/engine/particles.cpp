@@ -9,7 +9,7 @@
 #include <cmath>
 #include <random>
 
-namespace simlib
+namespace sl
 {
     namespace
     {
@@ -182,4 +182,4 @@ namespace simlib
         detail::gl2d_submit(GL_TRIANGLES, vertices.data(), static_cast<int>(vertices.size()), glTexture);
     }
 
-} // namespace simlib
+} // namespace sl

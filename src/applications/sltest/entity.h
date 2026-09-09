@@ -36,13 +36,13 @@ struct GameObject {
     float height = 32.0f;
 
     // sprite (drawn stretched to the collider's bounding box)
-    simlib::Bitmap* bitmap = nullptr;
+    sl::Bitmap* bitmap = nullptr;
 };
 
 /** Create a circle-collider object centred at (x, y). */
-GameObject make_circle_object(simlib::Bitmap* bitmap, float x, float y, float radius, float mass = 1.0f);
+GameObject make_circle_object(sl::Bitmap* bitmap, float x, float y, float radius, float mass = 1.0f);
 /** Create an AABB-collider object centred at (x, y). */
-GameObject make_aabb_object(simlib::Bitmap* bitmap, float x, float y, float width, float height, float mass = 1.0f);
+GameObject make_aabb_object(sl::Bitmap* bitmap, float x, float y, float width, float height, float mass = 1.0f);
 
 /** Apply buoyancy, layered wind, gravity, drag, and integrate position for all objects. */
 void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity = 980.0f);

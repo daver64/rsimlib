@@ -39,10 +39,10 @@
  * text rendering, shader effects, and SDL_mixer audio helpers.
  *
  * A typical application initializes the display with
- * simlib::set_gfx_mode(), processes SDL events, renders through
- * simlib bitmap functions, and calls simlib::display_shutdown() during cleanup.
+ * sl::set_gfx_mode(), processes SDL events, renders through
+ * sl bitmap functions, and calls sl::display_shutdown() during cleanup.
  */
-namespace simlib
+namespace sl
 {
 
-} // namespace simlib
+} // namespace sl

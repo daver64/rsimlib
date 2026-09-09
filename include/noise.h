@@ -2,7 +2,7 @@
 
 #include "FastNoiseLite.h"
 
-namespace simlib
+namespace sl
 {
 
     /** A configurable 2D/3D procedural noise generator. */
@@ -24,4 +24,4 @@ namespace simlib
         FastNoiseLite generator_;
     };
 
-} // namespace simlib
+} // namespace sl

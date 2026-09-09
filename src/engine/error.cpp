@@ -1,6 +1,6 @@
 #include "error.h"
 
-namespace simlib
+namespace sl
 {
 	namespace
 	{
@@ -26,4 +26,4 @@ namespace simlib
 		}
 
 	} // namespace detail
-} // namespace simlib
+} // namespace sl

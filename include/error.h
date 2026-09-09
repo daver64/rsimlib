@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace simlib
+namespace sl
 {
 
     /** Return the most recent library error for the calling thread. */
@@ -15,4 +15,4 @@ namespace simlib
         void set_error(const std::string &message);
     }
 
-} // namespace simlib
+} // namespace sl

@@ -9,7 +9,7 @@ namespace sol
     class state;
 }
 
-namespace simlib
+namespace sl
 {
     struct LuaScriptResult
     {

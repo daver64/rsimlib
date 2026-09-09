@@ -5,11 +5,11 @@ void process_input()
     bool running=true;
     while (running)
     {
-        simlib::Event event;
+        sl::Event event;
         
-        while (simlib::poll_event(&event))
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::key_down || event.type() == simlib::Event::Type::quit)
+            if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
             }   // Handle input here
@@ -18,20 +18,20 @@ void process_input()
 }
 int main(int argc, char *argv[])
 {
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
 
-    simlib::Font *font = simlib::get_default_monospace_font();
-    const int fontheight = simlib::text_height(font);
-    simlib::Colour text_colour{0, 255, 0};
-    simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+    sl::Font *font = sl::get_default_monospace_font();
+    const int fontheight = sl::text_height(font);
+    sl::Colour text_colour{0, 255, 0};
+    sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
 
-    simlib::gprintf_center(1 + fontheight, text_colour, "Hello, world!");
-    simlib::show_video_bitmap();
-    simlib::end_frame();
+    sl::gprintf_center(1 + fontheight, text_colour, "Hello, world!");
+    sl::show_video_bitmap();
+    sl::end_frame();
     process_input();
-    simlib::shutdown();
+    sl::shutdown();
     return 0;
 }

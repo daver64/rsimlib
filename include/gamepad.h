@@ -3,7 +3,7 @@
 #include "event.h"
 #include <string>
 
-namespace simlib
+namespace sl
 {
 
     /** Buttons on a standard SDL game controller layout. */
@@ -58,4 +58,4 @@ namespace simlib
     /** Return the analogue dead zone in use. */
     float gamepad_deadzone();
 
-} // namespace simlib
+} // namespace sl

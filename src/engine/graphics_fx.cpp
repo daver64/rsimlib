@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
 	namespace
 	{
@@ -641,4 +641,4 @@ void main() {
 				 static_cast<float>(screen_width()), static_cast<float>(screen_height()), colour_);
 	}
 
-} // namespace simlib
+} // namespace sl

@@ -1,16 +1,19 @@
 #include "lua_canvas.h"
 
+#include "audio.h"
+
 #include <sol/sol.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-namespace simlib
+namespace sl
 {
     namespace
     {
@@ -62,6 +65,19 @@ namespace simlib
         std::vector<DrawingCommand> commands;
         std::filesystem::path asset_root{"assets"};
         std::unordered_map<std::string, Bitmap *> sprites;
+        std::unordered_map<std::string, Sample *> sounds;
+        std::unordered_map<std::string, Stream *> music;
+
+        std::optional<std::filesystem::path> resolve_asset_path(const std::string &path) const
+        {
+            const std::filesystem::path asset_path{path};
+            if (path.empty() || asset_path.is_absolute() ||
+                std::find(asset_path.begin(), asset_path.end(), std::filesystem::path{".."}) != asset_path.end())
+            {
+                return std::nullopt;
+            }
+            return asset_root / asset_path;
+        }
 
         void add_drawing(
             DrawingType type, float x1, float y1, float x2, float y2,
@@ -72,19 +88,90 @@ namespace simlib
 
         bool load_sprite(const std::string &id, const std::string &path)
         {
-            const std::filesystem::path asset_path{path};
-            if (id.empty() || path.empty() || asset_path.is_absolute() ||
-                std::find(asset_path.begin(), asset_path.end(), std::filesystem::path{".."}) != asset_path.end() ||
-                sprites.find(id) != sprites.end())
+            const auto asset_path = resolve_asset_path(path);
+            if (id.empty() || !asset_path || sprites.find(id) != sprites.end())
             {
                 return false;
             }
-            Bitmap *sprite = simlib::load_bitmap((asset_root / asset_path).string());
+            Bitmap *sprite = sl::load_bitmap(asset_path->string());
             if (!sprite)
             {
                 return false;
             }
             sprites.emplace(id, sprite);
+            return true;
+        }
+
+        bool load_sound(const std::string &id, const std::string &path)
+        {
+            const auto asset_path = resolve_asset_path(path);
+            if (id.empty() || !asset_path || sounds.find(id) != sounds.end())
+            {
+                return false;
+            }
+            Sample *sound = sl::load_sample(asset_path->string());
+            if (!sound)
+            {
+                return false;
+            }
+            sounds.emplace(id, sound);
+            return true;
+        }
+
+        std::uint64_t play_sound(const std::string &id, int volume, int pan, int frequency, int loops) const
+        {
+            const auto sound = sounds.find(id);
+            return sound == sounds.end() ? 0 : sl::play_sample(sound->second, volume, pan, frequency, loops);
+        }
+
+        bool unload_sound(const std::string &id)
+        {
+            const auto sound = sounds.find(id);
+            if (sound == sounds.end())
+            {
+                return false;
+            }
+            sl::destroy_sample(sound->second);
+            sounds.erase(sound);
+            return true;
+        }
+
+        bool load_music(const std::string &id, const std::string &path)
+        {
+            const auto asset_path = resolve_asset_path(path);
+            if (id.empty() || !asset_path || music.find(id) != music.end())
+            {
+                return false;
+            }
+            Stream *stream = sl::load_stream(asset_path->string());
+            if (!stream)
+            {
+                return false;
+            }
+            music.emplace(id, stream);
+            return true;
+        }
+
+        bool play_music(const std::string &id, int loops) const
+        {
+            const auto stream = music.find(id);
+            if (stream == music.end())
+            {
+                return false;
+            }
+            sl::play_stream(stream->second, loops);
+            return true;
+        }
+
+        bool unload_music(const std::string &id)
+        {
+            const auto stream = music.find(id);
+            if (stream == music.end())
+            {
+                return false;
+            }
+            sl::destroy_stream(stream->second);
+            music.erase(stream);
             return true;
         }
 
@@ -137,7 +224,7 @@ namespace simlib
                                          command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched) &&
                                         command.sprite_id == id; }),
                 commands.end());
-            simlib::destroy_bitmap(sprite->second);
+            sl::destroy_bitmap(sprite->second);
             sprites.erase(sprite);
             return true;
         }
@@ -151,9 +238,23 @@ namespace simlib
                 commands.end());
             for (const auto &sprite : sprites)
             {
-                simlib::destroy_bitmap(sprite.second);
+                sl::destroy_bitmap(sprite.second);
             }
             sprites.clear();
+        }
+
+        void clear_audio()
+        {
+            for (const auto &sound : sounds)
+            {
+                sl::destroy_sample(sound.second);
+            }
+            sounds.clear();
+            for (const auto &stream : music)
+            {
+                sl::destroy_stream(stream.second);
+            }
+            music.clear();
         }
     };
 
@@ -199,6 +300,33 @@ namespace simlib
                          { return implementation_->unload_sprite(id); });
         app.set_function("clear_sprites", [this]()
                          { implementation_->clear_sprites(); });
+        app.set_function("load_sound", [this](const std::string &id, const std::string &path)
+                         { return implementation_->load_sound(id, path); });
+        app.set_function("play_sound", [this](const std::string &id, sol::optional<int> volume,
+                                               sol::optional<int> pan, sol::optional<int> frequency,
+                                               sol::optional<int> loops)
+                         {
+                             return implementation_->play_sound(id, volume.value_or(255), pan.value_or(128),
+                                                                frequency.value_or(1000), loops.value_or(0));
+                         });
+        app.set_function("stop_sound", [](std::uint64_t voice)
+                         { sl::stop_voice(voice); });
+        app.set_function("unload_sound", [this](const std::string &id)
+                         { return implementation_->unload_sound(id); });
+        app.set_function("load_music", [this](const std::string &id, const std::string &path)
+                         { return implementation_->load_music(id, path); });
+        app.set_function("play_music", [this](const std::string &id, sol::optional<int> loops)
+                         { return implementation_->play_music(id, loops.value_or(-1)); });
+        app.set_function("stop_music", []()
+                         { sl::stop_stream(); });
+        app.set_function("pause_music", []()
+                         { sl::pause_stream(); });
+        app.set_function("resume_music", []()
+                         { sl::resume_stream(); });
+        app.set_function("set_music_volume", [](int volume)
+                         { sl::music_set_volume(volume); });
+        app.set_function("unload_music", [this](const std::string &id)
+                         { return implementation_->unload_music(id); });
         app.set_function(
             "pixel",
             [this](float x, float y, int red, int green, int blue, sol::optional<int> alpha)
@@ -393,6 +521,7 @@ namespace simlib
     {
         clear();
         implementation_->clear_sprites();
+        implementation_->clear_audio();
         implementation_->runtime.reset();
     }
 }

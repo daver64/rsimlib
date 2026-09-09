@@ -5,7 +5,7 @@
 #include <ctime>
 #include <utility>
 
-namespace simlib
+namespace sl
 {
     namespace
     {

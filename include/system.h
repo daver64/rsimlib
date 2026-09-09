@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace simlib
+namespace sl
 {
 
     /** Return elapsed milliseconds from SDL's monotonic timer. */
@@ -19,4 +19,4 @@ namespace simlib
     /** Return the duration of the last completed frame in milliseconds. */
     double get_frame_time();
 
-} // namespace simlib
+} // namespace sl

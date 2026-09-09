@@ -83,25 +83,25 @@ A minimal application only needs `sl.h`, which pulls in the whole public API:
 
 int main()
 {
-    if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
-    simlib::Event event;
+    sl::Event event;
     bool running = true;
     while (running)
     {
-        while (simlib::poll_event(&event))
+        while (sl::poll_event(&event))
         {
-            if (event.type() == simlib::Event::Type::quit)
+            if (event.type() == sl::Event::Type::quit)
                 running = false;
-            simlib::display_handle_event(event);
+            sl::display_handle_event(event);
         }
 
-        simlib::clear_to_colour(simlib::screen, simlib::Colour{146, 200, 62});
+        sl::clear_to_colour(sl::screen, sl::Colour{146, 200, 62});
         // ... draw your frame ...
-        simlib::show_video_bitmap();
-        simlib::end_frame();
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
 }
 ```
@@ -135,7 +135,7 @@ entry points for a typical 2D application.
 | `display_shutdown()` | Release the window, OpenGL context, and display resources. |
 
 A normal frame calls `show_video_bitmap()` once, followed by `end_frame()`.
-Call `display_shutdown()` before `simlib::shutdown()` during application cleanup.
+Call `display_shutdown()` before `sl::shutdown()` during application cleanup.
 
 ### Events, input, and timing
 
@@ -251,20 +251,20 @@ context is destroyed.
 ## Event loop and input
 
 ```cpp
-simlib::Event event;
+sl::Event event;
 bool running = true;
 while (running)
 {
-    while (simlib::poll_event(&event))
+    while (sl::poll_event(&event))
     {
-        if (event.type() == simlib::Event::Type::quit) running = false;
-        simlib::display_handle_event(event);
+        if (event.type() == sl::Event::Type::quit) running = false;
+        sl::display_handle_event(event);
     }
 
-    simlib::clear_to_colour(simlib::screen, simlib::Colour{0, 0, 0});
+    sl::clear_to_colour(sl::screen, sl::Colour{0, 0, 0});
     // ... draw your frame ...
-    simlib::show_video_bitmap();
-    simlib::end_frame();
+    sl::show_video_bitmap();
+    sl::end_frame();
 }
 ```
 
@@ -278,36 +278,36 @@ value available through `event.key_code()`.
 
 `simlib` provides polling for standard mapped controllers through SDL's game
 controller layer. Initialise it explicitly, forward SDL events to support
-controller hot-plugging, and shut it down before `simlib::shutdown()`.
+controller hot-plugging, and shut it down before `sl::shutdown()`.
 
 ```cpp
-if (!simlib::gamepad_init())
+if (!sl::gamepad_init())
 {
     // No controller subsystem is available.
 }
 
 while (running)
 {
-    simlib::Event event;
-    while (simlib::poll_event(&event))
+    sl::Event event;
+    while (sl::poll_event(&event))
     {
-        if (event.type() == simlib::Event::Type::quit)
+        if (event.type() == sl::Event::Type::quit)
             running = false;
-        simlib::display_handle_event(event);
-        simlib::gamepad_handle_event(event);
+        sl::display_handle_event(event);
+        sl::gamepad_handle_event(event);
     }
 
-    if (simlib::gamepad_connected(0))
+    if (sl::gamepad_connected(0))
     {
-        const float move_x = simlib::gamepad_axis(0, simlib::GamepadAxis::left_x);
-        if (simlib::gamepad_button(0, simlib::GamepadButton::south))
+        const float move_x = sl::gamepad_axis(0, sl::GamepadAxis::left_x);
+        if (sl::gamepad_button(0, sl::GamepadButton::south))
         {
             // Confirm, jump, or fire.
         }
     }
 }
 
-simlib::gamepad_shutdown();
+sl::gamepad_shutdown();
 ```
 
 `gamepad_count()` returns connected mapped controllers and `gamepad_name(index)`
@@ -320,24 +320,24 @@ All shape/sprite coordinates are `float`, so positions can move smoothly
 frame-to-frame; pixel-level operations (`putpixel`/`getpixel`) remain `int`.
 
 ```cpp
-using simlib::Colour;
+using sl::Colour;
 
-simlib::rectfill(simlib::screen, 10.0f, 10.0f, 110.0f, 60.0f, Colour{200, 40, 40});
-simlib::circlefill(simlib::screen, 300.0f, 200.0f, 32.0f, Colour{40, 160, 40});
-simlib::line(simlib::screen, 0.0f, 0.0f, 800.0f, 600.0f, Colour{255, 255, 0});
-simlib::triangle(simlib::screen, 400.0f, 100.0f, 450.0f, 200.0f, 350.0f, 200.0f, Colour{0, 180, 255});
+sl::rectfill(sl::screen, 10.0f, 10.0f, 110.0f, 60.0f, Colour{200, 40, 40});
+sl::circlefill(sl::screen, 300.0f, 200.0f, 32.0f, Colour{40, 160, 40});
+sl::line(sl::screen, 0.0f, 0.0f, 800.0f, 600.0f, Colour{255, 255, 0});
+sl::triangle(sl::screen, 400.0f, 100.0f, 450.0f, 200.0f, 350.0f, 200.0f, Colour{0, 180, 255});
 ```
 
 ## Bitmaps and sprites
 
 ```cpp
-simlib::Bitmap *sprite = simlib::load_bitmap("assets/textures/balloon_red.png");
+sl::Bitmap *sprite = sl::load_bitmap("assets/textures/balloon_red.png");
 if (sprite)
 {
-    simlib::draw_sprite(sprite, 100.0f, 100.0f);
-    simlib::draw_sprite_stretched(sprite, 200.0f, 100.0f, 64, 64);
-    simlib::draw_sprite_rotated(sprite, 400.0f, 200.0f, 45.0f);
-    simlib::draw_sprite_rotated_stretched(sprite, 600.0f, 200.0f, 90.0f, 96, 64);
+    sl::draw_sprite(sprite, 100.0f, 100.0f);
+    sl::draw_sprite_stretched(sprite, 200.0f, 100.0f, 64, 64);
+    sl::draw_sprite_rotated(sprite, 400.0f, 200.0f, 45.0f);
+    sl::draw_sprite_rotated_stretched(sprite, 600.0f, 200.0f, 90.0f, 96, 64);
 }
 ```
 
@@ -352,38 +352,38 @@ proportional fonts. `text_length()` measures the actual rendered pixel width,
 so use it for centring or layout rather than assuming a fixed character width.
 
 ```cpp
-simlib::Font *font = simlib::open_font("assets/fonts/my-font.otf", 24);
+sl::Font *font = sl::open_font("assets/fonts/my-font.otf", 24);
 if (font)
 {
     const std::string text = "Proportional TrueType text";
-    const int x = (simlib::screen->width - simlib::text_length(font, text)) / 2;
-    simlib::textout(font, x, 40, {255, 255, 255}, text);
-    simlib::close_font(font);
+    const int x = (sl::screen->width - sl::text_length(font, text)) / 2;
+    sl::textout(font, x, 40, {255, 255, 255}, text);
+    sl::close_font(font);
 }
 ```
 
-For a platform-provided sans-serif fallback, use `simlib::open_sans_font()`;
-`simlib::open_monospace_font()` remains available for fixed-width text. See
+For a platform-provided sans-serif fallback, use `sl::open_sans_font()`;
+`sl::open_monospace_font()` remains available for fixed-width text. See
 `exfont` for a runnable comparison.
 
 ```cpp
-simlib::Font *font = simlib::get_default_monospace_font();
-simlib::Colour green{0, 255, 0};
+sl::Font *font = sl::get_default_monospace_font();
+sl::Colour green{0, 255, 0};
 
-simlib::textout(font, 10, 10, green, "Raw text output");
-simlib::gprintf(10, 40, green, "Score: %d", 42);
-simlib::gprintf_center(80, green, "Centered text");
+sl::textout(font, 10, 10, green, "Raw text output");
+sl::gprintf(10, 40, green, "Score: %d", 42);
+sl::gprintf_center(80, green, "Centered text");
 ```
 
 ## Audio
 
 ```cpp
-simlib::audio_fx_init();
-simlib::Sample *sfx = simlib::load_sample("assets/sfx/jump.wav");
-simlib::play_sample(sfx, /*volume*/255, /*pan*/128);
+sl::audio_fx_init();
+sl::Sample *sfx = sl::load_sample("assets/sfx/jump.wav");
+sl::play_sample(sfx, /*volume*/255, /*pan*/128);
 
-simlib::music_init();
-simlib::Stream *music = simlib::load_stream("assets/music/theme.ogg");
+sl::music_init();
+sl::Stream *music = sl::load_stream("assets/music/theme.ogg");
 // see audio.h for playback controls
 ```
 
@@ -392,11 +392,11 @@ simlib::Stream *music = simlib::load_stream("assets/music/theme.ogg");
 Load assets bundled by `slpack` directly from a ZIP archive:
 
 ```cpp
-simlib::Archive archive;
+sl::Archive archive;
 if (archive.open("assets.zip"))
 {
-    simlib::Bitmap *bitmap = simlib::load_bitmap(archive, "textures/balloon_red.png");
-    simlib::Sample *sample = simlib::load_sample(archive, "sfx/jump.wav");
+    sl::Bitmap *bitmap = sl::load_bitmap(archive, "textures/balloon_red.png");
+    sl::Sample *sample = sl::load_sample(archive, "sfx/jump.wav");
 }
 ```
 
@@ -473,9 +473,39 @@ app.clear_sprites()
 app.clear_drawings()
 ```
 
+### Lua audio API
+
+Audio assets use paths relative to the canvas asset root, which defaults to
+`assets/`. IDs must be unique within their resource type. Sound effects return
+a voice ID from `app.play_sound()`; pass that ID to `app.stop_sound()` when the
+voice should end early.
+
+```lua
+ok = app.load_sound("jump", "sfx/jump.wav")
+voice = app.play_sound("jump")
+voice = app.play_sound("jump", 200, 128, 1000, 0)
+app.stop_sound(voice)
+app.unload_sound("jump")
+
+ok = app.load_music("theme", "music/theme.ogg")
+app.play_music("theme") -- loops defaults to -1 (forever)
+app.play_music("theme", 2)
+app.set_music_volume(128)
+app.pause_music()
+app.resume_music()
+app.stop_music()
+app.unload_music("theme")
+```
+
+Sound defaults are volume `255`, centre pan `128`, frequency `1000`, and zero
+loops. `app.play_sound()` returns `0` for an unknown sound ID; load, play, and
+unload functions return `false` when the requested resource does not exist or
+cannot be loaded. `LuaCanvas::reset()` releases all sounds and music streams
+owned by the canvas.
+
 ### LuaCanvas callbacks
 
-Lua scripts run by `simlib::LuaCanvas` can optionally define
+Lua scripts run by `sl::LuaCanvas` can optionally define
 `on_keypress(key)`. The client application owns SDL event processing and
 dispatches stable, application-defined key names to the canvas.
 
@@ -491,7 +521,7 @@ end
 ```cpp
 if (event.type == SDL_KEYDOWN && !event.key.repeat)
 {
-    const simlib::LuaScriptResult result = canvas.dispatch_keypress("space");
+    const sl::LuaScriptResult result = canvas.dispatch_keypress("space");
     // Handle result.error when result.success is false.
 }
 ```
@@ -518,10 +548,10 @@ end
 ```
 
 ```cpp
-simlib::LuaRuntime runtime;
+sl::LuaRuntime runtime;
 runtime.initialise(log_lua_output);
 
-const simlib::LuaScriptResult load_result = runtime.execute(script_text);
+const sl::LuaScriptResult load_result = runtime.execute(script_text);
 if (load_result.success)
 {
     runtime.emit("on_player_scored", 100);
@@ -537,8 +567,8 @@ When using `LuaCanvas`, `run_text()` and `run_file()` both initialise the
 runtime and execute the script. Only emit callbacks after their result succeeds:
 
 ```cpp
-simlib::LuaCanvas canvas;
-const simlib::LuaScriptResult load_result = canvas.run_file("assets/scripts/game.lua");
+sl::LuaCanvas canvas;
+const sl::LuaScriptResult load_result = canvas.run_file("assets/scripts/game.lua");
 if (load_result.success)
 {
     canvas.runtime().emit("on_player_scored", 100);
@@ -586,37 +616,37 @@ The executable entry point. It calls `game::initialise()`, repeatedly polls
 events and renders while `game::is_running()` is true, then calls
 `game::shutdown()`. This demonstrates the smallest application loop around
 `simlib`; timing is performed inside the active mode renderers via
-`simlib::end_frame()` and `simlib::get_frame_time()`.
+`sl::end_frame()` and `sl::get_frame_time()`.
 
 ### `game.h`
 
 The game-facing contract shared by all source files. `Mode` is the screen state
 machine (`menu`, `playing`, `paused`, `help`, `gameover`, `settings`, and
 `lua_console`). It declares the two-function interface implemented by each
-screen: `handle_*_input(const simlib::Event&)` processes a relevant event and
+screen: `handle_*_input(const sl::Event&)` processes a relevant event and
 `update_and_render_*()` draws one frame. It also exposes the three balloon
-`simlib::Bitmap` pointers loaded at startup for the physics example.
+`sl::Bitmap` pointers loaded at startup for the physics example.
 
 ### `game.cpp`
 
 Owns application-level state and routes work to the selected mode. `running`
 ends the main loop, while `current_mode` selects both event and rendering
 dispatch. `initialise()` creates an 800x600 SDL/OpenGL display through
-`simlib::set_gfx_mode()`, starts ImGui, audio, and frame pacing, then loads
-balloon textures with `simlib::load_bitmap()`. `handle_events()` receives SDL
+`sl::set_gfx_mode()`, starts ImGui, audio, and frame pacing, then loads
+balloon textures with `sl::load_bitmap()`. `handle_events()` receives SDL
 events, delegates them to the active mode, and forwards display resize and
-ImGui events through `simlib::display_handle_event()` and
-`simlib::gui_handle_event()`. `shutdown()` releases the Lua canvas before the
+ImGui events through `sl::display_handle_event()` and
+`sl::gui_handle_event()`. `shutdown()` releases the Lua canvas before the
 graphics context and then shuts down GUI, display, audio, and core services.
 
 ### `game_menu.cpp`
 
 Implements the main navigation screen. Numeric keys preserve keyboard access,
 while its ImGui buttons assign `current_mode` to enter gameplay, settings,
-help, or the Lua console. The renderer clears the `simlib::screen` bitmap,
-opens an ImGui frame with `simlib::new_frame()`, creates a fixed centred window,
-submits its widgets, calls `simlib::render()`, swaps with
-`simlib::show_video_bitmap()`, and caps the frame through `simlib::end_frame()`.
+help, or the Lua console. The renderer clears the `sl::screen` bitmap,
+opens an ImGui frame with `sl::new_frame()`, creates a fixed centred window,
+submits its widgets, calls `sl::render()`, swaps with
+`sl::show_video_bitmap()`, and caps the frame through `sl::end_frame()`.
 
 ### `game_settings.cpp`
 
@@ -639,15 +669,15 @@ needs to participate in the dispatcher declared by `game.h`.
 Contains the gameplay demonstration and owns its transient simulation state.
 On first entry, `ensure_playing_objects_initialised()` creates three circular
 `GameObject`s from the balloon bitmaps, assigns mass and restitution, and saves
-an initial copy for reset. It also configures two `simlib::ParticleEmitter`s:
+an initial copy for reset. It also configures two `sl::ParticleEmitter`s:
 a stationary fountain and a trail that follows the red balloon.
 
-Each frame clamps `simlib::get_frame_time()` to avoid unstable physics after a
+Each frame clamps `sl::get_frame_time()` to avoid unstable physics after a
 stall, advances the objects with `physics_step()`, resolves collisions, and
-constrains them to `simlib::screen_width()` and `simlib::screen_height()`. It
-updates emitters, renders particles into a `simlib::create_render_target()`
+constrains them to `sl::screen_width()` and `sl::screen_height()`. It
+updates emitters, renders particles into a `sl::create_render_target()`
 offscreen bitmap, draws the objects, then composites the target using
-`simlib::draw_sprite_v_flip()` because render-target texture coordinates are
+`sl::draw_sprite_v_flip()` because render-target texture coordinates are
 vertically inverted. Space resets the saved state; Escape returns to the menu.
 
 ### `entity.cpp`
@@ -659,15 +689,15 @@ integration. `resolve_collisions()` checks circle-circle, AABB-AABB, and mixed
 circle/AABB overlap, first correcting penetration by inverse mass and then
 applying an impulse based on restitution. `constrain_to_screen()` bounces
 dynamic objects from the display bounds obtained from `simlib`. Finally,
-`render_objects()` uses `simlib::draw_sprite_stretched()` to place each object’s
+`render_objects()` uses `sl::draw_sprite_stretched()` to place each object’s
 bitmap around its physics centre.
 
 ### `game_lua.cpp`
 
 Implements the interactive console UI, not the scripting renderer itself. It
 uses SDL text-input events to build a command line, keeps bounded scrollback in
-cached `simlib::TextCache` textures, and executes submitted text through an
-engine-owned `simlib::LuaCanvas`. `LuaCanvas::render(simlib::screen)` redraws
+cached `sl::TextCache` textures, and executes submitted text through an
+engine-owned `sl::LuaCanvas`. `LuaCanvas::render(sl::screen)` redraws
 the script’s retained background, shapes, and sprites before console text is
 drawn over it. The console adds only the game-specific `quit()` binding; the
 engine supplies the sandbox, Lua output callback, drawing commands, and sprite

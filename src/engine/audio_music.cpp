@@ -14,7 +14,7 @@
 #include <thread>
 #include <type_traits>
 
-namespace simlib
+namespace sl
 {
 
 	/** Owns the SDL_mixer music object for one stream. */
@@ -136,7 +136,7 @@ namespace simlib
 	{
 		const bool started = worker.start();
 		if (!started)
-			simlib::detail::set_error(Mix_GetError());
+			sl::detail::set_error(Mix_GetError());
 		return started;
 	}
 
@@ -155,7 +155,7 @@ namespace simlib
 						   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		Mix_Music* music = Mix_LoadMUS(path.c_str());
-		if (!music) simlib::detail::set_error(Mix_GetError());
+		if (!music) sl::detail::set_error(Mix_GetError());
 		return music ? new Stream{music} : nullptr; });
 	}
 
@@ -169,7 +169,7 @@ namespace simlib
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 		SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
 		Mix_Music* music = rw ? Mix_LoadMUS_RW(rw, 1) : nullptr;
-		if (!music) simlib::detail::set_error(Mix_GetError());
+		if (!music) sl::detail::set_error(Mix_GetError());
 		return music ? new Stream{music} : nullptr; });
 	}
 
@@ -255,4 +255,4 @@ namespace simlib
 		Mix_VolumeMusic(mixer_volume(master_volume)); });
 	}
 
-} // namespace simlib
+} // namespace sl
