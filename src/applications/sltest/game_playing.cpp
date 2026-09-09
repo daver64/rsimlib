@@ -4,6 +4,8 @@
 #include "graphics_fx.h"
 #include "noise.h"
 
+#include <SDL2/SDL.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +19,7 @@ namespace game
         std::vector<GameObject> playing_objects;
         std::vector<GameObject> playing_objects_initial;
         bool playing_objects_initialised = false;
+        constexpr std::size_t no_active_balloon = static_cast<std::size_t>(-1);
         std::size_t active_balloon_index = 0;
         bool active_thrust_left = false;
         bool active_thrust_right = false;
@@ -193,6 +196,14 @@ namespace game
     {
         if (event.type() == sl::Event::Type::mouse_button_down)
         {
+            if (event.mouse_button() == SDL_BUTTON_RIGHT)
+            {
+                active_balloon_index = no_active_balloon;
+                active_thrust_left = false;
+                active_thrust_right = false;
+                update_active_thrust_sound();
+                return;
+            }
             const int hit = find_balloon_at(
                 static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()));
             if (hit >= 0)
@@ -316,7 +327,7 @@ namespace game
             sl::Colour{45, 48, 56, 128});
         sl::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
         sl::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
-        sl::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it");
+        sl::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it, right click to unselect");
         sl::gprintf_center(1+4*fontheight,text_colour,  "+/-: selected balloon volume, hold B: burner");
         sl::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
         sl::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");

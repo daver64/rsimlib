@@ -31,7 +31,9 @@ namespace sl
         int renderTargetHeight = 0;
     } // namespace
 
-    bool set_gfx_mode(int driver, int requestedWidth, int requestedHeight, int virtualWidth, int virtualHeight)
+    bool set_gfx_mode(int driver,
+                      int requestedWidth, int requestedHeight,
+                      int virtualWidth, int virtualHeight)
     {
         if (driver != GFX_AUTODETECT_WINDOWED || requestedWidth <= 0 || requestedHeight <= 0)
         {
@@ -58,14 +60,14 @@ namespace sl
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
+        uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
         window = SDL_CreateWindow(
             "simlib",
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             requestedWidth,
             requestedHeight,
-            SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+            windowflags);
         if (!window)
         {
             sl::detail::set_error(SDL_GetError());

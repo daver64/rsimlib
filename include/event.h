@@ -229,6 +229,8 @@ namespace sl
         int window_width() const;
         /** Return the current height for a window-resized event. */
         int window_height() const;
+        /** Return the SDL mouse button value for mouse button events, or 0 otherwise. */
+        std::uint8_t mouse_button() const;
         /** Return an SDL-compatible controller device index for an added gamepad. */
         int gamepad_device_index() const;
         /** Return an SDL-compatible controller instance ID for a removed gamepad. */

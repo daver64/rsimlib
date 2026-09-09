@@ -47,7 +47,11 @@ int main()
     SDL_Event user_event{};
     user_event.type = SDL_USEREVENT;
 
-    if (!push_event(key_event) || !push_event(function_key_event) || !push_event(keypad_key_event) || !push_event(resize_event) || !push_event(close_event) || !push_event(user_event))
+    SDL_Event mouse_button_event{};
+    mouse_button_event.type = SDL_MOUSEBUTTONDOWN;
+    mouse_button_event.button.button = SDL_BUTTON_RIGHT;
+
+    if (!push_event(key_event) || !push_event(function_key_event) || !push_event(keypad_key_event) || !push_event(resize_event) || !push_event(close_event) || !push_event(user_event) || !push_event(mouse_button_event))
     {
         SDL_Quit();
         return 1;
@@ -62,7 +66,9 @@ int main()
         sl::poll_event(&event) && event.type() == sl::Event::Type::window_resized &&
         event.window_width() == 640 && event.window_height() == 480 &&
         sl::poll_event(&event) && event.type() == sl::Event::Type::quit &&
-        sl::poll_event(&event) && event.type() == sl::Event::Type::user;
+        sl::poll_event(&event) && event.type() == sl::Event::Type::user &&
+        sl::poll_event(&event) && event.type() == sl::Event::Type::mouse_button_down &&
+        event.mouse_button() == SDL_BUTTON_RIGHT;
 
     SDL_Quit();
     return passed ? 0 : 1;

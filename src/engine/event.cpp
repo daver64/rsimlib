@@ -426,6 +426,12 @@ namespace sl
     const std::string &Event::text() const { return implementation_->text; }
     int Event::window_width() const { return implementation_->width; }
     int Event::window_height() const { return implementation_->height; }
+    std::uint8_t Event::mouse_button() const
+    {
+        return implementation_->type == Type::mouse_button_down || implementation_->type == Type::mouse_button_up
+            ? implementation_->native.button.button
+            : 0;
+    }
     int Event::gamepad_device_index() const { return implementation_->gamepad_device_index; }
     int Event::gamepad_instance_id() const { return implementation_->gamepad_instance_id; }
 
