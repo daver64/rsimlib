@@ -106,6 +106,141 @@ add_executable(my_app src/my_app.cpp)
 target_link_libraries(my_app PRIVATE simlib)
 ```
 
+## Core API reference
+
+Include `sl.h` to access the complete public API, or include an individual
+header when you only need one subsystem. The functions below are the main
+entry points for a typical 2D application.
+
+### Application lifecycle and display
+
+| Function | Description |
+| --- | --- |
+| `set_gfx_mode(driver, width, height, virtualWidth, virtualHeight)` | Create the SDL/OpenGL window and initialize the display bitmap. Use `GFX_AUTODETECT_WINDOWED` for the default windowed driver. |
+| `display_handle_event(event)` | Apply display-related events, including window resizing. Call for every polled event. |
+| `set_window_title(title)` | Set the native window title. |
+| `set_fullscreen(enabled)` / `toggle_fullscreen()` | Enter, leave, or toggle desktop fullscreen mode. |
+| `set_vsync(enabled)` | Enable or disable the OpenGL swap interval. |
+| `screen_width()` / `screen_height()` | Return the current drawable dimensions in pixels. |
+| `virtual_screen_width()` / `virtual_screen_height()` | Return the configured logical drawing dimensions. |
+| `clear_to_colour(red, green, blue, alpha)` | Clear the current display framebuffer. |
+| `show_video_bitmap()` | Present the current framebuffer to the window. |
+| `display_shutdown()` | Release the window, OpenGL context, and display resources. |
+
+A normal frame calls `show_video_bitmap()` once, followed by `end_frame()`.
+Call `display_shutdown()` before `simlib::shutdown()` during application cleanup.
+
+### Events, input, and timing
+
+| Function | Description |
+| --- | --- |
+| `poll_event(&event)` | Remove the next event from the queue; returns `false` when the queue is empty. |
+| `key_down(scancode)` | Test whether a keyboard scancode is currently held. |
+| `mouse_x()` / `mouse_y()` | Return the current mouse position in window pixels. |
+| `mouse_buttons()` | Return the current mouse-button bitmask. |
+| `time_ms()` | Return elapsed milliseconds from SDL's monotonic timer. |
+| `set_fps(fps)` / `get_fps()` | Set or read the target frame rate; `0` means uncapped. |
+| `get_frame_time()` | Return the duration of the last completed frame in milliseconds. |
+| `end_frame()` | Finish a frame, maintain the configured frame rate, and record frame timing. |
+| `rest(milliseconds)` | Delay execution for approximately the requested duration. |
+
+`Event` is the backend-independent event type. Inspect `event.type()` for the
+event category, `event.key()` for normalized keyboard input, and the other
+event accessors for payloads. Forward each event to `display_handle_event()`
+when using a windowed application.
+
+### Bitmaps, render targets, and drawing
+
+| Function | Description |
+| --- | --- |
+| `create_bitmap(width, height)` | Create a RAM-backed RGBA bitmap. |
+| `create_video_bitmap(width, height)` | Create a GPU-backed bitmap. |
+| `create_render_target(width, height)` | Create a GPU bitmap that can receive drawing commands as an offscreen framebuffer. |
+| `begin_render_target(target)` / `end_render_target()` | Redirect drawing to an offscreen target, then restore drawing to the window. |
+| `clear_render_target(colour)` | Clear the currently bound render target. |
+| `load_bitmap(path)` | Load an image file into a bitmap. Overloads also load from memory or an `Archive`. |
+| `save_bitmap(bitmap, path)` | Save a bitmap as an uncompressed PNG. |
+| `destroy_bitmap(bitmap)` | Release a bitmap and its GPU resources. |
+| `upload_bitmap(bitmap)` / `download_bitmap(bitmap)` | Synchronize pixel data between RAM and the GPU. |
+| `clear_to_colour(bitmap, colour)` | Fill a bitmap with one colour. |
+| `putpixel(bitmap, x, y, colour)` / `getpixel(bitmap, x, y)` | Write or read one pixel. |
+| `draw_sprite(bitmap, x, y)` | Draw a bitmap at a top-left position. |
+| `draw_sprite_stretched(bitmap, x, y, width, height)` | Draw a bitmap scaled to a destination rectangle. |
+| `draw_sprite_rotated(bitmap, centerX, centerY, angleDegrees)` | Draw a bitmap around its centre with clockwise rotation. |
+| `draw_sprite_h_flip(bitmap, x, y)` / `draw_sprite_v_flip(bitmap, x, y)` | Draw a horizontally or vertically flipped bitmap. |
+| `blit(source, destination, ...)` / `stretch_blit(...)` | Copy bitmap regions with or without scaling. |
+| `create_sub_bitmap(parent, x, y, width, height)` | Create a bitmap view containing a copied rectangular region. |
+
+Shape primitives include `line`, `rect`, `rectfill`, `circle`, `circlefill`,
+`ellipse`, `ellipsefill`, `triangle`, and `trianglefill`. Each accepts a
+destination bitmap, geometry, and either a solid `Colour` or a texture.
+Coordinates use a top-left origin, and shape coordinates are floating point.
+
+### Text
+
+| Function | Description |
+| --- | --- |
+| `get_default_monospace_font()` | Return the default monospace font. |
+| `open_font(path, pointSize)` | Open a TrueType or OpenType font from a file. Overloads support memory and archives. |
+| `open_monospace_font(pointSize)` / `open_sans_font(pointSize)` | Open the built-in platform font choices. |
+| `close_font(font)` | Release a font returned by an `open_*` function. |
+| `text_length(font, text)` / `text_height(font)` | Measure rendered text in pixels. |
+| `textout(font, x, y, colour, text)` | Draw UTF-8 text without a background. |
+| `textprintf(font, x, y, colour, format, ...)` | Format and draw text using `printf`-style arguments. |
+| `gprintf(x, y, colour, format, ...)` | Format and draw text using the default monospace font. |
+| `gprintf_center(y, colour, format, ...)` | Draw default-font text horizontally centred on the screen. |
+| `create_text_cache()` / `destroy_text_cache(cache)` | Create or release a reusable GPU text cache. |
+| `textout_cached(cache, font, x, y, colour, text)` | Draw text while rebuilding its GPU texture only when its inputs change. |
+
+### Audio
+
+Sound effects and music use separate mixer subsystems. Initialize and shut down
+each subsystem independently.
+
+| Function | Description |
+| --- | --- |
+| `audio_fx_init()` / `audio_fx_shutdown()` | Initialize or release sound-effect playback. |
+| `load_sample(path)` / `destroy_sample(sample)` | Load or release a sound effect; memory and archive overloads are available. |
+| `play_sample(sample, volume, pan, frequency, loops)` | Play a sample and return a voice ID. Volume and pan use the `0`-`255` convention. |
+| `stop_voice(voice)` / `stop_sample(sample)` / `stop_all_samples()` | Stop one voice, all voices for a sample, or every sound effect. |
+| `voice_is_playing(voice)` | Test whether a voice is still active. |
+| `audio_fx_set_volume(volume)` | Set the global sound-effect volume. |
+| `music_init()` / `music_shutdown()` | Initialize or release music playback. |
+| `load_stream(path)` / `destroy_stream(stream)` | Load or release a music stream; memory and archive overloads are available. |
+| `play_stream(stream, loops)` | Start music playback; the default loops forever. |
+| `stop_stream()` / `pause_stream()` / `resume_stream()` | Control the current music stream. |
+| `music_set_volume(volume)` | Set the global music volume. |
+
+### Resource archives
+
+`Archive` provides a read-only ZIP interface for bundling assets with an
+application:
+
+| Member | Description |
+| --- | --- |
+| `archive.open(path)` | Open a ZIP archive from disk. |
+| `archive.close()` | Close the archive and release its data. |
+| `archive.contains(name)` | Test whether an entry exists. |
+| `archive.entries()` | List file and directory entry names in archive order. |
+| `archive.read(name)` | Read an entry into a byte vector; returns an empty vector on failure. |
+
+Images, samples, streams, and fonts can accept an `Archive` overload directly,
+so callers do not need to extract bundled assets to temporary files.
+
+### Graphics effects
+
+`Shader`, `Bloom`, `Vignette`, and `ScreenFade` are declared in
+[`include/graphics_fx.h`](include/graphics_fx.h). Effects that own GPU state
+must be initialized after the display exists and shut down before the display
+context is destroyed.
+
+| Type | Main API | Description |
+| --- | --- | --- |
+| `Shader` | `load`, `use`, `set_uniform`, `reset` | Compile/link a GLSL program, bind it, set uniforms, and release it. |
+| `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
+| `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
+| `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
+
 ## Event loop and input
 
 ```cpp
