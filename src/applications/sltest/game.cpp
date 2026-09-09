@@ -7,6 +7,8 @@ namespace game
 
     std::vector<simlib::Bitmap*> balloon_textures;
     simlib::Bitmap* playing_background = nullptr;
+    simlib::Bitmap* dirt_texture = nullptr;
+    simlib::Bitmap* grass_texture = nullptr;
     simlib::Sample* thrust_sound = nullptr;
     simlib::Sample* burner_sound = nullptr;
     simlib::Stream* background_music = nullptr;
@@ -48,6 +50,8 @@ namespace game
     {
         shutdown_lua_console();
         simlib::destroy_bitmap(playing_background);
+        simlib::destroy_bitmap(dirt_texture);
+        simlib::destroy_bitmap(grass_texture);
         for (simlib::Bitmap* texture : balloon_textures)
         {
             simlib::destroy_bitmap(texture);
@@ -146,6 +150,8 @@ namespace game
             simlib::load_bitmap("assets/textures/balloon_green.png"),
         };
         playing_background = simlib::load_bitmap("assets/textures/Bumpy_Sky-Blue_01-512x512.png");
+        dirt_texture = simlib::load_bitmap("assets/textures/dirt.png");
+        grass_texture = simlib::load_bitmap("assets/textures/grass.png");
         return true;
     }
 

@@ -19,6 +19,10 @@ namespace game {
     extern std::vector<simlib::Bitmap*> balloon_textures;
     /** @brief Sky texture drawn behind the physics playground. */
     extern simlib::Bitmap* playing_background;
+    /** @brief Sub-surface terrain block texture. */
+    extern simlib::Bitmap* dirt_texture;
+    /** @brief Terrain block texture used for the topmost row of ground blocks. */
+    extern simlib::Bitmap* grass_texture;
     /** @brief Sustained sound effect played while red-balloon thrust is active. */
     extern simlib::Sample* thrust_sound;
     /** @brief Sustained sound effect played while the red-balloon burner is active. */

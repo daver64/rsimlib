@@ -2,6 +2,7 @@
 #include "entity.h"
 #include "particles.h"
 #include "graphics_fx.h"
+#include "noise.h"
 
 #include <algorithm>
 #include <cmath>
@@ -70,6 +71,39 @@ namespace game
             return -1;
         }
 
+        /** @brief Build a static dirt/grass ground strip whose height follows a FastNoiseLite profile. */
+        std::vector<GameObject> build_terrain()
+        {
+            constexpr float block_size = 32.0f;
+            constexpr int min_height_blocks = 2;
+            constexpr int max_height_blocks = 6;
+
+            std::vector<GameObject> blocks;
+            simlib::Generator noise{1337};
+            noise.set_frequency(0.08f);
+
+            const int screen_w = simlib::screen_width();
+            const int screen_h = simlib::screen_height();
+            const int columns = static_cast<int>(std::ceil(screen_w / block_size)) + 1;
+            for (int column = 0; column < columns; ++column)
+            {
+                const float normalized = (noise.get(static_cast<float>(column), 0.0f) + 1.0f) * 0.5f;
+                const int height_blocks = min_height_blocks +
+                    static_cast<int>(normalized * (max_height_blocks - min_height_blocks + 1));
+                const float column_x = column * block_size + block_size * 0.5f;
+                for (int row = 0; row < height_blocks; ++row)
+                {
+                    const float block_y = screen_h - block_size * 0.5f - row * block_size;
+                    GameObject block = make_aabb_object(
+                        row == height_blocks - 1 ? grass_texture : dirt_texture,
+                        column_x, block_y, block_size, block_size);
+                    block.is_static = true;
+                    blocks.push_back(block);
+                }
+            }
+            return blocks;
+        }
+
         /**
          * @brief Lazily create physics objects, emitters, and their particle render target.
          *
@@ -95,13 +129,15 @@ namespace game
             for (std::size_t i = 0; i < std::size(specs) && i < balloon_textures.size(); ++i)
             {
                 GameObject balloon = make_circle_object(
-                    balloon_textures[i], specs[i].x, simlib::screen_height() - 16, 16.0f, specs[i].mass);
+                    balloon_textures[i], specs[i].x, 120.0f, 16.0f, specs[i].mass);
                 balloon.restitution = specs[i].restitution;
                 balloon.is_balloon = true;
                 balloon.drag = specs[i].drag;
                 balloon.gas_bag_volume = specs[i].gas_bag_volume;
                 playing_objects.push_back(balloon);
             }
+            const std::vector<GameObject> terrain = build_terrain();
+            playing_objects.insert(playing_objects.end(), terrain.begin(), terrain.end());
             playing_objects_initial = playing_objects;
         }
 
