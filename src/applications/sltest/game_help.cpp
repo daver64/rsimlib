@@ -11,7 +11,7 @@ namespace game
                 switch (event.key())
                 {
                     case simlib::Event::Key::escape:
-                        current_mode = Mode::menu;
+                        request_mode(Mode::menu);
                         break;
                 }
                 break;
@@ -26,6 +26,7 @@ namespace game
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const ImVec2 window_size{300.0f, 150.0f};
+    apply_mode_fade();
         ImGui::SetNextWindowPos(
             {viewport->WorkPos.x + (viewport->WorkSize.x - window_size.x) * 0.5f,
              viewport->WorkPos.y + (viewport->WorkSize.y - window_size.y) * 0.5f});
@@ -38,7 +39,7 @@ namespace game
         ImGui::TextUnformatted("Press Escape to return to the menu.");
         ImGui::Spacing();
         if (ImGui::Button("Back", {-1.0f, 0.0f})) {
-            current_mode = Mode::menu;
+            request_mode(Mode::menu);
         }
         ImGui::End();
         simlib::render();

@@ -87,7 +87,7 @@ namespace game
             case simlib::Event::Key::escape:
                 SDL_StopTextInput();
                 console_active = false;
-                current_mode = Mode::menu;
+                request_mode(Mode::menu);
                 break;
             case simlib::Event::Key::return_key:
             case simlib::Event::Key::keypad_enter:
@@ -134,6 +134,7 @@ namespace game
             y += fontheight;
         }
         simlib::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
+        apply_mode_fade();
         simlib::show_video_bitmap();
         simlib::end_frame();
     }

@@ -81,6 +81,26 @@ void main() {
 }
 )";
 
+constexpr const char* vignette_fragment_source = R"(
+#version 330 core
+uniform sampler2D source;
+uniform float radius;
+uniform float softness;
+uniform float intensity;
+in vec2 uv;
+out vec4 fragColor;
+
+void main() {
+	vec4 base = texture(source, uv);
+	vec2 centred = uv - vec2(0.5);
+	centred.x *= float(textureSize(source, 0).x) / float(textureSize(source, 0).y);
+	float dist = length(centred);
+	float inner = max(radius - softness, 0.0);
+	float t = clamp((dist - inner) / max(softness, 0.0001), 0.0, 1.0);
+	fragColor = vec4(base.rgb * (1.0 - t * intensity), base.a);
+}
+)";
+
 std::string shader_log(GLuint shader) {
 	GLint length = 0;
 	glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
@@ -441,6 +461,100 @@ void Bloom::apply(Bitmap* source, int x, int y, int width, int height, bool flip
 	compositeShader_.set_uniform_mat4("uProjection", projection);
 	submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
 	Shader::stop();
+}
+
+Vignette::~Vignette() {
+	shutdown();
+}
+
+Vignette::Vignette(Vignette&& other) noexcept
+	: shader_(std::move(other.shader_)),
+	  radius_(other.radius_),
+	  softness_(other.softness_),
+	  intensity_(other.intensity_) {
+}
+
+Vignette& Vignette::operator=(Vignette&& other) noexcept {
+	if (this != &other) {
+		shader_ = std::move(other.shader_);
+		radius_ = other.radius_;
+		softness_ = other.softness_;
+		intensity_ = other.intensity_;
+	}
+	return *this;
+}
+
+bool Vignette::initialise() {
+	if (is_valid()) {
+		return true;
+	}
+	return shader_.load(fullscreen_vertex_source, vignette_fragment_source);
+}
+
+void Vignette::shutdown() {
+	shader_.reset();
+}
+
+bool Vignette::is_valid() const {
+	return shader_.is_valid();
+}
+
+const std::string& Vignette::error() const {
+	return shader_.error();
+}
+
+void Vignette::set_radius(float radius) {
+	radius_ = std::clamp(radius, 0.0f, 1.0f);
+}
+
+void Vignette::set_softness(float softness) {
+	softness_ = std::clamp(softness, 0.0001f, 1.0f);
+}
+
+void Vignette::set_intensity(float intensity) {
+	intensity_ = std::clamp(intensity, 0.0f, 1.0f);
+}
+
+void Vignette::apply(Bitmap* source, int x, int y, int width, int height, bool flipVertical) const {
+	if (!source || !is_valid() || !upload_bitmap(source)) {
+		return;
+	}
+
+	if (width <= 0) {
+		width = screen_width();
+	}
+	if (height <= 0) {
+		height = screen_height();
+	}
+	if (width <= 0 || height <= 0) {
+		return;
+	}
+
+	float projection[16];
+	shader_.set_uniform("source", 0);
+	shader_.set_uniform("radius", radius_);
+	shader_.set_uniform("softness", softness_);
+	shader_.set_uniform("intensity", intensity_);
+	detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+	shader_.set_uniform_mat4("uProjection", projection);
+	submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+	Shader::stop();
+}
+
+void ScreenFade::set_colour(Colour colour) {
+	colour_ = colour;
+}
+
+Colour ScreenFade::colour() const {
+	return colour_;
+}
+
+void ScreenFade::apply() const {
+	if (colour_.alpha == 0) {
+		return;
+	}
+	rectfill(screen, 0.0f, 0.0f,
+		static_cast<float>(screen_width()), static_cast<float>(screen_height()), colour_);
 }
 
 } // namespace simlib

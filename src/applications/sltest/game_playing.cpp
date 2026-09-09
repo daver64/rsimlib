@@ -22,7 +22,32 @@ namespace game
         bool active_thrust_right = false;
         std::uint64_t active_thrust_voice = 0;
         std::uint64_t active_burner_voice = 0;
+        simlib::Bitmap *playing_scene = nullptr;
+        simlib::Vignette playing_vignette;
         constexpr float active_thrust_acceleration = 180.0f;
+
+        bool ensure_playing_post_process()
+        {
+            const int width = simlib::screen_width();
+            const int height = simlib::screen_height();
+            if (width <= 0 || height <= 0)
+            {
+                return false;
+            }
+            if (!playing_scene || playing_scene->width != width || playing_scene->height != height)
+            {
+                simlib::destroy_bitmap(playing_scene);
+                playing_scene = simlib::create_render_target(width, height);
+            }
+            if (!playing_vignette.is_valid())
+            {
+                playing_vignette.initialise();
+                playing_vignette.set_radius(0.65f);
+                playing_vignette.set_softness(0.35f);
+                playing_vignette.set_intensity(0.65f);
+            }
+            return playing_scene != nullptr && playing_vignette.is_valid();
+        }
 
         void update_active_thrust_sound()
         {
@@ -156,6 +181,13 @@ namespace game
         }
     }
 
+    void shutdown_playing()
+    {
+        simlib::destroy_bitmap(playing_scene);
+        playing_scene = nullptr;
+        playing_vignette.shutdown();
+    }
+
     /** @brief Handle gameplay reset, balloon selection, and return-to-menu actions. */
     void handle_playing_input(const simlib::Event &event)
     {
@@ -182,7 +214,7 @@ namespace game
                 switch (event.key())
                 {
                     case simlib::Event::Key::escape:
-                        current_mode = Mode::menu;
+                        request_mode(Mode::menu);
                         break;
                     case simlib::Event::Key::space:
                         reset_playing_objects();
@@ -243,6 +275,16 @@ namespace game
     {
         ensure_playing_objects_initialised();
 
+        bool post_process_ready = ensure_playing_post_process();
+        if (post_process_ready)
+        {
+            post_process_ready = simlib::begin_render_target(playing_scene);
+            if (post_process_ready)
+            {
+                simlib::clear_render_target(simlib::Colour{45, 48, 56});
+            }
+        }
+
         // clamp dt so a slow/paused frame doesn't cause a huge physics jump
         const float dt_seconds = std::min(0.05f, static_cast<float>(simlib::get_frame_time()) / 1000.0f);
         if (active_balloon_index < playing_objects.size())
@@ -258,7 +300,10 @@ namespace game
         simlib::Font *font = simlib::get_default_monospace_font();
         const int fontheight = simlib::text_height(font);
         simlib::Colour text_colour{0, 255, 0};
-        simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+        if (!post_process_ready)
+        {
+            simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
+        }
         if (playing_background)
         {
             simlib::draw_sprite_stretched(
@@ -309,6 +354,13 @@ namespace game
             simlib::gprintf(label_x, label_y + 2 * fontheight, text_colour, "%s", altitude_line);
         }
 
+        if (post_process_ready)
+        {
+            simlib::end_render_target();
+            playing_vignette.apply(playing_scene, 0, 0,
+                simlib::screen_width(), simlib::screen_height(), true);
+        }
+        apply_mode_fade();
         simlib::show_video_bitmap();
         simlib::end_frame();
     }

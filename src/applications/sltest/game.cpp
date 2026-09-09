@@ -1,5 +1,7 @@
 #include "game.h"
 
+#include <algorithm>
+
 namespace game
 {
     std::atomic<bool> running{true};
@@ -15,6 +17,71 @@ namespace game
     bool background_music_paused = false;
     bool background_music_started = false;
     bool background_music_active = false;
+
+    namespace
+    {
+        Mode pending_mode = Mode::menu;
+        bool mode_fading_out = false;
+        bool mode_fading_in = false;
+        float mode_fade_timer = 0.0f;
+        constexpr float mode_fade_duration = 0.2f;
+        std::uint8_t mode_fade_alpha = 0;
+        simlib::ScreenFade mode_fade;
+    }
+
+    /** @brief Begin a cross-fade to @p mode instead of switching current_mode immediately. */
+    void request_mode(Mode mode)
+    {
+        if (mode == current_mode && !mode_fading_out && !mode_fading_in)
+        {
+            return;
+        }
+        pending_mode = mode;
+        mode_fading_out = true;
+        mode_fading_in = false;
+        mode_fade_timer = 0.0f;
+    }
+
+    /** @brief Advance the mode-transition timer, swapping current_mode once the fade-out completes. */
+    void update_mode_fade()
+    {
+        if (!mode_fading_out && !mode_fading_in)
+        {
+            mode_fade_alpha = 0;
+            return;
+        }
+        const float dt_seconds = static_cast<float>(simlib::get_frame_time()) / 1000.0f;
+        mode_fade_timer += dt_seconds;
+        const float progress = std::clamp(mode_fade_timer / mode_fade_duration, 0.0f, 1.0f);
+        const float alpha = mode_fading_out ? progress : 1.0f - progress;
+        mode_fade_alpha = static_cast<std::uint8_t>(alpha * 255.0f);
+        if (progress < 1.0f)
+        {
+            return;
+        }
+        if (mode_fading_out)
+        {
+            current_mode = pending_mode;
+            mode_fading_out = false;
+            mode_fading_in = true;
+            mode_fade_timer = 0.0f;
+        }
+        else
+        {
+            mode_fading_in = false;
+        }
+    }
+
+    /** @brief Draw the current mode-transition fade overlay; call right before presenting a frame. */
+    void apply_mode_fade()
+    {
+        if (mode_fade_alpha == 0)
+        {
+            return;
+        }
+        mode_fade.set_colour(simlib::Colour{0, 0, 0, mode_fade_alpha});
+        mode_fade.apply();
+    }
 
     /** @brief Start/resume/pause the music stream so it only plays while in Mode::playing. */
     void sync_background_music()
@@ -49,6 +116,7 @@ namespace game
     void shutdown()
     {
         shutdown_lua_console();
+        shutdown_playing();
         simlib::destroy_bitmap(playing_background);
         simlib::destroy_bitmap(dirt_texture);
         simlib::destroy_bitmap(grass_texture);
@@ -158,6 +226,7 @@ namespace game
     /** @brief Select the current mode's complete update-and-render operation. */
     void update_and_render()
     {
+        update_mode_fade();
         sync_background_music();
         switch (current_mode)
         {

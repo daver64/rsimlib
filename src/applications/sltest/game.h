@@ -32,6 +32,8 @@ namespace game {
     void shutdown();
     /** @brief Release Lua-console text caches and engine-owned Lua canvas resources. */
     void shutdown_lua_console();
+    /** @brief Release the playing-mode scene render target and its vignette shader. */
+    void shutdown_playing();
     /** @brief Poll SDL and dispatch every event to the current mode and simlib backends. */
     bool handle_events();
     /** @brief Initialise display, GUI, audio, frame pacing, and shared textures. */
@@ -40,6 +42,10 @@ namespace game {
     void update_and_render();
     /** @brief Return whether the main loop should continue running. */
     bool is_running();
+    /** @brief Request a cross-fade transition to a new mode instead of switching immediately. */
+    void request_mode(Mode mode);
+    /** @brief Draw the current mode-transition fade overlay; call right before presenting a frame. */
+    void apply_mode_fade();
 
     /** @name Mode input handlers
     * Each receives a simlib event after the central event loop has selected the active mode.
