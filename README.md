@@ -19,6 +19,13 @@ This repository contains:
 - **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 
+### `sltest` screenshot
+
+The sample game's physics playground, including its balloon controls, terrain,
+particles, and vignette effect:
+
+![sltest gameplay screenshot](sltest1.png)
+
 ## Prerequisites
 
 - CMake 3.16+
