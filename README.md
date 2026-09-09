@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is a small Allegro-style 2D game/rendering library built on SDL2 and
+`simlib` is a small Allegro 4.4-style 2D game/rendering library built on SDL2 and
 OpenGL, with bitmap drawing primitives, TrueType text rendering, SDL_mixer
 audio, a shader/effects layer, ZIP resource archives, Perlin/simplex noise,
 and a sandboxed embedded Lua console (via [sol2](https://github.com/ThePhD/sol2)).

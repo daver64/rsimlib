@@ -81,14 +81,12 @@ add_library(simlib STATIC
     src/engine/event.cpp
     src/engine/draw.cpp
     src/engine/atlas.cpp
-    src/engine/graphics_fx_test.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
     src/engine/gamepad.cpp
     src/engine/audio_backend.cpp
     src/engine/audio_fx.cpp
     src/engine/audio_music.cpp
-    src/engine/audio_test.cpp
     src/engine/system.cpp
     src/engine/input.cpp
     src/engine/lua_canvas.cpp

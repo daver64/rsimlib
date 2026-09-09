@@ -21,10 +21,10 @@ namespace sl
     bool set_fullscreen(bool enabled);
     /** Return whether the display is currently fullscreen. */
     bool is_fullscreen();
+    /** Toggle the fullscreen state of the display. */
     bool toggle_fullscreen();
     /** Set the OpenGL swap interval; zero disables vsync. */
     bool set_vsync(bool enabled);
-
     /** Return the current drawable width in pixels. */
     int screen_width();
     /** Return the current drawable height in pixels. */
@@ -48,7 +48,6 @@ namespace sl
     void show_video_bitmap();
     /** Release the OpenGL context, window, and SDL video state. */
     void display_shutdown();
-
     /** Return the active SDL window, or nullptr if not initialized. */
     SDL_Window *get_window();
     /** Return the active OpenGL context, or nullptr if not initialized. */
