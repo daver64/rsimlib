@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the library's configured noise-generator wrapper.
+ */
+
 #include "noise.h"
 
 namespace sl

@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the drawing primitive test fixtures.
+ */
+
 #include "draw_test.h"
 
 #include "draw.h"

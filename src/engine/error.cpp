@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements thread-local error reporting for the library.
+ */
+
 #include "error.h"
 
 namespace sl

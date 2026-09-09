@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the shared OpenGL 2D rendering backend.
+ */
+
 #define GL_GLEXT_PROTOTYPES
 
 #include "gl2d.h"

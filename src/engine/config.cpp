@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements JSON configuration loading and saving.
+ */
+
 #include "config.h"
 
 #include "error.h"

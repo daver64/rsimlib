@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements shader-based bloom, vignette, and screen-fade effects.
+ */
+
 #define GL_GLEXT_PROTOTYPES
 
 #include "graphics_fx.h"

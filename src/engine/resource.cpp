@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the read-only ZIP resource archive reader.
+ */
+
 #include "resource.h"
 
 #include "error.h"

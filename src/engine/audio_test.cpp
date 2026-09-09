@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the interactive audio test harnesses.
+ */
+
 #include "audio_test.h"
 
 #include "audio.h"

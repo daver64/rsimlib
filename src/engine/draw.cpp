@@ -1,5 +1,9 @@
 #define GL_GLEXT_PROTOTYPES
 
+/** @file
+ * @brief Implements bitmap storage, primitives, sprites, and render targets.
+ */
+
 #include "draw.h"
 
 #include "display.h"

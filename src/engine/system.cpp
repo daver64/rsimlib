@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements frame pacing, timing, and core shutdown helpers.
+ */
+
 #include "system.h"
 
 #include <SDL2/SDL.h>

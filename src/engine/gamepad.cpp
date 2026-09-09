@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements SDL game-controller discovery, input, and teardown.
+ */
+
 #include "gamepad.h"
 
 #include <SDL2/SDL.h>

@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the graphics-effects test fixtures.
+ */
+
 #include "graphics_fx_test.h"
 
 #include "draw.h"

@@ -1,5 +1,9 @@
 #pragma once
 
+/** @file
+ * @brief Declares the interactive audio test harnesses.
+ */
+
 #include "event.h"
 
 namespace audio_test

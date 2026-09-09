@@ -1,5 +1,9 @@
 #pragma once
 
+/** @file
+ * @brief Declares the internal shared OpenGL 2D rendering backend.
+ */
+
 #include <cstdint>
 
 namespace sl

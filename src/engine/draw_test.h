@@ -1,5 +1,9 @@
 #pragma once
 
+/** @file
+ * @brief Declares the drawing primitive test fixtures.
+ */
+
 namespace draw_test
 {
 

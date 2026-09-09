@@ -1,4 +1,8 @@
 
+/** @file
+ * @brief Implements threaded sound-effect loading and playback.
+ */
+
 #include "audio.h"
 
 #include "audio_backend.h"

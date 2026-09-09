@@ -1,4 +1,7 @@
 #include "atlas.h"
+/** @file
+ * @brief Implements texture-atlas tile lookup and blitting helpers.
+ */
 
 namespace sl
 {

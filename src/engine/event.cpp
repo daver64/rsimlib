@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements conversion from SDL events to the public event abstraction.
+ */
+
 #include "event.h"
 
 #include <SDL2/SDL.h>

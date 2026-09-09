@@ -1,3 +1,7 @@
+/** @file
+ * @brief Provides shared SDL_mixer initialization and synchronization.
+ */
+
 #include "audio_backend.h"
 
 namespace sl::audio_detail

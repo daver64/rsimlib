@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements persistent Lua-driven drawing, sprites, and audio bindings.
+ */
+
 #include "lua_canvas.h"
 
 #include "audio.h"

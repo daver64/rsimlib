@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements the restricted Lua runtime and callback dispatch.
+ */
+
 #include "lua_runtime.h"
 
 #include <sol/sol.hpp>

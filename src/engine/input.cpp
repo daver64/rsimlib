@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements SDL event polling and immediate input state queries.
+ */
+
 #include "input.h"
 
 #include "display.h"

@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements Dear ImGui initialization, event handling, and rendering.
+ */
+
 #include "gui.h"
 
 #include "display.h"

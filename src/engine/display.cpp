@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements SDL window, OpenGL context, and display lifecycle functions.
+ */
+
 #include "display.h"
 
 #include "draw.h"

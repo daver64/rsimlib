@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements font discovery, text rendering, and text caching.
+ */
+
 #include "font.h"
 
 #include "display.h"

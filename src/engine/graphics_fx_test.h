@@ -1,5 +1,9 @@
 #pragma once
 
+/** @file
+ * @brief Declares the graphics-effects test fixtures.
+ */
+
 namespace graphics_fx_test
 {
 

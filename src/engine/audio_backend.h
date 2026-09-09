@@ -1,5 +1,9 @@
 #pragma once
 
+/** @file
+ * @brief Declares the internal shared SDL_mixer backend helpers.
+ */
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 

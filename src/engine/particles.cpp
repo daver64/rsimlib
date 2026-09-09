@@ -1,3 +1,7 @@
+/** @file
+ * @brief Implements particle emitters, updates, and rendering.
+ */
+
 #include "particles.h"
 
 #include "display.h"
