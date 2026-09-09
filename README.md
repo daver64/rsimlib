@@ -50,8 +50,9 @@ cmake -S . -B build
 cmake --build build
 ```
 
-This produces three executables in the repository root: `sltest`, `slpack`,
-and `exhello`.
+This produces the application executables in the repository root, including
+`sltest`, the example programs, `slpack`, and `slunpack`. Test executables are
+created in the `build/` directory when testing is enabled.
 
 To run the test suite (currently covers the ZIP resource archive reader):
 
