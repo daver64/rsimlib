@@ -94,9 +94,15 @@ namespace simlib
             {
                 return false;
             }
-            commands.push_back({
-                width == 0.0f && height == 0.0f ? DrawingType::sprite : DrawingType::sprite_stretched,
-                x, y, width, height, 0.0f, 0.0f, {}, id});
+            commands.push_back({width == 0.0f && height == 0.0f ? DrawingType::sprite : DrawingType::sprite_stretched,
+                                x,
+                                y,
+                                width,
+                                height,
+                                0.0f,
+                                0.0f,
+                                {},
+                                id});
             return true;
         }
 
@@ -106,9 +112,15 @@ namespace simlib
             {
                 return false;
             }
-            commands.push_back({
-                width == 0.0f && height == 0.0f ? DrawingType::sprite_rotated : DrawingType::sprite_rotated_stretched,
-                center_x, center_y, width, height, angle_degrees, 0.0f, {}, id});
+            commands.push_back({width == 0.0f && height == 0.0f ? DrawingType::sprite_rotated : DrawingType::sprite_rotated_stretched,
+                                center_x,
+                                center_y,
+                                width,
+                                height,
+                                angle_degrees,
+                                0.0f,
+                                {},
+                                id});
             return true;
         }
 
@@ -121,11 +133,9 @@ namespace simlib
             }
             commands.erase(
                 std::remove_if(commands.begin(), commands.end(), [&id](const DrawingCommand &command)
-                {
-                        return (command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
-                            command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched) &&
-                           command.sprite_id == id;
-                }),
+                               { return (command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
+                                         command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched) &&
+                                        command.sprite_id == id; }),
                 commands.end());
             simlib::destroy_bitmap(sprite->second);
             sprites.erase(sprite);
@@ -136,10 +146,8 @@ namespace simlib
         {
             commands.erase(
                 std::remove_if(commands.begin(), commands.end(), [](const DrawingCommand &command)
-                {
-                          return command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
-                              command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched;
-                }),
+                               { return command.type == DrawingType::sprite || command.type == DrawingType::sprite_stretched ||
+                                        command.type == DrawingType::sprite_rotated || command.type == DrawingType::sprite_rotated_stretched; }),
                 commands.end());
             for (const auto &sprite : sprites)
             {
@@ -175,32 +183,22 @@ namespace simlib
             {
                 implementation_->background = make_colour(red, green, blue, alpha);
             });
-        app.set_function("clear_drawings", [this]() { implementation_->commands.clear(); });
+        app.set_function("clear_drawings", [this]()
+                         { implementation_->commands.clear(); });
         app.set_function("load_sprite", [this](const std::string &id, const std::string &path)
-        {
-            return implementation_->load_sprite(id, path);
-        });
+                         { return implementation_->load_sprite(id, path); });
         app.set_function("sprite", [this](const std::string &id, float x, float y)
-        {
-            return implementation_->add_sprite(id, x, y);
-        });
+                         { return implementation_->add_sprite(id, x, y); });
         app.set_function("sprite_stretched", [this](const std::string &id, float x, float y, float width, float height)
-        {
-            return implementation_->add_sprite(id, x, y, width, height);
-        });
+                         { return implementation_->add_sprite(id, x, y, width, height); });
         app.set_function("sprite_rotated", [this](const std::string &id, float center_x, float center_y, float angle_degrees)
-        {
-            return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees);
-        });
+                         { return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees); });
         app.set_function("sprite_rotated_stretched", [this](const std::string &id, float center_x, float center_y, float angle_degrees, float width, float height)
-        {
-            return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees, width, height);
-        });
+                         { return implementation_->add_rotated_sprite(id, center_x, center_y, angle_degrees, width, height); });
         app.set_function("unload_sprite", [this](const std::string &id)
-        {
-            return implementation_->unload_sprite(id);
-        });
-        app.set_function("clear_sprites", [this]() { implementation_->clear_sprites(); });
+                         { return implementation_->unload_sprite(id); });
+        app.set_function("clear_sprites", [this]()
+                         { implementation_->clear_sprites(); });
         app.set_function(
             "pixel",
             [this](float x, float y, int red, int green, int blue, sol::optional<int> alpha)
@@ -323,38 +321,62 @@ namespace simlib
         {
             switch (command.type)
             {
-            case DrawingType::pixel: putpixel(target, static_cast<int>(command.x1), static_cast<int>(command.y1), command.colour); break;
-            case DrawingType::line: line(target, command.x1, command.y1, command.x2, command.y2, command.colour); break;
-            case DrawingType::circle: circle(target, command.x1, command.y1, command.x2, command.colour); break;
-            case DrawingType::circlefill: circlefill(target, command.x1, command.y1, command.x2, command.colour); break;
-            case DrawingType::rect: rect(target, command.x1, command.y1, command.x2, command.y2, command.colour); break;
-            case DrawingType::rectfill: rectfill(target, command.x1, command.y1, command.x2, command.y2, command.colour); break;
-            case DrawingType::ellipse: ellipse(target, command.x1, command.y1, command.x2, command.y2, command.colour); break;
-            case DrawingType::ellipsefill: ellipsefill(target, command.x1, command.y1, command.x2, command.y2, command.colour); break;
-            case DrawingType::triangle: triangle(target, command.x1, command.y1, command.x2, command.y2, command.x3, command.y3, command.colour); break;
-            case DrawingType::trianglefill: trianglefill(target, command.x1, command.y1, command.x2, command.y2, command.x3, command.y3, command.colour); break;
+            case DrawingType::pixel:
+                putpixel(target, static_cast<int>(command.x1), static_cast<int>(command.y1), command.colour);
+                break;
+            case DrawingType::line:
+                line(target, command.x1, command.y1, command.x2, command.y2, command.colour);
+                break;
+            case DrawingType::circle:
+                circle(target, command.x1, command.y1, command.x2, command.colour);
+                break;
+            case DrawingType::circlefill:
+                circlefill(target, command.x1, command.y1, command.x2, command.colour);
+                break;
+            case DrawingType::rect:
+                rect(target, command.x1, command.y1, command.x2, command.y2, command.colour);
+                break;
+            case DrawingType::rectfill:
+                rectfill(target, command.x1, command.y1, command.x2, command.y2, command.colour);
+                break;
+            case DrawingType::ellipse:
+                ellipse(target, command.x1, command.y1, command.x2, command.y2, command.colour);
+                break;
+            case DrawingType::ellipsefill:
+                ellipsefill(target, command.x1, command.y1, command.x2, command.y2, command.colour);
+                break;
+            case DrawingType::triangle:
+                triangle(target, command.x1, command.y1, command.x2, command.y2, command.x3, command.y3, command.colour);
+                break;
+            case DrawingType::trianglefill:
+                trianglefill(target, command.x1, command.y1, command.x2, command.y2, command.x3, command.y3, command.colour);
+                break;
             case DrawingType::sprite:
             {
                 const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end()) draw_sprite(sprite->second, command.x1, command.y1);
+                if (sprite != implementation_->sprites.end())
+                    draw_sprite(sprite->second, command.x1, command.y1);
                 break;
             }
             case DrawingType::sprite_stretched:
             {
                 const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end()) draw_sprite_stretched(sprite->second, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                if (sprite != implementation_->sprites.end())
+                    draw_sprite_stretched(sprite->second, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             case DrawingType::sprite_rotated:
             {
                 const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end()) draw_sprite_rotated(sprite->second, command.x1, command.y1, command.x3);
+                if (sprite != implementation_->sprites.end())
+                    draw_sprite_rotated(sprite->second, command.x1, command.y1, command.x3);
                 break;
             }
             case DrawingType::sprite_rotated_stretched:
             {
                 const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end()) draw_sprite_rotated_stretched(sprite->second, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                if (sprite != implementation_->sprites.end())
+                    draw_sprite_rotated_stretched(sprite->second, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             }

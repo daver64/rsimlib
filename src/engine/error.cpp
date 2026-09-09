@@ -1,23 +1,29 @@
 #include "error.h"
 
-namespace simlib {
-namespace {
-thread_local std::string error;
-}
+namespace simlib
+{
+	namespace
+	{
+		thread_local std::string error;
+	}
 
-const std::string& last_error() {
-	return error;
-}
+	const std::string &last_error()
+	{
+		return error;
+	}
 
-void clear_error() {
-	error.clear();
-}
+	void clear_error()
+	{
+		error.clear();
+	}
 
-namespace detail {
+	namespace detail
+	{
 
-void set_error(const std::string& message) {
-	error = message;
-}
+		void set_error(const std::string &message)
+		{
+			error = message;
+		}
 
-} // namespace detail
+	} // namespace detail
 } // namespace simlib

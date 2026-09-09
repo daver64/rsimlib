@@ -192,6 +192,14 @@ set_target_properties(exbitmap PROPERTIES
 )
 
 
+add_executable(client_template src/applications/client_template/client_template.cpp)
+target_link_libraries(client_template PRIVATE simlib)
+set_target_properties(client_template PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+
+
 add_executable(slpack src/applications/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 set_target_properties(slpack PROPERTIES

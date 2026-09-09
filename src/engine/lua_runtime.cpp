@@ -60,12 +60,14 @@ namespace simlib
         (*state_)["load"] = sol::nil;
 
         sol::table os_table = state_->create_named_table("os");
-        os_table.set_function("time", []() { return static_cast<lua_Integer>(std::time(nullptr)); });
-        os_table.set_function("clock", []() { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; });
+        os_table.set_function("time", []()
+                              { return static_cast<lua_Integer>(std::time(nullptr)); });
+        os_table.set_function("clock", []()
+                              { return static_cast<double>(std::clock()) / CLOCKS_PER_SEC; });
         state_->create_named_table("app");
 
         state_->set_function("print", [this](sol::this_state this_state, sol::variadic_args args)
-        {
+                             {
             if (!output_handler_)
             {
                 return;
@@ -84,8 +86,7 @@ namespace simlib
                 line.append(text, length);
                 lua_pop(lua, 1);
             }
-            output_handler_(line);
-        });
+            output_handler_(line); });
     }
 
     bool LuaRuntime::is_initialised() const

@@ -42,6 +42,7 @@
  * simlib::set_gfx_mode(), processes SDL events, renders through
  * simlib bitmap functions, and calls simlib::display_shutdown() during cleanup.
  */
-namespace simlib {
+namespace simlib
+{
 
 } // namespace simlib
