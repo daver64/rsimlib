@@ -74,25 +74,28 @@ A minimal application only needs `sl.h`, which pulls in the whole public API:
 ```cpp
 #include "sl.h"
 
-int main(int argc, char *argv[])
+int main()
 {
     if (!simlib::set_gfx_mode(simlib::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }
+    simlib::Event event;
+    bool running = true;
+    while (running)
+    {
+        while (simlib::poll_event(&event))
+        {
+            if (event.type() == simlib::Event::Type::quit)
+                running = false;
+            simlib::display_handle_event(event);
+        }
 
-    simlib::Font *font = simlib::get_default_monospace_font();
-    const int fontheight = simlib::text_height(font);
-    simlib::Colour text_colour{0, 255, 0};
-    simlib::clear_to_colour(simlib::screen, simlib::Colour{45, 48, 56});
-
-    simlib::gprintf_center(1 + fontheight, text_colour, "Hello, simlib!");
-    simlib::show_video_bitmap();
-    simlib::end_frame();
-
-    simlib::rest(5000);
-    simlib::shutdown();
-    return 0;
+        simlib::clear_to_colour(simlib::screen, simlib::Colour{146, 200, 62});
+        // ... draw your frame ...
+        simlib::show_video_bitmap();
+        simlib::end_frame();
+    }
 }
 ```
 
