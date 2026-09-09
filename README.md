@@ -281,9 +281,12 @@ if (!simlib::gamepad_init())
 
 while (running)
 {
-    SDL_Event event;
-    while (SDL_PollEvent(&event))
+    simlib::Event event;
+    while (simlib::poll_event(&event))
     {
+        if (event.type() == simlib::Event::Type::quit)
+            running = false;
+        simlib::display_handle_event(event);
         simlib::gamepad_handle_event(event);
     }
 
@@ -583,7 +586,7 @@ events and renders while `game::is_running()` is true, then calls
 The game-facing contract shared by all source files. `Mode` is the screen state
 machine (`menu`, `playing`, `paused`, `help`, `gameover`, `settings`, and
 `lua_console`). It declares the two-function interface implemented by each
-screen: `handle_*_input(SDL_Event)` processes a relevant SDL event and
+screen: `handle_*_input(const simlib::Event&)` processes a relevant event and
 `update_and_render_*()` draws one frame. It also exposes the three balloon
 `simlib::Bitmap` pointers loaded at startup for the physics example.
 
