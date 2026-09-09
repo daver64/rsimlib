@@ -5,23 +5,54 @@ namespace game
     std::atomic<bool> running{true};
     Mode current_mode{Mode::menu};
 
-    simlib::Bitmap* red_balloon = nullptr;
-    simlib::Bitmap* blue_balloon = nullptr;
-    simlib::Bitmap* green_balloon = nullptr;    
+    std::vector<simlib::Bitmap*> balloon_textures;
     simlib::Bitmap* playing_background = nullptr;
     simlib::Sample* thrust_sound = nullptr;
     simlib::Sample* burner_sound = nullptr;
     simlib::Stream* background_music = nullptr;
     bool background_music_paused = false;
+    bool background_music_started = false;
+    bool background_music_active = false;
+
+    /** @brief Start/resume/pause the music stream so it only plays while in Mode::playing. */
+    void sync_background_music()
+    {
+        if (!background_music)
+        {
+            return;
+        }
+        const bool want_active = current_mode == Mode::playing && !background_music_paused;
+        if (want_active && !background_music_active)
+        {
+            if (!background_music_started)
+            {
+                simlib::music_set_volume(20);
+                simlib::play_stream(background_music);
+                background_music_started = true;
+            }
+            else
+            {
+                simlib::resume_stream();
+            }
+            background_music_active = true;
+        }
+        else if (!want_active && background_music_active)
+        {
+            simlib::pause_stream();
+            background_music_active = false;
+        }
+    }
 
     /** @brief Release game-owned resources before their dependent simlib subsystems. */
     void shutdown()
     {
         shutdown_lua_console();
         simlib::destroy_bitmap(playing_background);
-        simlib::destroy_bitmap(green_balloon);
-        simlib::destroy_bitmap(blue_balloon);
-        simlib::destroy_bitmap(red_balloon);
+        for (simlib::Bitmap* texture : balloon_textures)
+        {
+            simlib::destroy_bitmap(texture);
+        }
+        balloon_textures.clear();
         simlib::destroy_stream(background_music);
         simlib::destroy_sample(thrust_sound);
         simlib::destroy_sample(burner_sound);
@@ -53,14 +84,6 @@ namespace game
                      background_music)
             {
                 background_music_paused = !background_music_paused;
-                if (background_music_paused)
-                {
-                    simlib::pause_stream();
-                }
-                else
-                {
-                    simlib::resume_stream();
-                }
             }
 
             switch (current_mode)
@@ -102,6 +125,7 @@ namespace game
         {
             return false;
         }
+        simlib::set_window_title("Balloons!");
         current_mode = Mode::menu;
         simlib::gui_init();
         if (!simlib::gamepad_init())
@@ -111,19 +135,16 @@ namespace game
         simlib::set_fps(60);
         simlib::music_init();
         background_music = simlib::load_stream("assets/music/Solar Serenity.ogg");
-        if (background_music)
-        {
-            simlib::music_set_volume(20);
-            simlib::play_stream(background_music);
-        }
         simlib::audio_fx_init();
         thrust_sound = simlib::load_sample("assets/sfx/sustain.wav");
         burner_sound = simlib::load_sample("assets/sfx/engines.wav");
         SDL_StopTextInput();
 
-        red_balloon = simlib::load_bitmap("assets/textures/balloon_red.png");
-        blue_balloon = simlib::load_bitmap("assets/textures/balloon_blue.png");
-        green_balloon = simlib::load_bitmap("assets/textures/balloon_green.png");
+        balloon_textures = {
+            simlib::load_bitmap("assets/textures/balloon_red.png"),
+            simlib::load_bitmap("assets/textures/balloon_blue.png"),
+            simlib::load_bitmap("assets/textures/balloon_green.png"),
+        };
         playing_background = simlib::load_bitmap("assets/textures/Bumpy_Sky-Blue_01-512x512.png");
         return true;
     }
@@ -131,6 +152,7 @@ namespace game
     /** @brief Select the current mode's complete update-and-render operation. */
     void update_and_render()
     {
+        sync_background_music();
         switch (current_mode)
         {
         case Mode::menu:

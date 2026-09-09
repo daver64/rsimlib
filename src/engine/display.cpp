@@ -101,7 +101,13 @@ void set_window_title(const char* title) {
 }
 
 bool set_fullscreen(bool enabled) {
-    return window && SDL_SetWindowFullscreen(window, enabled ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) == 0;
+    if (!window || SDL_SetWindowFullscreen(window, enabled ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) != 0) {
+        return false;
+    }
+    // fullscreen toggles don't reliably deliver a window_resized event, so sync the viewport now
+    SDL_GetWindowSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+    return true;
 }
 
 bool is_fullscreen() {

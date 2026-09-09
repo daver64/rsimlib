@@ -2,6 +2,7 @@
 
 #include "sl.h"
 
+#include <vector>
 
 namespace game {
 
@@ -14,12 +15,8 @@ namespace game {
     /** @brief Set to false to end the application's main loop. */
     extern std::atomic<bool> running;
 
-    /** @brief Balloon textures shared by the physics playground. */
-    extern simlib::Bitmap* red_balloon;
-    /** @brief Balloon textures shared by the physics playground. */
-    extern simlib::Bitmap* blue_balloon;
-    /** @brief Balloon textures shared by the physics playground. */
-    extern simlib::Bitmap* green_balloon;
+    /** @brief Balloon textures shared by the physics playground, indexed the same as the balloon objects. */
+    extern std::vector<simlib::Bitmap*> balloon_textures;
     /** @brief Sky texture drawn behind the physics playground. */
     extern simlib::Bitmap* playing_background;
     /** @brief Sustained sound effect played while red-balloon thrust is active. */

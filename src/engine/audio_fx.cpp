@@ -225,7 +225,7 @@ namespace simlib
 		worker.enqueue([sample, volume, pan, loops, voice]
 					   {
 		std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
-		const int channel = Mix_PlayChannel(-1, sample->chunk, std::max(loops, 0));
+		const int channel = Mix_PlayChannel(-1, sample->chunk, loops);
 		if (channel < 0) {
 			return;
 		}
