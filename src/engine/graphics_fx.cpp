@@ -14,6 +14,7 @@
 #include <SDL2/SDL_opengl_glext.h>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -23,7 +24,7 @@ namespace sl
 	{
 
 		constexpr const char *fullscreen_vertex_source = R"(
-#version 330 core
+#version 430 core
 layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aTexCoord;
 
@@ -38,7 +39,7 @@ void main() {
 )";
 
 		constexpr const char *bright_pass_fragment_source = R"(
-#version 330 core
+#version 430 core
 uniform sampler2D source;
 uniform float threshold;
 in vec2 uv;
@@ -51,7 +52,7 @@ void main() {
 )";
 
 		constexpr const char *blur_fragment_source = R"(
-#version 330 core
+#version 430 core
 uniform sampler2D source;
 uniform vec2 texel;
 uniform vec2 direction;
@@ -73,7 +74,7 @@ void main() {
 )";
 
 		constexpr const char *composite_fragment_source = R"(
-#version 330 core
+#version 430 core
 uniform sampler2D source;
 uniform sampler2D bloomTex;
 uniform float intensity;
@@ -88,7 +89,7 @@ void main() {
 )";
 
 		constexpr const char *vignette_fragment_source = R"(
-#version 330 core
+#version 430 core
 uniform sampler2D source;
 uniform float radius;
 uniform float softness;
@@ -104,6 +105,47 @@ void main() {
 	float inner = max(radius - softness, 0.0);
 	float t = clamp((dist - inner) / max(softness, 0.0001), 0.0, 1.0);
 	fragColor = vec4(base.rgb * (1.0 - t * intensity), base.a);
+}
+)";
+
+		constexpr const char *lighting_fragment_source = R"(
+#version 430 core
+uniform sampler2D source;
+uniform int lightCount;
+uniform vec2 lightPositions[4];
+uniform float lightRadii[4];
+uniform float lightIntensities[4];
+uniform float shadowSoftnesses[4];
+uniform vec3 lightColours[4];
+uniform float ambient;
+uniform int flipVertical;
+uniform sampler2D shadowMasks[4];
+in vec2 uv;
+out vec4 fragColor;
+
+void main() {
+	vec2 lightUv = uv;
+	if (flipVertical != 0) {
+		lightUv.y = 1.0 - lightUv.y;
+	}
+	vec4 base = texture(source, uv);
+	vec2 pixelPosition = lightUv * vec2(textureSize(source, 0));
+	vec3 illumination = vec3(ambient);
+	for (int index = 0; index < lightCount; ++index) {
+		float distanceToLight = distance(pixelPosition, lightPositions[index]);
+		float falloff = 1.0 - smoothstep(0.0, max(lightRadii[index], 0.0001), distanceToLight);
+		vec2 shadowTexel = 1.0 / vec2(textureSize(shadowMasks[index], 0));
+		float shadow = 0.0;
+		for (int offsetY = -1; offsetY <= 1; ++offsetY) {
+			for (int offsetX = -1; offsetX <= 1; ++offsetX) {
+				vec2 offset = vec2(offsetX, offsetY) * shadowTexel * max(shadowSoftnesses[index], 0.0);
+				shadow += texture(shadowMasks[index], lightUv + offset).r;
+			}
+		}
+		shadow /= 9.0;
+		illumination += lightColours[index] * falloff * lightIntensities[index] * shadow;
+	}
+	fragColor = vec4(base.rgb * illumination, base.a);
 }
 )";
 
@@ -174,6 +216,98 @@ void main() {
 				{left, bottom, 0.0f, bottomV, 1.0f, 1.0f, 1.0f, 1.0f},
 			};
 			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture);
+		}
+
+		struct Point
+		{
+			float x;
+			float y;
+		};
+
+		Point project_from_light(Point point, const Light &light, float distance)
+		{
+			const float dx = point.x - light.x;
+			const float dy = point.y - light.y;
+			const float length = std::sqrt(dx * dx + dy * dy);
+			if (length <= 0.0001f)
+			{
+				return point;
+			}
+			return {point.x + dx / length * distance, point.y + dy / length * distance};
+		}
+
+		void fill_shadow_triangle(Bitmap *mask, Point first, Point second, Point third)
+		{
+			const float area = (second.x - first.x) * (third.y - first.y) -
+				(second.y - first.y) * (third.x - first.x);
+			if (std::abs(area) <= 0.0001f)
+			{
+				return;
+			}
+
+			const int minimumX = std::max(0, static_cast<int>(std::floor(std::min({first.x, second.x, third.x}))));
+			const int maximumX = std::min(mask->width - 1, static_cast<int>(std::ceil(std::max({first.x, second.x, third.x}))));
+			const int minimumY = std::max(0, static_cast<int>(std::floor(std::min({first.y, second.y, third.y}))));
+			const int maximumY = std::min(mask->height - 1, static_cast<int>(std::ceil(std::max({first.y, second.y, third.y}))));
+			if (minimumX > maximumX || minimumY > maximumY)
+			{
+				return;
+			}
+
+			for (int y = minimumY; y <= maximumY; ++y)
+			{
+				for (int x = minimumX; x <= maximumX; ++x)
+				{
+					const Point sample{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
+					const float edgeA = (second.x - first.x) * (sample.y - first.y) -
+						(second.y - first.y) * (sample.x - first.x);
+					const float edgeB = (third.x - second.x) * (sample.y - second.y) -
+						(third.y - second.y) * (sample.x - second.x);
+					const float edgeC = (first.x - third.x) * (sample.y - third.y) -
+						(first.y - third.y) * (sample.x - third.x);
+					if ((edgeA >= 0.0f && edgeB >= 0.0f && edgeC >= 0.0f) ||
+						(edgeA <= 0.0f && edgeB <= 0.0f && edgeC <= 0.0f))
+					{
+						const std::size_t offset = (static_cast<std::size_t>(y) * mask->width + x) * 4;
+						mask->pixels[offset] = 0;
+						mask->pixels[offset + 1] = 0;
+						mask->pixels[offset + 2] = 0;
+						mask->pixels[offset + 3] = 255;
+					}
+				}
+			}
+		}
+
+		void draw_shadow_edge(Bitmap *mask, Point first, Point second, const Light &light, float projectionDistance)
+		{
+			const Point edge{second.x - first.x, second.y - first.y};
+			const Point normal{edge.y, -edge.x};
+			const Point midpoint{(first.x + second.x) * 0.5f, (first.y + second.y) * 0.5f};
+			const float facing = (light.x - midpoint.x) * normal.x + (light.y - midpoint.y) * normal.y;
+			if (facing <= 0.0f)
+			{
+				return;
+			}
+
+			const Point firstFar = project_from_light(first, light, projectionDistance);
+			const Point secondFar = project_from_light(second, light, projectionDistance);
+			fill_shadow_triangle(mask, first, second, secondFar);
+			fill_shadow_triangle(mask, first, secondFar, firstFar);
+		}
+
+		void draw_shadow_caster(Bitmap *mask, const ShadowCaster &caster, const Light &light)
+		{
+			const Point corners[] = {
+				{caster.left, caster.top},
+				{caster.right, caster.top},
+				{caster.right, caster.bottom},
+				{caster.left, caster.bottom},
+			};
+			const float projectionDistance = static_cast<float>(std::max(mask->width, mask->height)) * 4.0f;
+			for (int index = 0; index < 4; ++index)
+			{
+				draw_shadow_edge(mask, corners[index], corners[(index + 1) % 4], light, projectionDistance);
+			}
 		}
 
 	} // namespace
@@ -327,6 +461,21 @@ void main() {
 			return false;
 		}
 		glUniform2f(location, x, y);
+		return true;
+	}
+
+	bool Shader::set_uniform(const char *name, float x, float y, float z) const
+	{
+		if (!use())
+		{
+			return false;
+		}
+		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
+		if (location < 0)
+		{
+			return false;
+		}
+		glUniform3f(location, x, y, z);
 		return true;
 	}
 
@@ -619,6 +768,147 @@ void main() {
 		shader_.set_uniform("radius", radius_);
 		shader_.set_uniform("softness", softness_);
 		shader_.set_uniform("intensity", intensity_);
+		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+		shader_.set_uniform_mat4("uProjection", projection);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		Shader::stop();
+	}
+
+	LightingPass::~LightingPass()
+	{
+		shutdown();
+	}
+
+	LightingPass::LightingPass(LightingPass &&other) noexcept
+		: shader_(std::move(other.shader_)), ambient_(other.ambient_),
+		  shadowMasks_(std::exchange(other.shadowMasks_, {}))
+	{
+	}
+
+	LightingPass &LightingPass::operator=(LightingPass &&other) noexcept
+	{
+		if (this != &other)
+		{
+			shutdown();
+			shader_ = std::move(other.shader_);
+			ambient_ = other.ambient_;
+			shadowMasks_ = std::exchange(other.shadowMasks_, {});
+		}
+		return *this;
+	}
+
+	bool LightingPass::initialise()
+	{
+		if (is_valid())
+		{
+			return true;
+		}
+		return shader_.load(fullscreen_vertex_source, lighting_fragment_source);
+	}
+
+	void LightingPass::shutdown()
+	{
+		shader_.reset();
+		for (Bitmap *&shadowMask : shadowMasks_)
+		{
+			destroy_bitmap(shadowMask);
+			shadowMask = nullptr;
+		}
+	}
+
+	bool LightingPass::is_valid() const
+	{
+		return shader_.is_valid();
+	}
+
+	const std::string &LightingPass::error() const
+	{
+		return shader_.error();
+	}
+
+	void LightingPass::set_ambient(float ambient)
+	{
+		ambient_ = std::clamp(ambient, 0.0f, 1.0f);
+	}
+
+	bool LightingPass::ensure_shadow_mask(std::size_t index, int width, int height) const
+	{
+		Bitmap *&shadowMask = shadowMasks_[index];
+		if (shadowMask && shadowMask->width == width && shadowMask->height == height)
+		{
+			return true;
+		}
+		destroy_bitmap(shadowMask);
+		shadowMask = create_bitmap(width, height);
+		return shadowMask != nullptr;
+	}
+
+	void LightingPass::apply(Bitmap *source, const Light &light, int x, int y, int width, int height,
+		bool flipVertical, const std::vector<ShadowCaster> &casters) const
+	{
+		apply(source, std::vector<Light>{light}, x, y, width, height, flipVertical, casters);
+	}
+
+	void LightingPass::apply(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
+		bool flipVertical, const std::vector<ShadowCaster> &casters) const
+	{
+		if (!source || !is_valid() || !upload_bitmap(source))
+		{
+			return;
+		}
+
+		if (width <= 0)
+		{
+			width = screen_width();
+		}
+		if (height <= 0)
+		{
+			height = screen_height();
+		}
+		if (width <= 0 || height <= 0)
+		{
+			return;
+		}
+		const std::size_t lightCount = std::min<std::size_t>(lights.size(), shadowMasks_.size());
+		for (std::size_t index = 0; index < lightCount; ++index)
+		{
+			if (!ensure_shadow_mask(index, source->width, source->height))
+			{
+				return;
+			}
+			clear_to_colour(shadowMasks_[index], {255, 255, 255});
+			for (const ShadowCaster &caster : casters)
+			{
+				draw_shadow_caster(shadowMasks_[index], caster, lights[index]);
+			}
+			if (!upload_bitmap(shadowMasks_[index]))
+			{
+				return;
+			}
+		}
+
+		float projection[16];
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
+		for (std::size_t index = 0; index < lightCount; ++index)
+		{
+			const Light &light = lights[index];
+			const std::string suffix = "[" + std::to_string(index) + "]";
+			shader_.set_uniform(("lightPositions" + suffix).c_str(), light.x, light.y);
+			shader_.set_uniform(("lightRadii" + suffix).c_str(), std::max(light.radius, 0.0f));
+			shader_.set_uniform(("lightIntensities" + suffix).c_str(), std::max(light.intensity, 0.0f));
+			shader_.set_uniform(("shadowSoftnesses" + suffix).c_str(), std::max(light.shadow_softness, 0.0f));
+			shader_.set_uniform(
+				("lightColours" + suffix).c_str(),
+				static_cast<float>(light.colour.red) / 255.0f,
+				static_cast<float>(light.colour.green) / 255.0f,
+				static_cast<float>(light.colour.blue) / 255.0f);
+			glActiveTexture(GL_TEXTURE1 + static_cast<GLenum>(index));
+			glBindTexture(GL_TEXTURE_2D, shadowMasks_[index]->gpu_texture);
+			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));
+		}
+		shader_.set_uniform("ambient", ambient_);
+		shader_.set_uniform("flipVertical", flipVertical ? 1 : 0);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
 		shader_.set_uniform_mat4("uProjection", projection);
 		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);

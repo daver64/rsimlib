@@ -1,5 +1,7 @@
 #include "sl.h"
 
+#include <cmath>
+
 int main(int argc, char *argv[])
 {
     if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
@@ -30,7 +32,7 @@ int main(int argc, char *argv[])
 
         const float angle_degrees = static_cast<float>(sl::time_ms() % 3600) * 0.1f;
         sl::clear_to_colour(sl::screen, {45, 48, 56});
-        sl::gprintf_center(32, {0, 255, 0}, "Rotating sprite example - press Escape to exit");
+        sl::gprintf_center(32, {0, 255, 0}, "Rotating sprite - press Escape to exit");
         sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, angle_degrees);
         sl::show_video_bitmap();
         sl::end_frame();

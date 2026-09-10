@@ -58,7 +58,7 @@ namespace sl
 
         // require a core profile so no legacy fixed-function GL state is available
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
         uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
         window = SDL_CreateWindow(

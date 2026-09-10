@@ -171,6 +171,12 @@ set_target_properties(exrotatesprite PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exlighting src/applications/exlighting/exlighting.cpp)
+target_link_libraries(exlighting PRIVATE simlib)
+set_target_properties(exlighting PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 add_executable(exlua src/applications/exlua/exlua.cpp)
 target_link_libraries(exlua PRIVATE simlib lua sol2)
 set_target_properties(exlua PROPERTIES

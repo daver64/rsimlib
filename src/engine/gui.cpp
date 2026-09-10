@@ -23,7 +23,7 @@ namespace sl
         ImGui::CreateContext();
         ImGui::StyleColorsDark();
         ImGui_ImplSDL2_InitForOpenGL(get_window(), get_gl_context());
-        ImGui_ImplOpenGL3_Init("#version 330 core");
+        ImGui_ImplOpenGL3_Init("#version 430 core");
     }
 
     void gui_handle_event(const Event &event)

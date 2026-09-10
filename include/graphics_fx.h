@@ -2,6 +2,7 @@
 
 #include "draw.h"
 
+#include <array>
 #include <cstdint>
 #include <string>
 
@@ -46,6 +47,8 @@ namespace sl
         bool set_uniform(const char *name, float value) const;
         /** Set a two-component floating-point shader uniform. */
         bool set_uniform(const char *name, float x, float y) const;
+        /** Set a three-component floating-point shader uniform. */
+        bool set_uniform(const char *name, float x, float y, float z) const;
         /** Set a 4x4 matrix shader uniform (column-major). */
         bool set_uniform_mat4(const char *name, const float *matrix4x4) const;
 
@@ -149,6 +152,67 @@ namespace sl
         float radius_ = 0.75f;
         float softness_ = 0.45f;
         float intensity_ = 0.8f;
+    };
+
+    /** A radial 2D light expressed in screen pixels. */
+    struct Light
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float radius = 256.0f;
+        float intensity = 1.0f;
+        float shadow_softness = 0.0f;
+        Colour colour{255, 255, 255};
+    };
+
+    /** An axis-aligned rectangle that can block a radial light. */
+    struct ShadowCaster
+    {
+        float left = 0.0f;
+        float top = 0.0f;
+        float right = 0.0f;
+        float bottom = 0.0f;
+    };
+
+    /** Modulates a rendered scene with ambient light and up to four radial lights. */
+    class LightingPass
+    {
+    public:
+        LightingPass() = default;
+        ~LightingPass();
+
+        LightingPass(const LightingPass &) = delete;
+        LightingPass &operator=(const LightingPass &) = delete;
+        LightingPass(LightingPass &&other) noexcept;
+        LightingPass &operator=(LightingPass &&other) noexcept;
+
+        /** Compile the lighting shader and prepare the effect. */
+        bool initialise();
+        /** Release resources owned by the effect. */
+        void shutdown();
+        /** Return whether the effect is ready to apply. */
+        bool is_valid() const;
+        /** Return the most recent initialization error. */
+        const std::string &error() const;
+
+        /** Set the minimum scene illumination, from 0 (black) to 1 (full brightness). */
+        void set_ambient(float ambient);
+
+        /** Apply ambient plus radial lighting and rectangle shadows to a bitmap. */
+        void apply(Bitmap *source, const Light &light, int x = 0, int y = 0,
+                   int width = 0, int height = 0, bool flipVertical = false,
+                   const std::vector<ShadowCaster> &casters = {}) const;
+        /** Apply a batch of lights, accumulating their illumination and shadows in one pass. */
+        void apply(Bitmap *source, const std::vector<Light> &lights, int x = 0, int y = 0,
+               int width = 0, int height = 0, bool flipVertical = false,
+               const std::vector<ShadowCaster> &casters = {}) const;
+
+    private:
+        Shader shader_;
+        float ambient_ = 0.2f;
+        mutable std::array<Bitmap *, 4> shadowMasks_{};
+
+        bool ensure_shadow_mask(std::size_t index, int width, int height) const;
     };
 
     /** Draws a solid-colour overlay over the whole screen, useful for fades and hit-flash feedback. */
