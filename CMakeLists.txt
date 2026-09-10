@@ -211,8 +211,19 @@ add_library(simlib STATIC
     src/engine/particles.cpp
     src/engine/physics.cpp
     src/engine/renderer.cpp
+    src/engine/gl_context.cpp
+    src/engine/gl_renderer.cpp
     src/engine/vulkan_context.cpp
+    src/engine/vulkan_renderer.cpp
 )
+if(WIN32)
+    target_sources(simlib PRIVATE
+        src/engine/d3d11_context.cpp
+        src/engine/d3d11_renderer.cpp
+        src/engine/d3d12_context.cpp
+        src/engine/d3d12_renderer.cpp
+    )
+endif()
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(NOT GLSLANG_VALIDATOR)
     find_program(GLSLANG_VALIDATOR glslangValidator)
@@ -222,12 +233,16 @@ if(NOT GLSLANG_VALIDATOR)
 endif()
 target_compile_definitions(simlib PRIVATE
     SIMLIB_GLSL_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl"
+    SIMLIB_D3D_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/d3d"
     SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
+if(WIN32)
+    target_link_libraries(simlib PRIVATE d3d11 d3d12 dxgi d3dcompiler)
+endif()
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
 endif()

@@ -80,16 +80,18 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 ```
 
 `graphics_backend_available()` reports compiled support. OpenGL and Vulkan are
-currently available; D3D11 and D3D12 remain reserved backend choices.
+available on all platforms; D3D11 is compiled in only on Windows builds and is
+currently boilerplate (device/swap-chain/present only, no drawing yet — see
+below); D3D12 remains a reserved backend choice with no implementation.
 
-All graphical applications accept `--gl` and `--vulkan`; OpenGL is the default
-when no backend flag is given. User shaders can be written once in GLSL for
-both backends (see [Renderer capabilities](#renderer-capabilities)), or raw
-SPIR-V can be supplied directly with explicit descriptor bindings and
-push-constant layouts for cases that need full control over the Vulkan
-pipeline. Built-in source assets live in `shaders/glsl/` and `shaders/vulkan/`;
-CMake compiles GLSL validation output under `build/shaders/glsl/` and Vulkan
-SPIR-V under `build/shaders/vulkan/`.
+All graphical applications accept `--gl`, `--vulkan`, and (Windows only)
+`--d3d11`; OpenGL is the default when no backend flag is given. User shaders
+can be written once in GLSL for both backends (see [Renderer
+capabilities](#renderer-capabilities)), or raw SPIR-V can be supplied directly
+with explicit descriptor bindings and push-constant layouts for cases that
+need full control over the Vulkan pipeline. Built-in source assets live in
+`shaders/glsl/` and `shaders/vulkan/`; CMake compiles GLSL validation output
+under `build/shaders/glsl/` and Vulkan SPIR-V under `build/shaders/vulkan/`.
 
 ### Current backend status
 
@@ -137,6 +139,34 @@ validated before the engine library builds:
 ```bash
 cmake --build build --target shader_validation
 ```
+
+### D3D11 backend (Windows only)
+
+`GraphicsBackend::d3d11` compiles in only when targeting Windows
+(`src/engine/d3d11_context.*` and the `D3D11Renderer` in `src/engine/renderer.cpp`
+are wrapped in `#ifdef _WIN32`, and `CMakeLists.txt` only adds the source and
+links `d3d11`/`dxgi` when `WIN32` is set). It currently establishes the device,
+swap chain, and back-buffer render target view. It supports RGBA textures,
+off-screen color render targets, clearing, presenting, and the built-in textured
+2D submission path. Custom shader and compute operations are not implemented
+yet; they return an explicit error rather than crashing. This has not been built
+or run on a Windows machine; it has only been verified to leave non-Windows
+builds unaffected.
+
+The shared D3D shader assets live under `shaders/d3d/` as HLSL. The default 2D
+vertex and pixel shaders use the same `b0` projection constant, `t0` texture,
+and `s0` sampler bindings for D3D11 and D3D12. Backend-specific shaders should
+move to `shaders/d3d11/` or `shaders/d3d12/` only when their resource binding or
+shader-model requirements diverge.
+
+### D3D12 backend (Windows only, boilerplate)
+
+`GraphicsBackend::d3d12` is available on Windows through `--d3d12`. The
+boilerplate creates a D3D12 device, direct command queue, command list, fence,
+flip-model swap chain, and back-buffer RTV heap. It supports frame begin/end,
+resize, clearing, and presentation; textures, shaders, render targets, and 2D
+submission remain explicit unsupported operations. This has not been built or
+run on a Windows machine.
 
 ## Building
 

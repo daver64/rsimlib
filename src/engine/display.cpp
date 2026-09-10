@@ -60,13 +60,20 @@ namespace sl
             const std::string_view argument(argv[index]);
             if (argument == "--gl") requested = GraphicsBackend::opengl;
             else if (argument == "--vulkan") requested = GraphicsBackend::vulkan;
+            else if (argument == "--d3d11") requested = GraphicsBackend::d3d11;
+            else if (argument == "--d3d12") requested = GraphicsBackend::d3d12;
         }
         return set_graphics_backend(requested);
     }
 
     bool graphics_backend_available(GraphicsBackend backend)
     {
+#ifdef _WIN32
+        return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan ||
+            backend == GraphicsBackend::d3d11 || backend == GraphicsBackend::d3d12;
+#else
         return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan;
+#endif
     }
 
     GraphicsBackend graphics_backend()

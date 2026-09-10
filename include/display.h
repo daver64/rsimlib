@@ -20,16 +20,16 @@ namespace sl
         d3d12
     };
 
-    /** Select a backend before set_gfx_mode(); currently only OpenGL is implemented. */
+    /** Select a backend before set_gfx_mode(); D3D11 and D3D12 are Windows-only. */
     bool set_graphics_backend(GraphicsBackend backend);
-    /** Select OpenGL or Vulkan from --gl/--vulkan arguments; OpenGL remains the default. */
+    /** Select OpenGL, Vulkan, D3D11, or D3D12 from command-line arguments. */
     bool configure_graphics_backend_from_args(int argc, char *argv[]);
     /** Return whether a backend implementation is available in this build. */
     bool graphics_backend_available(GraphicsBackend backend);
     /** Return the selected graphics backend. */
     GraphicsBackend graphics_backend();
 
-    /** Create an OpenGL window and initialize the drawing screen. */
+    /** Create a window and initialize the drawing screen using the selected backend. */
     bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
     /** Apply window-related SDL events, including resize events. */
     void display_handle_event(const Event &event);
