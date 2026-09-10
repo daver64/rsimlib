@@ -29,6 +29,8 @@ namespace sl
 
         /** Compile and link shader source, replacing the current program. */
         bool load(const std::string &vertexSource, const std::string &fragmentSource);
+        /** Compile and link a compute shader, replacing the current program. */
+        bool load_compute(const std::string &computeSource);
         /** Delete the program and clear its error state. */
         void reset();
 
@@ -41,12 +43,16 @@ namespace sl
         bool use() const;
         /** Unbind the current shader program. */
         static void stop();
+        /** Dispatch this program as a compute shader. */
+        bool dispatch_compute(unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const;
         /** Set an integer shader uniform. */
         bool set_uniform(const char *name, int value) const;
         /** Set a floating-point shader uniform. */
         bool set_uniform(const char *name, float value) const;
         /** Set a two-component floating-point shader uniform. */
         bool set_uniform(const char *name, float x, float y) const;
+        /** Set a two-component integer shader uniform. */
+        bool set_uniform(const char *name, int x, int y) const;
         /** Set a three-component floating-point shader uniform. */
         bool set_uniform(const char *name, float x, float y, float z) const;
         /** Set a 4x4 matrix shader uniform (column-major). */
@@ -179,6 +185,8 @@ namespace sl
     {
     public:
         static constexpr std::size_t max_shadow_lights = 8;
+        static constexpr int tile_size = 16;
+        static constexpr int max_lights_per_tile = 128;
 
         LightingPass() = default;
         ~LightingPass();
@@ -211,9 +219,14 @@ namespace sl
 
     private:
         Shader shader_;
+        Shader cullShader_;
         float ambient_ = 0.2f;
         mutable std::vector<Bitmap *> shadowMasks_;
         std::uint32_t lightBuffer_ = 0;
+        mutable std::uint32_t tileCountsBuffer_ = 0;
+        mutable std::uint32_t tileIndicesBuffer_ = 0;
+        mutable int tileCountX_ = 0;
+        mutable int tileCountY_ = 0;
 
         bool ensure_shadow_mask(std::size_t index, int width, int height) const;
     };

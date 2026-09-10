@@ -116,6 +116,7 @@ uniform int shadowLightCount;
 uniform float ambient;
 uniform int flipVertical;
 uniform sampler2D shadowMasks[8];
+uniform ivec2 tileCount;
 
 struct GpuLight {
 	vec4 positionRadius;
@@ -125,6 +126,12 @@ struct GpuLight {
 
 layout(std430, binding = 2) readonly buffer LightBuffer {
 	GpuLight lights[];
+};
+layout(std430, binding = 3) readonly buffer TileCounts {
+	uint tileCounts[];
+};
+layout(std430, binding = 4) readonly buffer TileIndices {
+	uint tileIndices[];
 };
 in vec2 uv;
 out vec4 fragColor;
@@ -136,8 +143,12 @@ void main() {
 	}
 	vec4 base = texture(source, uv);
 	vec2 pixelPosition = lightUv * vec2(textureSize(source, 0));
+	ivec2 tile = ivec2(pixelPosition / 16.0);
+	int tileIndex = tile.y * tileCount.x + tile.x;
+	uint tileLightCount = tileCounts[tileIndex];
 	vec3 illumination = vec3(ambient);
-	for (int index = 0; index < lightCount; ++index) {
+	for (uint tileLight = 0u; tileLight < tileLightCount; ++tileLight) {
+		int index = int(tileIndices[tileIndex * 128 + tileLight]);
 		GpuLight light = lights[index];
 		float distanceToLight = distance(pixelPosition, light.positionRadius.xy);
 		float falloff = 1.0 - smoothstep(0.0, max(light.positionRadius.z, 0.0001), distanceToLight);
@@ -156,6 +167,50 @@ void main() {
 		illumination += light.colourIntensity.rgb * falloff * light.colourIntensity.a * shadow;
 	}
 	fragColor = vec4(base.rgb * illumination, base.a);
+}
+)";
+
+		constexpr const char *light_cull_compute_source = R"(
+#version 430 core
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+uniform ivec2 screenSize;
+uniform ivec2 tileCount;
+uniform int lightCount;
+
+struct GpuLight {
+	vec4 positionRadius;
+	vec4 colourIntensity;
+	vec4 shadowSoftness;
+};
+
+layout(std430, binding = 2) readonly buffer LightBuffer {
+	GpuLight lights[];
+};
+layout(std430, binding = 3) writeonly buffer TileCounts {
+	uint tileCounts[];
+};
+layout(std430, binding = 4) writeonly buffer TileIndices {
+	uint tileIndices[];
+};
+
+void main() {
+	ivec2 tile = ivec2(gl_GlobalInvocationID.xy);
+	if (tile.x >= tileCount.x || tile.y >= tileCount.y) return;
+	int tileIndex = tile.y * tileCount.x + tile.x;
+	vec2 minimum = vec2(tile * 16);
+	vec2 maximum = min(minimum + vec2(16), vec2(screenSize));
+	uint count = 0u;
+	for (int index = 0; index < lightCount; ++index) {
+		vec2 closest = clamp(lights[index].positionRadius.xy, minimum, maximum);
+		vec2 delta = lights[index].positionRadius.xy - closest;
+		float radius = lights[index].positionRadius.z;
+		if (dot(delta, delta) <= radius * radius && count < 128u) {
+			tileIndices[tileIndex * 128 + count] = uint(index);
+			count++;
+		}
+	}
+	tileCounts[tileIndex] = count;
 }
 )";
 
@@ -401,6 +456,37 @@ void main() {
 		return true;
 	}
 
+	bool Shader::load_compute(const std::string &computeSource)
+	{
+		reset();
+		const GLuint computeShader = compile_shader(GL_COMPUTE_SHADER, computeSource, error_);
+		if (computeShader == 0)
+		{
+			return false;
+		}
+		const GLuint program = glCreateProgram();
+		if (program == 0)
+		{
+			error_ = "Unable to create compute shader program.";
+			glDeleteShader(computeShader);
+			return false;
+		}
+		glAttachShader(program, computeShader);
+		glLinkProgram(program);
+		glDeleteShader(computeShader);
+		GLint linked = GL_FALSE;
+		glGetProgramiv(program, GL_LINK_STATUS, &linked);
+		if (linked != GL_TRUE)
+		{
+			error_ = program_log(program);
+			glDeleteProgram(program);
+			return false;
+		}
+		program_ = program;
+		error_.clear();
+		return true;
+	}
+
 	void Shader::reset()
 	{
 		if (program_ != 0)
@@ -434,6 +520,16 @@ void main() {
 	void Shader::stop()
 	{
 		glUseProgram(0);
+	}
+
+	bool Shader::dispatch_compute(unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const
+	{
+		if (!use())
+		{
+			return false;
+		}
+		glDispatchCompute(groupsX, groupsY, groupsZ);
+		return true;
 	}
 
 	bool Shader::set_uniform(const char *name, int value) const
@@ -478,6 +574,21 @@ void main() {
 			return false;
 		}
 		glUniform2f(location, x, y);
+		return true;
+	}
+
+	bool Shader::set_uniform(const char *name, int x, int y) const
+	{
+		if (!use())
+		{
+			return false;
+		}
+		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
+		if (location < 0)
+		{
+			return false;
+		}
+		glUniform2i(location, x, y);
 		return true;
 	}
 
@@ -797,9 +908,12 @@ void main() {
 	}
 
 	LightingPass::LightingPass(LightingPass &&other) noexcept
-		: shader_(std::move(other.shader_)), ambient_(other.ambient_),
+		: shader_(std::move(other.shader_)), cullShader_(std::move(other.cullShader_)), ambient_(other.ambient_),
 		  shadowMasks_(std::exchange(other.shadowMasks_, {})),
-		  lightBuffer_(std::exchange(other.lightBuffer_, 0))
+		  lightBuffer_(std::exchange(other.lightBuffer_, 0)),
+		  tileCountsBuffer_(std::exchange(other.tileCountsBuffer_, 0)),
+		  tileIndicesBuffer_(std::exchange(other.tileIndicesBuffer_, 0)),
+		  tileCountX_(other.tileCountX_), tileCountY_(other.tileCountY_)
 	{
 	}
 
@@ -809,9 +923,14 @@ void main() {
 		{
 			shutdown();
 			shader_ = std::move(other.shader_);
+			cullShader_ = std::move(other.cullShader_);
 			ambient_ = other.ambient_;
 			shadowMasks_ = std::exchange(other.shadowMasks_, {});
 			lightBuffer_ = std::exchange(other.lightBuffer_, 0);
+			tileCountsBuffer_ = std::exchange(other.tileCountsBuffer_, 0);
+			tileIndicesBuffer_ = std::exchange(other.tileIndicesBuffer_, 0);
+			tileCountX_ = other.tileCountX_;
+			tileCountY_ = other.tileCountY_;
 		}
 		return *this;
 	}
@@ -823,14 +942,17 @@ void main() {
 			return true;
 		}
 		shadowMasks_.resize(max_shadow_lights, nullptr);
-		if (!shader_.load(fullscreen_vertex_source, lighting_fragment_source))
+		if (!shader_.load(fullscreen_vertex_source, lighting_fragment_source) ||
+			!cullShader_.load_compute(light_cull_compute_source))
 		{
 			return false;
 		}
-		GLuint lightBuffer = 0;
-		glGenBuffers(1, &lightBuffer);
-		lightBuffer_ = lightBuffer;
-		return lightBuffer_ != 0;
+		GLuint buffers[3] = {};
+		glGenBuffers(3, buffers);
+		lightBuffer_ = buffers[0];
+		tileCountsBuffer_ = buffers[1];
+		tileIndicesBuffer_ = buffers[2];
+		return lightBuffer_ != 0 && tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
 	}
 
 	void LightingPass::shutdown()
@@ -847,11 +969,24 @@ void main() {
 			glDeleteBuffers(1, &lightBuffer);
 			lightBuffer_ = 0;
 		}
+		if (tileCountsBuffer_ != 0)
+		{
+			const GLuint buffer = static_cast<GLuint>(tileCountsBuffer_);
+			glDeleteBuffers(1, &buffer);
+			tileCountsBuffer_ = 0;
+		}
+		if (tileIndicesBuffer_ != 0)
+		{
+			const GLuint buffer = static_cast<GLuint>(tileIndicesBuffer_);
+			glDeleteBuffers(1, &buffer);
+			tileIndicesBuffer_ = 0;
+		}
 	}
 
 	bool LightingPass::is_valid() const
 	{
-		return shader_.is_valid();
+		return shader_.is_valid() && cullShader_.is_valid() && lightBuffer_ != 0 &&
+			tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
 	}
 
 	const std::string &LightingPass::error() const
@@ -948,10 +1083,29 @@ void main() {
 			gpuLights.data(), GL_STREAM_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, static_cast<GLuint>(lightBuffer_));
 
+		tileCountX_ = (source->width + tile_size - 1) / tile_size;
+		tileCountY_ = (source->height + tile_size - 1) / tile_size;
+		const std::size_t tileCount = static_cast<std::size_t>(tileCountX_) * tileCountY_;
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileCountsBuffer_));
+		glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(tileCount * sizeof(std::uint32_t)),
+			nullptr, GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, static_cast<GLuint>(tileCountsBuffer_));
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileIndicesBuffer_));
+		glBufferData(GL_SHADER_STORAGE_BUFFER,
+			static_cast<GLsizeiptr>(tileCount * max_lights_per_tile * sizeof(std::uint32_t)),
+			nullptr, GL_DYNAMIC_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, static_cast<GLuint>(tileIndicesBuffer_));
+		cullShader_.set_uniform("screenSize", source->width, source->height);
+		cullShader_.set_uniform("tileCount", tileCountX_, tileCountY_);
+		cullShader_.set_uniform("lightCount", static_cast<int>(lightCount));
+		cullShader_.dispatch_compute(static_cast<unsigned int>(tileCountX_), static_cast<unsigned int>(tileCountY_), 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
 		float projection[16];
 		shader_.set_uniform("source", 0);
 		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
 		shader_.set_uniform("shadowLightCount", static_cast<int>(shadowLightCount));
+		shader_.set_uniform("tileCount", tileCountX_, tileCountY_);
 		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
 			const std::string suffix = "[" + std::to_string(index) + "]";
