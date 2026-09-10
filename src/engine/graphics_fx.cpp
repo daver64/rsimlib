@@ -33,198 +33,6 @@ namespace sl
 			std::ifstream file(std::filesystem::path(SIMLIB_GLSL_SHADER_DIR) / name);
 			return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
 		}
-		constexpr const char *fullscreen_vertex_source = R"(
-#version 430 core
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aTexCoord;
-
-uniform mat4 uProjection;
-
-out vec2 uv;
-
-void main() {
-	gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
-		const std::string vertex = load_glsl_shader("fullscreen.vert");
-		return !vertex.empty() &&
-			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag")) &&
-			blurShader_.load(vertex, load_glsl_shader("blur.frag")) &&
-			compositeShader_.load(vertex, load_glsl_shader("composite.frag"));
-
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("vignette.frag"), "vignette");
-#version 430 core
-		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
-			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
-in vec2 uv;
-out vec4 fragColor;
-
-void main() {
-	vec3 colour = texture(source, uv).rgb;
-	fragColor = vec4(max(colour - vec3(threshold), vec3(0.0)), 1.0);
-}
-)";
-
-		constexpr const char *blur_fragment_source = R"(
-#version 430 core
-uniform sampler2D source;
-uniform vec2 texel;
-uniform vec2 direction;
-uniform float radius;
-in vec2 uv;
-out vec4 fragColor;
-
-void main() {
-	// 9-tap separable Gaussian
-	float weights[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
-	vec3 result = texture(source, uv).rgb * weights[0];
-	for (int i = 1; i < 5; ++i) {
-		vec2 offset = direction * texel * radius * float(i);
-		result += texture(source, uv + offset).rgb * weights[i];
-		result += texture(source, uv - offset).rgb * weights[i];
-	}
-	fragColor = vec4(result, 1.0);
-}
-)";
-
-		constexpr const char *composite_fragment_source = R"(
-#version 430 core
-uniform sampler2D source;
-uniform sampler2D bloomTex;
-uniform float intensity;
-in vec2 uv;
-out vec4 fragColor;
-
-void main() {
-	vec4 base = texture(source, uv);
-	vec3 bloom = texture(bloomTex, uv).rgb;
-	fragColor = vec4(base.rgb + bloom * intensity, base.a);
-}
-)";
-
-		constexpr const char *vignette_fragment_source = R"(
-#version 430 core
-uniform sampler2D source;
-uniform float radius;
-uniform float softness;
-uniform float intensity;
-in vec2 uv;
-out vec4 fragColor;
-
-void main() {
-	vec4 base = texture(source, uv);
-	vec2 centred = uv - vec2(0.5);
-	centred.x *= float(textureSize(source, 0).x) / float(textureSize(source, 0).y);
-	float dist = length(centred);
-	float inner = max(radius - softness, 0.0);
-	float t = clamp((dist - inner) / max(softness, 0.0001), 0.0, 1.0);
-	fragColor = vec4(base.rgb * (1.0 - t * intensity), base.a);
-}
-)";
-
-		constexpr const char *lighting_fragment_source = R"(
-#version 430 core
-uniform sampler2D source;
-uniform int lightCount;
-uniform int shadowLightCount;
-uniform float ambient;
-uniform int flipVertical;
-uniform sampler2D shadowMasks[8];
-uniform ivec2 tileCount;
-
-struct GpuLight {
-	vec4 positionRadius;
-	vec4 colourIntensity;
-	vec4 shadowSoftness;
-};
-
-layout(std430, binding = 2) readonly buffer LightBuffer {
-	GpuLight lights[];
-};
-layout(std430, binding = 3) readonly buffer TileCounts {
-	uint tileCounts[];
-};
-layout(std430, binding = 4) readonly buffer TileIndices {
-	uint tileIndices[];
-};
-in vec2 uv;
-out vec4 fragColor;
-
-void main() {
-	vec2 lightUv = uv;
-	if (flipVertical != 0) {
-		lightUv.y = 1.0 - lightUv.y;
-	}
-	vec4 base = texture(source, uv);
-	vec2 pixelPosition = lightUv * vec2(textureSize(source, 0));
-	ivec2 tile = ivec2(pixelPosition / 16.0);
-	int tileIndex = tile.y * tileCount.x + tile.x;
-	uint tileLightCount = tileCounts[tileIndex];
-	vec3 illumination = vec3(ambient);
-	for (uint tileLight = 0u; tileLight < tileLightCount; ++tileLight) {
-		int index = int(tileIndices[tileIndex * 128 + tileLight]);
-		GpuLight light = lights[index];
-		float distanceToLight = distance(pixelPosition, light.positionRadius.xy);
-		float falloff = 1.0 - smoothstep(0.0, max(light.positionRadius.z, 0.0001), distanceToLight);
-		float shadow = 1.0;
-		if (index < shadowLightCount) {
-			vec2 shadowTexel = 1.0 / vec2(textureSize(shadowMasks[index], 0));
-			shadow = 0.0;
-			for (int offsetY = -1; offsetY <= 1; ++offsetY) {
-				for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-					vec2 offset = vec2(offsetX, offsetY) * shadowTexel * max(light.shadowSoftness.x, 0.0);
-					shadow += texture(shadowMasks[index], lightUv + offset).r;
-				}
-			}
-			shadow /= 9.0;
-		}
-		illumination += light.colourIntensity.rgb * falloff * light.colourIntensity.a * shadow;
-	}
-	fragColor = vec4(base.rgb * illumination, base.a);
-}
-)";
-
-		constexpr const char *light_cull_compute_source = R"(
-#version 430 core
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-
-uniform ivec2 screenSize;
-uniform ivec2 tileCount;
-uniform int lightCount;
-
-struct GpuLight {
-	vec4 positionRadius;
-	vec4 colourIntensity;
-	vec4 shadowSoftness;
-};
-
-layout(std430, binding = 2) readonly buffer LightBuffer {
-	GpuLight lights[];
-};
-layout(std430, binding = 3) writeonly buffer TileCounts {
-	uint tileCounts[];
-};
-layout(std430, binding = 4) writeonly buffer TileIndices {
-	uint tileIndices[];
-};
-
-void main() {
-	ivec2 tile = ivec2(gl_GlobalInvocationID.xy);
-	if (tile.x >= tileCount.x || tile.y >= tileCount.y) return;
-	int tileIndex = tile.y * tileCount.x + tile.x;
-	vec2 minimum = vec2(tile * 16);
-	vec2 maximum = min(minimum + vec2(16), vec2(screenSize));
-	uint count = 0u;
-	for (int index = 0; index < lightCount; ++index) {
-		vec2 closest = clamp(lights[index].positionRadius.xy, minimum, maximum);
-		vec2 delta = lights[index].positionRadius.xy - closest;
-		float radius = lights[index].positionRadius.z;
-		if (dot(delta, delta) <= radius * radius && count < 128u) {
-			tileIndices[tileIndex * 128 + count] = uint(index);
-			count++;
-		}
-	}
-	tileCounts[tileIndex] = count;
-}
-)";
 
 		/** Draw a textured quad at (x, y, width, height), used by every bloom pass. */
 		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture, bool flipVertical)
@@ -396,6 +204,24 @@ void main() {
 			program_, error_);
 	}
 
+	bool Shader::load(const std::string &vertexSource, const std::string &fragmentSource,
+					   const std::vector<std::string> &vulkanSamplerNames,
+					   const std::vector<ShaderUniform> &vulkanUniforms)
+	{
+		reset();
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer) return false;
+		std::vector<detail::ShaderUniformLayout> uniforms;
+		uniforms.reserve(vulkanUniforms.size());
+		for (const ShaderUniform &uniform : vulkanUniforms)
+			uniforms.push_back({uniform.name, uniform.offset, uniform.size});
+		detail::ShaderSource vertex{detail::ShaderLanguage::glsl, vertexSource, {}, {}};
+		detail::ShaderSource fragment{detail::ShaderLanguage::glsl, fragmentSource, {}, {}};
+		fragment.vulkan_sampler_names = vulkanSamplerNames;
+		fragment.vulkan_uniforms = uniforms;
+		return renderer->create_shader(vertex, fragment, program_, error_);
+	}
+
 	bool Shader::load_compute(const std::string &computeSource)
 	{
 		return load_compute(computeSource, {});
@@ -525,9 +351,9 @@ void main() {
 		}
 		const std::string vertex = load_glsl_shader("fullscreen.vert");
 		return !vertex.empty() &&
-			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag")) &&
-			blurShader_.load(vertex, load_glsl_shader("blur.frag")) &&
-			compositeShader_.load(vertex, load_glsl_shader("composite.frag"));
+			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag"), "bloom-bright") &&
+			blurShader_.load(vertex, load_glsl_shader("blur.frag"), "bloom-blur") &&
+			compositeShader_.load(vertex, load_glsl_shader("composite.frag"), "bloom-composite");
 	}
 
 	void Bloom::shutdown()

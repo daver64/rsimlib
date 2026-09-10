@@ -37,12 +37,22 @@ namespace sl::detail
         compute
     };
 
+    /** Describes one named field inside a Vulkan custom shader's fragment push-constant block. */
+    struct ShaderUniformLayout
+    {
+        std::string name;
+        std::uint32_t offset = 0;
+        std::uint32_t size = 0;
+    };
+
     struct ShaderSource
     {
         ShaderLanguage language = ShaderLanguage::glsl;
         std::string text;
         std::vector<std::uint32_t> spirv;
         std::string asset_id;
+        std::vector<std::string> vulkan_sampler_names;
+        std::vector<ShaderUniformLayout> vulkan_uniforms;
 
         static ShaderSource glsl(std::string source)
         {

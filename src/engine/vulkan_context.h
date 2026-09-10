@@ -140,6 +140,19 @@ namespace sl::detail
                  VkDescriptorSet &set, std::string &error);
         bool update_lighting_descriptor(VkDescriptorSet set, const VulkanImage *images,
                  const VulkanSampler *samplers, std::string &error);
+        bool create_composite_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
+        bool allocate_composite_descriptor(const VulkanDescriptorPool &pool,
+                 const VulkanDescriptorSetLayout &layout,
+                 const VulkanImage *images, const VulkanSampler *samplers,
+                 VkDescriptorSet &set, std::string &error);
+        bool update_composite_descriptor(VkDescriptorSet set, const VulkanImage *images,
+                 const VulkanSampler *samplers, std::string &error);
+        bool create_dynamic_descriptor_layout(const std::vector<VkDescriptorSetLayoutBinding> &bindings,
+                 VulkanDescriptorSetLayout &result, std::string &error);
+        bool allocate_descriptor_set(const VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
+                 VkDescriptorSet &set, std::string &error);
+        bool update_dynamic_descriptor_set(VkDescriptorSet set, const std::vector<VulkanImage> &images,
+                 const std::vector<VulkanSampler> &samplers, std::string &error);
         bool create_storage_descriptor_layout(VulkanStorageDescriptorLayout &result, std::string &error);
         void destroy_storage_descriptor_layout(VulkanStorageDescriptorLayout &layout);
         bool allocate_storage_descriptor(const VulkanDescriptorPool &pool,

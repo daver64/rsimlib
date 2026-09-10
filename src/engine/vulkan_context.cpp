@@ -602,7 +602,7 @@ namespace sl::detail
     {
         if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_ ||
             pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE ||
-            texture_descriptor == VK_NULL_HANDLE || !projection || !constants || vertex_count == 0)
+            texture_descriptor == VK_NULL_HANDLE || !projection || (constant_size > 0 && !constants) || vertex_count == 0)
         {
             error = "Invalid Vulkan post-process draw state.";
             return false;
@@ -619,8 +619,11 @@ namespace sl::detail
         vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1,
                                 &texture_descriptor, 0, nullptr);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, projection);
-        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
-                           constant_size, constants);
+        if (constant_size > 0)
+        {
+            vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
+                               constant_size, constants);
+        }
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
         vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
@@ -1254,6 +1257,143 @@ namespace sl::detail
         writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[1].pImageInfo = image_infos + 1;
         vkUpdateDescriptorSets(device_, 2, writes, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::create_composite_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error)
+    {
+        result = {};
+        VkDescriptorSetLayoutBinding bindings[2]{};
+        bindings[0] = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        bindings[1] = {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        info.bindingCount = 2;
+        info.pBindings = bindings;
+        if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &result.layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan composite descriptor-set layout.";
+            return false;
+        }
+        return true;
+    }
+
+    bool VulkanContext::allocate_composite_descriptor(const VulkanDescriptorPool &pool,
+                                                       const VulkanDescriptorSetLayout &layout,
+                                                       const VulkanImage *images, const VulkanSampler *samplers,
+                                                       VkDescriptorSet &set, std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        if (!images || !samplers)
+        {
+            error = "Invalid Vulkan composite descriptor request.";
+            return false;
+        }
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = pool.pool;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout.layout;
+        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan composite descriptor set.";
+            return false;
+        }
+        return update_composite_descriptor(set, images, samplers, error);
+    }
+
+    bool VulkanContext::update_composite_descriptor(VkDescriptorSet set, const VulkanImage *images,
+                                                     const VulkanSampler *samplers, std::string &error)
+    {
+        if (set == VK_NULL_HANDLE || !images || !samplers)
+        {
+            error = "Invalid Vulkan composite descriptor update.";
+            return false;
+        }
+        VkDescriptorImageInfo image_infos[2]{};
+        for (std::uint32_t index = 0; index < 2; ++index)
+        {
+            if (images[index].view == VK_NULL_HANDLE || samplers[index].sampler == VK_NULL_HANDLE)
+            {
+                error = "Invalid Vulkan composite texture descriptor.";
+                return false;
+            }
+            image_infos[index].imageView = images[index].view;
+            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].sampler = samplers[index].sampler;
+        }
+        VkWriteDescriptorSet writes[2]{};
+        for (std::uint32_t index = 0; index < 2; ++index)
+        {
+            writes[index] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            writes[index].dstSet = set;
+            writes[index].dstBinding = index;
+            writes[index].descriptorCount = 1;
+            writes[index].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[index].pImageInfo = &image_infos[index];
+        }
+        vkUpdateDescriptorSets(device_, 2, writes, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::create_dynamic_descriptor_layout(const std::vector<VkDescriptorSetLayoutBinding> &bindings,
+                                                         VulkanDescriptorSetLayout &result, std::string &error)
+    {
+        result = {};
+        VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        info.bindingCount = static_cast<std::uint32_t>(bindings.size());
+        info.pBindings = bindings.empty() ? nullptr : bindings.data();
+        if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &result.layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan dynamic descriptor-set layout.";
+            return false;
+        }
+        return true;
+    }
+
+    bool VulkanContext::allocate_descriptor_set(const VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
+                                                VkDescriptorSet &set, std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = pool.pool;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout.layout;
+        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan dynamic descriptor set.";
+            return false;
+        }
+        return true;
+    }
+
+    bool VulkanContext::update_dynamic_descriptor_set(VkDescriptorSet set, const std::vector<VulkanImage> &images,
+                                                      const std::vector<VulkanSampler> &samplers, std::string &error)
+    {
+        if (set == VK_NULL_HANDLE || images.size() != samplers.size())
+        {
+            error = "Invalid Vulkan dynamic descriptor update.";
+            return false;
+        }
+        if (images.empty()) return true;
+        std::vector<VkDescriptorImageInfo> image_infos(images.size());
+        std::vector<VkWriteDescriptorSet> writes(images.size());
+        for (std::size_t index = 0; index < images.size(); ++index)
+        {
+            if (images[index].view == VK_NULL_HANDLE || samplers[index].sampler == VK_NULL_HANDLE)
+            {
+                error = "Invalid Vulkan dynamic texture descriptor.";
+                return false;
+            }
+            image_infos[index].imageView = images[index].view;
+            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].sampler = samplers[index].sampler;
+            writes[index] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            writes[index].dstSet = set;
+            writes[index].dstBinding = static_cast<std::uint32_t>(index);
+            writes[index].descriptorCount = 1;
+            writes[index].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[index].pImageInfo = &image_infos[index];
+        }
+        vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
         return true;
     }
 

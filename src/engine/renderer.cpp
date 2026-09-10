@@ -18,6 +18,8 @@
 #include <array>
 #include <algorithm>
 #include <cstring>
+#include <cstdlib>
+#include <system_error>
 
 namespace sl::detail
 {
@@ -27,6 +29,64 @@ namespace sl::detail
         {
             std::ifstream file(std::filesystem::path(SIMLIB_GLSL_SHADER_DIR) / name);
             return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
+        }
+
+        /** Compile GLSL source to SPIR-V at runtime by shelling out to glslangValidator. */
+        bool compile_glsl_to_spirv(ShaderStage stage, const std::string &source,
+                                   std::vector<std::uint32_t> &spirv, std::string &error)
+        {
+            static const char *validator = SIMLIB_GLSLANG_VALIDATOR;
+            if (!validator || validator[0] == '\0')
+            {
+                error = "glslangValidator is not available for runtime Vulkan shader compilation.";
+                return false;
+            }
+            namespace fs = std::filesystem;
+            static std::uint64_t counter = 0;
+            const std::string unique = std::to_string(++counter);
+            const char *stage_extension = stage == ShaderStage::vertex ? "vert"
+                : stage == ShaderStage::fragment ? "frag" : "comp";
+            const fs::path directory = fs::temp_directory_path();
+            const fs::path input = directory / ("simlib_shader_" + unique + "." + stage_extension);
+            const fs::path output = directory / ("simlib_shader_" + unique + "." + stage_extension + ".spv");
+            {
+                std::ofstream file(input, std::ios::binary);
+                if (!file)
+                {
+                    error = "Unable to write a temporary Vulkan shader source file.";
+                    return false;
+                }
+                file << source;
+            }
+            const std::string command = std::string("\"") + validator + "\" -V --auto-map-locations --auto-map-bindings -S " +
+                stage_extension + " \"" + input.string() + "\" -o \"" + output.string() + "\" > /dev/null 2>&1";
+            const int result = std::system(command.c_str());
+            std::error_code remove_error;
+            fs::remove(input, remove_error);
+            if (result != 0)
+            {
+                fs::remove(output, remove_error);
+                error = "glslangValidator failed to compile the supplied Vulkan shader.";
+                return false;
+            }
+            std::ifstream file(output, std::ios::binary | std::ios::ate);
+            if (!file)
+            {
+                error = "Unable to read the compiled Vulkan shader output.";
+                return false;
+            }
+            const std::streamsize size = file.tellg();
+            if (size <= 0 || size % 4 != 0)
+            {
+                fs::remove(output, remove_error);
+                error = "The compiled Vulkan shader output has an invalid size.";
+                return false;
+            }
+            spirv.resize(static_cast<std::size_t>(size) / 4);
+            file.seekg(0);
+            file.read(reinterpret_cast<char *>(spirv.data()), size);
+            fs::remove(output, remove_error);
+            return true;
         }
 
         std::string shader_log(GLuint shader)
@@ -232,9 +292,10 @@ namespace sl::detail
                 }
                 destroy_texture(texture);
             }
-            bool begin_render_target(std::uint32_t framebuffer, int, int, std::string &) override
+            bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &) override
             {
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                glViewport(0, 0, width, height);
                 return true;
             }
             bool end_render_target(std::string &) override
@@ -503,6 +564,19 @@ namespace sl::detail
                     !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, error,
                         nullptr, sizeof(VignetteConstants))) return false;
+                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, error,
+                        nullptr, sizeof(BrightConstants))) return false;
+                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_blur.frag.spv", blur_fragment_module_, error) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, error,
+                        nullptr, sizeof(BlurConstants))) return false;
+                if (!context_.create_composite_descriptor_layout(composite_descriptor_layout_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_composite.frag.spv", composite_fragment_module_, error) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
+                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, error,
+                        nullptr, sizeof(CompositeConstants))) return false;
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
                     !upload_texture(white_texture_, 1, 1, white_pixel))
@@ -514,6 +588,7 @@ namespace sl::detail
             }
             void shutdown() override
             {
+                if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
                 for (VulkanBuffer &buffer : vertex_buffers_) context_.destroy_buffer(buffer);
                 vertex_buffers_.clear();
                 for (auto &[handle, texture] : textures_)
@@ -536,6 +611,9 @@ namespace sl::detail
                     context_.destroy_graphics_pipeline(pipeline);
                 context_.destroy_graphics_pipeline(lighting_pipeline_);
                 context_.destroy_graphics_pipeline(vignette_pipeline_);
+                context_.destroy_graphics_pipeline(bright_pipeline_);
+                context_.destroy_graphics_pipeline(blur_pipeline_);
+                context_.destroy_graphics_pipeline(composite_pipeline_);
                     context_.destroy_compute_pipeline(cull_pipeline_);
                 context_.destroy_shader_module(vertex_module_);
                 context_.destroy_shader_module(fragment_module_);
@@ -543,12 +621,25 @@ namespace sl::detail
                 context_.destroy_shader_module(lighting_vertex_module_);
                 context_.destroy_shader_module(lighting_fragment_module_);
                 context_.destroy_shader_module(vignette_fragment_module_);
+                context_.destroy_shader_module(bright_fragment_module_);
+                context_.destroy_shader_module(blur_fragment_module_);
+                context_.destroy_shader_module(composite_fragment_module_);
                 for (auto &[handle, module] : shader_modules_)
                     context_.destroy_shader_module(module);
                 shader_modules_.clear();
+                for (auto &[handle, dynamic] : dynamic_programs_)
+                {
+                    for (auto &pipeline : dynamic.pipelines) context_.destroy_graphics_pipeline(pipeline);
+                    if (dynamic.descriptor_set != VK_NULL_HANDLE) context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
+                    context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
+                    context_.destroy_shader_module(dynamic.vertex_module);
+                    context_.destroy_shader_module(dynamic.fragment_module);
+                }
+                dynamic_programs_.clear();
                 context_.destroy_descriptor_pool(descriptor_pool_);
                 context_.destroy_descriptor_set_layout(descriptor_layout_);
                 context_.destroy_descriptor_set_layout(lighting_descriptor_layout_);
+                context_.destroy_descriptor_set_layout(composite_descriptor_layout_);
                     context_.destroy_storage_descriptor_layout(storage_layout_);
                 context_.shutdown();
                 window_ = nullptr;
@@ -568,6 +659,9 @@ namespace sl::detail
                     context_.destroy_graphics_pipeline(pipeline);
                 context_.destroy_graphics_pipeline(lighting_pipeline_);
                 context_.destroy_graphics_pipeline(vignette_pipeline_);
+                context_.destroy_graphics_pipeline(bright_pipeline_);
+                context_.destroy_graphics_pipeline(blur_pipeline_);
+                context_.destroy_graphics_pipeline(composite_pipeline_);
                 if (context_.recreate_swapchain(width, height, last_error_))
                 {
                     create_pipelines(last_error_);
@@ -577,6 +671,15 @@ namespace sl::detail
                     context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, last_error_,
                         nullptr, sizeof(VignetteConstants));
+                    context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
+                        nullptr, sizeof(BrightConstants));
+                    context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, last_error_,
+                        nullptr, sizeof(BlurConstants));
+                    context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
+                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, last_error_,
+                        nullptr, sizeof(CompositeConstants));
                 }
             }
             bool set_vsync(bool enabled) override
@@ -726,6 +829,28 @@ namespace sl::detail
                     program = vignette_program_;
                     return true;
                 }
+                if (vertex_source.asset_id == "bloom-bright" && fragment_source.asset_id == "bloom-bright" &&
+                    bright_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = bright_program_;
+                    return true;
+                }
+                if (vertex_source.asset_id == "bloom-blur" && fragment_source.asset_id == "bloom-blur" &&
+                    blur_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = blur_program_;
+                    return true;
+                }
+                if (vertex_source.asset_id == "bloom-composite" && fragment_source.asset_id == "bloom-composite" &&
+                    composite_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = composite_program_;
+                    return true;
+                }
+                if (vertex_source.language == ShaderLanguage::glsl && fragment_source.language == ShaderLanguage::glsl)
+                {
+                    return create_dynamic_shader(vertex_source, fragment_source, program, error);
+                }
                 error = "Vulkan renderer shader asset is unavailable.";
                 return false;
             }
@@ -755,6 +880,19 @@ namespace sl::detail
             void destroy_shader(std::uint32_t module) override
             {
                 if (module == cull_program_) return;
+                const auto dynamic_iterator = dynamic_programs_.find(module);
+                if (dynamic_iterator != dynamic_programs_.end())
+                {
+                    if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
+                    DynamicVulkanProgram &dynamic = dynamic_iterator->second;
+                    for (auto &pipeline : dynamic.pipelines) context_.destroy_graphics_pipeline(pipeline);
+                    if (dynamic.descriptor_set != VK_NULL_HANDLE) context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
+                    context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
+                    context_.destroy_shader_module(dynamic.vertex_module);
+                    context_.destroy_shader_module(dynamic.fragment_module);
+                    dynamic_programs_.erase(dynamic_iterator);
+                    return;
+                }
                 const auto iterator = shader_modules_.find(module);
                 if (iterator == shader_modules_.end()) return;
                 context_.destroy_shader_module(iterator->second);
@@ -762,7 +900,13 @@ namespace sl::detail
             }
             bool use_shader(std::uint32_t program) override
             {
-                if (program != cull_program_ && program != lighting_program_ && program != vignette_program_) return false;
+                if (dynamic_programs_.count(program))
+                {
+                    active_program_ = program;
+                    return true;
+                }
+                if (program != cull_program_ && program != lighting_program_ && program != vignette_program_ &&
+                    program != bright_program_ && program != blur_program_ && program != composite_program_) return false;
                 active_program_ = program;
                 return true;
             }
@@ -776,6 +920,7 @@ namespace sl::detail
             }
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
+                if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program == cull_program_ && name && std::strcmp(name, "lightCount") == 0)
                 {
                     cull_constants_[4] = value;
@@ -794,6 +939,7 @@ namespace sl::detail
             }
             bool set_shader_float(std::uint32_t program, const char *name, float value) override
             {
+                if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program == lighting_program_ && name && std::strcmp(name, "ambient") == 0)
                 {
                     active_program_ = program;
@@ -809,11 +955,48 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
+                if (program == bright_program_ && name && std::strcmp(name, "threshold") == 0)
+                {
+                    active_program_ = program;
+                    bright_constants_.threshold = value;
+                    return true;
+                }
+                if (program == blur_program_ && name && std::strcmp(name, "radius") == 0)
+                {
+                    active_program_ = program;
+                    blur_constants_.radius = value;
+                    return true;
+                }
+                if (program == composite_program_ && name && std::strcmp(name, "intensity") == 0)
+                {
+                    active_program_ = program;
+                    composite_constants_.intensity = value;
+                    return true;
+                }
                 return unsupported();
             }
-            bool set_shader_float2(std::uint32_t, const char *, float, float) override { return unsupported(); }
+            bool set_shader_float2(std::uint32_t program, const char *name, float x, float y) override
+            {
+                if (dynamic_programs_.count(program))
+                {
+                    const float values[2] = {x, y};
+                    return set_dynamic_uniform(program, name, values, sizeof(values));
+                }
+                if (program == blur_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "texel") == 0) { blur_constants_.texel[0] = x; blur_constants_.texel[1] = y; return true; }
+                    if (std::strcmp(name, "direction") == 0) { blur_constants_.direction[0] = x; blur_constants_.direction[1] = y; return true; }
+                }
+                return unsupported();
+            }
             bool set_shader_int2(std::uint32_t program, const char *name, int x, int y) override
             {
+                if (dynamic_programs_.count(program))
+                {
+                    const int values[2] = {x, y};
+                    return set_dynamic_uniform(program, name, values, sizeof(values));
+                }
                 if (!name) return unsupported();
                 if (program == lighting_program_ && std::strcmp(name, "tileCount") == 0)
                 {
@@ -837,9 +1020,21 @@ namespace sl::detail
                 }
                 return unsupported();
             }
-            bool set_shader_float3(std::uint32_t, const char *, float, float, float) override { return unsupported(); }
+            bool set_shader_float3(std::uint32_t program, const char *name, float x, float y, float z) override
+            {
+                if (dynamic_programs_.count(program))
+                {
+                    const float values[3] = {x, y, z};
+                    return set_dynamic_uniform(program, name, values, sizeof(values));
+                }
+                return unsupported();
+            }
             bool set_shader_mat4(std::uint32_t program, const char *name, const float *matrix) override
             {
+                if (dynamic_programs_.count(program) && name && matrix)
+                {
+                    return set_dynamic_uniform(program, name, matrix, sizeof(float) * 16);
+                }
                 if (program == lighting_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
@@ -850,6 +1045,13 @@ namespace sl::detail
                 {
                     active_program_ = program;
                     std::copy_n(matrix, vignette_projection_.size(), vignette_projection_.begin());
+                    return true;
+                }
+                if ((program == bright_program_ || program == blur_program_ || program == composite_program_) &&
+                    name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
                 return unsupported();
@@ -894,6 +1096,68 @@ namespace sl::detail
                 }
                 if (!context_.upload_buffer(buffer, upload_vertices, required_size, last_error_)) return;
                 const std::uint32_t texture_handle = texture == 0 ? white_texture_ : texture;
+                const auto dynamic_iterator = dynamic_programs_.find(active_program_);
+                if (dynamic_iterator != dynamic_programs_.end())
+                {
+                    DynamicVulkanProgram &dynamic = dynamic_iterator->second;
+                    auto resolve_texture = [this](std::uint32_t handle, VulkanImage &image, VulkanSampler &sampler)
+                    {
+                        const auto texture_iterator = textures_.find(handle);
+                        if (texture_iterator != textures_.end())
+                        {
+                            image = texture_iterator->second.image;
+                            sampler = texture_iterator->second.sampler;
+                            return true;
+                        }
+                        for (const auto &[framebuffer, target] : render_targets_)
+                        {
+                            if (target.texture_handle == handle)
+                            {
+                                image = target.image;
+                                sampler = target.sampler;
+                                return true;
+                            }
+                        }
+                        return false;
+                    };
+                    std::vector<VulkanImage> images(dynamic.sampler_names.size());
+                    std::vector<VulkanSampler> samplers(dynamic.sampler_names.size());
+                    for (std::size_t index = 0; index < images.size(); ++index)
+                    {
+                        const std::uint32_t handle = index < dynamic.bound_textures.size() && dynamic.bound_textures[index] != 0
+                            ? dynamic.bound_textures[index]
+                            : (index == 0 ? texture_handle : white_texture_);
+                        if (!resolve_texture(handle, images[index], samplers[index]) &&
+                            !resolve_texture(white_texture_, images[index], samplers[index]))
+                        {
+                            return;
+                        }
+                    }
+                    if (dynamic.descriptor_set == VK_NULL_HANDLE)
+                    {
+                        if (!context_.allocate_descriptor_set(descriptor_pool_, dynamic.descriptor_layout,
+                            dynamic.descriptor_set, last_error_)) return;
+                    }
+                    if (!images.empty() && !context_.update_dynamic_descriptor_set(dynamic.descriptor_set, images, samplers, last_error_))
+                        return;
+                    const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
+                    if (pipeline_index >= dynamic.pipelines.size()) return;
+                    if (dynamic.pipelines[pipeline_index].pipeline == VK_NULL_HANDLE)
+                    {
+                        if (!context_.create_graphics_pipeline(dynamic.vertex_module, dynamic.fragment_module,
+                            dynamic.descriptor_layout, primitive, dynamic.pipelines[pipeline_index], last_error_,
+                            nullptr, dynamic.push_constant_size))
+                        {
+                            return;
+                        }
+                    }
+                    context_.record_postprocess_draw(dynamic.pipelines[pipeline_index].pipeline,
+                        dynamic.pipelines[pipeline_index].layout, buffer.buffer, dynamic.descriptor_set,
+                        static_cast<std::uint32_t>(upload_count), dynamic.projection.data(),
+                        dynamic.push_constants.empty() ? nullptr : dynamic.push_constants.data(),
+                        static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
+                    return;
+                }
                 if (active_program_ == lighting_program_)
                 {
                     lighting_textures_[0] = texture_handle;
@@ -940,6 +1204,46 @@ namespace sl::detail
                         lighting_projection_.data(), &lighting_constants_, sizeof(lighting_constants_), last_error_);
                     return;
                 }
+                if (active_program_ == composite_program_)
+                {
+                    VulkanImage images[2]{};
+                    VulkanSampler samplers[2]{};
+                    const std::uint32_t bloom_handle = composite_bloom_texture_ != 0 ? composite_bloom_texture_ : white_texture_;
+                    auto resolve_texture = [this](std::uint32_t handle, VulkanImage &image, VulkanSampler &sampler)
+                    {
+                        const auto texture_iterator = textures_.find(handle);
+                        if (texture_iterator != textures_.end())
+                        {
+                            image = texture_iterator->second.image;
+                            sampler = texture_iterator->second.sampler;
+                            return true;
+                        }
+                        for (const auto &[framebuffer, target] : render_targets_)
+                        {
+                            if (target.texture_handle == handle)
+                            {
+                                image = target.image;
+                                sampler = target.sampler;
+                                return true;
+                            }
+                        }
+                        return false;
+                    };
+                    if (!resolve_texture(texture_handle, images[0], samplers[0]) ||
+                        !resolve_texture(bloom_handle, images[1], samplers[1]))
+                    {
+                        return;
+                    }
+                    const bool descriptor_ready = composite_descriptor_ == VK_NULL_HANDLE
+                        ? context_.allocate_composite_descriptor(descriptor_pool_, composite_descriptor_layout_,
+                            images, samplers, composite_descriptor_, last_error_)
+                        : context_.update_composite_descriptor(composite_descriptor_, images, samplers, last_error_);
+                    if (!descriptor_ready) return;
+                    context_.record_postprocess_draw(composite_pipeline_.pipeline, composite_pipeline_.layout,
+                        buffer.buffer, composite_descriptor_, static_cast<std::uint32_t>(upload_count),
+                        postprocess_projection_.data(), &composite_constants_, sizeof(composite_constants_), last_error_);
+                    return;
+                }
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 const auto texture_iterator = textures_.find(texture_handle);
                 if (texture_iterator != textures_.end())
@@ -954,6 +1258,20 @@ namespace sl::detail
                     context_.record_postprocess_draw(vignette_pipeline_.pipeline, vignette_pipeline_.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), vignette_projection_.data(),
                         &vignette_constants_, sizeof(vignette_constants_), last_error_);
+                    return;
+                }
+                if (active_program_ == bright_program_)
+                {
+                    context_.record_postprocess_draw(bright_pipeline_.pipeline, bright_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &bright_constants_, sizeof(bright_constants_), last_error_);
+                    return;
+                }
+                if (active_program_ == blur_program_)
+                {
+                    context_.record_postprocess_draw(blur_pipeline_.pipeline, blur_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &blur_constants_, sizeof(blur_constants_), last_error_);
                     return;
                 }
                 const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
@@ -1002,6 +1320,18 @@ namespace sl::detail
             }
             void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
             {
+                const auto dynamic_iterator = dynamic_programs_.find(active_program_);
+                if (dynamic_iterator != dynamic_programs_.end())
+                {
+                    if (unit < dynamic_iterator->second.bound_textures.size())
+                        dynamic_iterator->second.bound_textures[unit] = texture;
+                    return;
+                }
+                if (active_program_ == composite_program_ && unit == 1)
+                {
+                    composite_bloom_texture_ = texture;
+                    return;
+                }
                 if (unit < lighting_textures_.size()) lighting_textures_[unit] = texture;
             }
             void storage_barrier() override
@@ -1040,6 +1370,79 @@ namespace sl::detail
                 return false;
             }
 
+            bool create_dynamic_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
+                                       std::uint32_t &program, std::string &error)
+            {
+                std::vector<std::uint32_t> vertex_spirv;
+                std::vector<std::uint32_t> fragment_spirv;
+                if (!compile_glsl_to_spirv(ShaderStage::vertex, vertex_source.text, vertex_spirv, error)) return false;
+                if (!compile_glsl_to_spirv(ShaderStage::fragment, fragment_source.text, fragment_spirv, error)) return false;
+
+                DynamicVulkanProgram dynamic;
+                if (!context_.create_shader_module(vertex_spirv, dynamic.vertex_module, error)) return false;
+                if (!context_.create_shader_module(fragment_spirv, dynamic.fragment_module, error))
+                {
+                    context_.destroy_shader_module(dynamic.vertex_module);
+                    return false;
+                }
+
+                dynamic.sampler_names = fragment_source.vulkan_sampler_names;
+                dynamic.bound_textures.assign(dynamic.sampler_names.size(), 0);
+
+                std::vector<VkDescriptorSetLayoutBinding> bindings(dynamic.sampler_names.size());
+                for (std::size_t index = 0; index < bindings.size(); ++index)
+                {
+                    bindings[index].binding = static_cast<std::uint32_t>(index);
+                    bindings[index].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    bindings[index].descriptorCount = 1;
+                    bindings[index].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+                }
+                if (!context_.create_dynamic_descriptor_layout(bindings, dynamic.descriptor_layout, error))
+                {
+                    context_.destroy_shader_module(dynamic.vertex_module);
+                    context_.destroy_shader_module(dynamic.fragment_module);
+                    return false;
+                }
+
+                std::uint32_t push_constant_size = 0;
+                dynamic.uniform_layout = fragment_source.vulkan_uniforms;
+                for (const ShaderUniformLayout &uniform : dynamic.uniform_layout)
+                    push_constant_size = std::max(push_constant_size, uniform.offset + uniform.size);
+                dynamic.push_constants.assign(push_constant_size, std::uint8_t{0});
+                dynamic.push_constant_size = push_constant_size;
+                // Pipeline variants (one per PrimitiveType) are created lazily on first use of
+                // that topology, since a vertex shader supplied for triangle/line rendering
+                // does not necessarily write gl_PointSize, which the point-list topology requires.
+
+                program = next_dynamic_program_++;
+                dynamic_programs_.emplace(program, std::move(dynamic));
+                return true;
+            }
+
+            bool set_dynamic_uniform(std::uint32_t program, const char *name, const void *data, std::size_t size)
+            {
+                if (!name || !data) return unsupported();
+                const auto iterator = dynamic_programs_.find(program);
+                if (iterator == dynamic_programs_.end()) return unsupported();
+                DynamicVulkanProgram &dynamic = iterator->second;
+                if (std::strcmp(name, "uProjection") == 0)
+                {
+                    if (size != sizeof(float) * 16) return unsupported();
+                    std::memcpy(dynamic.projection.data(), data, size);
+                    return true;
+                }
+                for (const ShaderUniformLayout &uniform : dynamic.uniform_layout)
+                {
+                    if (uniform.name == name)
+                    {
+                        if (uniform.offset + uniform.size > dynamic.push_constants.size()) return unsupported();
+                        std::memcpy(dynamic.push_constants.data() + uniform.offset, data, std::min<std::size_t>(size, uniform.size));
+                        return true;
+                    }
+                }
+                return unsupported();
+            }
+
             SDL_Window *window_ = nullptr;
             unsigned int window_flags_ = 0;
             VulkanContext context_;
@@ -1055,9 +1458,21 @@ namespace sl::detail
             VulkanGraphicsPipeline lighting_pipeline_;
             VulkanShaderModule vignette_fragment_module_;
             VulkanGraphicsPipeline vignette_pipeline_;
+            VulkanShaderModule bright_fragment_module_;
+            VulkanGraphicsPipeline bright_pipeline_;
+            VulkanShaderModule blur_fragment_module_;
+            VulkanGraphicsPipeline blur_pipeline_;
+            VulkanShaderModule composite_fragment_module_;
+            VulkanGraphicsPipeline composite_pipeline_;
+            VulkanDescriptorSetLayout composite_descriptor_layout_;
+            VkDescriptorSet composite_descriptor_ = VK_NULL_HANDLE;
+            std::uint32_t composite_bloom_texture_ = 0;
             static constexpr std::uint32_t cull_program_ = 0x80000000u;
             static constexpr std::uint32_t lighting_program_ = 0x80000001u;
             static constexpr std::uint32_t vignette_program_ = 0x80000002u;
+            static constexpr std::uint32_t bright_program_ = 0x80000003u;
+            static constexpr std::uint32_t blur_program_ = 0x80000004u;
+            static constexpr std::uint32_t composite_program_ = 0x80000005u;
             std::uint32_t active_program_ = 0;
             std::unordered_map<std::uint32_t, VulkanShaderModule> shader_modules_;
             std::uint32_t next_shader_module_ = 1;
@@ -1092,6 +1507,10 @@ namespace sl::detail
             std::array<std::uint32_t, 9> lighting_textures_{};
             struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; } vignette_constants_;
             std::array<float, 16> vignette_projection_{};
+            struct BrightConstants { float threshold = 0.0f; } bright_constants_;
+            struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; } blur_constants_;
+            struct CompositeConstants { float intensity = 0.0f; } composite_constants_;
+            std::array<float, 16> postprocess_projection_{};
             struct VulkanTexture
             {
                 VulkanImage image;
@@ -1111,6 +1530,23 @@ namespace sl::detail
             std::unordered_map<std::uint32_t, VulkanRenderTarget> render_targets_;
             std::uint32_t next_texture_ = 1;
             std::uint32_t next_render_target_ = 1;
+
+            struct DynamicVulkanProgram
+            {
+                std::array<VulkanGraphicsPipeline, 5> pipelines{};
+                VulkanDescriptorSetLayout descriptor_layout;
+                VulkanShaderModule vertex_module;
+                VulkanShaderModule fragment_module;
+                VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+                std::vector<std::string> sampler_names;
+                std::vector<std::uint32_t> bound_textures;
+                std::vector<ShaderUniformLayout> uniform_layout;
+                std::vector<std::uint8_t> push_constants;
+                std::uint32_t push_constant_size = 0;
+                std::array<float, 16> projection{};
+            };
+            std::unordered_map<std::uint32_t, DynamicVulkanProgram> dynamic_programs_;
+            std::uint32_t next_dynamic_program_ = 1;
         };
     }
 

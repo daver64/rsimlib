@@ -22,7 +22,7 @@ This repository contains:
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 - **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
 - **`exphysics`** — Box2D body, fixture, and stepping example (`src/applications/exphysics/`).
-- **`exvulkan`** — textured-quad backend smoke test (`src/applications/exvulkan/`).
+- **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/applications/exvulkan/`).
 
 ### `sltest` screenshot
 
@@ -37,6 +37,8 @@ particles, and vignette effect:
 - A C++17 compiler
 - SDL2, SDL2_ttf, SDL2_image, SDL2_mixer (development packages)
 - OpenGL, Vulkan, libpng, zlib
+- `glslangValidator` (from `glslang-tools`), also required at runtime for
+  compiling arbitrary user GLSL shaders on the Vulkan backend
 
 On Debian/Ubuntu:
 
@@ -60,7 +62,9 @@ barriers used by tiled lighting.
 Shader creation carries explicit language metadata (`GLSL`, `SPIR-V`, or
 `DXIL`) through the internal renderer interface. Built-in effects load GLSL
 assets on OpenGL and validated SPIR-V assets on Vulkan. Arbitrary user shaders
-must currently provide a backend-appropriate payload and layout metadata.
+can be authored once in GLSL and used on either backend; see
+[Renderer capabilities](#renderer-capabilities) for the Vulkan sampler/uniform
+metadata required by `Shader::load()`.
 
 The shader contract now also carries an explicit stage (`vertex`, `fragment`,
 or `compute`) and can represent either GLSL text or a SPIR-V word payload.
@@ -79,31 +83,50 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 currently available; D3D11 and D3D12 remain reserved backend choices.
 
 All graphical applications accept `--gl` and `--vulkan`; OpenGL is the default
-when no backend flag is given. User shaders should provide GLSL for OpenGL and
-SPIR-V with explicit descriptor bindings and push-constant layouts for Vulkan.
-Built-in source assets live in `shaders/glsl/` and `shaders/vulkan/`; CMake
-compiles GLSL validation output under `build/shaders/glsl/` and Vulkan SPIR-V
-under `build/shaders/vulkan/`.
+when no backend flag is given. User shaders can be written once in GLSL for
+both backends (see [Renderer capabilities](#renderer-capabilities)), or raw
+SPIR-V can be supplied directly with explicit descriptor bindings and
+push-constant layouts for cases that need full control over the Vulkan
+pipeline. Built-in source assets live in `shaders/glsl/` and `shaders/vulkan/`;
+CMake compiles GLSL validation output under `build/shaders/glsl/` and Vulkan
+SPIR-V under `build/shaders/vulkan/`.
 
 ### Current backend status
 
 The OpenGL and Vulkan backends support the built-in 2D primitives, sprites,
 TrueType text, render targets, ImGui, tiled lighting with shadows, Vignette,
-resizing, fullscreen, and vsync. `sltest --vulkan` is the primary Vulkan
-integration smoke test. Bloom and arbitrary user GLSL programs are not yet
-portable; user shaders should provide a backend-appropriate payload.
+Bloom, resizing, fullscreen, and vsync. `sltest --vulkan` is the primary
+Vulkan integration smoke test. Arbitrary user shaders can be authored once in
+GLSL and used on both backends: on Vulkan, `Shader::load()` compiles the GLSL
+to SPIR-V at runtime via `glslangValidator` and builds the pipeline from the
+supplied sampler/uniform metadata (see below).
 
 ### Renderer capabilities
 
 Both backends support top-left-origin 2D points, lines, line loops, triangles,
 triangle fans, textured sprites, alpha blending, nearest and linear texture
 sampling, render targets, TrueType text, Dear ImGui, fullscreen, resize, and
-vsync. Vulkan also supports the built-in tiled-lighting compute pass and
-Vignette effect through precompiled SPIR-V shader assets.
+vsync. Vulkan also supports the built-in tiled-lighting compute pass, Vignette,
+and Bloom effects through precompiled SPIR-V shader assets.
 
-The built-in Bloom effect and arbitrary runtime GLSL programs are currently
-OpenGL-only. For custom Vulkan shaders, supply SPIR-V with explicit descriptor
-set/binding declarations and push-constant layouts.
+Arbitrary runtime GLSL programs work on both backends. On OpenGL, `Shader::load()`
+compiles and links the GLSL directly. On Vulkan, use the overload that also
+takes sampler names and uniform layout metadata:
+
+```cpp
+sl::Shader tint;
+tint.load(vertexGlsl, fragmentGlsl,
+    {"uTexture"},                              // fragment sampler names, in binding order
+    {{"uTintColor", 0, sizeof(float) * 3}});   // {name, byte offset, byte size} in the push-constant block
+```
+
+This compiles the GLSL to SPIR-V at runtime via `glslangValidator` (must be on
+`PATH` or discoverable by CMake's `find_program` at configure time) and builds
+a matching descriptor layout and pipeline. The uniform `uProjection` (a 4x4
+matrix) is always available and does not need to be listed. Shaders that only
+target OpenGL can keep using the two-argument `load()` overload and raw SPIR-V
+can still be supplied directly with explicit descriptor set/binding
+declarations and push-constant layouts for cases that need full control.
 
 When `glslangValidator` and `spirv-val` are installed, CMake provides a
 `shader_validation` and `vulkan_shader_validation` targets and makes `simlib`
@@ -380,7 +403,7 @@ context is destroyed.
 
 | Type | Main API | Description |
 | --- | --- | --- |
-| `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in GLSL/SPIR-V shader asset, bind it, set uniforms, and release it. |
+| `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader (compiled to SPIR-V at runtime on Vulkan), bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
 | `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and polygon-caster shadows to a bitmap. |

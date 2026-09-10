@@ -14,7 +14,20 @@ namespace sl
 namespace sl
 {
 
-    /** Owns and applies an OpenGL shader program. */
+    /**
+     * Describes one named field inside a custom Vulkan shader's fragment
+     * push-constant block, relative to the block's own start (0-based).
+     * Sizes: float/int = 4, vec2 = 8, vec3 = 12, vec4/mat4's row = varies;
+     * use 64 for a full mat4.
+     */
+    struct ShaderUniform
+    {
+        std::string name;
+        std::uint32_t offset = 0;
+        std::uint32_t size = 0;
+    };
+
+    /** Owns and applies a shader program for the active graphics backend. */
     class Shader
     {
     public:
@@ -31,6 +44,19 @@ namespace sl
         bool load(const std::string &vertexSource, const std::string &fragmentSource);
         /** Compile and link a named built-in shader asset, replacing the current program. */
         bool load(const std::string &vertexSource, const std::string &fragmentSource, const std::string &assetId);
+        /**
+         * Compile and link an arbitrary custom shader, replacing the current program.
+         * On Vulkan this compiles the supplied GLSL to SPIR-V at runtime (requires
+         * glslangValidator to be installed) and builds a pipeline whose fragment
+         * stage samples `vulkanSamplerNames` (in binding order 0..N-1) and exposes
+         * `vulkanUniforms` as named push-constant fields settable via set_uniform.
+         * The special uniform name "uProjection" is always available for a 4x4
+         * matrix and does not need to be listed in `vulkanUniforms`. On OpenGL,
+         * `vulkanSamplerNames` and `vulkanUniforms` are ignored.
+         */
+        bool load(const std::string &vertexSource, const std::string &fragmentSource,
+                  const std::vector<std::string> &vulkanSamplerNames,
+                  const std::vector<ShaderUniform> &vulkanUniforms);
         /** Compile and link a compute shader, replacing the current program. */
         bool load_compute(const std::string &computeSource);
         /** Compile and link a named built-in compute shader asset, replacing the current program. */
