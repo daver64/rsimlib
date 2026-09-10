@@ -3,6 +3,7 @@
 #include <box2d/box2d.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace sl
 {
@@ -33,11 +34,29 @@ namespace sl
         }
     }
 
+    struct PhysicsWorld;
+
+    class ContactListener final : public b2ContactListener
+    {
+    public:
+        explicit ContactListener(PhysicsWorld *owner) : owner(owner) {}
+
+        void BeginContact(b2Contact *contact) override;
+        void EndContact(b2Contact *contact) override;
+
+        PhysicsWorld *owner;
+    };
+
     struct PhysicsWorld
     {
-        explicit PhysicsWorld(Vec2 gravity) : world(to_box2d(gravity)) {}
+        explicit PhysicsWorld(Vec2 gravity) : world(to_box2d(gravity)), listener(this)
+        {
+            world.SetContactListener(&listener);
+        }
 
         b2World world;
+        ContactListener listener;
+        std::vector<PhysicsContact> contacts;
     };
 
     struct PhysicsBody
@@ -45,6 +64,38 @@ namespace sl
         PhysicsWorld *owner = nullptr;
         b2Body *body = nullptr;
     };
+
+    namespace
+    {
+        void record_contact(PhysicsWorld *world, ContactType type, b2Contact *contact)
+        {
+            if (!world || !contact)
+            {
+                return;
+            }
+            b2Body *bodyA = contact->GetFixtureA()->GetBody();
+            b2Body *bodyB = contact->GetFixtureB()->GetBody();
+            b2WorldManifold manifold;
+            contact->GetWorldManifold(&manifold);
+            PhysicsContact event;
+            event.type = type;
+            event.body_a = reinterpret_cast<PhysicsBody *>(bodyA->GetUserData().pointer);
+            event.body_b = reinterpret_cast<PhysicsBody *>(bodyB->GetUserData().pointer);
+            event.point = from_box2d(manifold.points[0]);
+            event.normal = {manifold.normal.x, manifold.normal.y};
+            world->contacts.push_back(event);
+        }
+    }
+
+    void ContactListener::BeginContact(b2Contact *contact)
+    {
+        record_contact(owner, ContactType::begin, contact);
+    }
+
+    void ContactListener::EndContact(b2Contact *contact)
+    {
+        record_contact(owner, ContactType::end, contact);
+    }
 
     PhysicsWorld *create_physics_world(Vec2 gravity)
     {
@@ -65,6 +116,17 @@ namespace sl
         world->world.Step(time_step, std::max(1, velocity_iterations), std::max(1, position_iterations));
     }
 
+    std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world)
+    {
+        if (!world)
+        {
+            return {};
+        }
+        std::vector<PhysicsContact> contacts = std::move(world->contacts);
+        world->contacts.clear();
+        return contacts;
+    }
+
     PhysicsBody *create_physics_body(PhysicsWorld *world, BodyType type, Vec2 position)
     {
         if (!world)
@@ -76,6 +138,7 @@ namespace sl
         definition.position = to_box2d(position);
         PhysicsBody *body = new PhysicsBody;
         body->owner = world;
+        definition.userData.pointer = reinterpret_cast<uintptr_t>(body);
         body->body = world->world.CreateBody(&definition);
         if (!body->body)
         {
@@ -156,6 +219,28 @@ namespace sl
         }
         b2CircleShape shape;
         shape.m_radius = radius / physics_pixels_per_meter;
+        b2FixtureDef fixture;
+        fixture.shape = &shape;
+        fixture.density = std::max(0.0f, density);
+        fixture.friction = std::max(0.0f, friction);
+        fixture.restitution = std::clamp(restitution, 0.0f, 1.0f);
+        return body->body->CreateFixture(&fixture) != nullptr;
+    }
+
+    bool add_polygon_fixture(PhysicsBody *body, const std::vector<Vec2> &vertices,
+                             float density, float friction, float restitution)
+    {
+        if (!body || !body->body || vertices.size() < 3 || vertices.size() > b2_maxPolygonVertices)
+        {
+            return false;
+        }
+        b2Vec2 points[b2_maxPolygonVertices];
+        for (std::size_t index = 0; index < vertices.size(); ++index)
+        {
+            points[index] = to_box2d(vertices[index]);
+        }
+        b2PolygonShape shape;
+        shape.Set(points, static_cast<int32>(vertices.size()));
         b2FixtureDef fixture;
         fixture.shape = &shape;
         fixture.density = std::max(0.0f, density);

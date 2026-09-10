@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace sl
 {
@@ -21,6 +22,21 @@ namespace sl
     struct PhysicsWorld;
     struct PhysicsBody;
 
+    enum class ContactType
+    {
+        begin,
+        end
+    };
+
+    struct PhysicsContact
+    {
+        ContactType type = ContactType::begin;
+        PhysicsBody *body_a = nullptr;
+        PhysicsBody *body_b = nullptr;
+        Vec2 point;
+        Vec2 normal;
+    };
+
     /** Pixels represented by one Box2D metre in the wrapper. */
     inline constexpr float physics_pixels_per_meter = 64.0f;
 
@@ -31,6 +47,8 @@ namespace sl
     /** Advance the simulation by seconds. */
     void step_physics_world(PhysicsWorld *world, float time_step,
                             int velocity_iterations = 8, int position_iterations = 3);
+    /** Return and clear contact events generated since the previous call. */
+    std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 
     /** Create a body at a pixel-space position. */
     PhysicsBody *create_physics_body(PhysicsWorld *world, BodyType type, Vec2 position = {});
@@ -53,4 +71,7 @@ namespace sl
     /** Add a circular fixture using radius in pixels. */
     bool add_circle_fixture(PhysicsBody *body, float radius, float density = 1.0f,
                             float friction = 0.3f, float restitution = 0.0f);
+    /** Add a convex polygon fixture using pixel-space vertices. */
+    bool add_polygon_fixture(PhysicsBody *body, const std::vector<Vec2> &vertices,
+                             float density = 1.0f, float friction = 0.3f, float restitution = 0.0f);
 }

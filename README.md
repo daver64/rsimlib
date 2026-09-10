@@ -201,11 +201,17 @@ metre) before passing values to Box2D.
 | `create_physics_body(world, type, position)` / `destroy_physics_body(body)` | Create or release static, kinematic, or dynamic bodies. |
 | `add_box_fixture(body, width, height, density, friction, restitution)` | Add a box shape using pixel dimensions. |
 | `add_circle_fixture(body, radius, density, friction, restitution)` | Add a circle shape using a pixel radius. |
+| `add_polygon_fixture(body, vertices, density, friction, restitution)` | Add a convex polygon shape using pixel-space vertices. Box2D allows up to eight vertices. |
 | `step_physics_world(world, timeStep, velocityIterations, positionIterations)` | Advance the simulation by seconds. |
+| `poll_physics_contacts(world)` | Return and clear begin/end contact events generated since the previous call. |
 | `physics_body_position(body)` / `physics_body_angle(body)` | Read a body's current transform in pixel-space coordinates and radians. |
 | `set_physics_body_transform(body, position, angle)` | Set a body's pixel-space transform. |
 | `set_physics_body_velocity(body, velocity)` | Set linear velocity in pixels per second. |
 | `apply_physics_force(body, force)` | Apply a force at the body's centre. |
+
+`PhysicsContact` contains the contact `type`, the two opaque body handles, a
+pixel-space contact `point`, and a unit `normal`. Poll contacts after stepping;
+the returned event vector is owned by the caller and is cleared from the world.
 
 Destroy bodies before their world, and keep rendering separate from simulation:
 read each body's transform after stepping and draw the corresponding sprite or
