@@ -9,6 +9,7 @@
 #include "display.h"
 #include "error.h"
 #include "gl2d.h"
+#include "renderer.h"
 #include "resource.h"
 
 #include <SDL2/SDL_image.h>
@@ -59,19 +60,13 @@ namespace sl
 			}
 			if (bitmap->gpu_texture == 0)
 			{
-				GLuint texture = 0;
-				glGenTextures(1, &texture);
-				if (texture == 0)
+				detail::Renderer *renderer = detail::active_renderer();
+				std::uint32_t texture = 0;
+				if (!renderer || !renderer->create_texture(bitmap->width, bitmap->height, false, texture))
 				{
 					return false;
 				}
 				bitmap->gpu_texture = texture;
-				glBindTexture(GL_TEXTURE_2D, bitmap->gpu_texture);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitmap->width, bitmap->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 				bitmap->gpu_dirty = !bitmap->pixels.empty();
 			}
 			return true;
@@ -350,27 +345,12 @@ namespace sl
 			return nullptr;
 		}
 
-		GLuint texture = 0;
-		glGenTextures(1, &texture);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-
-		GLuint fbo = 0;
-		glGenFramebuffers(1, &fbo);
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-		const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-		if (status != GL_FRAMEBUFFER_COMPLETE)
+		detail::Renderer *renderer = detail::active_renderer();
+		std::uint32_t texture = 0;
+		std::uint32_t fbo = 0;
+		if (!renderer || !renderer->create_render_target(width, height, texture, fbo))
 		{
 			sl::detail::set_error("Unable to create framebuffer for render target");
-			glDeleteFramebuffers(1, &fbo);
-			glDeleteTextures(1, &texture);
 			return nullptr;
 		}
 
@@ -545,15 +525,14 @@ namespace sl
 		{
 			return;
 		}
-		if (bitmap->fbo != 0)
+		detail::Renderer *renderer = detail::active_renderer();
+		if (renderer && bitmap->fbo != 0)
 		{
-			const GLuint fbo = bitmap->fbo;
-			glDeleteFramebuffers(1, &fbo);
+			renderer->destroy_render_target(bitmap->gpu_texture, bitmap->fbo);
 		}
-		if (bitmap->gpu_texture != 0)
+		else if (renderer && bitmap->gpu_texture != 0)
 		{
-			const GLuint texture = bitmap->gpu_texture;
-			glDeleteTextures(1, &texture);
+			renderer->destroy_texture(bitmap->gpu_texture);
 		}
 		delete bitmap;
 	}
@@ -1035,9 +1014,11 @@ namespace sl
 		{
 			return true;
 		}
-		glBindTexture(GL_TEXTURE_2D, bitmap->gpu_texture);
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bitmap->width, bitmap->height, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->pixels.data());
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer || !renderer->upload_texture(bitmap->gpu_texture, bitmap->width, bitmap->height, bitmap->pixels.data()))
+		{
+			return false;
+		}
 		bitmap->ram_dirty = false;
 		bitmap->gpu_dirty = false;
 		return true;

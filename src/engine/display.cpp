@@ -191,6 +191,11 @@ namespace sl
 
     namespace detail
     {
+        Renderer *active_renderer()
+        {
+            return renderer.get();
+        }
+
         void set_render_target_size(int targetWidth, int targetHeight)
         {
             renderTargetWidth = targetWidth;
