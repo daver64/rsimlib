@@ -1,0 +1,56 @@
+#pragma once
+
+#include <cstdint>
+
+namespace sl
+{
+    /** 2D position or vector expressed in screen pixels. */
+    struct Vec2
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+    enum class BodyType
+    {
+        static_body,
+        kinematic_body,
+        dynamic_body
+    };
+
+    struct PhysicsWorld;
+    struct PhysicsBody;
+
+    /** Pixels represented by one Box2D metre in the wrapper. */
+    inline constexpr float physics_pixels_per_meter = 64.0f;
+
+    /** Create a physics world. Gravity uses pixels per second squared. */
+    PhysicsWorld *create_physics_world(Vec2 gravity = {0.0f, 980.0f});
+    /** Destroy a world and all bodies owned by it. */
+    void destroy_physics_world(PhysicsWorld *world);
+    /** Advance the simulation by seconds. */
+    void step_physics_world(PhysicsWorld *world, float time_step,
+                            int velocity_iterations = 8, int position_iterations = 3);
+
+    /** Create a body at a pixel-space position. */
+    PhysicsBody *create_physics_body(PhysicsWorld *world, BodyType type, Vec2 position = {});
+    /** Destroy a body owned by its world. */
+    void destroy_physics_body(PhysicsBody *body);
+    /** Set a body's pixel-space position and angle in radians. */
+    void set_physics_body_transform(PhysicsBody *body, Vec2 position, float angle = 0.0f);
+    /** Return a body's pixel-space position, or zero for an invalid body. */
+    Vec2 physics_body_position(const PhysicsBody *body);
+    /** Return a body's angle in radians, or zero for an invalid body. */
+    float physics_body_angle(const PhysicsBody *body);
+    /** Set a body's linear velocity in pixels per second. */
+    void set_physics_body_velocity(PhysicsBody *body, Vec2 velocity);
+    /** Add a force at the body's centre, expressed in pixel-space units. */
+    void apply_physics_force(PhysicsBody *body, Vec2 force);
+
+    /** Add a box fixture using full width and height in pixels. */
+    bool add_box_fixture(PhysicsBody *body, float width, float height, float density = 1.0f,
+                         float friction = 0.3f, float restitution = 0.0f);
+    /** Add a circular fixture using radius in pixels. */
+    bool add_circle_fixture(PhysicsBody *body, float radius, float density = 1.0f,
+                            float friction = 0.3f, float restitution = 0.0f);
+}

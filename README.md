@@ -19,6 +19,7 @@ This repository contains:
 - **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 - **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
+- **`exphysics`** — Box2D body, fixture, and stepping example (`src/applications/exphysics/`).
 
 ### `sltest` screenshot
 
@@ -69,6 +70,7 @@ ctest --test-dir build
 ./exfont    # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
+./exphysics # Box2D physics demo
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -185,6 +187,30 @@ Shape primitives include `line`, `rect`, `rectfill`, `circle`, `circlefill`,
 `ellipse`, `ellipsefill`, `triangle`, and `trianglefill`. Each accepts a
 destination bitmap, geometry, and either a solid `Colour` or a texture.
 Coordinates use a top-left origin, and shape coordinates are floating point.
+
+### Physics
+
+`physics.h` wraps Box2D behind opaque simlib handles. Applications use
+`sl::Vec2` and never need to include Box2D headers. Physics coordinates are in
+pixels; the wrapper converts using `physics_pixels_per_meter` (64 pixels per
+metre) before passing values to Box2D.
+
+| Function | Description |
+| --- | --- |
+| `create_physics_world(gravity)` / `destroy_physics_world(world)` | Create or release a world. Gravity is expressed in pixels per second squared. |
+| `create_physics_body(world, type, position)` / `destroy_physics_body(body)` | Create or release static, kinematic, or dynamic bodies. |
+| `add_box_fixture(body, width, height, density, friction, restitution)` | Add a box shape using pixel dimensions. |
+| `add_circle_fixture(body, radius, density, friction, restitution)` | Add a circle shape using a pixel radius. |
+| `step_physics_world(world, timeStep, velocityIterations, positionIterations)` | Advance the simulation by seconds. |
+| `physics_body_position(body)` / `physics_body_angle(body)` | Read a body's current transform in pixel-space coordinates and radians. |
+| `set_physics_body_transform(body, position, angle)` | Set a body's pixel-space transform. |
+| `set_physics_body_velocity(body, velocity)` | Set linear velocity in pixels per second. |
+| `apply_physics_force(body, force)` | Apply a force at the body's centre. |
+
+Destroy bodies before their world, and keep rendering separate from simulation:
+read each body's transform after stepping and draw the corresponding sprite or
+primitive yourself. Destroying a world releases its Box2D bodies, so body
+handles must not be used afterward.
 
 ### Text
 

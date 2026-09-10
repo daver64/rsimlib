@@ -65,6 +65,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(sol2)
 
+FetchContent_Declare(
+    box2d
+    GIT_REPOSITORY https://github.com/erincatto/box2d.git
+    GIT_TAG v2.4.1
+    GIT_SHALLOW TRUE
+)
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Box2D unit tests" FORCE)
+set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "Disable Box2D testbed" FORCE)
+FetchContent_MakeAvailable(box2d)
+
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
     set(SIMLIB_TTF_TARGET SDL2_ttf::SDL2_ttf)
@@ -98,9 +108,11 @@ add_library(simlib STATIC
     src/engine/gui.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
+    src/engine/physics.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
+target_link_libraries(simlib PUBLIC box2d)
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(simlib PUBLIC SDL2::SDL2 SDL2::SDL2main)
@@ -177,6 +189,12 @@ set_target_properties(exlighting PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exphysics src/applications/exphysics/exphysics.cpp)
+target_link_libraries(exphysics PRIVATE simlib)
+set_target_properties(exphysics PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 add_executable(exlua src/applications/exlua/exlua.cpp)
 target_link_libraries(exlua PRIVATE simlib lua sol2)
 set_target_properties(exlua PROPERTIES
@@ -249,6 +267,10 @@ if(BUILD_TESTING)
     add_custom_target(resource_test_fixture DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip)
     add_dependencies(resource_test resource_test_fixture)
     add_test(NAME resource_archive COMMAND resource_test ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip)
+
+    add_executable(physics_test tests/physics_test.cpp)
+    target_link_libraries(physics_test PRIVATE simlib)
+    add_test(NAME physics COMMAND physics_test)
 endif()
 
 find_package(Doxygen QUIET)

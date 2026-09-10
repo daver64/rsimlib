@@ -29,6 +29,7 @@
 #include "lua_canvas.h"
 #include "lua_runtime.h"
 #include "noise.h"
+#include "physics.h"
 #include "resource.h"
 #include "scene3d.h"
 #include "system.h"
