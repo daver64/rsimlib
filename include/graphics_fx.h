@@ -57,10 +57,17 @@ namespace sl
         bool load(const std::string &vertexSource, const std::string &fragmentSource,
                   const std::vector<std::string> &vulkanSamplerNames,
                   const std::vector<ShaderUniform> &vulkanUniforms);
+        /** Load vertex and fragment GLSL source files and compile them. */
+        bool load_files(const std::string &vertexPath, const std::string &fragmentPath,
+                const std::vector<std::string> &vulkanSamplerNames = {},
+                const std::vector<ShaderUniform> &vulkanUniforms = {},
+                const std::string &assetId = {});
         /** Compile and link a compute shader, replacing the current program. */
         bool load_compute(const std::string &computeSource);
         /** Compile and link a named built-in compute shader asset, replacing the current program. */
         bool load_compute(const std::string &computeSource, const std::string &assetId);
+        /** Load and compile a compute GLSL source file. */
+        bool load_compute_file(const std::string &computePath, const std::string &assetId = {});
         /** Delete the program and clear its error state. */
         void reset();
 

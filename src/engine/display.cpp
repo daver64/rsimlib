@@ -137,6 +137,7 @@ namespace sl
         if (!renderer->initialise(window, renderer_error))
         {
             sl::detail::set_error(renderer_error);
+            renderer->shutdown();
             renderer.reset();
             SDL_DestroyWindow(window);
             window = nullptr;
@@ -149,9 +150,26 @@ namespace sl
         SDL_GetWindowSize(window, &width, &height);
         logicalWidth = virtualWidth > 0 ? virtualWidth : width;
         logicalHeight = virtualHeight > 0 ? virtualHeight : height;
-        renderer->resize(width, height);
+        if (!renderer->resize(width, height, renderer_error))
+        {
+            sl::detail::set_error(renderer_error);
+            renderer->shutdown();
+            renderer.reset();
+            SDL_DestroyWindow(window);
+            window = nullptr;
+            TTF_Quit();
+            ttfInitialized = false;
+            SDL_Quit();
+            return false;
+        }
         detail::initialise_screen(logicalWidth, logicalHeight);
         sl_default_monospace_font = open_monospace_font(12);
+        if (!sl_default_monospace_font)
+        {
+            sl::detail::set_error("Unable to load the default monospace font");
+            display_shutdown();
+            return false;
+        }
         return true;
     }
 
@@ -166,7 +184,9 @@ namespace sl
         height = event.window_height();
         if (renderer)
         {
-            renderer->resize(width, height);
+            std::string error;
+            if (!renderer->resize(width, height, error) && !error.empty())
+                sl::detail::set_error(error);
         }
         detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
     }
@@ -187,7 +207,9 @@ namespace sl
         SDL_GetWindowSize(window, &width, &height);
         if (renderer)
         {
-            renderer->resize(width, height);
+            std::string error;
+            if (!renderer->resize(width, height, error) && !error.empty())
+                sl::detail::set_error(error);
         }
         return true;
     }
@@ -240,7 +262,8 @@ namespace sl
     {
         if (renderer && selected_backend == GraphicsBackend::opengl)
         {
-            renderer->resize(width, height);
+            std::string error;
+            renderer->resize(width, height, error);
         }
     }
 
@@ -269,12 +292,7 @@ namespace sl
                 static_cast<float>(alpha) / 255.0f);
             return;
         }
-        glClearColor(
-            static_cast<float>(red) / 255.0f,
-            static_cast<float>(green) / 255.0f,
-            static_cast<float>(blue) / 255.0f,
-            static_cast<float>(alpha) / 255.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        sl::detail::set_error("No active renderer is available to clear the display");
     }
 
     void show_video_bitmap()
@@ -315,6 +333,8 @@ namespace sl
         height = 0;
         logicalWidth = 0;
         logicalHeight = 0;
+        renderTargetWidth = 0;
+        renderTargetHeight = 0;
         SDL_Quit();
     }
 

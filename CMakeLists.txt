@@ -362,6 +362,18 @@ set_target_properties(exdb PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exshader src/examples/exshader/exshader.cpp)
+target_link_libraries(exshader PRIVATE simlib)
+set_target_properties(exshader PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exrendertarget src/examples/exrendertarget/exrendertarget.cpp)
+target_link_libraries(exrendertarget PRIVATE simlib)
+set_target_properties(exrendertarget PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 
 add_executable(client_template src/examples/client_template/client_template.cpp)
 target_link_libraries(client_template PRIVATE simlib)
@@ -384,6 +396,14 @@ set_target_properties(slunpack PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(rdb_test tests/rdb_test.cpp)
+    target_link_libraries(rdb_test PRIVATE simlib SQLite::SQLite3)
+    add_test(NAME rdb COMMAND rdb_test)
+
+    add_executable(backend_selection_test tests/backend_selection_test.cpp)
+    target_link_libraries(backend_selection_test PRIVATE simlib)
+    add_test(NAME backend_selection COMMAND backend_selection_test)
+
     add_executable(event_test tests/event_test.cpp)
     target_link_libraries(event_test PRIVATE simlib)
     add_test(NAME event COMMAND event_test)

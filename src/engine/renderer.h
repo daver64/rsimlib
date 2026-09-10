@@ -100,7 +100,7 @@ namespace sl::detail
         /** Release backend resources. */
         virtual void shutdown() = 0;
         /** Resize the backend drawable viewport. */
-        virtual void resize(int width, int height) = 0;
+        virtual bool resize(int width, int height, std::string &error) = 0;
         /** Set the backend presentation interval. */
         virtual bool set_vsync(bool enabled) = 0;
         /** Present the current backend framebuffer. */

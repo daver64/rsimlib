@@ -24,6 +24,8 @@ This repository contains:
 - **`exphysics`** — Box2D body, fixture, and stepping example (`src/examples/exphysics/`).
 - **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/examples/exvulkan/`).
 - **`exdb`** — SQLite database creation, population, and display example (`src/examples/exdb/`).
+- **`exshader`** — shader file loading and compilation example (`src/examples/exshader/`).
+- **`exrendertarget`** — off-screen rendering and compositing example (`src/examples/exrendertarget/`).
 
 ### `sltest` screenshot
 

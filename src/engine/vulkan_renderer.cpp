@@ -41,6 +41,7 @@ namespace sl::detail
             const fs::path directory = fs::temp_directory_path();
             const fs::path input = directory / ("simlib_shader_" + unique + "." + stage_extension);
             const fs::path output = directory / ("simlib_shader_" + unique + "." + stage_extension + ".spv");
+            const fs::path log = directory / ("simlib_shader_" + unique + ".log");
             {
                 std::ofstream file(input, std::ios::binary);
                 if (!file)
@@ -51,19 +52,25 @@ namespace sl::detail
                 file << source;
             }
             const std::string command = std::string("\"") + validator + "\" -V --auto-map-locations --auto-map-bindings -S " +
-                stage_extension + " \"" + input.string() + "\" -o \"" + output.string() + "\" > /dev/null 2>&1";
+                stage_extension + " \"" + input.string() + "\" -o \"" + output.string() + "\" > \"" + log.string() + "\" 2>&1";
             const int result = std::system(command.c_str());
             std::error_code remove_error;
             fs::remove(input, remove_error);
             if (result != 0)
             {
                 fs::remove(output, remove_error);
-                error = "glslangValidator failed to compile the supplied Vulkan shader.";
+                std::ifstream log_file(log);
+                const std::string diagnostics((std::istreambuf_iterator<char>(log_file)), {});
+                fs::remove(log, remove_error);
+                error = "glslangValidator failed to compile the supplied Vulkan shader";
+                if (!diagnostics.empty()) error += ":\n" + diagnostics;
                 return false;
             }
+            fs::remove(log, remove_error);
             std::ifstream file(output, std::ios::binary | std::ios::ate);
             if (!file)
             {
+                fs::remove(output, remove_error);
                 error = "Unable to read the compiled Vulkan shader output.";
                 return false;
             }
@@ -193,8 +200,13 @@ namespace sl::detail
                 context_.shutdown();
                 window_ = nullptr;
             }
-            void resize(int width, int height) override
+            bool resize(int width, int height, std::string &error) override
             {
+                if (width <= 0 || height <= 0)
+                {
+                    error = "Invalid Vulkan viewport dimensions.";
+                    return false;
+                }
                 drawable_width_ = width;
                 drawable_height_ = height;
                 for (auto &[handle, target] : render_targets_)
@@ -211,33 +223,41 @@ namespace sl::detail
                 context_.destroy_graphics_pipeline(bright_pipeline_);
                 context_.destroy_graphics_pipeline(blur_pipeline_);
                 context_.destroy_graphics_pipeline(composite_pipeline_);
-                if (context_.recreate_swapchain(width, height, last_error_))
+                if (!context_.recreate_swapchain(width, height, last_error_))
                 {
-                    create_pipelines(last_error_);
-                    context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
-                        lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, last_error_,
-                        &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int));
-                    context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, last_error_,
-                        nullptr, sizeof(VignetteConstants));
-                    context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
-                        nullptr, sizeof(BrightConstants));
-                    context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, last_error_,
-                        nullptr, sizeof(BlurConstants));
-                    context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
-                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, last_error_,
-                        nullptr, sizeof(CompositeConstants));
+                    error = last_error_;
+                    return false;
                 }
+                if (!create_pipelines(last_error_) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
+                        lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, last_error_,
+                        &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, last_error_,
+                        nullptr, sizeof(VignetteConstants)) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
+                        nullptr, sizeof(BrightConstants)) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
+                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, last_error_,
+                        nullptr, sizeof(BlurConstants)) ||
+                    !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
+                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, last_error_,
+                        nullptr, sizeof(CompositeConstants)))
+                {
+                    error = last_error_;
+                    return false;
+                }
+                return true;
             }
             bool set_vsync(bool enabled) override
             {
                 if (frame_active_ || (enabled == vsync_enabled_)) return !frame_active_;
                 vsync_enabled_ = enabled;
                 context_.set_vsync_enabled(enabled);
-                resize(drawable_width_, drawable_height_);
-                return context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
+                std::string error;
+                return resize(drawable_width_, drawable_height_, error) &&
+                    context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
             }
             void present() override
             {

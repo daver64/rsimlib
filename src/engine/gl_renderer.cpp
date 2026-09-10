@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <unordered_map>
 
 namespace sl::detail
 {
@@ -105,12 +106,13 @@ namespace sl::detail
             void shutdown() override
             {
                 shutdown_2d();
+                texture_sizes_.clear();
                 context_.shutdown();
             }
 
-            void resize(int width, int height) override
+            bool resize(int width, int height, std::string &error) override
             {
-                context_.resize(width, height);
+                return context_.resize(width, height, error);
             }
 
             bool set_vsync(bool enabled) override
@@ -133,6 +135,11 @@ namespace sl::detail
 
             bool create_texture(const TextureDesc &description, std::uint32_t &texture) override
             {
+                texture = 0;
+                if (description.width <= 0 || description.height <= 0)
+                {
+                    return false;
+                }
                 GLuint handle = 0;
                 glGenTextures(1, &handle);
                 if (handle == 0)
@@ -145,7 +152,13 @@ namespace sl::detail
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+                if (glGetError() != GL_NO_ERROR)
+                {
+                    glDeleteTextures(1, &handle);
+                    return false;
+                }
+                texture_sizes_[handle] = {description.width, description.height};
                 texture = handle;
                 return true;
             }
@@ -153,11 +166,17 @@ namespace sl::detail
             bool upload_texture(std::uint32_t texture, int width, int height,
                                 const std::uint8_t *pixels) override
             {
-                if (texture == 0 || !pixels)
+                if (texture == 0 || !pixels || width <= 0 || height <= 0)
                 {
                     return false;
                 }
-                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+                const GLuint handle = static_cast<GLuint>(texture);
+                const auto size = texture_sizes_.find(handle);
+                if (size == texture_sizes_.end() || width > size->second.first || height > size->second.second)
+                {
+                    return false;
+                }
+                glBindTexture(GL_TEXTURE_2D, handle);
                 glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
                                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -170,6 +189,7 @@ namespace sl::detail
                 {
                     const GLuint handle = static_cast<GLuint>(texture);
                     glDeleteTextures(1, &handle);
+                    texture_sizes_.erase(handle);
                 }
             }
 
@@ -178,6 +198,10 @@ namespace sl::detail
             {
                 texture = 0;
                 framebuffer = 0;
+                if (width <= 0 || height <= 0)
+                {
+                    return false;
+                }
                 if (!create_texture({width, height, TextureFilter::linear}, texture))
                 {
                     return false;
@@ -214,6 +238,10 @@ namespace sl::detail
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &) override
             {
+                if (framebuffer == 0 || width <= 0 || height <= 0)
+                {
+                    return false;
+                }
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
                 glViewport(0, 0, width, height);
                 return true;
@@ -238,6 +266,12 @@ namespace sl::detail
                                    default_2d_shader_, shader_error_)) return false;
                 glGenVertexArrays(1, &vao_);
                 glGenBuffers(1, &vbo_);
+                if (vao_ == 0 || vbo_ == 0)
+                {
+                    shutdown_2d();
+                    shader_error_ = "Unable to create OpenGL 2D vertex resources.";
+                    return false;
+                }
                 glBindVertexArray(vao_);
                 glBindBuffer(GL_ARRAY_BUFFER, vbo_);
                 glEnableVertexAttribArray(0);
@@ -249,7 +283,12 @@ namespace sl::detail
                 glBindVertexArray(0);
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
-                    !upload_texture(white_texture_, 1, 1, white_pixel)) return false;
+                    !upload_texture(white_texture_, 1, 1, white_pixel))
+                {
+                    shutdown_2d();
+                    shader_error_ = "Unable to create the OpenGL default texture.";
+                    return false;
+                }
                 return true;
             }
 
@@ -448,6 +487,7 @@ namespace sl::detail
             std::uint32_t default_2d_shader_ = 0;
             std::uint32_t white_texture_ = 0;
             std::string shader_error_;
+            std::unordered_map<GLuint, std::pair<int, int>> texture_sizes_;
         };
     }
 

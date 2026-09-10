@@ -21,7 +21,7 @@ namespace sl::detail
 
         bool initialise(SDL_Window *window, std::string &error);
         void shutdown();
-        void resize(int width, int height);
+        bool resize(int width, int height, std::string &error);
         bool set_vsync(bool enabled);
         void present();
         void clear(float red, float green, float blue, float alpha);

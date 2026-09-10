@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <iterator>
 #include <filesystem>
 #include <utility>
 #include <vector>
@@ -198,7 +200,12 @@ namespace sl
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
-		return renderer && renderer->create_shader(
+		if (!renderer)
+		{
+			error_ = "No active renderer is available for shader creation.";
+			return false;
+		}
+		return renderer->create_shader(
 			detail::ShaderSource{detail::ShaderLanguage::glsl, vertexSource, {}, assetId},
 			detail::ShaderSource{detail::ShaderLanguage::glsl, fragmentSource, {}, assetId},
 			program_, error_);
@@ -210,13 +217,57 @@ namespace sl
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
-		if (!renderer) return false;
+		if (!renderer)
+		{
+			error_ = "No active renderer is available for shader creation.";
+			return false;
+		}
 		std::vector<detail::ShaderUniformLayout> uniforms;
 		uniforms.reserve(vulkanUniforms.size());
 		for (const ShaderUniform &uniform : vulkanUniforms)
 			uniforms.push_back({uniform.name, uniform.offset, uniform.size});
 		detail::ShaderSource vertex{detail::ShaderLanguage::glsl, vertexSource, {}, {}};
 		detail::ShaderSource fragment{detail::ShaderLanguage::glsl, fragmentSource, {}, {}};
+		fragment.vulkan_sampler_names = vulkanSamplerNames;
+		fragment.vulkan_uniforms = uniforms;
+		return renderer->create_shader(vertex, fragment, program_, error_);
+	}
+
+	bool Shader::load_files(const std::string &vertexPath, const std::string &fragmentPath,
+		const std::vector<std::string> &vulkanSamplerNames,
+		const std::vector<ShaderUniform> &vulkanUniforms, const std::string &assetId)
+	{
+		reset();
+		std::ifstream vertexFile(vertexPath, std::ios::binary);
+		std::ifstream fragmentFile(fragmentPath, std::ios::binary);
+		if (!vertexFile || !fragmentFile)
+		{
+			error_ = !vertexFile ? "Unable to open vertex shader file: " + vertexPath
+				: "Unable to open fragment shader file: " + fragmentPath;
+			return false;
+		}
+		const std::string vertexSource(std::istreambuf_iterator<char>(vertexFile), {});
+		const std::string fragmentSource(std::istreambuf_iterator<char>(fragmentFile), {});
+		if (vertexSource.empty() || fragmentSource.empty())
+		{
+			error_ = vertexSource.empty() ? "Vertex shader file is empty: " + vertexPath
+				: "Fragment shader file is empty: " + fragmentPath;
+			return false;
+		}
+		if (vulkanSamplerNames.empty() && vulkanUniforms.empty() && assetId.empty())
+			return load(vertexSource, fragmentSource);
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer)
+		{
+			error_ = "No active renderer is available for shader creation.";
+			return false;
+		}
+		std::vector<detail::ShaderUniformLayout> uniforms;
+		uniforms.reserve(vulkanUniforms.size());
+		for (const ShaderUniform &uniform : vulkanUniforms)
+			uniforms.push_back({uniform.name, uniform.offset, uniform.size});
+		detail::ShaderSource vertex{detail::ShaderLanguage::glsl, vertexSource, {}, assetId};
+		detail::ShaderSource fragment{detail::ShaderLanguage::glsl, fragmentSource, {}, assetId};
 		fragment.vulkan_sampler_names = vulkanSamplerNames;
 		fragment.vulkan_uniforms = uniforms;
 		return renderer->create_shader(vertex, fragment, program_, error_);
@@ -231,8 +282,31 @@ namespace sl
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
-		return renderer && renderer->create_compute_shader(
+		if (!renderer)
+		{
+			error_ = "No active renderer is available for compute shader creation.";
+			return false;
+		}
+		return renderer->create_compute_shader(
 			detail::ShaderSource{detail::ShaderLanguage::glsl, computeSource, {}, assetId}, program_, error_);
+	}
+
+	bool Shader::load_compute_file(const std::string &computePath, const std::string &assetId)
+	{
+		reset();
+		std::ifstream file(computePath, std::ios::binary);
+		if (!file)
+		{
+			error_ = "Unable to open compute shader file: " + computePath;
+			return false;
+		}
+		const std::string source(std::istreambuf_iterator<char>(file), {});
+		if (source.empty())
+		{
+			error_ = "Compute shader file is empty: " + computePath;
+			return false;
+		}
+		return load_compute(source, assetId);
 	}
 
 	void Shader::reset()

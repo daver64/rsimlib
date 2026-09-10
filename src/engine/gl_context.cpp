@@ -43,9 +43,15 @@ namespace sl::detail
         window_ = nullptr;
     }
 
-    void GLContext::resize(int width, int height)
+    bool GLContext::resize(int width, int height, std::string &error)
     {
+        if (!context_ || width <= 0 || height <= 0)
+        {
+            error = "Invalid OpenGL viewport dimensions.";
+            return false;
+        }
         glViewport(0, 0, width, height);
+        return true;
     }
 
     bool GLContext::set_vsync(bool enabled)

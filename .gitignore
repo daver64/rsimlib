@@ -17,6 +17,8 @@ imgui.ini
 /exphysics
 /exvulkan
 /exdb
+/exshader
+/exrendertarget
 /lib/
 applications
 exdb.sqlite

@@ -88,10 +88,9 @@ namespace sl::detail
                 context_.shutdown();
                 window_ = nullptr;
             }
-            void resize(int width, int height) override
+            bool resize(int width, int height, std::string &error) override
             {
-                std::string error;
-                context_.resize(width, height, error);
+                return context_.resize(width, height, error);
             }
             bool set_vsync(bool enabled) override { vsync_enabled_ = enabled; return true; }
             void present() override { context_.present(vsync_enabled_); }
