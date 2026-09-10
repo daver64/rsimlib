@@ -171,14 +171,21 @@ namespace sl
         Colour colour{255, 255, 255};
     };
 
-    /** An axis-aligned rectangle that can block a radial light. */
+    /** A point in a 2D shadow-casting polygon. */
+    struct ShadowPoint
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+    /** A polygon whose edges can block a radial light. Vertices should be ordered around its perimeter. */
     struct ShadowCaster
     {
-        float left = 0.0f;
-        float top = 0.0f;
-        float right = 0.0f;
-        float bottom = 0.0f;
+        std::vector<ShadowPoint> vertices;
     };
+
+    /** Create an axis-aligned rectangular shadow caster. */
+    ShadowCaster make_rectangle_shadow_caster(float left, float top, float right, float bottom);
 
     /** Modulates a rendered scene with an arbitrary number of radial lights. */
     class LightingPass
@@ -208,7 +215,7 @@ namespace sl
         /** Set the minimum scene illumination, from 0 (black) to 1 (full brightness). */
         void set_ambient(float ambient);
 
-        /** Apply ambient plus radial lighting and rectangle shadows to a bitmap. */
+        /** Apply ambient plus radial lighting and polygon shadows to a bitmap. */
         void apply(Bitmap *source, const Light &light, int x = 0, int y = 0,
                    int width = 0, int height = 0, bool flipVertical = false,
                    const std::vector<ShadowCaster> &casters = {}) const;

@@ -369,20 +369,30 @@ void main() {
 
 		void draw_shadow_caster(Bitmap *mask, const ShadowCaster &caster, const Light &light)
 		{
-			const Point corners[] = {
-				{caster.left, caster.top},
-				{caster.right, caster.top},
-				{caster.right, caster.bottom},
-				{caster.left, caster.bottom},
-			};
-			const float projectionDistance = static_cast<float>(std::max(mask->width, mask->height)) * 4.0f;
-			for (int index = 0; index < 4; ++index)
+			if (caster.vertices.size() < 2)
 			{
-				draw_shadow_edge(mask, corners[index], corners[(index + 1) % 4], light, projectionDistance);
+				return;
+			}
+			const float projectionDistance = static_cast<float>(std::max(mask->width, mask->height)) * 4.0f;
+			for (std::size_t index = 0; index < caster.vertices.size(); ++index)
+			{
+				const ShadowPoint &first = caster.vertices[index];
+				const ShadowPoint &second = caster.vertices[(index + 1) % caster.vertices.size()];
+				draw_shadow_edge(mask, {first.x, first.y}, {second.x, second.y}, light, projectionDistance);
 			}
 		}
 
 	} // namespace
+
+	ShadowCaster make_rectangle_shadow_caster(float left, float top, float right, float bottom)
+	{
+		return ShadowCaster{{
+			{left, top},
+			{right, top},
+			{right, bottom},
+			{left, bottom},
+		}};
+	}
 
 	Shader::Shader(const std::string &vertexSource, const std::string &fragmentSource)
 	{

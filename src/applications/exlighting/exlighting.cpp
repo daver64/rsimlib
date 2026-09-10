@@ -27,7 +27,10 @@ int main(int argc, char *argv[])
         return -1;
     }
     lighting.set_ambient(0.18f);
-    const std::vector<sl::ShadowCaster> casters = {{300.0f, 370.0f, 500.0f, 400.0f}};
+    const std::vector<sl::ShadowCaster> casters = {
+        sl::make_rectangle_shadow_caster(300.0f, 370.0f, 500.0f, 400.0f),
+        {{{170.0f, 390.0f}, {230.0f, 320.0f}, {290.0f, 390.0f}}},
+    };
 
     sl::set_fps(60);
     bool running = true;

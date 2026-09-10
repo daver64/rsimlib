@@ -264,12 +264,15 @@ context is destroyed.
 | `shadow_softness` | Shadow-mask filter radius in pixels; `0` produces hard shadows. |
 | `colour` | RGB light colour. |
 
-`ShadowCaster` describes an axis-aligned rectangle that blocks light. Its
-`left`, `top`, `right`, and `bottom` fields are screen-space pixel coordinates.
+`ShadowCaster` describes a polygon that blocks light. Its `vertices` are
+screen-space pixel coordinates using the top-left origin. Vertices should be
+ordered around the polygon perimeter. Use
+`make_rectangle_shadow_caster(left, top, right, bottom)` when a rectangle is
+the most convenient representation.
 The current implementation projects rectangle edges away from each light and
 accepts an arbitrary number of lights per `LightingPass::apply()` call through
 an OpenGL 4.3 shader storage buffer. The first eight lights can use geometric
-rectangle shadows; additional lights remain unshadowed. All supplied casters
+polygon shadows; additional lights remain unshadowed. All supplied casters
 affect every shadow-capable light in that call.
 
 Render the scene to an offscreen target before applying lighting. Pass
@@ -282,7 +285,8 @@ lighting.initialise();
 lighting.set_ambient(0.18f);
 
 const std::vector<sl::ShadowCaster> casters = {
-    {300.0f, 370.0f, 500.0f, 400.0f},
+    sl::make_rectangle_shadow_caster(300.0f, 370.0f, 500.0f, 400.0f),
+    {{{170.0f, 390.0f}, {230.0f, 320.0f}, {290.0f, 390.0f}}},
 };
 
 sl::begin_render_target(scene);
