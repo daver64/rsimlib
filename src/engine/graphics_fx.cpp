@@ -9,6 +9,7 @@
 #include "display.h"
 #include "draw.h"
 #include "gl2d.h"
+#include "renderer.h"
 
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
@@ -214,57 +215,6 @@ void main() {
 }
 )";
 
-		std::string shader_log(GLuint shader)
-		{
-			GLint length = 0;
-			glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-			if (length <= 1)
-			{
-				return "Shader compilation failed.";
-			}
-			std::vector<GLchar> log(static_cast<std::size_t>(length));
-			glGetShaderInfoLog(shader, length, nullptr, log.data());
-			return log.data();
-		}
-
-		std::string program_log(GLuint program)
-		{
-			GLint length = 0;
-			glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-			if (length <= 1)
-			{
-				return "Shader linking failed.";
-			}
-			std::vector<GLchar> log(static_cast<std::size_t>(length));
-			glGetProgramInfoLog(program, length, nullptr, log.data());
-			return log.data();
-		}
-
-		GLuint compile_shader(GLenum type, const std::string &source, std::string &error)
-		{
-			const GLuint shader = glCreateShader(type);
-			if (shader == 0)
-			{
-				error = "Unable to create shader.";
-				return 0;
-			}
-
-			const char *shaderSource = source.c_str();
-			glShaderSource(shader, 1, &shaderSource, nullptr);
-			glCompileShader(shader);
-
-			GLint compiled = GL_FALSE;
-			glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-			if (compiled == GL_TRUE)
-			{
-				return shader;
-			}
-
-			error = shader_log(shader);
-			glDeleteShader(shader);
-			return 0;
-		}
-
 		/** Draw a textured quad at (x, y, width, height), used by every bloom pass. */
 		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture, bool flipVertical)
 		{
@@ -423,85 +373,25 @@ void main() {
 	bool Shader::load(const std::string &vertexSource, const std::string &fragmentSource)
 	{
 		reset();
-
-		const GLuint vertexShader = compile_shader(GL_VERTEX_SHADER, vertexSource, error_);
-		if (vertexShader == 0)
-		{
-			return false;
-		}
-
-		const GLuint fragmentShader = compile_shader(GL_FRAGMENT_SHADER, fragmentSource, error_);
-		if (fragmentShader == 0)
-		{
-			glDeleteShader(vertexShader);
-			return false;
-		}
-
-		const GLuint program = glCreateProgram();
-		if (program == 0)
-		{
-			error_ = "Unable to create shader program.";
-			glDeleteShader(fragmentShader);
-			glDeleteShader(vertexShader);
-			return false;
-		}
-
-		glAttachShader(program, vertexShader);
-		glAttachShader(program, fragmentShader);
-		glLinkProgram(program);
-		glDeleteShader(fragmentShader);
-		glDeleteShader(vertexShader);
-
-		GLint linked = GL_FALSE;
-		glGetProgramiv(program, GL_LINK_STATUS, &linked);
-		if (linked != GL_TRUE)
-		{
-			error_ = program_log(program);
-			glDeleteProgram(program);
-			return false;
-		}
-
-		program_ = program;
-		error_.clear();
-		return true;
+		detail::Renderer *renderer = detail::active_renderer();
+		return renderer && renderer->create_shader(vertexSource, fragmentSource, program_, error_);
 	}
 
 	bool Shader::load_compute(const std::string &computeSource)
 	{
 		reset();
-		const GLuint computeShader = compile_shader(GL_COMPUTE_SHADER, computeSource, error_);
-		if (computeShader == 0)
-		{
-			return false;
-		}
-		const GLuint program = glCreateProgram();
-		if (program == 0)
-		{
-			error_ = "Unable to create compute shader program.";
-			glDeleteShader(computeShader);
-			return false;
-		}
-		glAttachShader(program, computeShader);
-		glLinkProgram(program);
-		glDeleteShader(computeShader);
-		GLint linked = GL_FALSE;
-		glGetProgramiv(program, GL_LINK_STATUS, &linked);
-		if (linked != GL_TRUE)
-		{
-			error_ = program_log(program);
-			glDeleteProgram(program);
-			return false;
-		}
-		program_ = program;
-		error_.clear();
-		return true;
+		detail::Renderer *renderer = detail::active_renderer();
+		return renderer && renderer->create_compute_shader(computeSource, program_, error_);
 	}
 
 	void Shader::reset()
 	{
 		if (program_ != 0)
 		{
-			glDeleteProgram(static_cast<GLuint>(program_));
+			if (detail::Renderer *renderer = detail::active_renderer())
+			{
+				renderer->destroy_shader(program_);
+			}
 			program_ = 0;
 		}
 		error_.clear();
@@ -523,113 +413,47 @@ void main() {
 		{
 			return false;
 		}
-		glUseProgram(static_cast<GLuint>(program_));
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->use_shader(program_);
 	}
 
 	void Shader::stop()
 	{
-		glUseProgram(0);
+		if (detail::Renderer *renderer = detail::active_renderer()) renderer->stop_shader();
 	}
 
 	bool Shader::dispatch_compute(unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		glDispatchCompute(groupsX, groupsY, groupsZ);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->dispatch_compute(program_, groupsX, groupsY, groupsZ);
 	}
 
 	bool Shader::set_uniform(const char *name, int value) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniform1i(location, value);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_int(program_, name, value);
 	}
 
 	bool Shader::set_uniform(const char *name, float value) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniform1f(location, value);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_float(program_, name, value);
 	}
 
 	bool Shader::set_uniform(const char *name, float x, float y) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniform2f(location, x, y);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_float2(program_, name, x, y);
 	}
 
 	bool Shader::set_uniform(const char *name, int x, int y) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniform2i(location, x, y);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_int2(program_, name, x, y);
 	}
 
 	bool Shader::set_uniform(const char *name, float x, float y, float z) const
 	{
-		if (!use())
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniform3f(location, x, y, z);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_float3(program_, name, x, y, z);
 	}
 
 	bool Shader::set_uniform_mat4(const char *name, const float *matrix4x4) const
 	{
-		if (!use() || !matrix4x4)
-		{
-			return false;
-		}
-		const GLint location = glGetUniformLocation(static_cast<GLuint>(program_), name);
-		if (location < 0)
-		{
-			return false;
-		}
-		glUniformMatrix4fv(location, 1, GL_FALSE, matrix4x4);
-		return true;
+		return detail::active_renderer() && detail::active_renderer()->set_shader_mat4(program_, name, matrix4x4);
 	}
 
 	Bloom::~Bloom()

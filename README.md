@@ -45,10 +45,11 @@ sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
 Dear ImGui, Lua, and sol2 are fetched automatically via CMake's `FetchContent`
 — no manual setup required.
 
-The window/context, presentation lifecycle, and 2D texture/render-target
-resources are routed through an internal renderer backend interface in
-`src/engine/renderer.*`. The current backend is OpenGL 4.3; vertex submission,
-primitive drawing, and shader effects still use the existing OpenGL path. This
+The window/context, presentation lifecycle, 2D texture/render-target
+resources, shader program operations, and 2D vertex submission are routed through an internal
+renderer backend interface in `src/engine/renderer.*`. The current backend is
+OpenGL 4.3. The public primitive, sprite, text, and particle APIs remain
+unchanged while their default 2D pipeline is owned by the backend. This
 boundary is the first step toward additional Vulkan or D3D backends without
 changing the public drawing API.
 

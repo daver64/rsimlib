@@ -9,6 +9,12 @@
 
 namespace sl::detail
 {
+    struct GLVertex
+    {
+        float x = 0.0f, y = 0.0f, u = 0.0f, v = 0.0f;
+        float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+    };
+
     /** Internal backend boundary for window/context and presentation ownership. */
     class Renderer
     {
@@ -41,6 +47,34 @@ namespace sl::detail
                           std::uint32_t &framebuffer) = 0;
         /** Destroy a render target's framebuffer and texture handles. */
         virtual void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) = 0;
+        /** Compile and link a vertex/fragment shader program. */
+        virtual bool create_shader(const std::string &vertex_source, const std::string &fragment_source,
+                       std::uint32_t &program, std::string &error) = 0;
+        /** Compile and link a compute shader program. */
+        virtual bool create_compute_shader(const std::string &source, std::uint32_t &program,
+                           std::string &error) = 0;
+        /** Destroy a shader program. */
+        virtual void destroy_shader(std::uint32_t program) = 0;
+        /** Bind or unbind a shader program. */
+        virtual bool use_shader(std::uint32_t program) = 0;
+        virtual void stop_shader() = 0;
+        /** Dispatch a compute shader. */
+        virtual bool dispatch_compute(std::uint32_t program, unsigned int groups_x,
+                          unsigned int groups_y, unsigned int groups_z) = 0;
+        virtual bool set_shader_int(std::uint32_t program, const char *name, int value) = 0;
+        virtual bool set_shader_float(std::uint32_t program, const char *name, float value) = 0;
+        virtual bool set_shader_float2(std::uint32_t program, const char *name, float x, float y) = 0;
+        virtual bool set_shader_int2(std::uint32_t program, const char *name, int x, int y) = 0;
+        virtual bool set_shader_float3(std::uint32_t program, const char *name, float x, float y, float z) = 0;
+        virtual bool set_shader_mat4(std::uint32_t program, const char *name, const float *matrix) = 0;
+        /** Initialize and release the backend's default 2D submission resources. */
+        virtual bool initialise_2d() = 0;
+        virtual void shutdown_2d() = 0;
+        /** Bind the default 2D pipeline and projection. */
+        virtual bool begin_2d(int width, int height) = 0;
+        /** Submit colored textured vertices using the backend's 2D pipeline. */
+        virtual void submit_2d(std::uint32_t primitive_mode, const GLVertex *vertices,
+                       int count, std::uint32_t texture) = 0;
     };
 
     /** Create the currently selected renderer backend. */

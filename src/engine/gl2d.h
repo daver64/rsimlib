@@ -6,24 +6,14 @@
 
 #include <cstdint>
 
+#include "renderer.h"
+
 namespace sl
 {
     namespace detail
     {
 
         /** One 2D vertex: screen-space position, texture coordinate, and RGBA colour (0-1 floats). */
-        struct GLVertex
-        {
-            float x = 0.0f;
-            float y = 0.0f;
-            float u = 0.0f;
-            float v = 0.0f;
-            float r = 1.0f;
-            float g = 1.0f;
-            float b = 1.0f;
-            float a = 1.0f;
-        };
-
         /** Lazily create the shared VAO/VBO, default shader, and 1x1 white texture. */
         bool gl2d_init();
         /** Release the shared 2D renderer's GPU resources. */
