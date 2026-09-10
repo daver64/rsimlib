@@ -16,5 +16,7 @@ imgui.ini
 /exlighting
 /exphysics
 /exvulkan
-/lib
+/exdb
+/lib/
 applications
+exdb.sqlite

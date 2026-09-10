@@ -108,6 +108,7 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(SQLite3 REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(SDL2_ttf QUIET CONFIG)
@@ -352,6 +353,12 @@ set_target_properties(exluaconsole PROPERTIES
 add_executable(exbitmap src/examples/exbitmap/exbitmap.cpp)
 target_link_libraries(exbitmap PRIVATE simlib)
 set_target_properties(exbitmap PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exdb src/examples/exdb/exdb.cpp)
+target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
+set_target_properties(exdb PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 

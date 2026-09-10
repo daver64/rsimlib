@@ -23,6 +23,7 @@ This repository contains:
 - **`exlighting`** — radial multi-light and polygon-shadow example (`src/examples/exlighting/`).
 - **`exphysics`** — Box2D body, fixture, and stepping example (`src/examples/exphysics/`).
 - **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/examples/exvulkan/`).
+- **`exdb`** — SQLite database creation, population, and display example (`src/examples/exdb/`).
 
 ### `sltest` screenshot
 
