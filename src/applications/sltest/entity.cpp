@@ -1,6 +1,7 @@
 #include "entity.h"
 
 #include "display.h"
+#include "physics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,9 @@ constexpr float thermal_lift_multiplier = 8.0f;
 constexpr float temperature_cooling_rate = 0.035f;
 constexpr float burner_heating_rate = 8.5f;
 constexpr float wind_response_rate = 0.7f;
+
+sl::PhysicsWorld *physics_world = nullptr;
+std::vector<sl::PhysicsBody *> physics_bodies;
 
 float wind_speed(float y)
 {
@@ -67,6 +71,48 @@ void apply_buoyancy(GameObject& object, float dt_seconds, float gravity)
 }
 
 } // namespace
+
+void shutdown_physics()
+{
+    for (sl::PhysicsBody *body : physics_bodies)
+    {
+        sl::destroy_physics_body(body);
+    }
+    physics_bodies.clear();
+    sl::destroy_physics_world(physics_world);
+    physics_world = nullptr;
+}
+
+void reset_physics(std::vector<GameObject>& objects)
+{
+    shutdown_physics();
+    physics_world = sl::create_physics_world({0.0f, 0.0f});
+    if (!physics_world)
+    {
+        return;
+    }
+    for (const GameObject &object : objects)
+    {
+        sl::PhysicsBody *body = sl::create_physics_body(
+            physics_world,
+            object.is_static ? sl::BodyType::static_body : sl::BodyType::dynamic_body,
+            {object.x, object.y});
+        if (!body)
+        {
+            shutdown_physics();
+            return;
+        }
+        const bool fixture_created = object.shape == ColliderShape::circle
+            ? sl::add_circle_fixture(body, object.radius, object.mass, 0.5f, object.restitution)
+            : sl::add_box_fixture(body, object.width, object.height, object.mass, 0.5f, object.restitution);
+        if (!fixture_created)
+        {
+            shutdown_physics();
+            return;
+        }
+        physics_bodies.push_back(body);
+    }
+}
 
 /** @brief Create a circular physics object centred at @p x, @p y using @p bitmap as its sprite. */
 GameObject make_circle_object(sl::Bitmap* bitmap, float x, float y, float radius, float mass) {
@@ -194,20 +240,45 @@ bool compute_overlap(const GameObject& a, const GameObject& b, float& normalX, f
  * @param gravity Downward acceleration in screen pixels per second squared.
  */
 void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity) {
-    for (GameObject& object : objects) {
-        if (object.is_static) {
+    if (!physics_world || physics_bodies.size() != objects.size())
+    {
+        reset_physics(objects);
+    }
+    if (!physics_world || physics_bodies.size() != objects.size())
+    {
+        return;
+    }
+    for (std::size_t index = 0; index < objects.size(); ++index)
+    {
+        GameObject &object = objects[index];
+        if (object.is_static)
+        {
             continue;
         }
         apply_buoyancy(object, dt_seconds, gravity);
         apply_wind(object, dt_seconds);
         object.vy += gravity * object.gravity_scale * dt_seconds;
-        if (object.drag > 0.0f) {
+        if (object.drag > 0.0f)
+        {
             const float damping = std::clamp(1.0f - object.drag * dt_seconds, 0.0f, 1.0f);
             object.vx *= damping;
             object.vy *= damping;
         }
-        object.x += object.vx * dt_seconds;
-        object.y += object.vy * dt_seconds;
+        sl::set_physics_body_velocity(physics_bodies[index], {object.vx, object.vy});
+    }
+    sl::step_physics_world(physics_world, dt_seconds);
+    for (std::size_t index = 0; index < objects.size(); ++index)
+    {
+        if (objects[index].is_static)
+        {
+            continue;
+        }
+        const sl::Vec2 position = sl::physics_body_position(physics_bodies[index]);
+        const sl::Vec2 velocity = sl::physics_body_velocity(physics_bodies[index]);
+        objects[index].x = position.x;
+        objects[index].y = position.y;
+        objects[index].vx = velocity.x;
+        objects[index].vy = velocity.y;
     }
 }
 
@@ -226,62 +297,12 @@ void adjust_balloon_volume(GameObject& object, float volume_delta)
     object.height = object.radius * 2.0f;
 }
 
-/**
- * @brief Resolve pairwise overlap using mass-weighted position correction and restitution impulses.
- *
- * Supports circle, AABB, and mixed circle/AABB pairs. Objects marked static participate in
- * collision detection but do not move or receive velocity changes.
- */
-void resolve_collisions(std::vector<GameObject>& objects) {
-    for (std::size_t i = 0; i < objects.size(); ++i) {
-        for (std::size_t j = i + 1; j < objects.size(); ++j) {
-            GameObject& a = objects[i];
-            GameObject& b = objects[j];
-            const float invA = inverse_mass(a);
-            const float invB = inverse_mass(b);
-            if (invA == 0.0f && invB == 0.0f) {
-                continue;
-            }
-
-            float normalX = 0.0f;
-            float normalY = 0.0f;
-            float penetration = 0.0f;
-            if (!compute_overlap(a, b, normalX, normalY, penetration)) {
-                continue;
-            }
-
-            const float totalInverseMass = invA + invB;
-
-            // positional correction, split by relative mass
-            a.x -= normalX * penetration * (invA / totalInverseMass);
-            a.y -= normalY * penetration * (invA / totalInverseMass);
-            b.x += normalX * penetration * (invB / totalInverseMass);
-            b.y += normalY * penetration * (invB / totalInverseMass);
-
-            // velocity resolution along the collision normal
-            const float relativeVX = b.vx - a.vx;
-            const float relativeVY = b.vy - a.vy;
-            const float velocityAlongNormal = relativeVX * normalX + relativeVY * normalY;
-            if (velocityAlongNormal > 0.0f) {
-                continue;
-            }
-            const float restitution = std::min(a.restitution, b.restitution);
-            const float impulseMagnitude = -(1.0f + restitution) * velocityAlongNormal / totalInverseMass;
-            const float impulseX = impulseMagnitude * normalX;
-            const float impulseY = impulseMagnitude * normalY;
-            a.vx -= impulseX * invA;
-            a.vy -= impulseY * invA;
-            b.vx += impulseX * invB;
-            b.vy += impulseY * invB;
-        }
-    }
-}
-
 /** @brief Keep dynamic objects inside the current simlib display and bounce them from its edges. */
 void constrain_to_screen(std::vector<GameObject>& objects) {
     const float screenWidth = static_cast<float>(sl::screen_width());
     const float screenHeight = static_cast<float>(sl::screen_height());
-    for (GameObject& object : objects) {
+    for (std::size_t index = 0; index < objects.size(); ++index) {
+        GameObject& object = objects[index];
         if (object.is_static) {
             continue;
         }
@@ -308,6 +329,12 @@ void constrain_to_screen(std::vector<GameObject>& objects) {
         } else if (object.y + halfHeight > screenHeight) {
             object.y = screenHeight - halfHeight;
             object.vy = -object.vy * object.restitution;
+        }
+
+        if (physics_world && physics_bodies.size() == objects.size())
+        {
+            sl::set_physics_body_transform(physics_bodies[index], {object.x, object.y});
+            sl::set_physics_body_velocity(physics_bodies[index], {object.vx, object.vy});
         }
     }
 }

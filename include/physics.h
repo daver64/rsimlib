@@ -60,6 +60,8 @@ namespace sl
     Vec2 physics_body_position(const PhysicsBody *body);
     /** Return a body's angle in radians, or zero for an invalid body. */
     float physics_body_angle(const PhysicsBody *body);
+    /** Return a body's linear velocity in pixels per second. */
+    Vec2 physics_body_velocity(const PhysicsBody *body);
     /** Set a body's linear velocity in pixels per second. */
     void set_physics_body_velocity(PhysicsBody *body, Vec2 velocity);
     /** Add a force at the body's centre, expressed in pixel-space units. */

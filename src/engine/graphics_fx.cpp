@@ -1052,7 +1052,9 @@ void main() {
 			return;
 		}
 		const std::size_t lightCount = lights.size();
-		const std::size_t shadowLightCount = std::min<std::size_t>(lightCount, max_shadow_lights);
+		const std::size_t shadowLightCount = casters.empty()
+			? 0
+			: std::min<std::size_t>(lightCount, max_shadow_lights);
 		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
 			if (!ensure_shadow_mask(index, source->width, source->height))
@@ -1093,17 +1095,26 @@ void main() {
 			gpuLights.data(), GL_STREAM_DRAW);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, static_cast<GLuint>(lightBuffer_));
 
-		tileCountX_ = (source->width + tile_size - 1) / tile_size;
-		tileCountY_ = (source->height + tile_size - 1) / tile_size;
+		const int tileCountX = (source->width + tile_size - 1) / tile_size;
+		const int tileCountY = (source->height + tile_size - 1) / tile_size;
+		const bool tileBuffersNeedResize = tileCountX != tileCountX_ || tileCountY != tileCountY_;
+		tileCountX_ = tileCountX;
+		tileCountY_ = tileCountY;
 		const std::size_t tileCount = static_cast<std::size_t>(tileCountX_) * tileCountY_;
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileCountsBuffer_));
-		glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(tileCount * sizeof(std::uint32_t)),
-			nullptr, GL_DYNAMIC_DRAW);
+		if (tileBuffersNeedResize)
+		{
+			glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(tileCount * sizeof(std::uint32_t)),
+				nullptr, GL_DYNAMIC_DRAW);
+		}
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, static_cast<GLuint>(tileCountsBuffer_));
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileIndicesBuffer_));
-		glBufferData(GL_SHADER_STORAGE_BUFFER,
-			static_cast<GLsizeiptr>(tileCount * max_lights_per_tile * sizeof(std::uint32_t)),
-			nullptr, GL_DYNAMIC_DRAW);
+		if (tileBuffersNeedResize)
+		{
+			glBufferData(GL_SHADER_STORAGE_BUFFER,
+				static_cast<GLsizeiptr>(tileCount * max_lights_per_tile * sizeof(std::uint32_t)),
+				nullptr, GL_DYNAMIC_DRAW);
+		}
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, static_cast<GLuint>(tileIndicesBuffer_));
 		cullShader_.set_uniform("screenSize", source->width, source->height);
 		cullShader_.set_uniform("tileCount", tileCountX_, tileCountY_);

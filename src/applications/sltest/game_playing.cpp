@@ -26,7 +26,9 @@ namespace game
         std::uint64_t active_thrust_voice = 0;
         std::uint64_t active_burner_voice = 0;
         sl::Bitmap *playing_scene = nullptr;
+        sl::Bitmap *playing_lit_scene = nullptr;
         sl::Vignette playing_vignette;
+        sl::LightingPass playing_lighting;
         constexpr float active_thrust_acceleration = 180.0f;
 
         bool ensure_playing_post_process()
@@ -40,7 +42,9 @@ namespace game
             if (!playing_scene || playing_scene->width != width || playing_scene->height != height)
             {
                 sl::destroy_bitmap(playing_scene);
+                sl::destroy_bitmap(playing_lit_scene);
                 playing_scene = sl::create_render_target(width, height);
+                playing_lit_scene = sl::create_render_target(width, height);
             }
             if (!playing_vignette.is_valid())
             {
@@ -49,7 +53,13 @@ namespace game
                 playing_vignette.set_softness(0.35f);
                 playing_vignette.set_intensity(0.65f);
             }
-            return playing_scene != nullptr && playing_vignette.is_valid();
+            if (!playing_lighting.is_valid())
+            {
+                playing_lighting.initialise();
+                playing_lighting.set_ambient(0.48f);
+            }
+            return playing_scene != nullptr && playing_lit_scene != nullptr &&
+                playing_vignette.is_valid() && playing_lighting.is_valid();
         }
 
         void update_active_thrust_sound()
@@ -180,15 +190,20 @@ namespace game
             active_thrust_voice = 0;
             sl::stop_voice(active_burner_voice);
             active_burner_voice = 0;
+            reset_physics(playing_objects);
 
         }
     }
 
     void shutdown_playing()
     {
+        shutdown_physics();
         sl::destroy_bitmap(playing_scene);
         playing_scene = nullptr;
+        sl::destroy_bitmap(playing_lit_scene);
+        playing_lit_scene = nullptr;
         playing_vignette.shutdown();
+        playing_lighting.shutdown();
     }
 
     /** @brief Handle gameplay reset, balloon selection, and return-to-menu actions. */
@@ -198,6 +213,10 @@ namespace game
         {
             if (event.mouse_button() == SDL_BUTTON_RIGHT)
             {
+                if (active_balloon_index < playing_objects.size())
+                {
+                    playing_objects[active_balloon_index].burner_active = false;
+                }
                 active_balloon_index = no_active_balloon;
                 active_thrust_left = false;
                 active_thrust_right = false;
@@ -210,6 +229,39 @@ namespace game
             {
                 active_balloon_index = static_cast<std::size_t>(hit);
             }
+            return;
+        }
+
+        if (event.type() == sl::Event::Type::key_down)
+        {
+            switch (event.key())
+            {
+                case sl::Event::Key::escape:
+                    request_mode(Mode::menu);
+                    return;
+                case sl::Event::Key::space:
+                    reset_playing_objects();
+                    return;
+                case sl::Event::Key::f11:
+                    sl::toggle_fullscreen();
+                    return;
+                default:
+                    break;
+            }
+        }
+
+        if (event.type() == sl::Event::Type::key_up &&
+            (event.key() == sl::Event::Key::arrow_left || event.key() == sl::Event::Key::arrow_right))
+        {
+            if (event.key() == sl::Event::Key::arrow_left)
+            {
+                active_thrust_left = false;
+            }
+            else
+            {
+                active_thrust_right = false;
+            }
+            update_active_thrust_sound();
             return;
         }
 
@@ -305,7 +357,6 @@ namespace game
             active_object.vx += thrust_direction * active_thrust_acceleration * dt_seconds;
         }
         physics_step(playing_objects, dt_seconds);
-        resolve_collisions(playing_objects);
         constrain_to_screen(playing_objects);
 
         sl::Font *font = sl::get_default_monospace_font();
@@ -321,7 +372,7 @@ namespace game
                 playing_background, 0.0f, 0.0f,
                 sl::screen_width(), sl::screen_height());
         }
-        sl::rectfill(sl::screen,sl::screen_width()/6,0,
+        /*sl::rectfill(sl::screen,sl::screen_width()/6,0,
             sl::screen_width()*5/6,
             1+10*fontheight, 
             sl::Colour{45, 48, 56, 128});
@@ -332,7 +383,7 @@ namespace game
         sl::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
         sl::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");
         sl::gprintf_center(1+7*fontheight,text_colour,  "Press ESC to return to menu");
-
+*/
         render_objects(playing_objects);
         if (active_balloon_index < playing_objects.size())
         {
@@ -368,9 +419,52 @@ namespace game
         if (post_process_ready)
         {
             sl::end_render_target();
-            playing_vignette.apply(playing_scene, 0, 0,
+            const sl::Colour balloon_colours[] = {
+                {255, 80, 70},
+                {80, 150, 255},
+                {100, 235, 120},
+            };
+            std::vector<sl::Light> lights;
+            std::size_t balloon_index = 0;
+            for (const GameObject &object : playing_objects)
+            {
+                if (!object.is_balloon)
+                {
+                    continue;
+                }
+                sl::Light light;
+                light.x = object.x;
+                light.y = object.y;
+                light.radius = 200.0f;
+                light.intensity = 0.85f;
+                light.colour = balloon_colours[std::min(balloon_index, std::size(balloon_colours) - 1)];
+                lights.push_back(light);
+                ++balloon_index;
+            }
+            post_process_ready = sl::begin_render_target(playing_lit_scene);
+            if (post_process_ready)
+            {
+                playing_lighting.apply(playing_scene, lights, 0, 0,
+                    sl::screen_width(), sl::screen_height(), true);
+                sl::end_render_target();
+            }
+            playing_vignette.apply(playing_lit_scene, 0, 0,
                 sl::screen_width(), sl::screen_height(), true);
         }
+
+        sl::rectfill(sl::screen,sl::screen_width()/6,0,
+            sl::screen_width()*5/6,
+            1+10*fontheight, 
+            sl::Colour{45, 48, 56, 128});
+        sl::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
+        sl::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
+        sl::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it, right click to unselect");
+        sl::gprintf_center(1+4*fontheight,text_colour,  "+/-: selected balloon volume, hold B: burner");
+        sl::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
+        sl::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");
+        sl::gprintf_center(1+7*fontheight,text_colour,  "Press ESC to return to menu");
+
+
         apply_mode_fade();
         sl::show_video_bitmap();
         sl::end_frame();

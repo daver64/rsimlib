@@ -179,6 +179,11 @@ namespace sl
         return body && body->body ? body->body->GetAngle() : 0.0f;
     }
 
+    Vec2 physics_body_velocity(const PhysicsBody *body)
+    {
+        return body && body->body ? from_box2d(body->body->GetLinearVelocity()) : Vec2{};
+    }
+
     void set_physics_body_velocity(PhysicsBody *body, Vec2 velocity)
     {
         if (body && body->body)

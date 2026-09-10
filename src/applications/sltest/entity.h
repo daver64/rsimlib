@@ -44,12 +44,14 @@ GameObject make_circle_object(sl::Bitmap* bitmap, float x, float y, float radius
 /** Create an AABB-collider object centred at (x, y). */
 GameObject make_aabb_object(sl::Bitmap* bitmap, float x, float y, float width, float height, float mass = 1.0f);
 
-/** Apply buoyancy, layered wind, gravity, drag, and integrate position for all objects. */
+/** Apply balloon forces and advance all objects through the Box2D adapter. */
 void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity = 980.0f);
+/** Rebuild Box2D bodies for a restored object snapshot. */
+void reset_physics(std::vector<GameObject>& objects);
+/** Release the Box2D world owned by the gameplay physics adapter. */
+void shutdown_physics();
 /** Adjust a balloon's gas bag volume and its circular collider size. */
 void adjust_balloon_volume(GameObject& object, float volume_delta);
-/** Detect and resolve overlaps between all object pairs (circle and/or AABB). */
-void resolve_collisions(std::vector<GameObject>& objects);
 /** Keep objects inside the screen bounds; balloons wrap horizontally while other objects bounce. */
 void constrain_to_screen(std::vector<GameObject>& objects);
 /** Draw every object's sprite at its current position. */
