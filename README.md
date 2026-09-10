@@ -18,6 +18,7 @@ This repository contains:
 - **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
 - **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
+- **`exlighting`** — radial multi-light and rectangle-shadow example (`src/applications/exlighting/`).
 
 ### `sltest` screenshot
 
@@ -67,6 +68,7 @@ ctest --test-dir build
 ./exhello   # minimal window + text rendering demo
 ./exfont    # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
+./exlighting # radial lights and rectangle shadows demo
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -237,7 +239,7 @@ so callers do not need to extract bundled assets to temporary files.
 
 ### Graphics effects
 
-`Shader`, `Bloom`, `Vignette`, and `ScreenFade` are declared in
+`Shader`, `Bloom`, `Vignette`, `LightingPass`, and `ScreenFade` are declared in
 [`include/graphics_fx.h`](include/graphics_fx.h). Effects that own GPU state
 must be initialized after the display exists and shut down before the display
 context is destroyed.
@@ -247,7 +249,62 @@ context is destroyed.
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Compile/link a GLSL program, bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply up to four colored radial lights and rectangle-caster shadows to a bitmap. |
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
+
+#### 2D lighting
+
+`Light` describes a radial screen-space light:
+
+| Field | Description |
+| --- | --- |
+| `x`, `y` | Light position in pixels, using the same top-left origin as drawing APIs. |
+| `radius` | Maximum illumination distance in pixels. |
+| `intensity` | Brightness multiplier for this light. |
+| `shadow_softness` | Shadow-mask filter radius in pixels; `0` produces hard shadows. |
+| `colour` | RGB light colour. |
+
+`ShadowCaster` describes an axis-aligned rectangle that blocks light. Its
+`left`, `top`, `right`, and `bottom` fields are screen-space pixel coordinates.
+The current implementation projects rectangle edges away from each light and
+supports up to four lights per `LightingPass::apply()` call. All supplied
+casters affect every light in that call.
+
+Render the scene to an offscreen target before applying lighting. Pass
+`flipVertical = true` when the source was created with `create_render_target()`:
+
+```cpp
+sl::Bitmap *scene = sl::create_render_target(800, 600);
+sl::LightingPass lighting;
+lighting.initialise();
+lighting.set_ambient(0.18f);
+
+const std::vector<sl::ShadowCaster> casters = {
+    {300.0f, 370.0f, 500.0f, 400.0f},
+};
+
+sl::begin_render_target(scene);
+sl::clear_render_target({45, 48, 56});
+// Draw the scene here. Use sl::screen as the destination while the target is bound.
+sl::end_render_target();
+
+sl::Light light;
+light.x = 400.0f;
+light.y = 240.0f;
+light.radius = 320.0f;
+light.intensity = 1.2f;
+light.shadow_softness = 3.0f;
+light.colour = {255, 190, 110};
+
+lighting.apply(scene, light, 0, 0, 800, 600, true, casters);
+sl::destroy_bitmap(scene);
+lighting.shutdown();
+```
+
+For multiple lights, pass `std::vector<sl::Light>` instead of one `Light`.
+Ambient illumination is applied once, then each light's colored contribution is
+accumulated. Initialize and shut down `LightingPass` while the OpenGL display
+context is alive.
 
 ## Event loop and input
 
