@@ -213,6 +213,35 @@ metre) before passing values to Box2D.
 pixel-space contact `point`, and a unit `normal`. Poll contacts after stepping;
 the returned event vector is owned by the caller and is cleared from the world.
 
+### Lua physics API
+
+Lua receives a separate `physics` namespace. Worlds and bodies are represented
+by integer handles owned and validated by the C++ runtime; Box2D pointers never
+cross into Lua. Coordinates and velocities use the same pixel-space convention
+as the C++ wrapper.
+
+```lua
+local world = physics.create_world(0, 980)
+local floor = physics.create_body(world, "static", 400, 560)
+local ball = physics.create_body(world, "dynamic", 400, 100)
+physics.add_box(floor, 700, 32)
+physics.add_circle(ball, 24, 1.0, 0.3, 0.6)
+
+-- The host normally owns this step in a game loop.
+physics.step(world, 1 / 60)
+local position = physics.position(ball)
+local events = physics.contacts(world)
+physics.destroy_world(world) -- also destroys its bodies
+```
+
+Available functions include `create_world`, `destroy_world`, `create_body`,
+`destroy_body`, `add_box`, `add_circle`, `add_polygon`, `position`,
+`velocity`, `set_velocity`, `step`, and `contacts`. Polygon vertices are Lua
+arrays of `{x = ..., y = ...}` tables. `contacts()` returns copied tables with
+`type`, `body_a`, `body_b`, `point`, and `normal` fields. Invalid or stale
+handles return `false`, `0`, or empty query tables rather than exposing native
+engine objects.
+
 Destroy bodies before their world, and keep rendering separate from simulation:
 read each body's transform after stepping and draw the corresponding sprite or
 primitive yourself. Destroying a world releases its Box2D bodies, so body

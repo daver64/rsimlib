@@ -29,7 +29,20 @@ int main()
         "assert(not app.unload_sound('missing'))\n"
         "assert(not app.load_music('bad', '../outside.ogg'))\n"
         "assert(not app.play_music('missing'))\n"
-        "assert(not app.unload_music('missing'))\n");
+        "assert(not app.unload_music('missing'))\n"
+        "local world = physics.create_world(0, 100)\n"
+        "assert(world > 0)\n"
+        "local floor = physics.create_body(world, 'static', 0, 100)\n"
+        "local body = physics.create_body(world, 'dynamic', 0, 20)\n"
+        "assert(physics.add_box(floor, 100, 10))\n"
+        "assert(physics.add_circle(body, 8))\n"
+        "assert(physics.set_velocity(body, 0, 0))\n"
+        "assert(physics.step(world, 0.1))\n"
+        "local position = physics.position(body)\n"
+        "assert(position.y > 20)\n"
+        "assert(type(physics.contacts(world)) == 'table')\n"
+        "physics.destroy_world(world)\n"
+        "assert(not physics.step(world, 0.1))\n");
     if (!result.success)
     {
         std::cerr << result.error << '\n';

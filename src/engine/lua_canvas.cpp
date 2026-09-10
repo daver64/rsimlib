@@ -5,6 +5,7 @@
 #include "lua_canvas.h"
 
 #include "audio.h"
+#include "physics.h"
 
 #include <sol/sol.hpp>
 
@@ -71,6 +72,10 @@ namespace sl
         std::unordered_map<std::string, Bitmap *> sprites;
         std::unordered_map<std::string, Sample *> sounds;
         std::unordered_map<std::string, Stream *> music;
+        std::uint64_t next_physics_handle = 1;
+        std::unordered_map<std::uint64_t, PhysicsWorld *> physics_worlds;
+        std::unordered_map<std::uint64_t, PhysicsBody *> physics_bodies;
+        std::unordered_map<std::uint64_t, std::uint64_t> physics_body_worlds;
 
         std::optional<std::filesystem::path> resolve_asset_path(const std::string &path) const
         {
@@ -260,6 +265,67 @@ namespace sl
             }
             music.clear();
         }
+
+        std::uint64_t new_physics_handle()
+        {
+            return next_physics_handle++;
+        }
+
+        void clear_physics()
+        {
+            for (const auto &[handle, body] : physics_bodies)
+            {
+                destroy_physics_body(body);
+            }
+            physics_bodies.clear();
+            physics_body_worlds.clear();
+            for (const auto &[handle, world] : physics_worlds)
+            {
+                destroy_physics_world(world);
+            }
+            physics_worlds.clear();
+            next_physics_handle = 1;
+        }
+
+        PhysicsWorld *physics_world(std::uint64_t handle) const
+        {
+            const auto iterator = physics_worlds.find(handle);
+            return iterator == physics_worlds.end() ? nullptr : iterator->second;
+        }
+
+        PhysicsBody *physics_body(std::uint64_t handle) const
+        {
+            const auto iterator = physics_bodies.find(handle);
+            return iterator == physics_bodies.end() ? nullptr : iterator->second;
+        }
+
+        void destroy_physics_world_handle(std::uint64_t handle)
+        {
+            const auto world = physics_worlds.find(handle);
+            if (world == physics_worlds.end())
+            {
+                return;
+            }
+            for (auto iterator = physics_body_worlds.begin(); iterator != physics_body_worlds.end();)
+            {
+                if (iterator->second == handle)
+                {
+                    const auto body = physics_bodies.find(iterator->first);
+                    if (body != physics_bodies.end())
+                    {
+                        destroy_physics_body(body->second);
+                        physics_bodies.erase(body);
+                    }
+                    iterator = physics_body_worlds.erase(iterator);
+                }
+                else
+                {
+                    ++iterator;
+                }
+            }
+            destroy_physics_world(world->second);
+            physics_worlds.erase(world);
+        }
     };
 
     LuaCanvas::LuaCanvas()
@@ -331,6 +397,143 @@ namespace sl
                          { sl::music_set_volume(volume); });
         app.set_function("unload_music", [this](const std::string &id)
                          { return implementation_->unload_music(id); });
+
+        sol::table physics = implementation_->runtime.state().create_named_table("physics");
+        physics.set_function("create_world", [this](float gravity_x, float gravity_y)
+                             {
+                                 PhysicsWorld *world = create_physics_world({gravity_x, gravity_y});
+                                 if (!world)
+                                 {
+                                     return std::uint64_t{0};
+                                 }
+                                 const std::uint64_t handle = implementation_->new_physics_handle();
+                                 implementation_->physics_worlds.emplace(handle, world);
+                                 return handle;
+                             });
+        physics.set_function("destroy_world", [this](std::uint64_t handle)
+                             {
+                                 implementation_->destroy_physics_world_handle(handle);
+                             });
+        physics.set_function("create_body", [this](std::uint64_t world_handle, const std::string &type, float x, float y)
+                             {
+                                 PhysicsWorld *world = implementation_->physics_world(world_handle);
+                                 if (!world)
+                                 {
+                                     return std::uint64_t{0};
+                                 }
+                                 BodyType body_type;
+                                 if (type == "static") body_type = BodyType::static_body;
+                                 else if (type == "kinematic") body_type = BodyType::kinematic_body;
+                                 else if (type == "dynamic") body_type = BodyType::dynamic_body;
+                                 else return std::uint64_t{0};
+                                 PhysicsBody *body = create_physics_body(world, body_type, {x, y});
+                                 if (!body)
+                                 {
+                                     return std::uint64_t{0};
+                                 }
+                                 const std::uint64_t handle = implementation_->new_physics_handle();
+                                 implementation_->physics_bodies.emplace(handle, body);
+                                 implementation_->physics_body_worlds.emplace(handle, world_handle);
+                                 return handle;
+                             });
+        physics.set_function("destroy_body", [this](std::uint64_t handle)
+                             {
+                                 const auto body = implementation_->physics_bodies.find(handle);
+                                 if (body == implementation_->physics_bodies.end()) return;
+                                 destroy_physics_body(body->second);
+                                 implementation_->physics_bodies.erase(body);
+                                 implementation_->physics_body_worlds.erase(handle);
+                             });
+        physics.set_function("add_box", [this](std::uint64_t handle, float width, float height,
+                                                sol::optional<float> density, sol::optional<float> friction,
+                                                sol::optional<float> restitution)
+                             {
+                                 PhysicsBody *body = implementation_->physics_body(handle);
+                                 return body && add_box_fixture(body, width, height, density.value_or(1.0f),
+                                                                friction.value_or(0.3f), restitution.value_or(0.0f));
+                             });
+        physics.set_function("add_circle", [this](std::uint64_t handle, float radius,
+                                                   sol::optional<float> density, sol::optional<float> friction,
+                                                   sol::optional<float> restitution)
+                             {
+                                 PhysicsBody *body = implementation_->physics_body(handle);
+                                 return body && add_circle_fixture(body, radius, density.value_or(1.0f),
+                                                                   friction.value_or(0.3f), restitution.value_or(0.0f));
+                             });
+        physics.set_function("add_polygon", [this](std::uint64_t handle, sol::table vertices,
+                                                    sol::optional<float> density, sol::optional<float> friction,
+                                                    sol::optional<float> restitution)
+                             {
+                                 PhysicsBody *body = implementation_->physics_body(handle);
+                                 if (!body) return false;
+                                 std::vector<Vec2> points;
+                                 for (const auto &entry : vertices)
+                                 {
+                                     sol::table point = entry.second.as<sol::table>();
+                                     points.push_back({point["x"].get_or(0.0f), point["y"].get_or(0.0f)});
+                                 }
+                                 return add_polygon_fixture(body, points, density.value_or(1.0f),
+                                                            friction.value_or(0.3f), restitution.value_or(0.0f));
+                             });
+        physics.set_function("step", [this](std::uint64_t handle, float time_step,
+                                              sol::optional<int> velocity_iterations,
+                                              sol::optional<int> position_iterations)
+                             {
+                                 PhysicsWorld *world = implementation_->physics_world(handle);
+                                 if (!world) return false;
+                                 step_physics_world(world, time_step, velocity_iterations.value_or(8),
+                                                    position_iterations.value_or(3));
+                                 return true;
+                             });
+        physics.set_function("position", [this](sol::this_state state, std::uint64_t handle)
+                             {
+                                 sol::state_view lua(state);
+                                 sol::table result = lua.create_table();
+                                 const Vec2 position = physics_body_position(implementation_->physics_body(handle));
+                                 result["x"] = position.x;
+                                 result["y"] = position.y;
+                                 return result;
+                             });
+        physics.set_function("velocity", [this](sol::this_state state, std::uint64_t handle)
+                             {
+                                 sol::state_view lua(state);
+                                 sol::table result = lua.create_table();
+                                 const Vec2 velocity = physics_body_velocity(implementation_->physics_body(handle));
+                                 result["x"] = velocity.x;
+                                 result["y"] = velocity.y;
+                                 return result;
+                             });
+        physics.set_function("set_velocity", [this](std::uint64_t handle, float x, float y)
+                             {
+                                 PhysicsBody *body = implementation_->physics_body(handle);
+                                 if (!body) return false;
+                                 set_physics_body_velocity(body, {x, y});
+                                 return true;
+                             });
+        physics.set_function("contacts", [this](sol::this_state state, std::uint64_t handle)
+                             {
+                                 sol::state_view lua(state);
+                                 sol::table result = lua.create_table();
+                                 PhysicsWorld *world = implementation_->physics_world(handle);
+                                 if (!world) return result;
+                                 int index = 1;
+                                 for (const PhysicsContact &contact : poll_physics_contacts(world))
+                                 {
+                                     sol::table event = lua.create_table();
+                                     event["type"] = contact.type == ContactType::begin ? "begin" : "end";
+                                     event["point"] = lua.create_table_with("x", contact.point.x, "y", contact.point.y);
+                                     event["normal"] = lua.create_table_with("x", contact.normal.x, "y", contact.normal.y);
+                                     event["body_a"] = std::uint64_t{0};
+                                     event["body_b"] = std::uint64_t{0};
+                                     for (const auto &[body_handle, body] : implementation_->physics_bodies)
+                                     {
+                                         if (body == contact.body_a) event["body_a"] = body_handle;
+                                         if (body == contact.body_b) event["body_b"] = body_handle;
+                                     }
+                                     result[index++] = event;
+                                 }
+                                 return result;
+                             });
         app.set_function(
             "pixel",
             [this](float x, float y, int red, int green, int blue, sol::optional<int> alpha)
@@ -526,6 +729,7 @@ namespace sl
         clear();
         implementation_->clear_sprites();
         implementation_->clear_audio();
+        implementation_->clear_physics();
         implementation_->runtime.reset();
     }
 }
