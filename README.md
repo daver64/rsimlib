@@ -73,6 +73,27 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 available; Vulkan, D3D11, and D3D12 are reserved backend choices and fail with
 an explicit error until their implementations are added.
 
+The first Vulkan implementation layer is now present internally in
+`src/engine/vulkan_context.*`. It creates and owns a Vulkan instance, SDL
+surface, physical device, presentation-capable graphics queue, and logical
+device. It now also owns swapchain format/present-mode selection, swapchain
+image views, recreation, and a graphics command pool. It is not exposed as an
+available renderer yet because command recording, render-pass setup, texture
+resources, and 2D submission are now backed by a complete acquire/record/
+submit/present frame lifecycle, but still need to be connected to the neutral
+renderer resource and draw contracts before Vulkan selection can be enabled
+safely.
+
+The 2D submission contract has begun that migration: renderer backends now use
+the neutral `PrimitiveType` and `Vertex2D` types. The legacy `GLVertex` name
+remains as a source-compatibility alias for the current OpenGL draw helpers.
+
+The Vulkan context also now provides internal device-local image/view creation,
+host-visible buffer allocation and upload, memory-type selection, and cleanup.
+These primitives are ready for the Vulkan texture and vertex-resource layer;
+they are not exposed through the public `Bitmap` API until command recording
+and descriptor/pipeline ownership are connected.
+
 When `glslangValidator` and `spirv-val` are installed, CMake provides a
 `shader_validation` target and makes `simlib` depend on it. The checked-in
 sources under `shaders/` are compiled to SPIR-V with automatic locations and

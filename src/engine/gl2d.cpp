@@ -1,5 +1,7 @@
 #include "gl2d.h"
 
+#include <SDL2/SDL_opengl.h>
+
 namespace sl::detail
 {
     void gl2d_ortho_matrix(int windowWidth, int windowHeight, float *outMatrix16)
@@ -31,8 +33,20 @@ namespace sl::detail
         if (Renderer *renderer = active_renderer()) renderer->begin_2d(windowWidth, windowHeight);
     }
 
-    void gl2d_submit(std::uint32_t primitiveMode, const GLVertex *vertices, int count, std::uint32_t texture)
+    void gl2d_submit(std::uint32_t primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture)
     {
-        if (Renderer *renderer = active_renderer()) renderer->submit_2d(primitiveMode, vertices, count, texture);
+        if (Renderer *renderer = active_renderer())
+        {
+            PrimitiveType mode = PrimitiveType::triangle_fan;
+            switch (primitiveMode)
+            {
+            case GL_POINTS: mode = PrimitiveType::points; break;
+            case GL_LINES: mode = PrimitiveType::lines; break;
+            case GL_LINE_LOOP: mode = PrimitiveType::line_loop; break;
+            case GL_TRIANGLES: mode = PrimitiveType::triangles; break;
+            case GL_TRIANGLE_FAN: mode = PrimitiveType::triangle_fan; break;
+            }
+            renderer->submit_2d(mode, vertices, count, texture);
+        }
     }
 }

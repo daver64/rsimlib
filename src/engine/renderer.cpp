@@ -242,11 +242,11 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 glBindVertexArray(vao_);
                 glBindBuffer(GL_ARRAY_BUFFER, vbo_);
                 glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLVertex), reinterpret_cast<void *>(offsetof(GLVertex, x)));
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), reinterpret_cast<void *>(offsetof(Vertex2D, x)));
                 glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLVertex), reinterpret_cast<void *>(offsetof(GLVertex, u)));
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), reinterpret_cast<void *>(offsetof(Vertex2D, u)));
                 glEnableVertexAttribArray(2);
-                glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(GLVertex), reinterpret_cast<void *>(offsetof(GLVertex, r)));
+                glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), reinterpret_cast<void *>(offsetof(Vertex2D, r)));
                 glBindVertexArray(0);
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture(1, 1, false, white_texture_) ||
@@ -280,15 +280,24 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 return true;
             }
 
-            void submit_2d(std::uint32_t primitive_mode, const GLVertex *vertices, int count, std::uint32_t texture) override
+            void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
             {
                 if (!vertices || count <= 0 || !initialise_2d()) return;
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture != 0 ? texture : white_texture_));
                 glBindVertexArray(vao_);
                 glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(GLVertex) * count, vertices, GL_DYNAMIC_DRAW);
-                glDrawArrays(static_cast<GLenum>(primitive_mode), 0, count);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * count, vertices, GL_DYNAMIC_DRAW);
+                GLenum mode = GL_TRIANGLE_FAN;
+                switch (primitive_mode)
+                {
+                case PrimitiveType::points: mode = GL_POINTS; break;
+                case PrimitiveType::lines: mode = GL_LINES; break;
+                case PrimitiveType::line_loop: mode = GL_LINE_LOOP; break;
+                case PrimitiveType::triangles: mode = GL_TRIANGLES; break;
+                case PrimitiveType::triangle_fan: mode = GL_TRIANGLE_FAN; break;
+                }
+                glDrawArrays(mode, 0, count);
                 glBindVertexArray(0);
             }
 

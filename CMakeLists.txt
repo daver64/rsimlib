@@ -68,6 +68,7 @@ find_package(OpenGL REQUIRED)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(SDL2 REQUIRED)
+find_package(Vulkan REQUIRED)
 find_package(SDL2_ttf QUIET CONFIG)
 
 include(FetchContent)
@@ -167,10 +168,12 @@ add_library(simlib STATIC
     src/engine/particles.cpp
     src/engine/physics.cpp
     src/engine/renderer.cpp
+    src/engine/vulkan_context.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
+target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
 endif()

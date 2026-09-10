@@ -11,6 +11,15 @@
 
 namespace sl::detail
 {
+    enum class PrimitiveType
+    {
+        points,
+        lines,
+        line_loop,
+        triangles,
+        triangle_fan
+    };
+
     enum class ShaderLanguage
     {
         glsl,
@@ -24,11 +33,13 @@ namespace sl::detail
         std::string text;
     };
 
-    struct GLVertex
+    struct Vertex2D
     {
         float x = 0.0f, y = 0.0f, u = 0.0f, v = 0.0f;
         float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
     };
+
+    using GLVertex = Vertex2D;
 
     /** Internal backend boundary for window/context and presentation ownership. */
     class Renderer
@@ -75,7 +86,7 @@ namespace sl::detail
         virtual void stop_shader() = 0;
         /** Dispatch a compute shader. */
         virtual bool dispatch_compute(std::uint32_t program, unsigned int groups_x,
-                          unsigned int groups_y, unsigned int groups_z) = 0;
+                                      unsigned int groups_y, unsigned int groups_z) = 0;
         virtual bool set_shader_int(std::uint32_t program, const char *name, int value) = 0;
         virtual bool set_shader_float(std::uint32_t program, const char *name, float value) = 0;
         virtual bool set_shader_float2(std::uint32_t program, const char *name, float x, float y) = 0;
@@ -88,7 +99,7 @@ namespace sl::detail
         /** Bind the default 2D pipeline and projection. */
         virtual bool begin_2d(int width, int height) = 0;
         /** Submit colored textured vertices using the backend's 2D pipeline. */
-        virtual void submit_2d(std::uint32_t primitive_mode, const GLVertex *vertices,
+        virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,
                        int count, std::uint32_t texture) = 0;
         /** Backend-neutral storage-buffer operations used by compute effects. */
         virtual bool create_storage_buffer(std::uint32_t &buffer) = 0;

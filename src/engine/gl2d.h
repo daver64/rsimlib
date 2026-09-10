@@ -26,7 +26,7 @@ namespace sl
          * Upload vertices to the shared VBO and draw them with whichever shader program is
          * currently bound. Pass texture = 0 to sample the built-in white pixel (flat colour).
          */
-        void gl2d_submit(std::uint32_t primitiveMode, const GLVertex *vertices, int count, std::uint32_t texture = 0);
+        void gl2d_submit(std::uint32_t primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture = 0);
 
         /** Compute a top-left-origin orthographic projection matrix (column-major, 16 floats). */
         void gl2d_ortho_matrix(int windowWidth, int windowHeight, float *outMatrix16);
