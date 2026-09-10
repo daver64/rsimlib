@@ -1,9 +1,11 @@
 # simlib
 
-`simlib` is a small Allegro 4-style 2D game/rendering library built on SDL2 and
-OpenGL, with bitmap drawing primitives, TrueType text rendering, SDL_mixer
-audio, a shader/effects layer, ZIP resource archives, Perlin/simplex noise,
-and a sandboxed embedded Lua console (via [sol2](https://github.com/ThePhD/sol2)).
+`simlib` is a small Allegro 4-style 2D game and rendering library built on
+SDL2, with selectable OpenGL 4.3 and Vulkan backends. It provides bitmap
+primitives and sprites, TrueType text, Dear ImGui integration, SDL_mixer audio,
+render targets and lighting effects, ZIP resource archives, Perlin/simplex
+noise, Box2D physics, and a sandboxed Lua console through
+[sol2](https://github.com/ThePhD/sol2).
 
 > **Experimental software:** simlib is under active development and expected to
 > grow organically. APIs, behavior, and project structure may change as the
@@ -20,7 +22,7 @@ This repository contains:
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 - **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
 - **`exphysics`** — Box2D body, fixture, and stepping example (`src/applications/exphysics/`).
-- **`exvulkan`** — Vulkan textured-quad smoke test (`src/applications/exvulkan/`).
+- **`exvulkan`** — textured-quad backend smoke test (`src/applications/exvulkan/`).
 
 ### `sltest` screenshot
 
@@ -55,17 +57,15 @@ unchanged while their default 2D pipeline is owned by the backend. This
 boundary also owns effect storage buffers, texture-unit binding, and compute
 barriers used by tiled lighting.
 
-Shader creation now carries explicit language metadata (`GLSL`, `SPIR-V`, or
-`DXIL`) through the internal renderer interface. The OpenGL backend currently
-accepts GLSL and rejects the other formats with a clear error. This establishes
-the portability contract without changing effect code; a future shader build
-step can compile shared sources to SPIR-V or DXIL for additional backends.
+Shader creation carries explicit language metadata (`GLSL`, `SPIR-V`, or
+`DXIL`) through the internal renderer interface. Built-in effects load GLSL
+assets on OpenGL and validated SPIR-V assets on Vulkan. Arbitrary user shaders
+must currently provide a backend-appropriate payload and layout metadata.
 
 The shader contract now also carries an explicit stage (`vertex`, `fragment`,
 or `compute`) and can represent either GLSL text or a SPIR-V word payload.
-Current OpenGL effects continue using GLSL; Vulkan shader modules remain owned
-by `VulkanContext` while the renderer API is prepared to consume binary shader
-artifacts directly.
+OpenGL effects use GLSL, while `VulkanContext` owns Vulkan shader modules and
+consumes SPIR-V artifacts directly.
 
 Backend selection is explicit through `set_graphics_backend()` and must happen
 before `set_gfx_mode()`:
@@ -962,7 +962,8 @@ screen: `handle_*_input(const sl::Event&)` processes a relevant event and
 
 Owns application-level state and routes work to the selected mode. `running`
 ends the main loop, while `current_mode` selects both event and rendering
-dispatch. `initialise()` creates an 800x600 SDL/OpenGL display through
+dispatch. `initialise()` creates an 800x600 SDL display through the selected
+graphics backend using
 `sl::set_gfx_mode()`, starts ImGui, audio, and frame pacing, then loads
 balloon textures with `sl::load_bitmap()`. `handle_events()` receives SDL
 events, delegates them to the active mode, and forwards display resize and
