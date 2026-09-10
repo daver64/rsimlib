@@ -87,12 +87,77 @@ safely.
 The 2D submission contract has begun that migration: renderer backends now use
 the neutral `PrimitiveType` and `Vertex2D` types. The legacy `GLVertex` name
 remains as a source-compatibility alias for the current OpenGL draw helpers.
+The renderer contract also now includes backend-neutral `begin_frame()` and
+`end_frame()` operations; OpenGL preserves its existing behavior while Vulkan
+can use them to acquire, record, submit, and present swapchain work.
+
+`VulkanRenderer` now owns `VulkanContext`, requests an SDL Vulkan window, and
+routes frame begin/end through Vulkan. Its texture, shader, descriptor, and 2D
+submission methods currently return explicit unsupported errors; Vulkan remains
+disabled in `graphics_backend_available()` until those operations are fully
+implemented rather than exposing a renderer that can only present a blank frame.
 
 The Vulkan context also now provides internal device-local image/view creation,
 host-visible buffer allocation and upload, memory-type selection, and cleanup.
 These primitives are ready for the Vulkan texture and vertex-resource layer;
 they are not exposed through the public `Bitmap` API until command recording
 and descriptor/pipeline ownership are connected.
+
+It also loads validated SPIR-V files into Vulkan shader modules and owns empty
+pipeline-layout creation/destruction. The next Vulkan slice is descriptor-set
+layout, graphics-pipeline creation, and binding the `Vertex2D` buffer/texture
+contract during command recording.
+
+The 2D texture descriptor layout is now implemented as a Vulkan
+combined-image-sampler binding and can be attached to pipeline layouts. The
+remaining work in this slice is descriptor allocation/update, graphics pipeline
+creation, and recording `Vertex2D` draws into the active render pass.
+
+Descriptor pools, linear-clamp samplers, and combined-image-sampler descriptor
+allocation/update are now implemented in the Vulkan context. The next step is
+to create the SPIR-V graphics pipeline and record the neutral 2D vertex buffer
+draws against the active swapchain render pass.
+
+The Vulkan context now also creates/destroys graphics pipelines with SPIR-V
+vertex/fragment stages, `Vertex2D` attributes, alpha blending, dynamic
+viewport/scissor state, and the active swapchain render pass. The final part of
+this slice is command-buffer binding of vertex buffers, descriptor sets, and
+pipeline draws through a Vulkan renderer implementation.
+
+Vulkan-specific 2D shader sources now live in `shaders/vulkan_2d.vert` and
+`shaders/vulkan_2d.frag`. They use Vulkan-compatible descriptor bindings and a
+push-constant projection block, and are compiled/validated by the
+`vulkan_shader_validation` CMake target. The OpenGL embedded shader path remains
+unchanged.
+
+The first command-recording primitive is now present: it binds a graphics
+pipeline, dynamic viewport/scissor, `Vertex2D` vertex buffer, optional texture
+descriptor set, and records `vkCmdDraw` inside the active render pass. The
+remaining connection is ownership of these pipeline/resource handles by
+`VulkanRenderer` so public drawing calls can reach this path.
+
+`VulkanRenderer` now owns real texture resources: RGBA8 images, samplers,
+staging uploads, and cleanup. The existing OpenGL bitmap path is unchanged;
+Vulkan render targets, descriptor-set wiring, and public 2D submission remain
+the next integration steps.
+
+The first Vulkan 2D submission path is now connected internally: the renderer
+loads the Vulkan SPIR-V shaders, creates the descriptor-backed white texture,
+allocates host-visible `Vertex2D` buffers, pushes the projection matrix, and
+records triangle-fan draws through the active Vulkan render pass. Vulkan remains
+disabled as a public backend until the remaining primitive modes, render-target
+sampling, clear path, and ImGui integration are complete.
+
+Vulkan render-target creation is now also wired through `VulkanRenderer`: it
+allocates a color image/view, creates a compatible framebuffer for the active
+render pass, returns opaque texture/framebuffer handles, and releases them in
+the correct order during destruction or shutdown.
+
+The renderer resource contract now carries explicit texture descriptors
+(dimensions and filtering) and storage-buffer sizes. OpenGL uses these values
+to preserve its current behavior; Vulkan can use them to select image usage,
+memory allocation, staging transfers, and buffer sizes without inferring
+requirements from OpenGL handles.
 
 When `glslangValidator` and `spirv-val` are installed, CMake provides a
 `shader_validation` target and makes `simlib` depend on it. The checked-in

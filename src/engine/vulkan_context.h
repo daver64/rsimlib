@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,32 @@ namespace sl::detail
         VkImageView view = VK_NULL_HANDLE;
     };
 
+    struct VulkanShaderModule
+    {
+        VkShaderModule module = VK_NULL_HANDLE;
+    };
+
+    struct VulkanDescriptorSetLayout
+    {
+        VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+    };
+
+    struct VulkanDescriptorPool
+    {
+        VkDescriptorPool pool = VK_NULL_HANDLE;
+    };
+
+    struct VulkanSampler
+    {
+        VkSampler sampler = VK_NULL_HANDLE;
+    };
+
+    struct VulkanGraphicsPipeline
+    {
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        VkPipelineLayout layout = VK_NULL_HANDLE;
+    };
+
     /** Owns the Vulkan instance, selected physical device, logical device, and graphics queue. */
     class VulkanContext
     {
@@ -38,15 +65,47 @@ namespace sl::detail
         void destroy_swapchain();
         bool begin_frame(std::string &error);
         bool end_frame(std::string &error);
+        bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                    VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
+                    std::uint32_t vertex_count, VkPrimitiveTopology topology,
+                                const float *projection,
+                    std::string &error);
         bool create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
                    VkMemoryPropertyFlags properties, VulkanBuffer &result,
                    std::string &error);
         void destroy_buffer(VulkanBuffer &buffer);
         bool upload_buffer(const VulkanBuffer &buffer, const void *data, std::size_t size,
                    std::string &error);
+        bool upload_image_rgba(const VulkanImage &image, int width, int height,
+                       const std::uint8_t *pixels, std::string &error);
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                   VulkanImage &result, std::string &error);
         void destroy_image(VulkanImage &image);
+        bool create_render_target_framebuffer(const VulkanImage &image, int width, int height,
+                              VkFramebuffer &framebuffer, std::string &error);
+        void destroy_framebuffer(VkFramebuffer &framebuffer);
+        bool load_shader_module(const std::filesystem::path &path, VulkanShaderModule &result,
+                    std::string &error);
+        void destroy_shader_module(VulkanShaderModule &module);
+        bool create_texture_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
+        void destroy_descriptor_set_layout(VulkanDescriptorSetLayout &layout);
+        bool create_descriptor_pool(VulkanDescriptorPool &result, std::string &error);
+        void destroy_descriptor_pool(VulkanDescriptorPool &pool);
+        bool create_sampler(VulkanSampler &result, std::string &error);
+        void destroy_sampler(VulkanSampler &sampler);
+        bool allocate_texture_descriptor(const VulkanDescriptorPool &pool,
+                         const VulkanDescriptorSetLayout &layout,
+                         const VulkanImage &image, const VulkanSampler &sampler,
+                         VkDescriptorSet &set, std::string &error);
+        bool create_pipeline_layout(const VulkanDescriptorSetLayout *descriptor_layout,
+                        VkPipelineLayout &layout, std::string &error);
+        void destroy_pipeline_layout(VkPipelineLayout &layout);
+        bool create_graphics_pipeline(const VulkanShaderModule &vertex,
+                          const VulkanShaderModule &fragment,
+                          const VulkanDescriptorSetLayout &descriptor_layout,
+                          VkPrimitiveTopology topology,
+                          VulkanGraphicsPipeline &result, std::string &error);
+        void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         void shutdown();
         bool is_valid() const;
 

@@ -91,7 +91,7 @@ namespace sl
             return false;
         }
         renderer->configure_window();
-        uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+        uint32_t windowflags = renderer->window_flags();
         window = SDL_CreateWindow(
             "simlib",
             SDL_WINDOWPOS_CENTERED,

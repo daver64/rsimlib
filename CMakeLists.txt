@@ -56,6 +56,37 @@ if(SIMLIB_VALIDATE_SHADERS)
             endif()
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
+        set(VULKAN_SHADER_BINARIES)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag)
+            get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
+            if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
+                set(VULKAN_SHADER_STAGE vert)
+            else()
+                set(VULKAN_SHADER_STAGE frag)
+            endif()
+            set(VULKAN_SHADER_BINARY "${SHADER_BINARY_DIR}/${VULKAN_SHADER_SOURCE}.spv")
+            add_custom_command(
+                OUTPUT "${VULKAN_SHADER_BINARY}"
+                COMMAND "${GLSLANG_VALIDATOR}" -V --auto-map-locations --auto-map-bindings
+                        -S "${VULKAN_SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${VULKAN_SHADER_SOURCE}"
+                        -o "${VULKAN_SHADER_BINARY}"
+                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${VULKAN_SHADER_SOURCE}"
+                VERBATIM
+            )
+            if(SPIRV_VAL)
+                add_custom_command(
+                    OUTPUT "${VULKAN_SHADER_BINARY}.validated"
+                    COMMAND "${SPIRV_VAL}" "${VULKAN_SHADER_BINARY}"
+                    COMMAND "${CMAKE_COMMAND}" -E touch "${VULKAN_SHADER_BINARY}.validated"
+                    DEPENDS "${VULKAN_SHADER_BINARY}"
+                    VERBATIM
+                )
+                list(APPEND VULKAN_SHADER_BINARIES "${VULKAN_SHADER_BINARY}.validated")
+            else()
+                list(APPEND VULKAN_SHADER_BINARIES "${VULKAN_SHADER_BINARY}")
+            endif()
+        endforeach()
+        add_custom_target(vulkan_shader_validation DEPENDS ${VULKAN_SHADER_BINARIES})
     else()
         add_custom_target(shader_validation
             COMMAND "${CMAKE_COMMAND}" -E echo
@@ -171,6 +202,7 @@ add_library(simlib STATIC
     src/engine/vulkan_context.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_definitions(simlib PRIVATE SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders")
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)

@@ -785,9 +785,9 @@ void main() {
 		{
 			return false;
 		}
-		if (!detail::active_renderer()->create_storage_buffer(lightBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(tileCountsBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(tileIndicesBuffer_)) return false;
+		if (!detail::active_renderer()->create_storage_buffer(sizeof(GpuLight), lightBuffer_) ||
+			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileCountsBuffer_) ||
+			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_)) return false;
 		return true;
 	}
 

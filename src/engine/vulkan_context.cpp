@@ -1,4 +1,5 @@
 #include "vulkan_context.h"
+#include "renderer.h"
 
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
@@ -6,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <vector>
 
 namespace sl::detail
@@ -411,6 +413,43 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                                           VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
+                                           std::uint32_t vertex_count, VkPrimitiveTopology topology,
+                                           const float *projection,
+                                           std::string &error)
+    {
+        if (!frame_active_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
+            vertex_buffer == VK_NULL_HANDLE || vertex_count == 0)
+        {
+            error = "Invalid Vulkan vertex draw state.";
+            return false;
+        }
+        VkViewport viewport{};
+        viewport.width = static_cast<float>(swapchain_extent_.width);
+        viewport.height = static_cast<float>(swapchain_extent_.height);
+        viewport.maxDepth = 1.0f;
+        VkRect2D scissor{{0, 0}, swapchain_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        if (projection)
+        {
+            vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                               sizeof(float) * 16, projection);
+        }
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        if (descriptor_set != VK_NULL_HANDLE)
+        {
+            vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    layout, 0, 1, &descriptor_set, 0, nullptr);
+        }
+        vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
+        (void)topology;
+        return true;
+    }
+
     std::uint32_t VulkanContext::find_memory_type(std::uint32_t type_filter,
                                                   VkMemoryPropertyFlags properties) const
     {
@@ -497,6 +536,78 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::upload_image_rgba(const VulkanImage &image, int width, int height,
+                                          const std::uint8_t *pixels, std::string &error)
+    {
+        if (image.image == VK_NULL_HANDLE || !pixels || width <= 0 || height <= 0)
+        {
+            error = "Invalid Vulkan image upload.";
+            return false;
+        }
+        VulkanBuffer staging;
+        const std::size_t byte_count = static_cast<std::size_t>(width) * height * 4;
+        if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                           staging, error) || !upload_buffer(staging, pixels, byte_count, error))
+        {
+            destroy_buffer(staging);
+            return false;
+        }
+        VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        allocation.commandPool = command_pool_;
+        allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocation.commandBufferCount = 1;
+        VkCommandBuffer command = VK_NULL_HANDLE;
+        if (vkAllocateCommandBuffers(device_, &allocation, &command) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan image upload command buffer.";
+            destroy_buffer(staging);
+            return false;
+        }
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(command, &begin);
+        VkImageMemoryBarrier to_transfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        to_transfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        to_transfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        to_transfer.srcAccessMask = 0;
+        to_transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        to_transfer.image = image.image;
+        to_transfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        to_transfer.subresourceRange.levelCount = 1;
+        to_transfer.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_transfer);
+        VkBufferImageCopy copy{};
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.layerCount = 1;
+        copy.imageExtent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};
+        vkCmdCopyBufferToImage(command, staging.buffer, image.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        VkImageMemoryBarrier to_shader = to_transfer;
+        to_shader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        to_shader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        to_shader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        to_shader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_shader);
+        vkEndCommandBuffer(command);
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &command;
+        if (vkQueueSubmit(graphics_queue_, 1, &submit, VK_NULL_HANDLE) != VK_SUCCESS ||
+            vkQueueWaitIdle(graphics_queue_) != VK_SUCCESS)
+        {
+            error = "Unable to submit Vulkan image upload.";
+            vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+            destroy_buffer(staging);
+            return false;
+        }
+        vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+        destroy_buffer(staging);
+        return true;
+    }
+
     bool VulkanContext::create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                                      VulkanImage &result, std::string &error)
     {
@@ -561,6 +672,312 @@ namespace sl::detail
         if (device_ != VK_NULL_HANDLE && image.memory != VK_NULL_HANDLE)
             vkFreeMemory(device_, image.memory, nullptr);
         image = {};
+    }
+
+    bool VulkanContext::create_render_target_framebuffer(const VulkanImage &image, int width, int height,
+                                                         VkFramebuffer &framebuffer,
+                                                         std::string &error)
+    {
+        framebuffer = VK_NULL_HANDLE;
+        if (render_pass_ == VK_NULL_HANDLE || image.view == VK_NULL_HANDLE)
+        {
+            error = "Vulkan render-target framebuffer requires an active render pass and image view.";
+            return false;
+        }
+        VkFramebufferCreateInfo info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+        info.renderPass = render_pass_;
+        info.attachmentCount = 1;
+        info.pAttachments = &image.view;
+        info.width = static_cast<std::uint32_t>(width);
+        info.height = static_cast<std::uint32_t>(height);
+        info.layers = 1;
+        if (vkCreateFramebuffer(device_, &info, nullptr, &framebuffer) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan render-target framebuffer.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_framebuffer(VkFramebuffer &framebuffer)
+    {
+        if (device_ != VK_NULL_HANDLE && framebuffer != VK_NULL_HANDLE)
+            vkDestroyFramebuffer(device_, framebuffer, nullptr);
+        framebuffer = VK_NULL_HANDLE;
+    }
+
+    bool VulkanContext::load_shader_module(const std::filesystem::path &path,
+                                           VulkanShaderModule &result, std::string &error)
+    {
+        result = {};
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file)
+        {
+            error = "Unable to open Vulkan shader: " + path.string();
+            return false;
+        }
+        const std::streamsize byte_count = file.tellg();
+        if (byte_count <= 0 || byte_count % sizeof(std::uint32_t) != 0)
+        {
+            error = "Invalid SPIR-V shader size: " + path.string();
+            return false;
+        }
+        std::vector<std::uint32_t> code(static_cast<std::size_t>(byte_count) / sizeof(std::uint32_t));
+        file.seekg(0);
+        if (!file.read(reinterpret_cast<char *>(code.data()), byte_count))
+        {
+            error = "Unable to read Vulkan shader: " + path.string();
+            return false;
+        }
+        VkShaderModuleCreateInfo module_info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        module_info.codeSize = static_cast<std::size_t>(byte_count);
+        module_info.pCode = code.data();
+        if (vkCreateShaderModule(device_, &module_info, nullptr, &result.module) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan shader module: " + path.string();
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_shader_module(VulkanShaderModule &module)
+    {
+        if (device_ != VK_NULL_HANDLE && module.module != VK_NULL_HANDLE)
+        {
+            vkDestroyShaderModule(device_, module.module, nullptr);
+        }
+        module = {};
+    }
+
+    bool VulkanContext::create_texture_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error)
+    {
+        result = {};
+        VkDescriptorSetLayoutBinding binding{};
+        binding.binding = 0;
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        binding.descriptorCount = 1;
+        binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkDescriptorSetLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        layout_info.bindingCount = 1;
+        layout_info.pBindings = &binding;
+        if (vkCreateDescriptorSetLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan texture descriptor-set layout.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_descriptor_set_layout(VulkanDescriptorSetLayout &layout)
+    {
+        if (device_ != VK_NULL_HANDLE && layout.layout != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device_, layout.layout, nullptr);
+        }
+        layout = {};
+    }
+
+    bool VulkanContext::create_descriptor_pool(VulkanDescriptorPool &result, std::string &error)
+    {
+        result = {};
+        VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256};
+        VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pool_info.maxSets = 256;
+        pool_info.poolSizeCount = 1;
+        pool_info.pPoolSizes = &pool_size;
+        if (vkCreateDescriptorPool(device_, &pool_info, nullptr, &result.pool) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan descriptor pool.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_descriptor_pool(VulkanDescriptorPool &pool)
+    {
+        if (device_ != VK_NULL_HANDLE && pool.pool != VK_NULL_HANDLE)
+            vkDestroyDescriptorPool(device_, pool.pool, nullptr);
+        pool = {};
+    }
+
+    bool VulkanContext::create_sampler(VulkanSampler &result, std::string &error)
+    {
+        result = {};
+        VkSamplerCreateInfo sampler_info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.maxLod = 1.0f;
+        if (vkCreateSampler(device_, &sampler_info, nullptr, &result.sampler) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan texture sampler.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_sampler(VulkanSampler &sampler)
+    {
+        if (device_ != VK_NULL_HANDLE && sampler.sampler != VK_NULL_HANDLE)
+            vkDestroySampler(device_, sampler.sampler, nullptr);
+        sampler = {};
+    }
+
+    bool VulkanContext::allocate_texture_descriptor(const VulkanDescriptorPool &pool,
+                                                    const VulkanDescriptorSetLayout &layout,
+                                                    const VulkanImage &image, const VulkanSampler &sampler,
+                                                    VkDescriptorSet &set, std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = pool.pool;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout.layout;
+        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan texture descriptor set.";
+            return false;
+        }
+        VkDescriptorImageInfo image_info{};
+        image_info.imageView = image.view;
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        image_info.sampler = sampler.sampler;
+        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write.dstSet = set;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &image_info;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::create_pipeline_layout(const VulkanDescriptorSetLayout *descriptor_layout,
+                                               VkPipelineLayout &layout, std::string &error)
+    {
+        layout = VK_NULL_HANDLE;
+        VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        VkPushConstantRange push_constants{};
+        push_constants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        push_constants.offset = 0;
+        push_constants.size = sizeof(float) * 16;
+        layout_info.pushConstantRangeCount = 1;
+        layout_info.pPushConstantRanges = &push_constants;
+        if (descriptor_layout)
+        {
+            layout_info.setLayoutCount = 1;
+            layout_info.pSetLayouts = &descriptor_layout->layout;
+        }
+        if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan pipeline layout.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_pipeline_layout(VkPipelineLayout &layout)
+    {
+        if (device_ != VK_NULL_HANDLE && layout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device_, layout, nullptr);
+        }
+        layout = VK_NULL_HANDLE;
+    }
+
+    bool VulkanContext::create_graphics_pipeline(const VulkanShaderModule &vertex,
+                                                 const VulkanShaderModule &fragment,
+                                                 const VulkanDescriptorSetLayout &descriptor_layout,
+                                                 VkPrimitiveTopology topology,
+                                                 VulkanGraphicsPipeline &result, std::string &error)
+    {
+        result = {};
+        if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE ||
+            !create_pipeline_layout(&descriptor_layout, result.layout, error))
+        {
+            if (error.empty()) error = "Invalid Vulkan graphics pipeline inputs.";
+            return false;
+        }
+
+        VkPipelineShaderStageCreateInfo stages[2] = {
+            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vertex.module, "main", nullptr},
+            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fragment.module, "main", nullptr},
+        };
+        VkVertexInputBindingDescription binding{};
+        binding.binding = 0;
+        binding.stride = sizeof(Vertex2D);
+        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        VkVertexInputAttributeDescription attributes[3] = {
+            {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
+            {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
+            {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
+        };
+        VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+        vertex_input.vertexBindingDescriptionCount = 1;
+        vertex_input.pVertexBindingDescriptions = &binding;
+        vertex_input.vertexAttributeDescriptionCount = 3;
+        vertex_input.pVertexAttributeDescriptions = attributes;
+        VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+        input_assembly.topology = topology;
+        VkPipelineViewportStateCreateInfo viewport{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+        viewport.viewportCount = 1;
+        viewport.scissorCount = 1;
+        VkPipelineRasterizationStateCreateInfo rasterization{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+        rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterization.cullMode = VK_CULL_MODE_NONE;
+        rasterization.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterization.lineWidth = 1.0f;
+        VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        VkPipelineColorBlendAttachmentState blend_attachment{};
+        blend_attachment.blendEnable = VK_TRUE;
+        blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        VkPipelineColorBlendStateCreateInfo blending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+        blending.attachmentCount = 1;
+        blending.pAttachments = &blend_attachment;
+        const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+        dynamic.dynamicStateCount = 2;
+        dynamic.pDynamicStates = dynamic_states;
+        VkGraphicsPipelineCreateInfo pipeline_info{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+        pipeline_info.stageCount = 2;
+        pipeline_info.pStages = stages;
+        pipeline_info.pVertexInputState = &vertex_input;
+        pipeline_info.pInputAssemblyState = &input_assembly;
+        pipeline_info.pViewportState = &viewport;
+        pipeline_info.pRasterizationState = &rasterization;
+        pipeline_info.pMultisampleState = &multisample;
+        pipeline_info.pColorBlendState = &blending;
+        pipeline_info.pDynamicState = &dynamic;
+        pipeline_info.layout = result.layout;
+        pipeline_info.renderPass = render_pass_;
+        pipeline_info.subpass = 0;
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &result.pipeline) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan graphics pipeline.";
+            destroy_pipeline_layout(result.layout);
+            result = {};
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline)
+    {
+        if (device_ != VK_NULL_HANDLE && pipeline.pipeline != VK_NULL_HANDLE)
+            vkDestroyPipeline(device_, pipeline.pipeline, nullptr);
+        destroy_pipeline_layout(pipeline.layout);
+        pipeline = {};
     }
 
     void VulkanContext::destroy_swapchain()

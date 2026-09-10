@@ -33,6 +33,19 @@ namespace sl::detail
         std::string text;
     };
 
+    enum class TextureFilter
+    {
+        nearest,
+        linear
+    };
+
+    struct TextureDesc
+    {
+        int width = 0;
+        int height = 0;
+        TextureFilter filter = TextureFilter::nearest;
+    };
+
     struct Vertex2D
     {
         float x = 0.0f, y = 0.0f, u = 0.0f, v = 0.0f;
@@ -49,6 +62,8 @@ namespace sl::detail
 
         /** Configure SDL window attributes before the window is created. */
         virtual void configure_window() = 0;
+        /** Return the SDL window flags required by this backend. */
+        virtual std::uint32_t window_flags() const = 0;
         /** Create the backend context for an existing SDL window. */
         virtual bool initialise(SDL_Window *window, std::string &error) = 0;
         /** Release backend resources. */
@@ -59,10 +74,13 @@ namespace sl::detail
         virtual bool set_vsync(bool enabled) = 0;
         /** Present the current backend framebuffer. */
         virtual void present() = 0;
+        /** Begin/end a backend frame around command recording. */
+        virtual bool begin_frame(std::string &error) = 0;
+        virtual bool end_frame(std::string &error) = 0;
         /** Return the native context for integrations such as ImGui. */
         virtual SDL_GLContext native_context() const = 0;
         /** Create an RGBA texture with backend-managed sampling state. */
-        virtual bool create_texture(int width, int height, bool linear, std::uint32_t &texture) = 0;
+        virtual bool create_texture(const TextureDesc &description, std::uint32_t &texture) = 0;
         /** Upload RGBA8 pixels into a texture. */
         virtual bool upload_texture(std::uint32_t texture, int width, int height,
                         const std::uint8_t *pixels) = 0;
@@ -102,7 +120,7 @@ namespace sl::detail
         virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,
                        int count, std::uint32_t texture) = 0;
         /** Backend-neutral storage-buffer operations used by compute effects. */
-        virtual bool create_storage_buffer(std::uint32_t &buffer) = 0;
+        virtual bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) = 0;
         virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;
         virtual bool upload_storage_buffer(std::uint32_t buffer, std::size_t size,
                            const void *data, bool preserve_storage) = 0;
