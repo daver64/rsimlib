@@ -7,10 +7,13 @@
 #include "draw.h"
 #include "font.h"
 #include "error.h"
+#include "renderer.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_opengl.h>
+
+#include <memory>
 
 namespace sl
 {
@@ -21,7 +24,7 @@ namespace sl
     {
 
         SDL_Window *window = nullptr;
-        SDL_GLContext context = nullptr;
+        std::unique_ptr<detail::Renderer> renderer;
         bool ttfInitialized = false;
         int width = 0;
         int height = 0;
@@ -56,10 +59,8 @@ namespace sl
         }
         ttfInitialized = true;
 
-        // require a core profile so no legacy fixed-function GL state is available
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+        renderer = detail::create_renderer();
+        renderer->configure_window();
         uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
         window = SDL_CreateWindow(
             "simlib",
@@ -77,10 +78,11 @@ namespace sl
             return false;
         }
 
-        context = SDL_GL_CreateContext(window);
-        if (!context)
+        std::string renderer_error;
+        if (!renderer->initialise(window, renderer_error))
         {
-            sl::detail::set_error(SDL_GetError());
+            sl::detail::set_error(renderer_error);
+            renderer.reset();
             SDL_DestroyWindow(window);
             window = nullptr;
             TTF_Quit();
@@ -92,7 +94,7 @@ namespace sl
         SDL_GetWindowSize(window, &width, &height);
         logicalWidth = virtualWidth > 0 ? virtualWidth : width;
         logicalHeight = virtualHeight > 0 ? virtualHeight : height;
-        glViewport(0, 0, width, height);
+        renderer->resize(width, height);
         detail::initialise_screen(logicalWidth, logicalHeight);
         sl_default_monospace_font = open_monospace_font(12);
         return true;
@@ -107,7 +109,10 @@ namespace sl
 
         width = event.window_width();
         height = event.window_height();
-        glViewport(0, 0, width, height);
+        if (renderer)
+        {
+            renderer->resize(width, height);
+        }
         detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
     }
 
@@ -125,7 +130,10 @@ namespace sl
         }
         // fullscreen toggles don't reliably deliver a window_resized event, so sync the viewport now
         SDL_GetWindowSize(window, &width, &height);
-        glViewport(0, 0, width, height);
+        if (renderer)
+        {
+            renderer->resize(width, height);
+        }
         return true;
     }
 
@@ -142,7 +150,7 @@ namespace sl
     }
     bool set_vsync(bool enabled)
     {
-        return context && SDL_GL_SetSwapInterval(enabled ? 1 : 0) == 0;
+        return renderer && renderer->set_vsync(enabled);
     }
 
     int screen_width()
@@ -175,7 +183,10 @@ namespace sl
 
     void restore_window_viewport()
     {
-        glViewport(0, 0, width, height);
+        if (renderer)
+        {
+            renderer->resize(width, height);
+        }
     }
 
     namespace detail
@@ -199,19 +210,19 @@ namespace sl
 
     void show_video_bitmap()
     {
-        if (window)
+        if (renderer)
         {
-            SDL_GL_SwapWindow(window);
+            renderer->present();
         }
     }
 
     void display_shutdown()
     {
         detail::destroy_screen();
-        if (context)
+        if (renderer)
         {
-            SDL_GL_DeleteContext(context);
-            context = nullptr;
+            renderer->shutdown();
+            renderer.reset();
         }
         if (window)
         {
@@ -245,7 +256,7 @@ namespace sl
 
     SDL_GLContext get_gl_context()
     {
-        return context;
+        return renderer ? renderer->native_context() : nullptr;
     }
 
 } // namespace sl
