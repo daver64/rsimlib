@@ -25,6 +25,7 @@ namespace sl
 
         SDL_Window *window = nullptr;
         std::unique_ptr<detail::Renderer> renderer;
+        GraphicsBackend selected_backend = GraphicsBackend::opengl;
         bool ttfInitialized = false;
         int width = 0;
         int height = 0;
@@ -33,6 +34,27 @@ namespace sl
         int renderTargetWidth = 0;
         int renderTargetHeight = 0;
     } // namespace
+
+    bool set_graphics_backend(GraphicsBackend backend)
+    {
+        if (window)
+        {
+            sl::detail::set_error("Graphics backend cannot change while the display is active");
+            return false;
+        }
+        if (!graphics_backend_available(backend))
+        {
+            sl::detail::set_error("Requested graphics backend is not available");
+            return false;
+        }
+        selected_backend = backend;
+        return true;
+    }
+
+    bool graphics_backend_available(GraphicsBackend backend)
+    {
+        return backend == GraphicsBackend::opengl;
+    }
 
     bool set_gfx_mode(int driver,
                       int requestedWidth, int requestedHeight,
@@ -59,7 +81,15 @@ namespace sl
         }
         ttfInitialized = true;
 
-        renderer = detail::create_renderer();
+        renderer = detail::create_renderer(selected_backend);
+        if (!renderer)
+        {
+            sl::detail::set_error("Requested graphics backend is not implemented");
+            TTF_Quit();
+            ttfInitialized = false;
+            SDL_Quit();
+            return false;
+        }
         renderer->configure_window();
         uint32_t windowflags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
         window = SDL_CreateWindow(

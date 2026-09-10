@@ -374,14 +374,18 @@ void main() {
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
-		return renderer && renderer->create_shader(vertexSource, fragmentSource, program_, error_);
+		return renderer && renderer->create_shader(
+			detail::ShaderSource{detail::ShaderLanguage::glsl, vertexSource},
+			detail::ShaderSource{detail::ShaderLanguage::glsl, fragmentSource},
+			program_, error_);
 	}
 
 	bool Shader::load_compute(const std::string &computeSource)
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
-		return renderer && renderer->create_compute_shader(computeSource, program_, error_);
+		return renderer && renderer->create_compute_shader(
+			detail::ShaderSource{detail::ShaderLanguage::glsl, computeSource}, program_, error_);
 	}
 
 	void Shader::reset()
@@ -631,8 +635,8 @@ void main() {
 
 		// pass 4: composite the blurred glow back over the full-resolution source
 		compositeShader_.set_uniform("intensity", intensity_);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, blurSource->gpu_texture);
+		if (detail::Renderer *renderer = detail::active_renderer())
+			renderer->bind_texture_unit(1, blurSource->gpu_texture);
 		compositeShader_.set_uniform("bloomTex", 1);
 		compositeShader_.set_uniform("source", 0);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
@@ -781,12 +785,10 @@ void main() {
 		{
 			return false;
 		}
-		GLuint buffers[3] = {};
-		glGenBuffers(3, buffers);
-		lightBuffer_ = buffers[0];
-		tileCountsBuffer_ = buffers[1];
-		tileIndicesBuffer_ = buffers[2];
-		return lightBuffer_ != 0 && tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
+		if (!detail::active_renderer()->create_storage_buffer(lightBuffer_) ||
+			!detail::active_renderer()->create_storage_buffer(tileCountsBuffer_) ||
+			!detail::active_renderer()->create_storage_buffer(tileIndicesBuffer_)) return false;
+		return true;
 	}
 
 	void LightingPass::shutdown()
@@ -799,20 +801,17 @@ void main() {
 		}
 		if (lightBuffer_ != 0)
 		{
-			const GLuint lightBuffer = static_cast<GLuint>(lightBuffer_);
-			glDeleteBuffers(1, &lightBuffer);
+			detail::active_renderer()->destroy_storage_buffer(lightBuffer_);
 			lightBuffer_ = 0;
 		}
 		if (tileCountsBuffer_ != 0)
 		{
-			const GLuint buffer = static_cast<GLuint>(tileCountsBuffer_);
-			glDeleteBuffers(1, &buffer);
+			detail::active_renderer()->destroy_storage_buffer(tileCountsBuffer_);
 			tileCountsBuffer_ = 0;
 		}
 		if (tileIndicesBuffer_ != 0)
 		{
-			const GLuint buffer = static_cast<GLuint>(tileIndicesBuffer_);
-			glDeleteBuffers(1, &buffer);
+			detail::active_renderer()->destroy_storage_buffer(tileIndicesBuffer_);
 			tileIndicesBuffer_ = 0;
 		}
 	}
@@ -914,10 +913,9 @@ void main() {
 			gpuLight.shadowSoftness[2] = 0.0f;
 			gpuLight.shadowSoftness[3] = 0.0f;
 		}
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(lightBuffer_));
-		glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(gpuLights.size() * sizeof(GpuLight)),
-			gpuLights.data(), GL_STREAM_DRAW);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, static_cast<GLuint>(lightBuffer_));
+		detail::Renderer *renderer = detail::active_renderer();
+		renderer->upload_storage_buffer(lightBuffer_, gpuLights.size() * sizeof(GpuLight), gpuLights.data(), false);
+		renderer->bind_storage_buffer(2, lightBuffer_);
 
 		const int tileCountX = (source->width + tile_size - 1) / tile_size;
 		const int tileCountY = (source->height + tile_size - 1) / tile_size;
@@ -925,26 +923,21 @@ void main() {
 		tileCountX_ = tileCountX;
 		tileCountY_ = tileCountY;
 		const std::size_t tileCount = static_cast<std::size_t>(tileCountX_) * tileCountY_;
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileCountsBuffer_));
 		if (tileBuffersNeedResize)
 		{
-			glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(tileCount * sizeof(std::uint32_t)),
-				nullptr, GL_DYNAMIC_DRAW);
+			renderer->upload_storage_buffer(tileCountsBuffer_, tileCount * sizeof(std::uint32_t), nullptr, false);
 		}
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, static_cast<GLuint>(tileCountsBuffer_));
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(tileIndicesBuffer_));
+		renderer->bind_storage_buffer(3, tileCountsBuffer_);
 		if (tileBuffersNeedResize)
 		{
-			glBufferData(GL_SHADER_STORAGE_BUFFER,
-				static_cast<GLsizeiptr>(tileCount * max_lights_per_tile * sizeof(std::uint32_t)),
-				nullptr, GL_DYNAMIC_DRAW);
+			renderer->upload_storage_buffer(tileIndicesBuffer_, tileCount * max_lights_per_tile * sizeof(std::uint32_t), nullptr, false);
 		}
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, static_cast<GLuint>(tileIndicesBuffer_));
+		renderer->bind_storage_buffer(4, tileIndicesBuffer_);
 		cullShader_.set_uniform("screenSize", source->width, source->height);
 		cullShader_.set_uniform("tileCount", tileCountX_, tileCountY_);
 		cullShader_.set_uniform("lightCount", static_cast<int>(lightCount));
 		cullShader_.dispatch_compute(static_cast<unsigned int>(tileCountX_), static_cast<unsigned int>(tileCountY_), 1);
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		renderer->storage_barrier();
 
 		float projection[16];
 		shader_.set_uniform("source", 0);
@@ -954,8 +947,7 @@ void main() {
 		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
 			const std::string suffix = "[" + std::to_string(index) + "]";
-			glActiveTexture(GL_TEXTURE1 + static_cast<GLenum>(index));
-			glBindTexture(GL_TEXTURE_2D, shadowMasks_[index]->gpu_texture);
+			renderer->bind_texture_unit(static_cast<unsigned int>(index + 1), shadowMasks_[index]->gpu_texture);
 			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));
 		}
 		shader_.set_uniform("ambient", ambient_);

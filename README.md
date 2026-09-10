@@ -50,8 +50,37 @@ resources, shader program operations, and 2D vertex submission are routed throug
 renderer backend interface in `src/engine/renderer.*`. The current backend is
 OpenGL 4.3. The public primitive, sprite, text, and particle APIs remain
 unchanged while their default 2D pipeline is owned by the backend. This
-boundary is the first step toward additional Vulkan or D3D backends without
-changing the public drawing API.
+boundary also owns effect storage buffers, texture-unit binding, and compute
+barriers used by tiled lighting. Shader source remains GLSL for the current
+OpenGL backend; translating it to a portable shader format is a later step
+toward Vulkan or D3D backends.
+
+Shader creation now carries explicit language metadata (`GLSL`, `SPIR-V`, or
+`DXIL`) through the internal renderer interface. The OpenGL backend currently
+accepts GLSL and rejects the other formats with a clear error. This establishes
+the portability contract without changing effect code; a future shader build
+step can compile shared sources to SPIR-V or DXIL for additional backends.
+
+Backend selection is explicit through `set_graphics_backend()` and must happen
+before `set_gfx_mode()`:
+
+```cpp
+sl::set_graphics_backend(sl::GraphicsBackend::opengl);
+sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
+```
+
+`graphics_backend_available()` reports compiled support. OpenGL is currently
+available; Vulkan, D3D11, and D3D12 are reserved backend choices and fail with
+an explicit error until their implementations are added.
+
+When `glslangValidator` and `spirv-val` are installed, CMake provides a
+`shader_validation` target and makes `simlib` depend on it. The checked-in
+sources under `shaders/` are compiled to SPIR-V with automatic locations and
+bindings, then validated before the engine library builds:
+
+```bash
+cmake --build build --target shader_validation
+```
 
 ## Building
 

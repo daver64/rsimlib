@@ -2,6 +2,8 @@
 
 #include <SDL2/SDL_video.h>
 
+#include "display.h"
+
 #include <memory>
 #include <cstdint>
 #include <string>
@@ -9,6 +11,19 @@
 
 namespace sl::detail
 {
+    enum class ShaderLanguage
+    {
+        glsl,
+        spirv,
+        dxil
+    };
+
+    struct ShaderSource
+    {
+        ShaderLanguage language = ShaderLanguage::glsl;
+        std::string text;
+    };
+
     struct GLVertex
     {
         float x = 0.0f, y = 0.0f, u = 0.0f, v = 0.0f;
@@ -48,10 +63,10 @@ namespace sl::detail
         /** Destroy a render target's framebuffer and texture handles. */
         virtual void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) = 0;
         /** Compile and link a vertex/fragment shader program. */
-        virtual bool create_shader(const std::string &vertex_source, const std::string &fragment_source,
+        virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                        std::uint32_t &program, std::string &error) = 0;
         /** Compile and link a compute shader program. */
-        virtual bool create_compute_shader(const std::string &source, std::uint32_t &program,
+        virtual bool create_compute_shader(const ShaderSource &source, std::uint32_t &program,
                            std::string &error) = 0;
         /** Destroy a shader program. */
         virtual void destroy_shader(std::uint32_t program) = 0;
@@ -75,10 +90,18 @@ namespace sl::detail
         /** Submit colored textured vertices using the backend's 2D pipeline. */
         virtual void submit_2d(std::uint32_t primitive_mode, const GLVertex *vertices,
                        int count, std::uint32_t texture) = 0;
+        /** Backend-neutral storage-buffer operations used by compute effects. */
+        virtual bool create_storage_buffer(std::uint32_t &buffer) = 0;
+        virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;
+        virtual bool upload_storage_buffer(std::uint32_t buffer, std::size_t size,
+                           const void *data, bool preserve_storage) = 0;
+        virtual void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) = 0;
+        virtual void bind_texture_unit(unsigned int unit, std::uint32_t texture) = 0;
+        virtual void storage_barrier() = 0;
     };
 
     /** Create the currently selected renderer backend. */
-    std::unique_ptr<Renderer> create_renderer();
+    std::unique_ptr<Renderer> create_renderer(GraphicsBackend backend);
     /** Return the active renderer, or nullptr before display initialization. */
     Renderer *active_renderer();
 }

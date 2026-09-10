@@ -235,7 +235,8 @@ uniform sampler2D uTexture;
 out vec4 fragColor;
 void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
 )";
-                if (!create_shader(vertex, fragment, default_2d_shader_, shader_error_)) return false;
+                if (!create_shader({ShaderLanguage::glsl, vertex}, {ShaderLanguage::glsl, fragment},
+                                   default_2d_shader_, shader_error_)) return false;
                 glGenVertexArrays(1, &vao_);
                 glGenBuffers(1, &vbo_);
                 glBindVertexArray(vao_);
@@ -291,13 +292,43 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 glBindVertexArray(0);
             }
 
-            bool create_shader(const std::string &vertex_source, const std::string &fragment_source,
+            bool create_storage_buffer(std::uint32_t &buffer) override
+            {
+                GLuint handle = 0; glGenBuffers(1, &handle); buffer = handle; return handle != 0;
+            }
+            void destroy_storage_buffer(std::uint32_t buffer) override
+            {
+                if (buffer != 0) { const GLuint handle = static_cast<GLuint>(buffer); glDeleteBuffers(1, &handle); }
+            }
+            bool upload_storage_buffer(std::uint32_t buffer, std::size_t size, const void *data, bool preserve_storage) override
+            {
+                if (buffer == 0) return false;
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(buffer));
+                if (!preserve_storage || data) glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(size), data, GL_DYNAMIC_DRAW);
+                return true;
+            }
+            void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
+            {
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, static_cast<GLuint>(buffer));
+            }
+            void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
+            {
+                glActiveTexture(GL_TEXTURE0 + unit); glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+            }
+            void storage_barrier() override { glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); }
+
+            bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                std::uint32_t &program, std::string &error) override
             {
                 program = 0;
-                const GLuint vertex = compile_shader(GL_VERTEX_SHADER, vertex_source, error);
+                if (vertex_source.language != ShaderLanguage::glsl || fragment_source.language != ShaderLanguage::glsl)
+                {
+                    error = "OpenGL backend accepts GLSL shader sources only.";
+                    return false;
+                }
+                const GLuint vertex = compile_shader(GL_VERTEX_SHADER, vertex_source.text, error);
                 if (vertex == 0) return false;
-                const GLuint fragment = compile_shader(GL_FRAGMENT_SHADER, fragment_source, error);
+                const GLuint fragment = compile_shader(GL_FRAGMENT_SHADER, fragment_source.text, error);
                 if (fragment == 0)
                 {
                     glDeleteShader(vertex);
@@ -310,11 +341,16 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 return program != 0;
             }
 
-            bool create_compute_shader(const std::string &source, std::uint32_t &program,
+            bool create_compute_shader(const ShaderSource &source, std::uint32_t &program,
                                        std::string &error) override
             {
                 program = 0;
-                const GLuint compute = compile_shader(GL_COMPUTE_SHADER, source, error);
+                if (source.language != ShaderLanguage::glsl)
+                {
+                    error = "OpenGL backend accepts GLSL shader sources only.";
+                    return false;
+                }
+                const GLuint compute = compile_shader(GL_COMPUTE_SHADER, source.text, error);
                 if (compute == 0) return false;
                 const GLuint linked = link_program(compute, 0, error);
                 glDeleteShader(compute);
@@ -396,8 +432,12 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
         };
     }
 
-    std::unique_ptr<Renderer> create_renderer()
+    std::unique_ptr<Renderer> create_renderer(GraphicsBackend backend)
     {
+        if (backend != GraphicsBackend::opengl)
+        {
+            return nullptr;
+        }
         return std::make_unique<OpenGLRenderer>();
     }
 }

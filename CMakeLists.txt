@@ -7,6 +7,63 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(SIMLIB_VALIDATE_SHADERS "Validate checked-in GLSL shaders with glslangValidator" ON)
+
+if(SIMLIB_VALIDATE_SHADERS)
+    find_program(GLSLANG_VALIDATOR glslangValidator)
+    find_program(SPIRV_VAL spirv-val)
+    if(GLSLANG_VALIDATOR)
+        set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+        file(MAKE_DIRECTORY "${SHADER_BINARY_DIR}")
+        set(SHADER_SOURCES
+            default_2d.vert
+            default_2d.frag
+            fullscreen.vert
+            lighting.frag
+            light_cull.comp
+        )
+        set(SHADER_BINARIES)
+        foreach(SHADER_SOURCE IN LISTS SHADER_SOURCES)
+            get_filename_component(SHADER_NAME "${SHADER_SOURCE}" NAME)
+            set(SHADER_BINARY "${SHADER_BINARY_DIR}/${SHADER_NAME}.spv")
+            get_filename_component(SHADER_EXTENSION "${SHADER_SOURCE}" EXT)
+            if(SHADER_EXTENSION STREQUAL ".vert")
+                set(SHADER_STAGE vert)
+            elseif(SHADER_EXTENSION STREQUAL ".frag")
+                set(SHADER_STAGE frag)
+            elseif(SHADER_EXTENSION STREQUAL ".comp")
+                set(SHADER_STAGE comp)
+            endif()
+            add_custom_command(
+                OUTPUT "${SHADER_BINARY}"
+                COMMAND "${GLSLANG_VALIDATOR}" -G --auto-map-locations --auto-map-bindings
+                        -S "${SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER_SOURCE}"
+                        -o "${SHADER_BINARY}"
+                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER_SOURCE}"
+                VERBATIM
+            )
+            if(SPIRV_VAL)
+                add_custom_command(
+                    OUTPUT "${SHADER_BINARY}.validated"
+                    COMMAND "${SPIRV_VAL}" "${SHADER_BINARY}"
+                    COMMAND "${CMAKE_COMMAND}" -E touch "${SHADER_BINARY}.validated"
+                    DEPENDS "${SHADER_BINARY}"
+                    VERBATIM
+                )
+                list(APPEND SHADER_BINARIES "${SHADER_BINARY}.validated")
+            else()
+                list(APPEND SHADER_BINARIES "${SHADER_BINARY}")
+            endif()
+        endforeach()
+        add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
+    else()
+        add_custom_target(shader_validation
+            COMMAND "${CMAKE_COMMAND}" -E echo
+                    "glslangValidator not found; shader validation skipped"
+        )
+    endif()
+endif()
+
 find_package(OpenGL REQUIRED)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -114,6 +171,9 @@ add_library(simlib STATIC
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
+if(TARGET shader_validation)
+    add_dependencies(simlib shader_validation)
+endif()
 
 if(TARGET SDL2::SDL2main)
     target_link_libraries(simlib PUBLIC SDL2::SDL2 SDL2::SDL2main)

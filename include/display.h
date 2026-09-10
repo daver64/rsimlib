@@ -11,6 +11,20 @@ namespace sl
     /** Select the windowed auto-detected graphics driver. */
     constexpr int GFX_AUTODETECT_WINDOWED = 1;
 
+    /** Rendering backends understood by the engine. */
+    enum class GraphicsBackend
+    {
+        opengl,
+        vulkan,
+        d3d11,
+        d3d12
+    };
+
+    /** Select a backend before set_gfx_mode(); currently only OpenGL is implemented. */
+    bool set_graphics_backend(GraphicsBackend backend);
+    /** Return whether a backend implementation is available in this build. */
+    bool graphics_backend_available(GraphicsBackend backend);
+
     /** Create an OpenGL window and initialize the drawing screen. */
     bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
     /** Apply window-related SDL events, including resize events. */
