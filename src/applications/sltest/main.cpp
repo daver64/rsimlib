@@ -1,5 +1,7 @@
 #include "game.h"
 
+#include <string_view>
+
 /**
  * @brief Initialise the sample game, run its event/render loop, and release it.
  *
@@ -8,7 +10,7 @@
  */
 int main(int argc, char *argv[])
 {
-    if (!game::initialise())
+    if (!sl::configure_graphics_backend_from_args(argc, argv) || !game::initialise())
     {
         return -1;
     }

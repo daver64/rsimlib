@@ -29,8 +29,12 @@ namespace sl
 
         /** Compile and link shader source, replacing the current program. */
         bool load(const std::string &vertexSource, const std::string &fragmentSource);
+        /** Compile and link a named built-in shader asset, replacing the current program. */
+        bool load(const std::string &vertexSource, const std::string &fragmentSource, const std::string &assetId);
         /** Compile and link a compute shader, replacing the current program. */
         bool load_compute(const std::string &computeSource);
+        /** Compile and link a named built-in compute shader asset, replacing the current program. */
+        bool load_compute(const std::string &computeSource, const std::string &assetId);
         /** Delete the program and clear its error state. */
         void reset();
 

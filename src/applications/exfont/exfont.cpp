@@ -2,7 +2,8 @@
 
 int main(int argc, char* argv[])
 {
-    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
+    if (!sl::configure_graphics_backend_from_args(argc, argv) ||
+        !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
     }

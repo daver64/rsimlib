@@ -396,12 +396,14 @@ namespace sl
 	/** Clear the currently bound render target. */
 	void clear_render_target(Colour colour)
 	{
-		glClearColor(
-			static_cast<float>(colour.red) / 255.0f,
-			static_cast<float>(colour.green) / 255.0f,
-			static_cast<float>(colour.blue) / 255.0f,
-			static_cast<float>(colour.alpha) / 255.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			renderer->clear_frame(
+				static_cast<float>(colour.red) / 255.0f,
+				static_cast<float>(colour.green) / 255.0f,
+				static_cast<float>(colour.blue) / 255.0f,
+				static_cast<float>(colour.alpha) / 255.0f);
+		}
 	}
 
 	/** Load an image file into a bitmap. */
@@ -572,12 +574,14 @@ namespace sl
 	{
 		if (is_screen(bitmap))
 		{
-			glClearColor(
-				static_cast<float>(colour.red) / 255.0f,
-				static_cast<float>(colour.green) / 255.0f,
-				static_cast<float>(colour.blue) / 255.0f,
-				static_cast<float>(colour.alpha) / 255.0f);
-			glClear(GL_COLOR_BUFFER_BIT);
+			if (detail::Renderer *renderer = detail::active_renderer())
+			{
+				renderer->clear_frame(
+					static_cast<float>(colour.red) / 255.0f,
+					static_cast<float>(colour.green) / 255.0f,
+					static_cast<float>(colour.blue) / 255.0f,
+					static_cast<float>(colour.alpha) / 255.0f);
+			}
 			return;
 		}
 		if (!ensure_ram_pixels(bitmap))

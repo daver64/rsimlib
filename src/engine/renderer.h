@@ -8,9 +8,12 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace sl::detail
 {
+    class VulkanContext;
+
     enum class PrimitiveType
     {
         points,
@@ -27,10 +30,28 @@ namespace sl::detail
         dxil
     };
 
+    enum class ShaderStage
+    {
+        vertex,
+        fragment,
+        compute
+    };
+
     struct ShaderSource
     {
         ShaderLanguage language = ShaderLanguage::glsl;
         std::string text;
+        std::vector<std::uint32_t> spirv;
+        std::string asset_id;
+
+        static ShaderSource glsl(std::string source)
+        {
+            return {ShaderLanguage::glsl, std::move(source), {}, {}};
+        }
+        static ShaderSource spirv_binary(std::vector<std::uint32_t> binary)
+        {
+            return {ShaderLanguage::spirv, {}, std::move(binary), {}};
+        }
     };
 
     enum class TextureFilter
@@ -79,6 +100,8 @@ namespace sl::detail
         virtual bool end_frame(std::string &error) = 0;
         /** Return the native context for integrations such as ImGui. */
         virtual SDL_GLContext native_context() const = 0;
+        /** Return the Vulkan context for internal Vulkan integrations, if active. */
+        virtual VulkanContext *vulkan_context() { return nullptr; }
         /** Create an RGBA texture with backend-managed sampling state. */
         virtual bool create_texture(const TextureDesc &description, std::uint32_t &texture) = 0;
         /** Upload RGBA8 pixels into a texture. */
@@ -100,6 +123,9 @@ namespace sl::detail
         /** Compile and link a compute shader program. */
         virtual bool create_compute_shader(const ShaderSource &source, std::uint32_t &program,
                            std::string &error) = 0;
+        /** Create a backend shader module from a SPIR-V artifact. */
+        virtual bool create_shader_module(ShaderStage stage, const ShaderSource &source,
+                          std::uint32_t &module, std::string &error) = 0;
         /** Destroy a shader program. */
         virtual void destroy_shader(std::uint32_t program) = 0;
         /** Bind or unbind a shader program. */

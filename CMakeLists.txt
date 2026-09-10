@@ -3,6 +3,8 @@ project(simlib LANGUAGES C CXX)
 
 include(CTest)
 
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,18 +16,24 @@ if(SIMLIB_VALIDATE_SHADERS)
     find_program(SPIRV_VAL spirv-val)
     if(GLSLANG_VALIDATOR)
         set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-        file(MAKE_DIRECTORY "${SHADER_BINARY_DIR}")
+        set(GLSL_SHADER_BINARY_DIR "${SHADER_BINARY_DIR}/glsl")
+        set(VULKAN_SHADER_BINARY_DIR "${SHADER_BINARY_DIR}/vulkan")
+        file(MAKE_DIRECTORY "${GLSL_SHADER_BINARY_DIR}" "${VULKAN_SHADER_BINARY_DIR}")
         set(SHADER_SOURCES
             default_2d.vert
             default_2d.frag
             fullscreen.vert
+            bright_pass.frag
+            blur.frag
+            composite.frag
+            vignette.frag
             lighting.frag
             light_cull.comp
         )
         set(SHADER_BINARIES)
         foreach(SHADER_SOURCE IN LISTS SHADER_SOURCES)
             get_filename_component(SHADER_NAME "${SHADER_SOURCE}" NAME)
-            set(SHADER_BINARY "${SHADER_BINARY_DIR}/${SHADER_NAME}.spv")
+            set(SHADER_BINARY "${GLSL_SHADER_BINARY_DIR}/${SHADER_NAME}.spv")
             get_filename_component(SHADER_EXTENSION "${SHADER_SOURCE}" EXT)
             if(SHADER_EXTENSION STREQUAL ".vert")
                 set(SHADER_STAGE vert)
@@ -37,9 +45,9 @@ if(SIMLIB_VALIDATE_SHADERS)
             add_custom_command(
                 OUTPUT "${SHADER_BINARY}"
                 COMMAND "${GLSLANG_VALIDATOR}" -G --auto-map-locations --auto-map-bindings
-                        -S "${SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER_SOURCE}"
+                        -S "${SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${SHADER_SOURCE}"
                         -o "${SHADER_BINARY}"
-                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER_SOURCE}"
+                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${SHADER_SOURCE}"
                 VERBATIM
             )
             if(SPIRV_VAL)
@@ -57,7 +65,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_light_cull.comp vulkan_lighting.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -66,13 +74,13 @@ if(SIMLIB_VALIDATE_SHADERS)
             else()
                 set(VULKAN_SHADER_STAGE frag)
             endif()
-            set(VULKAN_SHADER_BINARY "${SHADER_BINARY_DIR}/${VULKAN_SHADER_SOURCE}.spv")
+            set(VULKAN_SHADER_BINARY "${VULKAN_SHADER_BINARY_DIR}/${VULKAN_SHADER_SOURCE}.spv")
             add_custom_command(
                 OUTPUT "${VULKAN_SHADER_BINARY}"
                 COMMAND "${GLSLANG_VALIDATOR}" -V --auto-map-locations --auto-map-bindings
-                        -S "${VULKAN_SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${VULKAN_SHADER_SOURCE}"
+                        -S "${VULKAN_SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/${VULKAN_SHADER_SOURCE}"
                         -o "${VULKAN_SHADER_BINARY}"
-                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${VULKAN_SHADER_SOURCE}"
+                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/${VULKAN_SHADER_SOURCE}"
                 VERBATIM
             )
             if(SPIRV_VAL)
@@ -121,9 +129,10 @@ add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
-target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL ${CMAKE_DL_LIBS})
+target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
 
 FetchContent_Declare(
     lua
@@ -165,6 +174,7 @@ FetchContent_Declare(
 set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Box2D unit tests" FORCE)
 set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "Disable Box2D testbed" FORCE)
 FetchContent_MakeAvailable(box2d)
+set_target_properties(box2d PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
@@ -204,12 +214,18 @@ add_library(simlib STATIC
     src/engine/vulkan_context.cpp
 )
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_compile_definitions(simlib PRIVATE SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders")
+target_compile_definitions(simlib PRIVATE
+    SIMLIB_GLSL_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl"
+    SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
+)
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
+endif()
+if(TARGET vulkan_shader_validation)
+    add_dependencies(simlib vulkan_shader_validation)
 endif()
 
 if(TARGET SDL2::SDL2main)

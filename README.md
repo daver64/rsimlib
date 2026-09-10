@@ -34,13 +34,14 @@ particles, and vignette effect:
 - CMake 3.16+
 - A C++17 compiler
 - SDL2, SDL2_ttf, SDL2_image, SDL2_mixer (development packages)
-- OpenGL, libpng, zlib
+- OpenGL, Vulkan, libpng, zlib
 
 On Debian/Ubuntu:
 
 ```bash
 sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
-    libsdl2-image-dev libsdl2-mixer-dev libpng-dev zlib1g-dev libgl1-mesa-dev
+    libsdl2-image-dev libsdl2-mixer-dev libpng-dev zlib1g-dev libgl1-mesa-dev \
+    libvulkan-dev glslang-tools spirv-tools
 ```
 
 Dear ImGui, Lua, and sol2 are fetched automatically via CMake's `FetchContent`
@@ -48,19 +49,23 @@ Dear ImGui, Lua, and sol2 are fetched automatically via CMake's `FetchContent`
 
 The window/context, presentation lifecycle, 2D texture/render-target
 resources, shader program operations, and 2D vertex submission are routed through an internal
-renderer backend interface in `src/engine/renderer.*`. The current backend is
-OpenGL 4.3. The public primitive, sprite, text, and particle APIs remain
+renderer backend interface in `src/engine/renderer.*`. OpenGL 4.3 and Vulkan
+are selectable backends. The public primitive, sprite, text, and particle APIs remain
 unchanged while their default 2D pipeline is owned by the backend. This
 boundary also owns effect storage buffers, texture-unit binding, and compute
-barriers used by tiled lighting. Shader source remains GLSL for the current
-OpenGL backend; translating it to a portable shader format is a later step
-toward Vulkan or D3D backends.
+barriers used by tiled lighting.
 
 Shader creation now carries explicit language metadata (`GLSL`, `SPIR-V`, or
 `DXIL`) through the internal renderer interface. The OpenGL backend currently
 accepts GLSL and rejects the other formats with a clear error. This establishes
 the portability contract without changing effect code; a future shader build
 step can compile shared sources to SPIR-V or DXIL for additional backends.
+
+The shader contract now also carries an explicit stage (`vertex`, `fragment`,
+or `compute`) and can represent either GLSL text or a SPIR-V word payload.
+Current OpenGL effects continue using GLSL; Vulkan shader modules remain owned
+by `VulkanContext` while the renderer API is prepared to consume binary shader
+artifacts directly.
 
 Backend selection is explicit through `set_graphics_backend()` and must happen
 before `set_gfx_mode()`:
@@ -72,6 +77,23 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 
 `graphics_backend_available()` reports compiled support. OpenGL and Vulkan are
 currently available; D3D11 and D3D12 remain reserved backend choices.
+
+All graphical applications accept `--gl` and `--vulkan`; OpenGL is the default
+when no backend flag is given. User shaders should provide GLSL for OpenGL and
+SPIR-V with explicit descriptor bindings and push-constant layouts for Vulkan.
+Built-in source assets live in `shaders/glsl/` and `shaders/vulkan/`; CMake
+compiles GLSL validation output under `build/shaders/glsl/` and Vulkan SPIR-V
+under `build/shaders/vulkan/`.
+
+### Current backend status
+
+The OpenGL and Vulkan backends support the built-in 2D primitives, sprites,
+TrueType text, render targets, ImGui, tiled lighting with shadows, Vignette,
+resizing, fullscreen, and vsync. `sltest --vulkan` is the primary Vulkan
+integration smoke test. Bloom and arbitrary user GLSL programs are not yet
+portable; user shaders should provide a backend-appropriate payload.
+
+### Vulkan development history
 
 The first Vulkan implementation layer is now present internally in
 `src/engine/vulkan_context.*`. It creates and owns a Vulkan instance, SDL
@@ -217,9 +239,10 @@ memory allocation, staging transfers, and buffer sizes without inferring
 requirements from OpenGL handles.
 
 When `glslangValidator` and `spirv-val` are installed, CMake provides a
-`shader_validation` target and makes `simlib` depend on it. The checked-in
-sources under `shaders/` are compiled to SPIR-V with automatic locations and
-bindings, then validated before the engine library builds:
+`shader_validation` and `vulkan_shader_validation` targets and makes `simlib`
+depend on them. GLSL assets under `shaders/glsl/` and Vulkan shader assets
+under `shaders/vulkan/` are compiled to backend-specific SPIR-V output and
+validated before the engine library builds:
 
 ```bash
 cmake --build build --target shader_validation
@@ -234,7 +257,8 @@ cmake --build build
 
 This produces the application executables in the repository root, including
 `sltest`, the example programs, `slpack`, and `slunpack`. Test executables are
-created in the `build/` directory when testing is enabled.
+created in the `build/` directory when testing is enabled. Static archives are
+written to `lib/`: `libsimlib.a`, `libimgui.a`, `liblua.a`, and `libbox2d.a`.
 
 To run the test suite (currently covers the ZIP resource archive reader):
 
@@ -246,13 +270,13 @@ ctest --test-dir build
 ## Running the examples
 
 ```bash
-./exhello   # minimal window + text rendering demo
+./exhello --vulkan   # every graphical example also accepts --gl
 ./exfont    # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
-./exlighting # radial lights and polygon shadows demo
+./exlighting --vulkan # radial lights and polygon shadows demo
 ./exphysics # Box2D physics demo
-./exvulkan # Vulkan textured-quad smoke test
-./sltest    # sample game: menu, physics playground, Lua console
+./exvulkan # textured-quad smoke test (OpenGL by default)
+./sltest --vulkan # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
 
@@ -309,16 +333,17 @@ entry points for a typical 2D application.
 
 | Function | Description |
 | --- | --- |
-| `set_gfx_mode(driver, width, height, virtualWidth, virtualHeight)` | Create the SDL/OpenGL window and initialize the display bitmap. Use `GFX_AUTODETECT_WINDOWED` for the default windowed driver. |
+| `configure_graphics_backend_from_args(argc, argv)` | Select `--gl` or `--vulkan`; OpenGL is selected when neither flag is present. Call before `set_gfx_mode()`. |
+| `set_gfx_mode(driver, width, height, virtualWidth, virtualHeight)` | Create the SDL window and selected graphics backend, then initialize the display bitmap. Use `GFX_AUTODETECT_WINDOWED` for the default windowed driver. |
 | `display_handle_event(event)` | Apply display-related events, including window resizing. Call for every polled event. |
 | `set_window_title(title)` | Set the native window title. |
 | `set_fullscreen(enabled)` / `toggle_fullscreen()` | Enter, leave, or toggle desktop fullscreen mode. |
-| `set_vsync(enabled)` | Enable or disable the OpenGL swap interval. |
+| `set_vsync(enabled)` | Enable or disable presentation synchronization for the selected backend. |
 | `screen_width()` / `screen_height()` | Return the current drawable dimensions in pixels. |
 | `virtual_screen_width()` / `virtual_screen_height()` | Return the configured logical drawing dimensions. |
 | `clear_to_colour(red, green, blue, alpha)` | Clear the current display framebuffer. |
 | `show_video_bitmap()` | Present the current framebuffer to the window. |
-| `display_shutdown()` | Release the window, OpenGL context, and display resources. |
+| `display_shutdown()` | Release the window, graphics context, and display resources. |
 
 A normal frame calls `show_video_bitmap()` once, followed by `end_frame()`.
 Call `display_shutdown()` before `sl::shutdown()` during application cleanup.
@@ -488,7 +513,7 @@ context is destroyed.
 
 | Type | Main API | Description |
 | --- | --- | --- |
-| `Shader` | `load`, `use`, `set_uniform`, `reset` | Compile/link a GLSL program, bind it, set uniforms, and release it. |
+| `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in GLSL/SPIR-V shader asset, bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
 | `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and polygon-caster shadows to a bitmap. |
@@ -513,7 +538,7 @@ ordered around the polygon perimeter. Use
 the most convenient representation.
 The current implementation projects polygon edges away from each light and
 accepts an arbitrary number of lights per `LightingPass::apply()` call through
-an OpenGL 4.3 shader storage buffer. The first eight lights can use geometric
+backend-specific shader storage buffers. The first eight lights can use geometric
 polygon shadows; additional lights remain unshadowed. All supplied casters
 affect every shadow-capable light in that call.
 
@@ -551,8 +576,8 @@ lighting.shutdown();
 
 For multiple lights, pass `std::vector<sl::Light>` instead of one `Light`.
 Ambient illumination is applied once, then each light's colored contribution is
-accumulated. Initialize and shut down `LightingPass` while the OpenGL display
-context is alive.
+accumulated. Initialize and shut down `LightingPass` while the selected display
+backend is alive.
 
 ## Event loop and input
 

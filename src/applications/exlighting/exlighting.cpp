@@ -1,10 +1,23 @@
 #include "sl.h"
 
 #include <cmath>
+#include <string_view>
 #include <vector>
 
 int main(int argc, char *argv[])
 {
+    bool disable_shadows = false;
+    bool hard_shadows = false;
+    for (int index = 1; index < argc; ++index)
+    {
+        const std::string_view argument(argv[index]);
+        disable_shadows = disable_shadows || argument == "--no-shadows";
+        hard_shadows = hard_shadows || argument == "--hard-shadows";
+    }
+    if (!sl::configure_graphics_backend_from_args(argc, argv))
+    {
+        return -1;
+    }
     if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;
@@ -59,7 +72,7 @@ int main(int argc, char *argv[])
         warm_light.y = 300.0f - std::sin(static_cast<float>(sl::time_ms()) * 0.001f) * 160.0f;
         warm_light.radius = 320.0f;
         warm_light.intensity = 1.4f;
-        warm_light.shadow_softness = 3.0f;
+        warm_light.shadow_softness = hard_shadows ? 0.0f : 3.0f;
         warm_light.colour = {255, 190, 110};
 
         sl::Light cool_light;
@@ -67,11 +80,12 @@ int main(int argc, char *argv[])
         cool_light.y = 190.0f;
         cool_light.radius = 220.0f;
         cool_light.intensity = 0.65f;
-        cool_light.shadow_softness = 2.0f;
+        cool_light.shadow_softness = hard_shadows ? 0.0f : 2.0f;
         cool_light.colour = {100, 170, 255};
 
         const std::vector<sl::Light> lights = {warm_light, cool_light};
-        lighting.apply(scene, lights, 0, 0, 800, 600, true, casters);
+        lighting.apply(scene, lights, 0, 0, 800, 600, true,
+            disable_shadows ? std::vector<sl::ShadowCaster>{} : casters);
         sl::show_video_bitmap();
         sl::end_frame();
     }

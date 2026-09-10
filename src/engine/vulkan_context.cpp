@@ -185,7 +185,7 @@ namespace sl::detail
         VkSurfaceFormatKHR surface_format = formats.front();
         for (const auto &format : formats)
         {
-            if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             {
                 surface_format = format;
                 break;
@@ -197,9 +197,15 @@ namespace sl::detail
         std::vector<VkPresentModeKHR> present_modes(present_mode_count);
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, surface_, &present_mode_count, present_modes.data());
         VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
-        if (std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != present_modes.end())
+        if (!vsync_enabled_ &&
+            std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != present_modes.end())
         {
             present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+        }
+        else if (!vsync_enabled_ &&
+                 std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != present_modes.end())
+        {
+            present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
         }
 
         VkExtent2D extent{
@@ -297,10 +303,29 @@ namespace sl::detail
             destroy_swapchain();
             return false;
         }
+        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_render_pass_) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan swapchain resume render pass.";
+            destroy_swapchain();
+            return false;
+        }
+        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachment.format = swapchain_format_;
         attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &offscreen_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan offscreen render pass.";
+            destroy_swapchain();
+            return false;
+        }
+        attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_offscreen_render_pass_) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan offscreen resume render pass.";
             destroy_swapchain();
             return false;
         }
@@ -363,6 +388,8 @@ namespace sl::detail
             error = "Unable to synchronize Vulkan frame fence.";
             return false;
         }
+        for (VulkanBuffer &buffer : upload_staging_buffers_) destroy_buffer(buffer);
+        upload_staging_buffers_.clear();
         VkResult acquire = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_, VK_NULL_HANDLE, &current_image_);
         if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
         {
@@ -376,6 +403,7 @@ namespace sl::detail
             error = "Unable to begin Vulkan command buffer.";
             return false;
         }
+        command_buffer_recording_ = true;
         VkClearValue clear_value{};
         clear_value.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo render_begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -385,7 +413,12 @@ namespace sl::detail
         render_begin.clearValueCount = 1;
         render_begin.pClearValues = &clear_value;
         vkCmdBeginRenderPass(command_buffer_, &render_begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_extent_ = swapchain_extent_;
+        active_render_pass_ = render_pass_;
+        active_resume_render_pass_ = resume_render_pass_;
+        active_framebuffer_ = framebuffers_[current_image_];
         frame_active_ = true;
+        render_pass_active_ = true;
         return true;
     }
 
@@ -396,13 +429,15 @@ namespace sl::detail
             error = "Vulkan frame is not active.";
             return false;
         }
-        vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        render_pass_active_ = false;
         if (vkEndCommandBuffer(command_buffer_) != VK_SUCCESS)
         {
             error = "Unable to end Vulkan command buffer.";
             frame_active_ = false;
             return false;
         }
+        command_buffer_recording_ = false;
         VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
         submit.waitSemaphoreCount = 1;
@@ -442,7 +477,7 @@ namespace sl::detail
             error = "Invalid Vulkan offscreen render-pass state.";
             return false;
         }
-        vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
         VkClearValue clear{};
         clear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -452,6 +487,11 @@ namespace sl::detail
         begin.clearValueCount = 1;
         begin.pClearValues = &clear;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_extent_ = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
+        active_render_pass_ = offscreen_render_pass_;
+        active_resume_render_pass_ = resume_offscreen_render_pass_;
+        active_framebuffer_ = framebuffer;
+        render_pass_active_ = true;
         offscreen_active_ = true;
         return true;
     }
@@ -463,7 +503,8 @@ namespace sl::detail
             error = "Vulkan offscreen render pass is not active.";
             return false;
         }
-        vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        render_pass_active_ = false;
         VkClearValue clear{};
         clear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -473,7 +514,12 @@ namespace sl::detail
         begin.clearValueCount = 1;
         begin.pClearValues = &clear;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_extent_ = swapchain_extent_;
+        active_render_pass_ = render_pass_;
+        active_resume_render_pass_ = resume_render_pass_;
+        active_framebuffer_ = framebuffers_[current_image_];
         offscreen_active_ = false;
+        render_pass_active_ = true;
         return true;
     }
 
@@ -483,17 +529,18 @@ namespace sl::detail
                                            const float *projection,
                                            std::string &error)
     {
-        if (!frame_active_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
+        if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
             vertex_buffer == VK_NULL_HANDLE || vertex_count == 0)
         {
             error = "Invalid Vulkan vertex draw state.";
             return false;
         }
         VkViewport viewport{};
-        viewport.width = static_cast<float>(swapchain_extent_.width);
-        viewport.height = static_cast<float>(swapchain_extent_.height);
+        viewport.y = static_cast<float>(active_extent_.height);
+        viewport.width = static_cast<float>(active_extent_.width);
+        viewport.height = -static_cast<float>(active_extent_.height);
         viewport.maxDepth = 1.0f;
-        VkRect2D scissor{{0, 0}, swapchain_extent_};
+        VkRect2D scissor{{0, 0}, active_extent_};
         vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -514,6 +561,72 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                                             VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
+                                             VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
+                                             const float *projection, const void *lighting_constants,
+                                             std::uint32_t lighting_constant_size, std::string &error)
+    {
+        if (!frame_active_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
+            vertex_buffer == VK_NULL_HANDLE || texture_descriptor == VK_NULL_HANDLE ||
+            storage_descriptor == VK_NULL_HANDLE || !projection || !lighting_constants || vertex_count == 0)
+        {
+            error = "Invalid Vulkan lighting draw state.";
+            return false;
+        }
+        VkViewport viewport{};
+        viewport.y = static_cast<float>(active_extent_.height);
+        viewport.width = static_cast<float>(active_extent_.width);
+        viewport.height = -static_cast<float>(active_extent_.height);
+        viewport.maxDepth = 1.0f;
+        const VkRect2D scissor{{0, 0}, active_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        const VkDescriptorSet descriptors[] = {texture_descriptor, storage_descriptor};
+        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 2, descriptors, 0, nullptr);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, projection);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
+                           lighting_constant_size, lighting_constants);
+        const VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
+        return true;
+    }
+
+    bool VulkanContext::record_postprocess_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                                                VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
+                                                std::uint32_t vertex_count, const float *projection,
+                                                const void *constants, std::uint32_t constant_size,
+                                                std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_ ||
+            pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE ||
+            texture_descriptor == VK_NULL_HANDLE || !projection || !constants || vertex_count == 0)
+        {
+            error = "Invalid Vulkan post-process draw state.";
+            return false;
+        }
+        VkViewport viewport{};
+        viewport.y = static_cast<float>(active_extent_.height);
+        viewport.width = static_cast<float>(active_extent_.width);
+        viewport.height = -static_cast<float>(active_extent_.height);
+        viewport.maxDepth = 1.0f;
+        const VkRect2D scissor{{0, 0}, active_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1,
+                                &texture_descriptor, 0, nullptr);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16, projection);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
+                           constant_size, constants);
+        const VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
+        return true;
+    }
+
     bool VulkanContext::clear_active_frame(float red, float green, float blue, float alpha,
                                            std::string &error)
     {
@@ -526,7 +639,7 @@ namespace sl::detail
         attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         attachment.clearValue.color = {{red, green, blue, alpha}};
         VkClearRect rect{};
-        rect.rect.extent = swapchain_extent_;
+        rect.rect.extent = active_extent_;
         rect.layerCount = 1;
         vkCmdClearAttachments(command_buffer_, 1, &attachment, 1, &rect);
         return true;
@@ -544,6 +657,8 @@ namespace sl::detail
             error = "Invalid Vulkan compute dispatch state.";
             return false;
         }
+        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        render_pass_active_ = false;
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 layout, 0, 1, &descriptor_set, 0, nullptr);
@@ -559,6 +674,16 @@ namespace sl::detail
         vkCmdPipelineBarrier(command_buffer_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &barrier,
                              0, nullptr, 0, nullptr);
+        VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        begin.renderPass = active_resume_render_pass_;
+        begin.framebuffer = active_framebuffer_;
+        begin.renderArea.extent = active_extent_;
+        VkClearValue clear{};
+        begin.clearValueCount = 1;
+        begin.pClearValues = &clear;
+        vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_render_pass_ = active_resume_render_pass_;
+        render_pass_active_ = true;
         return true;
     }
 
@@ -648,7 +773,7 @@ namespace sl::detail
         return true;
     }
 
-    bool VulkanContext::upload_image_rgba(const VulkanImage &image, int width, int height,
+    bool VulkanContext::upload_image_rgba(VulkanImage &image, int width, int height,
                                           const std::uint8_t *pixels, std::string &error)
     {
         if (image.image == VK_NULL_HANDLE || !pixels || width <= 0 || height <= 0)
@@ -665,30 +790,42 @@ namespace sl::detail
             destroy_buffer(staging);
             return false;
         }
-        VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-        allocation.commandPool = command_pool_;
-        allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocation.commandBufferCount = 1;
-        VkCommandBuffer command = VK_NULL_HANDLE;
-        if (vkAllocateCommandBuffers(device_, &allocation, &command) != VK_SUCCESS)
+        const bool use_active_command = frame_active_;
+        VkCommandBuffer command = command_buffer_;
+        if (!use_active_command)
         {
-            error = "Unable to allocate Vulkan image upload command buffer.";
-            destroy_buffer(staging);
-            return false;
+            VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+            allocation.commandPool = command_pool_;
+            allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocation.commandBufferCount = 1;
+            if (vkAllocateCommandBuffers(device_, &allocation, &command) != VK_SUCCESS)
+            {
+                error = "Unable to allocate Vulkan image upload command buffer.";
+                destroy_buffer(staging);
+                return false;
+            }
+            VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            vkBeginCommandBuffer(command, &begin);
         }
-        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer(command, &begin);
+        else
+        {
+            if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command);
+            render_pass_active_ = false;
+        }
         VkImageMemoryBarrier to_transfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        to_transfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        to_transfer.oldLayout = image.layout;
         to_transfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        to_transfer.srcAccessMask = 0;
+        to_transfer.srcAccessMask = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            ? VK_ACCESS_SHADER_READ_BIT : 0;
         to_transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         to_transfer.image = image.image;
         to_transfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         to_transfer.subresourceRange.levelCount = 1;
         to_transfer.subresourceRange.layerCount = 1;
-        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        vkCmdPipelineBarrier(command, source_stage,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_transfer);
         VkBufferImageCopy copy{};
         copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -703,6 +840,22 @@ namespace sl::detail
         to_shader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_shader);
+        if (use_active_command)
+        {
+            VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+            begin.renderPass = active_resume_render_pass_;
+            begin.framebuffer = active_framebuffer_;
+            begin.renderArea.extent = active_extent_;
+            VkClearValue clear{};
+            begin.clearValueCount = 1;
+            begin.pClearValues = &clear;
+            vkCmdBeginRenderPass(command, &begin, VK_SUBPASS_CONTENTS_INLINE);
+            active_render_pass_ = active_resume_render_pass_;
+            render_pass_active_ = true;
+            upload_staging_buffers_.push_back(staging);
+            image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            return true;
+        }
         vkEndCommandBuffer(command);
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
         submit.commandBufferCount = 1;
@@ -717,6 +870,7 @@ namespace sl::detail
         }
         vkFreeCommandBuffers(device_, command_pool_, 1, &command);
         destroy_buffer(staging);
+        image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         return true;
     }
 
@@ -852,6 +1006,26 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::create_shader_module(const std::vector<std::uint32_t> &code,
+                                             VulkanShaderModule &result, std::string &error)
+    {
+        result = {};
+        if (code.empty() || code.front() != 0x07230203u)
+        {
+            error = "Invalid SPIR-V shader module payload.";
+            return false;
+        }
+        VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        info.codeSize = code.size() * sizeof(std::uint32_t);
+        info.pCode = code.data();
+        if (vkCreateShaderModule(device_, &info, nullptr, &result.module) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan shader module from payload.";
+            return false;
+        }
+        return true;
+    }
+
     void VulkanContext::destroy_shader_module(VulkanShaderModule &module)
     {
         if (device_ != VK_NULL_HANDLE && module.module != VK_NULL_HANDLE)
@@ -880,6 +1054,23 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::create_lighting_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error)
+    {
+        result = {};
+        VkDescriptorSetLayoutBinding bindings[2]{};
+        bindings[0] = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        bindings[1] = {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        info.bindingCount = 2;
+        info.pBindings = bindings;
+        if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &result.layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan lighting descriptor-set layout.";
+            return false;
+        }
+        return true;
+    }
+
     void VulkanContext::destroy_descriptor_set_layout(VulkanDescriptorSetLayout &layout)
     {
         if (device_ != VK_NULL_HANDLE && layout.layout != VK_NULL_HANDLE)
@@ -897,6 +1088,7 @@ namespace sl::detail
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
         };
         VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         pool_info.maxSets = 256;
         pool_info.poolSizeCount = 2;
         pool_info.pPoolSizes = pool_sizes;
@@ -915,13 +1107,15 @@ namespace sl::detail
         pool = {};
     }
 
-    bool VulkanContext::create_sampler(VulkanSampler &result, std::string &error)
+    bool VulkanContext::create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error)
     {
         result = {};
         VkSamplerCreateInfo sampler_info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-        sampler_info.magFilter = VK_FILTER_LINEAR;
-        sampler_info.minFilter = VK_FILTER_LINEAR;
-        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        const VkFilter vulkan_filter = filter == TextureFilter::linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        sampler_info.magFilter = vulkan_filter;
+        sampler_info.minFilter = vulkan_filter;
+        sampler_info.mipmapMode = filter == TextureFilter::linear
+            ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST;
         sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -967,6 +1161,99 @@ namespace sl::detail
         write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         write.pImageInfo = &image_info;
         vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+        return true;
+    }
+
+    void VulkanContext::free_descriptor_set(const VulkanDescriptorPool &pool, VkDescriptorSet &set)
+    {
+        if (device_ != VK_NULL_HANDLE && pool.pool != VK_NULL_HANDLE && set != VK_NULL_HANDLE)
+            vkFreeDescriptorSets(device_, pool.pool, 1, &set);
+        set = VK_NULL_HANDLE;
+    }
+
+    bool VulkanContext::allocate_lighting_descriptor(const VulkanDescriptorPool &pool,
+                                                     const VulkanDescriptorSetLayout &layout,
+                                                     const VulkanImage *images, const VulkanSampler *samplers,
+                                                     VkDescriptorSet &set, std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        if (!images || !samplers)
+        {
+            error = "Invalid Vulkan lighting descriptor request.";
+            return false;
+        }
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = pool.pool;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout.layout;
+        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan lighting descriptor set.";
+            return false;
+        }
+        VkDescriptorImageInfo image_infos[9]{};
+        for (std::uint32_t index = 0; index < 9; ++index)
+        {
+            if (images[index].view == VK_NULL_HANDLE || samplers[index].sampler == VK_NULL_HANDLE)
+            {
+                error = "Invalid Vulkan lighting texture descriptor.";
+                return false;
+            }
+            image_infos[index].imageView = images[index].view;
+            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].sampler = samplers[index].sampler;
+        }
+        VkWriteDescriptorSet writes[2]{};
+        writes[0] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        writes[0].dstSet = set;
+        writes[0].dstBinding = 0;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[0].pImageInfo = image_infos;
+        writes[1] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        writes[1].dstSet = set;
+        writes[1].dstBinding = 1;
+        writes[1].descriptorCount = 8;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].pImageInfo = image_infos + 1;
+        vkUpdateDescriptorSets(device_, 2, writes, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::update_lighting_descriptor(VkDescriptorSet set, const VulkanImage *images,
+                                                    const VulkanSampler *samplers, std::string &error)
+    {
+        if (set == VK_NULL_HANDLE || !images || !samplers)
+        {
+            error = "Invalid Vulkan lighting descriptor update.";
+            return false;
+        }
+        VkDescriptorImageInfo image_infos[9]{};
+        for (std::uint32_t index = 0; index < 9; ++index)
+        {
+            if (images[index].view == VK_NULL_HANDLE || samplers[index].sampler == VK_NULL_HANDLE)
+            {
+                error = "Invalid Vulkan lighting texture descriptor.";
+                return false;
+            }
+            image_infos[index].imageView = images[index].view;
+            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].sampler = samplers[index].sampler;
+        }
+        VkWriteDescriptorSet writes[2]{};
+        writes[0] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        writes[0].dstSet = set;
+        writes[0].dstBinding = 0;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[0].pImageInfo = image_infos;
+        writes[1] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        writes[1].dstSet = set;
+        writes[1].dstBinding = 1;
+        writes[1].descriptorCount = 8;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].pImageInfo = image_infos + 1;
+        vkUpdateDescriptorSets(device_, 2, writes, 0, nullptr);
         return true;
     }
 
@@ -1037,6 +1324,72 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::update_storage_descriptor(VkDescriptorSet set, const VulkanBuffer *buffers,
+                                                  std::size_t count, std::string &error)
+    {
+        if (set == VK_NULL_HANDLE || !buffers || count != 3)
+        {
+            error = "Invalid Vulkan storage descriptor update.";
+            return false;
+        }
+        VkDescriptorBufferInfo infos[3]{};
+        VkWriteDescriptorSet writes[3]{};
+        for (std::uint32_t index = 0; index < 3; ++index)
+        {
+            if (buffers[index].buffer == VK_NULL_HANDLE || buffers[index].size == 0)
+            {
+                error = "Invalid Vulkan storage buffer descriptor update.";
+                return false;
+            }
+            infos[index].buffer = buffers[index].buffer;
+            infos[index].range = buffers[index].size;
+            writes[index] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            writes[index].dstSet = set;
+            writes[index].dstBinding = index;
+            writes[index].descriptorCount = 1;
+            writes[index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[index].pBufferInfo = &infos[index];
+        }
+        vkUpdateDescriptorSets(device_, 3, writes, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::create_imgui_descriptor_pool(VkDescriptorPool &pool, std::string &error)
+    {
+        pool = VK_NULL_HANDLE;
+        const VkDescriptorPoolSize sizes[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER, 256},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 256},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 64},
+            {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 64},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 64},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 64},
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 64},
+        };
+        VkDescriptorPoolCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        info.maxSets = 1024;
+        info.poolSizeCount = static_cast<std::uint32_t>(std::size(sizes));
+        info.pPoolSizes = sizes;
+        if (vkCreateDescriptorPool(device_, &info, nullptr, &pool) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan ImGui descriptor pool.";
+            return false;
+        }
+        return true;
+    }
+
+    void VulkanContext::destroy_imgui_descriptor_pool(VkDescriptorPool &pool)
+    {
+        if (device_ != VK_NULL_HANDLE && pool != VK_NULL_HANDLE)
+            vkDestroyDescriptorPool(device_, pool, nullptr);
+        pool = VK_NULL_HANDLE;
+    }
+
     void VulkanContext::bind_storage_descriptor(VkCommandBuffer command_buffer, VkPipelineLayout layout,
                                                 VkDescriptorSet descriptor_set, VkPipelineBindPoint bind_point)
     {
@@ -1090,15 +1443,35 @@ namespace sl::detail
                                                  const VulkanShaderModule &fragment,
                                                  const VulkanDescriptorSetLayout &descriptor_layout,
                                                  PrimitiveType topology,
-                                                 VulkanGraphicsPipeline &result, std::string &error)
+                                                 VulkanGraphicsPipeline &result, std::string &error,
+                                                 const VulkanStorageDescriptorLayout *storage_layout,
+                                                 std::uint32_t fragment_push_constant_size)
     {
         result = {};
-        if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE ||
-            !create_pipeline_layout(&descriptor_layout, result.layout, error))
+        if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
         {
-            if (error.empty()) error = "Invalid Vulkan graphics pipeline inputs.";
+            error = "Invalid Vulkan graphics pipeline inputs.";
             return false;
         }
+        if (storage_layout || fragment_push_constant_size > 0)
+        {
+            VkDescriptorSetLayout layouts[2] = {descriptor_layout.layout, VK_NULL_HANDLE};
+            if (storage_layout) layouts[1] = storage_layout->layout;
+            const VkPushConstantRange ranges[] = {
+                {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16},
+                {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16, fragment_push_constant_size}};
+            VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+            layout_info.setLayoutCount = storage_layout ? 2u : 1u;
+            layout_info.pSetLayouts = layouts;
+            layout_info.pushConstantRangeCount = fragment_push_constant_size > 0 ? 2u : 1u;
+            layout_info.pPushConstantRanges = ranges;
+            if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)
+            {
+                error = "Unable to create Vulkan lighting pipeline layout.";
+                return false;
+            }
+        }
+        else if (!create_pipeline_layout(&descriptor_layout, result.layout, error)) return false;
 
         VkPipelineShaderStageCreateInfo stages[2] = {
             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vertex.module, "main", nullptr},
@@ -1142,7 +1515,7 @@ namespace sl::detail
         blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
-        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
         blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -1245,9 +1618,13 @@ namespace sl::detail
             }
             framebuffers_.clear();
             if (render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, render_pass_, nullptr);
+            if (resume_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_render_pass_, nullptr);
             if (offscreen_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, offscreen_render_pass_, nullptr);
+            if (resume_offscreen_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_offscreen_render_pass_, nullptr);
             render_pass_ = VK_NULL_HANDLE;
+            resume_render_pass_ = VK_NULL_HANDLE;
             offscreen_render_pass_ = VK_NULL_HANDLE;
+            resume_offscreen_render_pass_ = VK_NULL_HANDLE;
             if (image_available_ != VK_NULL_HANDLE) vkDestroySemaphore(device_, image_available_, nullptr);
             if (render_finished_ != VK_NULL_HANDLE) vkDestroySemaphore(device_, render_finished_, nullptr);
             if (in_flight_ != VK_NULL_HANDLE) vkDestroyFence(device_, in_flight_, nullptr);

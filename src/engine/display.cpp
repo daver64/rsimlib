@@ -14,6 +14,7 @@
 #include <SDL2/SDL_opengl.h>
 
 #include <memory>
+#include <string_view>
 
 namespace sl
 {
@@ -51,9 +52,26 @@ namespace sl
         return true;
     }
 
+    bool configure_graphics_backend_from_args(int argc, char *argv[])
+    {
+        GraphicsBackend requested = GraphicsBackend::opengl;
+        for (int index = 1; index < argc; ++index)
+        {
+            const std::string_view argument(argv[index]);
+            if (argument == "--gl") requested = GraphicsBackend::opengl;
+            else if (argument == "--vulkan") requested = GraphicsBackend::vulkan;
+        }
+        return set_graphics_backend(requested);
+    }
+
     bool graphics_backend_available(GraphicsBackend backend)
     {
         return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan;
+    }
+
+    GraphicsBackend graphics_backend()
+    {
+        return selected_backend;
     }
 
     bool set_gfx_mode(int driver,
@@ -213,7 +231,7 @@ namespace sl
 
     void restore_window_viewport()
     {
-        if (renderer)
+        if (renderer && selected_backend == GraphicsBackend::opengl)
         {
             renderer->resize(width, height);
         }

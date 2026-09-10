@@ -9,22 +9,20 @@
 #include "gl2d.h"
 #include "resource.h"
 
-#define GL_GLEXT_PROTOTYPES
-#include <SDL2/SDL_opengl.h>
-#include <SDL2/SDL_opengl_glext.h>
-
 #include <filesystem>
 #include <fstream>
 #include <cstdarg>
 #include <cstdio>
+#include <algorithm>
 
 namespace sl
 {
+    constexpr std::uint32_t triangle_fan_primitive = 0x0006;
 
-    /** Temporary OpenGL texture used to draw one rendered text string. */
+    /** Temporary renderer texture used to draw one rendered text string. */
     struct TextTexture
     {
-        GLuint id = 0;
+        std::uint32_t id = 0;
         int width = 0;
         int height = 0;
     };
@@ -52,23 +50,16 @@ namespace sl
         texture.width = rgba->w;
         texture.height = rgba->h;
 
-        glGenTextures(1, &texture.id);
-        glBindTexture(GL_TEXTURE_2D, texture.id);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGBA,
-            texture.width,
-            texture.height,
-            0,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            rgba->pixels);
+        detail::Renderer *renderer = detail::active_renderer();
+        if (!renderer || !renderer->create_texture(
+            {texture.width, texture.height, detail::TextureFilter::linear}, texture.id) ||
+            !renderer->upload_texture(texture.id, texture.width, texture.height,
+                                      static_cast<const std::uint8_t *>(rgba->pixels)))
+        {
+            if (renderer) renderer->destroy_texture(texture.id);
+            SDL_FreeSurface(rgba);
+            return std::nullopt;
+        }
 
         SDL_FreeSurface(rgba);
         return texture;
@@ -79,7 +70,8 @@ namespace sl
     {
         if (texture.id != 0)
         {
-            glDeleteTextures(1, &texture.id);
+            if (detail::Renderer *renderer = detail::active_renderer())
+                renderer->destroy_texture(texture.id);
             texture.id = 0;
         }
     }
@@ -105,7 +97,7 @@ namespace sl
             {x1, y1, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
             {x0, y1, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
         };
-        detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture.id);
+        detail::gl2d_submit(triangle_fan_primitive, vertices, 4, texture.id);
     }
 
     /** Draw a solid rectangle behind rendered text. */
@@ -133,7 +125,7 @@ namespace sl
             {x1, y1, 0.0f, 0.0f, r, g, b, a},
             {x0, y1, 0.0f, 0.0f, r, g, b, a},
         };
-        detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4);
+        detail::gl2d_submit(triangle_fan_primitive, vertices, 4);
     }
 
     std::optional<std::vector<unsigned char>> load_font()
@@ -269,6 +261,37 @@ namespace sl
         return font ? TTF_FontHeight(font) : 0;
     }
 
+    struct TextCache
+    {
+        std::string text;
+        Font *font = nullptr;
+        Colour colour{};
+        TextTexture texture;
+        bool has_texture = false;
+    };
+
+    void draw_formatted_text(Font *font, int x, int y, const Colour &colour, const std::string &text)
+    {
+        static std::vector<TextCache> caches;
+        auto cache = std::find_if(caches.begin(), caches.end(), [&text, font, &colour](const TextCache &entry)
+        {
+            return entry.has_texture && entry.font == font && entry.text == text &&
+                entry.colour.red == colour.red && entry.colour.green == colour.green &&
+                entry.colour.blue == colour.blue && entry.colour.alpha == colour.alpha;
+        });
+        if (cache == caches.end())
+        {
+            if (caches.size() == 128)
+            {
+                destroy_text_texture(caches.front().texture);
+                caches.erase(caches.begin());
+            }
+            caches.emplace_back();
+            cache = std::prev(caches.end());
+        }
+        textout_cached(&*cache, font, x, y, colour, text);
+    }
+
     void gl_printf(
         Font *font,
         int x,
@@ -323,7 +346,7 @@ namespace sl
         va_start(args, fmt);
         std::vsnprintf(buffer, sizeof(buffer), fmt, args);
         va_end(args);
-        textout(get_default_monospace_font(), x, y, colour, buffer);
+        draw_formatted_text(get_default_monospace_font(), x, y, colour, buffer);
     }
 
     void gprintf_center(int y, const Colour &colour, const char *fmt, ...)
@@ -338,17 +361,8 @@ namespace sl
         va_end(args);
         const int text_width = text_length(font, buffer);
         const int x = (screen->width - text_width) / 2;
-        textout(font, x, y, colour, buffer);
+        draw_formatted_text(font, x, y, colour, buffer);
     }
-
-    struct TextCache
-    {
-        std::string text;
-        Font *font = nullptr;
-        Colour colour{};
-        TextTexture texture;
-        bool has_texture = false;
-    };
 
     TextCache *create_text_cache()
     {

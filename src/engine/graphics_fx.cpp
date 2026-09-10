@@ -16,14 +16,23 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <utility>
 #include <vector>
+#include <fstream>
+#include <iterator>
 
 namespace sl
 {
 	namespace
 	{
 
+
+		std::string load_glsl_shader(const char *name)
+		{
+			std::ifstream file(std::filesystem::path(SIMLIB_GLSL_SHADER_DIR) / name);
+			return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
+		}
 		constexpr const char *fullscreen_vertex_source = R"(
 #version 430 core
 layout(location = 0) in vec2 aPos;
@@ -35,14 +44,16 @@ out vec2 uv;
 
 void main() {
 	gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
-	uv = aTexCoord;
-}
-)";
+		const std::string vertex = load_glsl_shader("fullscreen.vert");
+		return !vertex.empty() &&
+			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag")) &&
+			blurShader_.load(vertex, load_glsl_shader("blur.frag")) &&
+			compositeShader_.load(vertex, load_glsl_shader("composite.frag"));
 
-		constexpr const char *bright_pass_fragment_source = R"(
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("vignette.frag"), "vignette");
 #version 430 core
-uniform sampler2D source;
-uniform float threshold;
+		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
+			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
 in vec2 uv;
 out vec4 fragColor;
 
@@ -372,20 +383,30 @@ void main() {
 
 	bool Shader::load(const std::string &vertexSource, const std::string &fragmentSource)
 	{
+		return load(vertexSource, fragmentSource, {});
+	}
+
+	bool Shader::load(const std::string &vertexSource, const std::string &fragmentSource, const std::string &assetId)
+	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
 		return renderer && renderer->create_shader(
-			detail::ShaderSource{detail::ShaderLanguage::glsl, vertexSource},
-			detail::ShaderSource{detail::ShaderLanguage::glsl, fragmentSource},
+			detail::ShaderSource{detail::ShaderLanguage::glsl, vertexSource, {}, assetId},
+			detail::ShaderSource{detail::ShaderLanguage::glsl, fragmentSource, {}, assetId},
 			program_, error_);
 	}
 
 	bool Shader::load_compute(const std::string &computeSource)
 	{
+		return load_compute(computeSource, {});
+	}
+
+	bool Shader::load_compute(const std::string &computeSource, const std::string &assetId)
+	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
 		return renderer && renderer->create_compute_shader(
-			detail::ShaderSource{detail::ShaderLanguage::glsl, computeSource}, program_, error_);
+			detail::ShaderSource{detail::ShaderLanguage::glsl, computeSource, {}, assetId}, program_, error_);
 	}
 
 	void Shader::reset()
@@ -502,9 +523,11 @@ void main() {
 		{
 			return true;
 		}
-		return brightShader_.load(fullscreen_vertex_source, bright_pass_fragment_source) &&
-			   blurShader_.load(fullscreen_vertex_source, blur_fragment_source) &&
-			   compositeShader_.load(fullscreen_vertex_source, composite_fragment_source);
+		const std::string vertex = load_glsl_shader("fullscreen.vert");
+		return !vertex.empty() &&
+			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag")) &&
+			blurShader_.load(vertex, load_glsl_shader("blur.frag")) &&
+			compositeShader_.load(vertex, load_glsl_shader("composite.frag"));
 	}
 
 	void Bloom::shutdown()
@@ -676,7 +699,7 @@ void main() {
 		{
 			return true;
 		}
-		return shader_.load(fullscreen_vertex_source, vignette_fragment_source);
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("vignette.frag"), "vignette");
 	}
 
 	void Vignette::shutdown()
@@ -736,7 +759,8 @@ void main() {
 		shader_.set_uniform("intensity", intensity_);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
 		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, sourceFlipVertical);
 		Shader::stop();
 	}
 
@@ -780,8 +804,8 @@ void main() {
 			return true;
 		}
 		shadowMasks_.resize(max_shadow_lights, nullptr);
-		if (!shader_.load(fullscreen_vertex_source, lighting_fragment_source) ||
-			!cullShader_.load_compute(light_cull_compute_source))
+		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
+			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
 		{
 			return false;
 		}
@@ -874,6 +898,7 @@ void main() {
 		{
 			return;
 		}
+		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
 		const std::size_t lightCount = lights.size();
 		const std::size_t shadowLightCount = casters.empty()
 			? 0
@@ -951,10 +976,10 @@ void main() {
 			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));
 		}
 		shader_.set_uniform("ambient", ambient_);
-		shader_.set_uniform("flipVertical", flipVertical ? 1 : 0);
+		shader_.set_uniform("flipVertical", sourceFlipVertical ? 1 : 0);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
 		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, sourceFlipVertical);
 		Shader::stop();
 	}
 
