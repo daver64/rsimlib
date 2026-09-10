@@ -18,7 +18,7 @@ This repository contains:
 - **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
 - **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
-- **`exlighting`** — radial multi-light and rectangle-shadow example (`src/applications/exlighting/`).
+- **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
 
 ### `sltest` screenshot
 
@@ -68,7 +68,7 @@ ctest --test-dir build
 ./exhello   # minimal window + text rendering demo
 ./exfont    # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
-./exlighting # radial lights and rectangle shadows demo
+./exlighting # radial lights and polygon shadows demo
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -249,7 +249,7 @@ context is destroyed.
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Compile/link a GLSL program, bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and rectangle-caster shadows to a bitmap. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and polygon-caster shadows to a bitmap. |
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 
 #### 2D lighting
@@ -269,7 +269,7 @@ screen-space pixel coordinates using the top-left origin. Vertices should be
 ordered around the polygon perimeter. Use
 `make_rectangle_shadow_caster(left, top, right, bottom)` when a rectangle is
 the most convenient representation.
-The current implementation projects rectangle edges away from each light and
+The current implementation projects polygon edges away from each light and
 accepts an arbitrary number of lights per `LightingPass::apply()` call through
 an OpenGL 4.3 shader storage buffer. The first eight lights can use geometric
 polygon shadows; additional lights remain unshadowed. All supplied casters
