@@ -281,82 +281,82 @@ else()
 endif()
 
 add_executable(sltest
-    src/applications/sltest/main.cpp
-    src/applications/sltest/game.cpp
-    src/applications/sltest/game_menu.cpp
-    src/applications/sltest/game_playing.cpp
-    src/applications/sltest/entity.cpp
-    src/applications/sltest/game_paused.cpp
-    src/applications/sltest/game_help.cpp
-    src/applications/sltest/game_gameover.cpp
-    src/applications/sltest/game_settings.cpp
-    src/applications/sltest/game_lua.cpp
+    src/examples/sltest/main.cpp
+    src/examples/sltest/game.cpp
+    src/examples/sltest/game_menu.cpp
+    src/examples/sltest/game_playing.cpp
+    src/examples/sltest/entity.cpp
+    src/examples/sltest/game_paused.cpp
+    src/examples/sltest/game_help.cpp
+    src/examples/sltest/game_gameover.cpp
+    src/examples/sltest/game_settings.cpp
+    src/examples/sltest/game_lua.cpp
 )
 target_link_libraries(sltest PRIVATE simlib lua sol2)
 
-add_executable(exhello src/applications/exhello/exhello.cpp)
+add_executable(exhello src/examples/exhello/exhello.cpp)
 target_link_libraries(exhello PRIVATE simlib)
 set_target_properties(exhello PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exfont src/applications/exfont/exfont.cpp)
+add_executable(exfont src/examples/exfont/exfont.cpp)
 target_link_libraries(exfont PRIVATE simlib)
 set_target_properties(exfont PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 
-add_executable(extriangle src/applications/extriangle/extriangle.cpp)
+add_executable(extriangle src/examples/extriangle/extriangle.cpp)
 target_link_libraries(extriangle PRIVATE simlib)
 set_target_properties(extriangle PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exrotatesprite src/applications/exrotatesprite/exrotatesprite.cpp)
+add_executable(exrotatesprite src/examples/exrotatesprite/exrotatesprite.cpp)
 target_link_libraries(exrotatesprite PRIVATE simlib)
 set_target_properties(exrotatesprite PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exlighting src/applications/exlighting/exlighting.cpp)
+add_executable(exlighting src/examples/exlighting/exlighting.cpp)
 target_link_libraries(exlighting PRIVATE simlib)
 set_target_properties(exlighting PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exphysics src/applications/exphysics/exphysics.cpp)
+add_executable(exphysics src/examples/exphysics/exphysics.cpp)
 target_link_libraries(exphysics PRIVATE simlib)
 set_target_properties(exphysics PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exvulkan src/applications/exvulkan/exvulkan.cpp)
+add_executable(exvulkan src/examples/exvulkan/exvulkan.cpp)
 target_link_libraries(exvulkan PRIVATE simlib)
 set_target_properties(exvulkan PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exlua src/applications/exlua/exlua.cpp)
+add_executable(exlua src/examples/exlua/exlua.cpp)
 target_link_libraries(exlua PRIVATE simlib lua sol2)
 set_target_properties(exlua PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exluaconsole src/applications/exluaconsole/exluaconsole.cpp)
+add_executable(exluaconsole src/examples/exluaconsole/exluaconsole.cpp)
 target_link_libraries(exluaconsole PRIVATE simlib lua sol2)
 set_target_properties(exluaconsole PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(exbitmap src/applications/exbitmap/exbitmap.cpp)
+add_executable(exbitmap src/examples/exbitmap/exbitmap.cpp)
 target_link_libraries(exbitmap PRIVATE simlib)
 set_target_properties(exbitmap PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 
-add_executable(client_template src/applications/client_template/client_template.cpp)
+add_executable(client_template src/examples/client_template/client_template.cpp)
 target_link_libraries(client_template PRIVATE simlib)
 set_target_properties(client_template PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -364,13 +364,13 @@ set_target_properties(client_template PROPERTIES
 
 
 
-add_executable(slpack src/applications/slpack/slpack.cpp)
+add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 set_target_properties(slpack PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-add_executable(slunpack src/applications/slunpack/slunpack.cpp)
+add_executable(slunpack src/examples/slunpack/slunpack.cpp)
 target_link_libraries(slunpack PRIVATE simlib)
 set_target_properties(slunpack PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"

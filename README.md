@@ -15,14 +15,14 @@ This repository contains:
 
 - **`simlib`** — the static engine library (`src/engine/`).
 - **`sltest`** — a sample game/test application built on `simlib`, with a
-    menu, simple physics/entity system, and Lua REPL console (`src/applications/sltest/`).
-- **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/applications/slpack/`).
-- **`exhello`** — a minimal "hello world" example (`src/applications/exhello/`).
-- **`exfont`** — a proportional and monospace TrueType comparison (`src/applications/exfont/`).
-- **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
-- **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
-- **`exphysics`** — Box2D body, fixture, and stepping example (`src/applications/exphysics/`).
-- **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/applications/exvulkan/`).
+    menu, simple physics/entity system, and Lua REPL console (`src/examples/sltest/`).
+- **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/examples/slpack/`).
+- **`exhello`** — a minimal "hello world" example (`src/examples/exhello/`).
+- **`exfont`** — a proportional and monospace TrueType comparison (`src/examples/exfont/`).
+- **`exrotatesprite`** — a continuously rotating sprite example (`src/examples/exrotatesprite/`).
+- **`exlighting`** — radial multi-light and polygon-shadow example (`src/examples/exlighting/`).
+- **`exphysics`** — Box2D body, fixture, and stepping example (`src/examples/exphysics/`).
+- **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/examples/exvulkan/`).
 
 ### `sltest` screenshot
 
@@ -654,7 +654,7 @@ if (archive.open("assets.zip"))
 ## Sandboxed Lua scripting
 
 `simlib`-based applications can embed a Lua console via
-[sol2](https://github.com/ThePhD/sol2); see `src/applications/sltest/game_lua.cpp`
+[sol2](https://github.com/ThePhD/sol2); see `src/examples/sltest/game_lua.cpp`
 in `sltest` for a complete example, including:
 
 - A restricted `open_libraries` set (no `io`, `package`, `debug`, or the real `os` library).
@@ -828,7 +828,7 @@ if (load_result.success)
 
 ## Simple physics / entities
 
-`sltest`'s playing screen (`src/applications/sltest/entity.cpp`) shows a small
+`sltest`'s playing screen (`src/examples/sltest/entity.cpp`) shows a small
 `GameObject` system with gravity, mass, drag, and circle/AABB collision:
 
 ```cpp
@@ -961,11 +961,11 @@ OpenGL context is released.
 ```
 include/                 Public simlib headers (draw.h, font.h, audio.h, ...)
 src/engine/               simlib library implementation
-src/applications/sltest/  sltest sample game (menu, physics, Lua console)
-src/applications/slpack/  slpack asset-packing CLI
-src/applications/exhello/ exhello minimal example
-src/applications/exfont/  exfont proportional-font example
-src/applications/exrotatesprite/ exrotatesprite rotating-sprite example
+src/examples/sltest/  sltest sample game (menu, physics, Lua console)
+src/examples/slpack/  slpack asset-packing CLI
+src/examples/exhello/ exhello minimal example
+src/examples/exfont/  exfont proportional-font example
+src/examples/exrotatesprite/ exrotatesprite rotating-sprite example
 assets/                   Textures, music, and sound effects used by sltest
 ```
 
