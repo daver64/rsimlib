@@ -112,14 +112,20 @@ void main() {
 #version 430 core
 uniform sampler2D source;
 uniform int lightCount;
-uniform vec2 lightPositions[4];
-uniform float lightRadii[4];
-uniform float lightIntensities[4];
-uniform float shadowSoftnesses[4];
-uniform vec3 lightColours[4];
+uniform int shadowLightCount;
 uniform float ambient;
 uniform int flipVertical;
-uniform sampler2D shadowMasks[4];
+uniform sampler2D shadowMasks[8];
+
+struct GpuLight {
+	vec4 positionRadius;
+	vec4 colourIntensity;
+	vec4 shadowSoftness;
+};
+
+layout(std430, binding = 2) readonly buffer LightBuffer {
+	GpuLight lights[];
+};
 in vec2 uv;
 out vec4 fragColor;
 
@@ -132,18 +138,22 @@ void main() {
 	vec2 pixelPosition = lightUv * vec2(textureSize(source, 0));
 	vec3 illumination = vec3(ambient);
 	for (int index = 0; index < lightCount; ++index) {
-		float distanceToLight = distance(pixelPosition, lightPositions[index]);
-		float falloff = 1.0 - smoothstep(0.0, max(lightRadii[index], 0.0001), distanceToLight);
-		vec2 shadowTexel = 1.0 / vec2(textureSize(shadowMasks[index], 0));
-		float shadow = 0.0;
-		for (int offsetY = -1; offsetY <= 1; ++offsetY) {
-			for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-				vec2 offset = vec2(offsetX, offsetY) * shadowTexel * max(shadowSoftnesses[index], 0.0);
-				shadow += texture(shadowMasks[index], lightUv + offset).r;
+		GpuLight light = lights[index];
+		float distanceToLight = distance(pixelPosition, light.positionRadius.xy);
+		float falloff = 1.0 - smoothstep(0.0, max(light.positionRadius.z, 0.0001), distanceToLight);
+		float shadow = 1.0;
+		if (index < shadowLightCount) {
+			vec2 shadowTexel = 1.0 / vec2(textureSize(shadowMasks[index], 0));
+			shadow = 0.0;
+			for (int offsetY = -1; offsetY <= 1; ++offsetY) {
+				for (int offsetX = -1; offsetX <= 1; ++offsetX) {
+					vec2 offset = vec2(offsetX, offsetY) * shadowTexel * max(light.shadowSoftness.x, 0.0);
+					shadow += texture(shadowMasks[index], lightUv + offset).r;
+				}
 			}
+			shadow /= 9.0;
 		}
-		shadow /= 9.0;
-		illumination += lightColours[index] * falloff * lightIntensities[index] * shadow;
+		illumination += light.colourIntensity.rgb * falloff * light.colourIntensity.a * shadow;
 	}
 	fragColor = vec4(base.rgb * illumination, base.a);
 }
@@ -222,6 +232,13 @@ void main() {
 		{
 			float x;
 			float y;
+		};
+
+		struct GpuLight
+		{
+			float positionRadius[4];
+			float colourIntensity[4];
+			float shadowSoftness[4];
 		};
 
 		Point project_from_light(Point point, const Light &light, float distance)
@@ -781,7 +798,8 @@ void main() {
 
 	LightingPass::LightingPass(LightingPass &&other) noexcept
 		: shader_(std::move(other.shader_)), ambient_(other.ambient_),
-		  shadowMasks_(std::exchange(other.shadowMasks_, {}))
+		  shadowMasks_(std::exchange(other.shadowMasks_, {})),
+		  lightBuffer_(std::exchange(other.lightBuffer_, 0))
 	{
 	}
 
@@ -793,6 +811,7 @@ void main() {
 			shader_ = std::move(other.shader_);
 			ambient_ = other.ambient_;
 			shadowMasks_ = std::exchange(other.shadowMasks_, {});
+			lightBuffer_ = std::exchange(other.lightBuffer_, 0);
 		}
 		return *this;
 	}
@@ -803,7 +822,15 @@ void main() {
 		{
 			return true;
 		}
-		return shader_.load(fullscreen_vertex_source, lighting_fragment_source);
+		shadowMasks_.resize(max_shadow_lights, nullptr);
+		if (!shader_.load(fullscreen_vertex_source, lighting_fragment_source))
+		{
+			return false;
+		}
+		GLuint lightBuffer = 0;
+		glGenBuffers(1, &lightBuffer);
+		lightBuffer_ = lightBuffer;
+		return lightBuffer_ != 0;
 	}
 
 	void LightingPass::shutdown()
@@ -813,6 +840,12 @@ void main() {
 		{
 			destroy_bitmap(shadowMask);
 			shadowMask = nullptr;
+		}
+		if (lightBuffer_ != 0)
+		{
+			const GLuint lightBuffer = static_cast<GLuint>(lightBuffer_);
+			glDeleteBuffers(1, &lightBuffer);
+			lightBuffer_ = 0;
 		}
 	}
 
@@ -833,6 +866,10 @@ void main() {
 
 	bool LightingPass::ensure_shadow_mask(std::size_t index, int width, int height) const
 	{
+		if (index >= shadowMasks_.size())
+		{
+			return false;
+		}
 		Bitmap *&shadowMask = shadowMasks_[index];
 		if (shadowMask && shadowMask->width == width && shadowMask->height == height)
 		{
@@ -869,8 +906,9 @@ void main() {
 		{
 			return;
 		}
-		const std::size_t lightCount = std::min<std::size_t>(lights.size(), shadowMasks_.size());
-		for (std::size_t index = 0; index < lightCount; ++index)
+		const std::size_t lightCount = lights.size();
+		const std::size_t shadowLightCount = std::min<std::size_t>(lightCount, max_shadow_lights);
+		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
 			if (!ensure_shadow_mask(index, source->width, source->height))
 			{
@@ -887,22 +925,36 @@ void main() {
 			}
 		}
 
-		float projection[16];
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
+		std::vector<GpuLight> gpuLights(lightCount);
 		for (std::size_t index = 0; index < lightCount; ++index)
 		{
 			const Light &light = lights[index];
+			GpuLight &gpuLight = gpuLights[index];
+			gpuLight.positionRadius[0] = light.x;
+			gpuLight.positionRadius[1] = light.y;
+			gpuLight.positionRadius[2] = std::max(light.radius, 0.0f);
+			gpuLight.positionRadius[3] = 0.0f;
+			gpuLight.colourIntensity[0] = static_cast<float>(light.colour.red) / 255.0f;
+			gpuLight.colourIntensity[1] = static_cast<float>(light.colour.green) / 255.0f;
+			gpuLight.colourIntensity[2] = static_cast<float>(light.colour.blue) / 255.0f;
+			gpuLight.colourIntensity[3] = std::max(light.intensity, 0.0f);
+			gpuLight.shadowSoftness[0] = std::max(light.shadow_softness, 0.0f);
+			gpuLight.shadowSoftness[1] = 0.0f;
+			gpuLight.shadowSoftness[2] = 0.0f;
+			gpuLight.shadowSoftness[3] = 0.0f;
+		}
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(lightBuffer_));
+		glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(gpuLights.size() * sizeof(GpuLight)),
+			gpuLights.data(), GL_STREAM_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, static_cast<GLuint>(lightBuffer_));
+
+		float projection[16];
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
+		shader_.set_uniform("shadowLightCount", static_cast<int>(shadowLightCount));
+		for (std::size_t index = 0; index < shadowLightCount; ++index)
+		{
 			const std::string suffix = "[" + std::to_string(index) + "]";
-			shader_.set_uniform(("lightPositions" + suffix).c_str(), light.x, light.y);
-			shader_.set_uniform(("lightRadii" + suffix).c_str(), std::max(light.radius, 0.0f));
-			shader_.set_uniform(("lightIntensities" + suffix).c_str(), std::max(light.intensity, 0.0f));
-			shader_.set_uniform(("shadowSoftnesses" + suffix).c_str(), std::max(light.shadow_softness, 0.0f));
-			shader_.set_uniform(
-				("lightColours" + suffix).c_str(),
-				static_cast<float>(light.colour.red) / 255.0f,
-				static_cast<float>(light.colour.green) / 255.0f,
-				static_cast<float>(light.colour.blue) / 255.0f);
 			glActiveTexture(GL_TEXTURE1 + static_cast<GLenum>(index));
 			glBindTexture(GL_TEXTURE_2D, shadowMasks_[index]->gpu_texture);
 			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));

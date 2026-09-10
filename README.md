@@ -249,7 +249,7 @@ context is destroyed.
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Compile/link a GLSL program, bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply up to four colored radial lights and rectangle-caster shadows to a bitmap. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and rectangle-caster shadows to a bitmap. |
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 
 #### 2D lighting
@@ -267,8 +267,10 @@ context is destroyed.
 `ShadowCaster` describes an axis-aligned rectangle that blocks light. Its
 `left`, `top`, `right`, and `bottom` fields are screen-space pixel coordinates.
 The current implementation projects rectangle edges away from each light and
-supports up to four lights per `LightingPass::apply()` call. All supplied
-casters affect every light in that call.
+accepts an arbitrary number of lights per `LightingPass::apply()` call through
+an OpenGL 4.3 shader storage buffer. The first eight lights can use geometric
+rectangle shadows; additional lights remain unshadowed. All supplied casters
+affect every shadow-capable light in that call.
 
 Render the scene to an offscreen target before applying lighting. Pass
 `flipVertical = true` when the source was created with `create_render_target()`:

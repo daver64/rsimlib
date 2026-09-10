@@ -2,9 +2,9 @@
 
 #include "draw.h"
 
-#include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace sl
 {
@@ -174,10 +174,12 @@ namespace sl
         float bottom = 0.0f;
     };
 
-    /** Modulates a rendered scene with ambient light and up to four radial lights. */
+    /** Modulates a rendered scene with an arbitrary number of radial lights. */
     class LightingPass
     {
     public:
+        static constexpr std::size_t max_shadow_lights = 8;
+
         LightingPass() = default;
         ~LightingPass();
 
@@ -202,7 +204,7 @@ namespace sl
         void apply(Bitmap *source, const Light &light, int x = 0, int y = 0,
                    int width = 0, int height = 0, bool flipVertical = false,
                    const std::vector<ShadowCaster> &casters = {}) const;
-        /** Apply a batch of lights, accumulating their illumination and shadows in one pass. */
+        /** Apply an arbitrary batch of lights; only the first max_shadow_lights receive shadows. */
         void apply(Bitmap *source, const std::vector<Light> &lights, int x = 0, int y = 0,
                int width = 0, int height = 0, bool flipVertical = false,
                const std::vector<ShadowCaster> &casters = {}) const;
@@ -210,7 +212,8 @@ namespace sl
     private:
         Shader shader_;
         float ambient_ = 0.2f;
-        mutable std::array<Bitmap *, 4> shadowMasks_{};
+        mutable std::vector<Bitmap *> shadowMasks_;
+        std::uint32_t lightBuffer_ = 0;
 
         bool ensure_shadow_mask(std::size_t index, int width, int height) const;
     };
