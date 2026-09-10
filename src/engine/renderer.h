@@ -91,6 +91,9 @@ namespace sl::detail
                           std::uint32_t &framebuffer) = 0;
         /** Destroy a render target's framebuffer and texture handles. */
         virtual void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) = 0;
+        virtual bool begin_render_target(std::uint32_t framebuffer, int width, int height,
+                          std::string &error) = 0;
+        virtual bool end_render_target(std::string &error) = 0;
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                        std::uint32_t &program, std::string &error) = 0;
@@ -116,6 +119,7 @@ namespace sl::detail
         virtual void shutdown_2d() = 0;
         /** Bind the default 2D pipeline and projection. */
         virtual bool begin_2d(int width, int height) = 0;
+        virtual bool clear_frame(float red, float green, float blue, float alpha) = 0;
         /** Submit colored textured vertices using the backend's 2D pipeline. */
         virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,
                        int count, std::uint32_t texture) = 0;

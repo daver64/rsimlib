@@ -222,6 +222,16 @@ namespace sl::detail
                 }
                 destroy_texture(texture);
             }
+            bool begin_render_target(std::uint32_t framebuffer, int, int, std::string &) override
+            {
+                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                return true;
+            }
+            bool end_render_target(std::string &) override
+            {
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                return true;
+            }
 
             bool initialise_2d() override
             {
@@ -286,6 +296,12 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 glActiveTexture(GL_TEXTURE0);
+                return true;
+            }
+            bool clear_frame(float red, float green, float blue, float alpha) override
+            {
+                glClearColor(red, green, blue, alpha);
+                glClear(GL_COLOR_BUFFER_BIT);
                 return true;
             }
 
@@ -464,12 +480,15 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 window_ = window;
                 if (!context_.initialise(window, error)) return false;
                 if (!context_.create_texture_descriptor_layout(descriptor_layout_, error) ||
+                    !context_.create_storage_descriptor_layout(storage_layout_, error) ||
                     !context_.create_descriptor_pool(descriptor_pool_, error)) return false;
                 const std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
                 if (!context_.load_shader_module(shader_dir / "vulkan_2d.vert.spv", vertex_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan_2d.frag.spv", fragment_module_, error) ||
-                    !context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_,
-                        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, pipeline_, error)) return false;
+                    !create_pipelines(error)) return false;
+                if (!context_.load_shader_module(shader_dir / "vulkan_light_cull.comp.spv", cull_module_, error) ||
+                    !context_.create_compute_pipeline(cull_module_, storage_layout_, sizeof(int) * 5,
+                                                      cull_pipeline_, error)) return false;
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
                     !upload_texture(white_texture_, 1, 1, white_pixel))
@@ -489,26 +508,51 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                     context_.destroy_image(texture.image);
                 }
                 textures_.clear();
+                for (auto &[handle, buffer] : storage_buffers_)
+                    context_.destroy_buffer(buffer.buffer);
+                storage_buffers_.clear();
                 for (auto &[handle, target] : render_targets_)
                 {
+                    context_.destroy_sampler(target.sampler);
                     context_.destroy_framebuffer(target.framebuffer);
                     context_.destroy_image(target.image);
                 }
                 render_targets_.clear();
-                context_.destroy_graphics_pipeline(pipeline_);
+                for (VulkanGraphicsPipeline &pipeline : pipelines_)
+                    context_.destroy_graphics_pipeline(pipeline);
+                    context_.destroy_compute_pipeline(cull_pipeline_);
                 context_.destroy_shader_module(vertex_module_);
                 context_.destroy_shader_module(fragment_module_);
+                    context_.destroy_shader_module(cull_module_);
                 context_.destroy_descriptor_pool(descriptor_pool_);
                 context_.destroy_descriptor_set_layout(descriptor_layout_);
+                    context_.destroy_storage_descriptor_layout(storage_layout_);
                 context_.shutdown();
                 window_ = nullptr;
             }
             void resize(int width, int height) override
             {
-                context_.recreate_swapchain(width, height, last_error_);
+                for (auto &[handle, target] : render_targets_)
+                {
+                    context_.destroy_sampler(target.sampler);
+                    context_.destroy_framebuffer(target.framebuffer);
+                    context_.destroy_image(target.image);
+                }
+                render_targets_.clear();
+                for (VulkanGraphicsPipeline &pipeline : pipelines_)
+                    context_.destroy_graphics_pipeline(pipeline);
+                if (context_.recreate_swapchain(width, height, last_error_))
+                    create_pipelines(last_error_);
             }
             bool set_vsync(bool) override { return true; }
-            void present() override {}
+            void present() override
+            {
+                if (frame_active_)
+                {
+                    context_.end_frame(last_error_);
+                    frame_active_ = false;
+                }
+            }
             bool begin_frame(std::string &error) override
             {
                 if (frame_active_) return true;
@@ -566,16 +610,26 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 if (!context_.create_image(width, height, VK_FORMAT_R8G8B8A8_UNORM,
                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                            resource.image, last_error_) ||
+                    !context_.create_sampler(resource.sampler, last_error_) ||
                     !context_.create_render_target_framebuffer(resource.image, width, height,
                                                                resource.framebuffer, last_error_))
                 {
                     context_.destroy_framebuffer(resource.framebuffer);
+                    context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
                     return false;
                 }
                 texture = next_texture_++;
                 framebuffer = next_render_target_++;
                 resource.texture_handle = texture;
+                if (!context_.allocate_texture_descriptor(descriptor_pool_, descriptor_layout_, resource.image,
+                                                          resource.sampler, resource.descriptor, last_error_))
+                {
+                    context_.destroy_framebuffer(resource.framebuffer);
+                    context_.destroy_sampler(resource.sampler);
+                    context_.destroy_image(resource.image);
+                    return false;
+                }
                 render_targets_.emplace(framebuffer, std::move(resource));
                 return true;
             }
@@ -583,10 +637,19 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
             {
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end()) return;
+                context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_framebuffer(iterator->second.framebuffer);
                 context_.destroy_image(iterator->second.image);
                 render_targets_.erase(iterator);
             }
+            bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
+            {
+                const auto iterator = render_targets_.find(framebuffer);
+                return iterator != render_targets_.end() &&
+                    context_.begin_offscreen_render_pass(iterator->second.framebuffer, width, height, error);
+            }
+            bool end_render_target(std::string &error) override
+            { return context_.end_offscreen_render_pass(error); }
             bool create_shader(const ShaderSource &, const ShaderSource &, std::uint32_t &, std::string &error) override
             { error = "Vulkan renderer shader resources are not connected yet."; return false; }
             bool create_compute_shader(const ShaderSource &, std::uint32_t &, std::string &error) override
@@ -601,7 +664,7 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
             bool set_shader_int2(std::uint32_t, const char *, int, int) override { return unsupported(); }
             bool set_shader_float3(std::uint32_t, const char *, float, float, float) override { return unsupported(); }
             bool set_shader_mat4(std::uint32_t, const char *, const float *) override { return unsupported(); }
-            bool initialise_2d() override { return pipeline_.pipeline != VK_NULL_HANDLE; }
+            bool initialise_2d() override { return pipelines_[4].pipeline != VK_NULL_HANDLE; }
             void shutdown_2d() override {}
             bool begin_2d(int width, int height) override
             {
@@ -612,30 +675,108 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
                 projection_[10] = -1.0f; projection_[12] = -1.0f; projection_[13] = 1.0f; projection_[15] = 1.0f;
                 return true;
             }
+            bool clear_frame(float red, float green, float blue, float alpha) override
+            {
+                if (!frame_active_ && !begin_frame(last_error_)) return false;
+                return context_.clear_active_frame(red, green, blue, alpha, last_error_);
+            }
             void submit_2d(PrimitiveType primitive, const Vertex2D *vertices, int count, std::uint32_t texture) override
             {
-                if (primitive != PrimitiveType::triangle_fan || !vertices || count <= 0 || !begin_2d(1, 1)) return;
+                if (!vertices || count <= 0 || !frame_active_) return;
+                std::vector<Vertex2D> line_loop_vertices;
+                const Vertex2D *upload_vertices = vertices;
+                int upload_count = count;
+                if (primitive == PrimitiveType::line_loop && count > 1)
+                {
+                    line_loop_vertices.assign(vertices, vertices + count);
+                    line_loop_vertices.push_back(vertices[0]);
+                    upload_vertices = line_loop_vertices.data();
+                    upload_count = count + 1;
+                }
                 VulkanBuffer buffer;
-                if (!context_.create_buffer(sizeof(Vertex2D) * count, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                if (!context_.create_buffer(sizeof(Vertex2D) * upload_count, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, last_error_) ||
-                    !context_.upload_buffer(buffer, vertices, sizeof(Vertex2D) * count, last_error_))
+                    !context_.upload_buffer(buffer, upload_vertices, sizeof(Vertex2D) * upload_count, last_error_))
                 {
                     context_.destroy_buffer(buffer); return;
                 }
                 vertex_buffers_.push_back(buffer);
-                const auto iterator = textures_.find(texture == 0 ? white_texture_ : texture);
-                const VkDescriptorSet descriptor = iterator == textures_.end() ? VK_NULL_HANDLE : iterator->second.descriptor;
-                context_.record_vertex_draw(pipeline_.pipeline, pipeline_.layout, buffer.buffer, descriptor,
-                    static_cast<std::uint32_t>(count), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN, projection_.data(), last_error_);
+                const std::uint32_t texture_handle = texture == 0 ? white_texture_ : texture;
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+                const auto texture_iterator = textures_.find(texture_handle);
+                if (texture_iterator != textures_.end())
+                    descriptor = texture_iterator->second.descriptor;
+                else
+                {
+                    for (const auto &[handle, target] : render_targets_)
+                        if (target.texture_handle == texture_handle) descriptor = target.descriptor;
+                }
+                const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
+                if (pipeline_index >= pipelines_.size())
+                {
+                    context_.destroy_buffer(buffer);
+                    return;
+                }
+                context_.record_vertex_draw(pipelines_[pipeline_index].pipeline, pipelines_[pipeline_index].layout, buffer.buffer, descriptor,
+                    static_cast<std::uint32_t>(upload_count), primitive, projection_.data(), last_error_);
             }
-            bool create_storage_buffer(std::size_t, std::uint32_t &) override { return unsupported(); }
-            void destroy_storage_buffer(std::uint32_t) override {}
-            bool upload_storage_buffer(std::uint32_t, std::size_t, const void *, bool) override { return unsupported(); }
+            bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) override
+            {
+                VulkanStorageBuffer resource;
+                if (!context_.create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    resource.buffer, last_error_)) return false;
+                buffer = next_storage_buffer_++;
+                storage_buffers_.emplace(buffer, std::move(resource));
+                for (std::uint32_t &slot : storage_handles_)
+                {
+                    if (slot == 0) { slot = buffer; break; }
+                }
+                if (storage_handles_[0] != 0 && storage_handles_[1] != 0 && storage_handles_[2] != 0)
+                {
+                    VulkanBuffer buffers[3] = {
+                        storage_buffers_[storage_handles_[0]].buffer,
+                        storage_buffers_[storage_handles_[1]].buffer,
+                        storage_buffers_[storage_handles_[2]].buffer};
+                    context_.allocate_storage_descriptor(descriptor_pool_, storage_layout_, buffers, 3,
+                                                          storage_descriptor_, last_error_);
+                }
+                return true;
+            }
+            void destroy_storage_buffer(std::uint32_t buffer) override
+            {
+                const auto iterator = storage_buffers_.find(buffer);
+                if (iterator == storage_buffers_.end()) return;
+                context_.destroy_buffer(iterator->second.buffer);
+                storage_buffers_.erase(iterator);
+            }
+            bool upload_storage_buffer(std::uint32_t buffer, std::size_t size, const void *data, bool) override
+            {
+                auto iterator = storage_buffers_.find(buffer);
+                if (iterator == storage_buffers_.end()) return false;
+                if (size > iterator->second.buffer.size)
+                {
+                    context_.destroy_buffer(iterator->second.buffer);
+                    if (!context_.create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                        iterator->second.buffer, last_error_)) return false;
+                }
+                return data ? context_.upload_buffer(iterator->second.buffer, data, size, last_error_) : true;
+            }
             void bind_storage_buffer(unsigned int, std::uint32_t) override {}
             void bind_texture_unit(unsigned int, std::uint32_t) override {}
             void storage_barrier() override {}
 
         private:
+            bool create_pipelines(std::string &error)
+            {
+                return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points, pipelines_[0], error) &&
+                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::lines, pipelines_[1], error) &&
+                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, pipelines_[2], error) &&
+                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, pipelines_[3], error) &&
+                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
+            }
+
             bool unsupported()
             {
                 last_error_ = "Vulkan renderer resources are not implemented yet.";
@@ -650,11 +791,19 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
             VulkanDescriptorPool descriptor_pool_;
             VulkanShaderModule vertex_module_;
             VulkanShaderModule fragment_module_;
-            VulkanGraphicsPipeline pipeline_;
+            VulkanShaderModule cull_module_;
+            std::array<VulkanGraphicsPipeline, 5> pipelines_{};
+            VulkanComputePipeline cull_pipeline_;
+            VulkanStorageDescriptorLayout storage_layout_;
             std::vector<VulkanBuffer> vertex_buffers_;
             std::array<float, 16> projection_{};
             std::uint32_t white_texture_ = 0;
             bool frame_active_ = false;
+            struct VulkanStorageBuffer { VulkanBuffer buffer; };
+            std::unordered_map<std::uint32_t, VulkanStorageBuffer> storage_buffers_;
+            std::uint32_t next_storage_buffer_ = 1;
+            std::array<std::uint32_t, 3> storage_handles_{};
+            VkDescriptorSet storage_descriptor_ = VK_NULL_HANDLE;
             struct VulkanTexture
             {
                 VulkanImage image;
@@ -664,6 +813,8 @@ void main() { fragColor = texture(uTexture, vTexCoord) * vColor; }
             struct VulkanRenderTarget
             {
                 VulkanImage image;
+                VulkanSampler sampler;
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 VkFramebuffer framebuffer = VK_NULL_HANDLE;
                 std::uint32_t texture_handle = 0;
             };

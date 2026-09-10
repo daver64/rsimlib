@@ -3,6 +3,8 @@
 #include <SDL2/SDL_video.h>
 #include <vulkan/vulkan.h>
 
+#include "renderer.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -34,6 +36,11 @@ namespace sl::detail
         VkDescriptorSetLayout layout = VK_NULL_HANDLE;
     };
 
+    struct VulkanStorageDescriptorLayout
+    {
+        VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+    };
+
     struct VulkanDescriptorPool
     {
         VkDescriptorPool pool = VK_NULL_HANDLE;
@@ -45,6 +52,12 @@ namespace sl::detail
     };
 
     struct VulkanGraphicsPipeline
+    {
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        VkPipelineLayout layout = VK_NULL_HANDLE;
+    };
+
+    struct VulkanComputePipeline
     {
         VkPipeline pipeline = VK_NULL_HANDLE;
         VkPipelineLayout layout = VK_NULL_HANDLE;
@@ -65,11 +78,20 @@ namespace sl::detail
         void destroy_swapchain();
         bool begin_frame(std::string &error);
         bool end_frame(std::string &error);
+        bool begin_offscreen_render_pass(VkFramebuffer framebuffer, int width, int height,
+                         std::string &error);
+        bool end_offscreen_render_pass(std::string &error);
         bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
                     VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
-                    std::uint32_t vertex_count, VkPrimitiveTopology topology,
-                                const float *projection,
-                    std::string &error);
+                    std::uint32_t vertex_count, PrimitiveType topology,
+                    const float *projection, std::string &error);
+        bool clear_active_frame(float red, float green, float blue, float alpha,
+                                std::string &error);
+        bool record_compute_dispatch(VkPipeline pipeline, VkPipelineLayout layout,
+                         VkDescriptorSet descriptor_set, const void *push_constants,
+                         std::uint32_t push_constant_size,
+                         std::uint32_t groups_x, std::uint32_t groups_y,
+                         std::uint32_t groups_z, std::string &error);
         bool create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
                    VkMemoryPropertyFlags properties, VulkanBuffer &result,
                    std::string &error);
@@ -97,15 +119,29 @@ namespace sl::detail
                          const VulkanDescriptorSetLayout &layout,
                          const VulkanImage &image, const VulkanSampler &sampler,
                          VkDescriptorSet &set, std::string &error);
+        bool create_storage_descriptor_layout(VulkanStorageDescriptorLayout &result, std::string &error);
+        void destroy_storage_descriptor_layout(VulkanStorageDescriptorLayout &layout);
+        bool allocate_storage_descriptor(const VulkanDescriptorPool &pool,
+                         const VulkanStorageDescriptorLayout &layout,
+                         const VulkanBuffer *buffers, std::size_t count,
+                         VkDescriptorSet &set, std::string &error);
+        void bind_storage_descriptor(VkCommandBuffer command_buffer, VkPipelineLayout layout,
+                         VkDescriptorSet descriptor_set, VkPipelineBindPoint bind_point);
+        void storage_barrier(VkCommandBuffer command_buffer);
         bool create_pipeline_layout(const VulkanDescriptorSetLayout *descriptor_layout,
                         VkPipelineLayout &layout, std::string &error);
         void destroy_pipeline_layout(VkPipelineLayout &layout);
         bool create_graphics_pipeline(const VulkanShaderModule &vertex,
                           const VulkanShaderModule &fragment,
                           const VulkanDescriptorSetLayout &descriptor_layout,
-                          VkPrimitiveTopology topology,
+                          PrimitiveType topology,
                           VulkanGraphicsPipeline &result, std::string &error);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
+            bool create_compute_pipeline(const VulkanShaderModule &compute,
+                                         const VulkanStorageDescriptorLayout &descriptor_layout,
+                             std::uint32_t push_constant_size,
+                             VulkanComputePipeline &result, std::string &error);
+            void destroy_compute_pipeline(VulkanComputePipeline &pipeline);
         void shutdown();
         bool is_valid() const;
 
@@ -123,6 +159,7 @@ namespace sl::detail
         std::vector<VkImageView> swapchain_image_views_;
         VkCommandPool command_pool_ = VK_NULL_HANDLE;
         VkRenderPass render_pass_ = VK_NULL_HANDLE;
+        VkRenderPass offscreen_render_pass_ = VK_NULL_HANDLE;
         std::vector<VkFramebuffer> framebuffers_;
         VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
         VkSemaphore image_available_ = VK_NULL_HANDLE;
@@ -130,6 +167,7 @@ namespace sl::detail
         VkFence in_flight_ = VK_NULL_HANDLE;
         std::uint32_t current_image_ = 0;
         bool frame_active_ = false;
+        bool offscreen_active_ = false;
 
         std::uint32_t find_memory_type(std::uint32_t type_filter,
                            VkMemoryPropertyFlags properties) const;

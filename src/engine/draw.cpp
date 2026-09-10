@@ -369,8 +369,13 @@ namespace sl
 		{
 			return false;
 		}
-		glBindFramebuffer(GL_FRAMEBUFFER, target->fbo);
-		glViewport(0, 0, target->width, target->height);
+		detail::Renderer *renderer = detail::active_renderer();
+		std::string error;
+		if (!renderer || !renderer->begin_render_target(target->fbo, target->width, target->height, error))
+		{
+			if (!error.empty()) sl::detail::set_error(error);
+			return false;
+		}
 		detail::set_render_target_size(target->width, target->height);
 		return true;
 	}
@@ -378,7 +383,12 @@ namespace sl
 	/** Stop rendering to a target and restore drawing to the window. */
 	void end_render_target()
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			std::string error;
+			renderer->end_render_target(error);
+			if (!error.empty()) sl::detail::set_error(error);
+		}
 		restore_window_viewport();
 		detail::set_render_target_size(0, 0);
 	}

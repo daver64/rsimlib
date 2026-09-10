@@ -57,10 +57,12 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_light_cull.comp vulkan_lighting.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
+            elseif(VULKAN_SHADER_EXTENSION STREQUAL ".comp")
+                set(VULKAN_SHADER_STAGE comp)
             else()
                 set(VULKAN_SHADER_STAGE frag)
             endif()
@@ -288,6 +290,12 @@ set_target_properties(exlighting PROPERTIES
 add_executable(exphysics src/applications/exphysics/exphysics.cpp)
 target_link_libraries(exphysics PRIVATE simlib)
 set_target_properties(exphysics PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exvulkan src/applications/exvulkan/exvulkan.cpp)
+target_link_libraries(exvulkan PRIVATE simlib)
+set_target_properties(exvulkan PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 

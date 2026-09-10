@@ -20,6 +20,7 @@ This repository contains:
 - **`exrotatesprite`** — a continuously rotating sprite example (`src/applications/exrotatesprite/`).
 - **`exlighting`** — radial multi-light and polygon-shadow example (`src/applications/exlighting/`).
 - **`exphysics`** — Box2D body, fixture, and stepping example (`src/applications/exphysics/`).
+- **`exvulkan`** — Vulkan textured-quad smoke test (`src/applications/exvulkan/`).
 
 ### `sltest` screenshot
 
@@ -69,9 +70,8 @@ sl::set_graphics_backend(sl::GraphicsBackend::opengl);
 sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 ```
 
-`graphics_backend_available()` reports compiled support. OpenGL is currently
-available; Vulkan, D3D11, and D3D12 are reserved backend choices and fail with
-an explicit error until their implementations are added.
+`graphics_backend_available()` reports compiled support. OpenGL and Vulkan are
+currently available; D3D11 and D3D12 remain reserved backend choices.
 
 The first Vulkan implementation layer is now present internally in
 `src/engine/vulkan_context.*`. It creates and owns a Vulkan instance, SDL
@@ -93,9 +93,9 @@ can use them to acquire, record, submit, and present swapchain work.
 
 `VulkanRenderer` now owns `VulkanContext`, requests an SDL Vulkan window, and
 routes frame begin/end through Vulkan. Its texture, shader, descriptor, and 2D
-submission methods currently return explicit unsupported errors; Vulkan remains
-disabled in `graphics_backend_available()` until those operations are fully
-implemented rather than exposing a renderer that can only present a blank frame.
+submission methods still return explicit unsupported errors for features not
+yet ported, but the core Vulkan textured-quad path is active and verified by
+`exvulkan`.
 
 The Vulkan context also now provides internal device-local image/view creation,
 host-visible buffer allocation and upload, memory-type selection, and cleanup.
@@ -148,11 +148,68 @@ records triangle-fan draws through the active Vulkan render pass. Vulkan remains
 disabled as a public backend until the remaining primitive modes, render-target
 sampling, clear path, and ImGui integration are complete.
 
+VulkanRenderer now creates separate graphics pipelines for all neutral primitive
+modes and selects the matching pipeline during `submit_2d()`. Points, lines,
+triangles, and triangle fans are directly mapped; line-loop uses Vulkan's line
+strip topology and will receive a dedicated closure strategy in a later parity
+pass.
+
+Neutral primitive modes now map to Vulkan topologies for points, lines,
+line-loops, triangles, and triangle fans. Frame clearing is also exposed
+through the backend contract and records `vkCmdClearAttachments` inside the
+active render pass.
+
+Vulkan frame ownership is now connected to the display lifecycle: backend
+clears route through the active renderer, `begin_frame()` acquires/records a
+frame, and presentation ends/submits/presents the Vulkan frame. The Vulkan 2D
+submission path no longer attempts to restart a frame for every primitive.
+
 Vulkan render-target creation is now also wired through `VulkanRenderer`: it
 allocates a color image/view, creates a compatible framebuffer for the active
 render pass, returns opaque texture/framebuffer handles, and releases them in
 the correct order during destruction or shutdown.
 
+Offscreen render-target binding/end operations now also pass through the neutral
+renderer contract. OpenGL retains its existing framebuffer behavior, while
+Vulkan maps target binding/end to command-buffer render-pass transitions.
+
+Render-target textures now receive Vulkan samplers and descriptor sets just
+like regular textures. `submit_2d()` can resolve and sample either a regular
+bitmap texture or an offscreen render-target texture handle.
+
+Vulkan resize handling now invalidates offscreen targets and rebuilds all
+primitive pipelines after swapchain/render-pass recreation, avoiding stale
+render-pass-compatible pipeline handles.
+
+VulkanRenderer now also owns storage-buffer handles with explicit sizes,
+host-visible uploads, size-aware reallocation, and shutdown cleanup. This is
+the resource foundation needed to connect tiled-lighting compute buffers to
+Vulkan descriptor bindings.
+
+The Vulkan context now also provides a three-binding storage-buffer descriptor
+layout, descriptor allocation/update, and a compute-write to fragment-read
+memory barrier. These are the remaining descriptor primitives needed before
+the tiled-lighting compute pipeline can be connected.
+
+Vulkan-targeted tiled-lighting shader sources are now present and validated:
+`vulkan_light_cull.comp` assigns lights to 16x16 tiles, while
+`vulkan_lighting.frag` consumes the light and tile SSBOs through explicit
+descriptor sets and push constants. Pipeline/descriptor wiring remains the
+the next step for running lighting under Vulkan.
+
+VulkanRenderer now loads the tiled-culling SPIR-V and creates a compute
+pipeline with the storage-buffer descriptor layout and culling push-constant
+range. Dispatch/buffer binding is the remaining connection before Vulkan can
+run the tiled-lighting pass.
+
+The Vulkan command path now supports compute pipeline binding, storage
+descriptor binding, push-constant upload, dispatch, and a compute-to-fragment
+memory barrier. VulkanRenderer also allocates the tiled-lighting descriptor set
+once its three storage buffers are available.
+
+Vulkan offscreen render-pass transitions are now connected: target framebuffers
+use a shader-readable final layout, command recording switches between the
+swapchain and offscreen passes, and ending a target resumes the swapchain pass.
 The renderer resource contract now carries explicit texture descriptors
 (dimensions and filtering) and storage-buffer sizes. OpenGL uses these values
 to preserve its current behavior; Vulkan can use them to select image usage,
@@ -194,6 +251,7 @@ ctest --test-dir build
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
 ./exphysics # Box2D physics demo
+./exvulkan # Vulkan textured-quad smoke test
 ./sltest    # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```

@@ -53,7 +53,7 @@ namespace sl
 
     bool graphics_backend_available(GraphicsBackend backend)
     {
-        return backend == GraphicsBackend::opengl;
+        return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan;
     }
 
     bool set_gfx_mode(int driver,
@@ -235,6 +235,15 @@ namespace sl
 
     void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha)
     {
+        if (renderer)
+        {
+            renderer->clear_frame(
+                static_cast<float>(red) / 255.0f,
+                static_cast<float>(green) / 255.0f,
+                static_cast<float>(blue) / 255.0f,
+                static_cast<float>(alpha) / 255.0f);
+            return;
+        }
         glClearColor(
             static_cast<float>(red) / 255.0f,
             static_cast<float>(green) / 255.0f,
