@@ -118,58 +118,20 @@ namespace sl::detail
                         lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, error,
                         &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int))) return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_vignette.frag.spv", vignette_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, error,
-                        nullptr, sizeof(VignetteConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_colour_adjust.frag.spv", colour_adjust_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, error,
-                            nullptr, sizeof(ColourAdjustConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_pixelate.frag.spv", pixelate_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, pixelate_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, pixelate_pipeline_, error,
-                            nullptr, sizeof(PixelateConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_radial_blur.frag.spv", radial_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, radial_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, radial_pipeline_, error,
-                            nullptr, sizeof(RadialConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_heat_haze.frag.spv", heat_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, error,
-                            nullptr, sizeof(HeatConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_shockwave.frag.spv", shockwave_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, shockwave_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, shockwave_pipeline_, error,
-                            nullptr, sizeof(ShockwaveConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_chromatic_aberration.frag.spv", chromatic_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, error,
-                            nullptr, sizeof(ChromaticConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_crt.frag.spv", crt_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, crt_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, crt_pipeline_, error,
-                            nullptr, sizeof(CRTConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_dither.frag.spv", dither_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, dither_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, dither_pipeline_, error,
-                            nullptr, sizeof(DitherConstants))) return false;
-                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_film_grain.frag.spv", film_grain_fragment_module_, error) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, film_grain_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, film_grain_pipeline_, error,
-                            nullptr, sizeof(FilmGrainConstants))) return false;
-                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, error,
-                        nullptr, sizeof(BrightConstants))) return false;
-                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_blur.frag.spv", blur_fragment_module_, error) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, error,
-                        nullptr, sizeof(BlurConstants), false, true)) return false;
-                if (!context_.create_composite_descriptor_layout(composite_descriptor_layout_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_colour_adjust.frag.spv", colour_adjust_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_pixelate.frag.spv", pixelate_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_radial_blur.frag.spv", radial_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_heat_haze.frag.spv", heat_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_shockwave.frag.spv", shockwave_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_chromatic_aberration.frag.spv", chromatic_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_crt.frag.spv", crt_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_dither.frag.spv", dither_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_film_grain.frag.spv", film_grain_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_blur.frag.spv", blur_fragment_module_, error) ||
+                    !context_.create_composite_descriptor_layout(composite_descriptor_layout_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_composite.frag.spv", composite_fragment_module_, error) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
-                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, error,
-                        nullptr, sizeof(CompositeConstants))) return false;
+                    !create_effect_pipelines(error)) return false;
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
                     !upload_texture(white_texture_, 1, 1, white_pixel))
@@ -204,20 +166,23 @@ namespace sl::detail
                 render_targets_.clear();
                 for (VulkanGraphicsPipeline &pipeline : pipelines_)
                     context_.destroy_graphics_pipeline(pipeline);
-                context_.destroy_graphics_pipeline(lighting_pipeline_);
-                context_.destroy_graphics_pipeline(vignette_pipeline_);
-                    context_.destroy_graphics_pipeline(colour_adjust_pipeline_);
-                    context_.destroy_graphics_pipeline(pixelate_pipeline_);
-                    context_.destroy_graphics_pipeline(radial_pipeline_);
-                    context_.destroy_graphics_pipeline(heat_pipeline_);
-                    context_.destroy_graphics_pipeline(shockwave_pipeline_);
-                    context_.destroy_graphics_pipeline(chromatic_pipeline_);
-                    context_.destroy_graphics_pipeline(crt_pipeline_);
-                    context_.destroy_graphics_pipeline(dither_pipeline_);
-                    context_.destroy_graphics_pipeline(film_grain_pipeline_);
-                context_.destroy_graphics_pipeline(bright_pipeline_);
-                context_.destroy_graphics_pipeline(blur_pipeline_);
-                context_.destroy_graphics_pipeline(composite_pipeline_);
+                    context_.destroy_graphics_pipeline(bright_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(blur_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(composite_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(lighting_pipeline_);
+                    context_.destroy_graphics_pipeline(vignette_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(colour_adjust_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(pixelate_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(radial_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(heat_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(shockwave_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(chromatic_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(crt_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(dither_effect_.pipeline);
+                    context_.destroy_graphics_pipeline(film_grain_effect_.pipeline);
+                context_.destroy_graphics_pipeline(bright_effect_.pipeline);
+                context_.destroy_graphics_pipeline(blur_effect_.pipeline);
+                context_.destroy_graphics_pipeline(composite_effect_.pipeline);
                     context_.destroy_compute_pipeline(cull_pipeline_);
                 context_.destroy_shader_module(vertex_module_);
                 context_.destroy_shader_module(fragment_module_);
@@ -276,52 +241,20 @@ namespace sl::detail
                 for (VulkanGraphicsPipeline &pipeline : pipelines_)
                     context_.destroy_graphics_pipeline(pipeline);
                 context_.destroy_graphics_pipeline(lighting_pipeline_);
-                context_.destroy_graphics_pipeline(vignette_pipeline_);
-                context_.destroy_graphics_pipeline(bright_pipeline_);
-                context_.destroy_graphics_pipeline(blur_pipeline_);
-                context_.destroy_graphics_pipeline(composite_pipeline_);
+                context_.destroy_graphics_pipeline(vignette_effect_.pipeline);
+                context_.destroy_graphics_pipeline(bright_effect_.pipeline);
+                context_.destroy_graphics_pipeline(blur_effect_.pipeline);
+                context_.destroy_graphics_pipeline(composite_effect_.pipeline);
                 if (!context_.recreate_swapchain(width, height, last_error_))
                 {
                     error = last_error_;
                     return false;
                 }
-                if (!create_pipelines(last_error_) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
-                        lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, last_error_,
-                        &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, last_error_,
-                        nullptr, sizeof(VignetteConstants)) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, last_error_,
-                            nullptr, sizeof(ColourAdjustConstants)) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, pixelate_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, pixelate_pipeline_, last_error_,
-                            nullptr, sizeof(PixelateConstants)) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, radial_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, radial_pipeline_, last_error_,
-                            nullptr, sizeof(RadialConstants)) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, last_error_,
-                            nullptr, sizeof(HeatConstants)) ||
-                            !context_.create_graphics_pipeline(lighting_vertex_module_, shockwave_fragment_module_,
-                                descriptor_layout_, PrimitiveType::triangle_fan, shockwave_pipeline_, last_error_,
-                                nullptr, sizeof(ShockwaveConstants)) ||
-                            !context_.create_graphics_pipeline(lighting_vertex_module_, film_grain_fragment_module_,
-                                descriptor_layout_, PrimitiveType::triangle_fan, film_grain_pipeline_, last_error_,
-                                nullptr, sizeof(FilmGrainConstants)) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
-                            descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, last_error_,
-                            nullptr, sizeof(ChromaticConstants)) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
-                        nullptr, sizeof(BrightConstants)) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
-                        descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, last_error_,
-                        nullptr, sizeof(BlurConstants), false, true) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
-                        composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, last_error_,
-                        nullptr, sizeof(CompositeConstants)))
+                    if (!create_pipelines(last_error_) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
+                            lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, last_error_,
+                            &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)) ||
+                        !create_effect_pipelines(last_error_))
                 {
                     error = last_error_;
                     return false;
@@ -510,79 +443,79 @@ namespace sl::detail
                     return true;
                 }
                 if (vertex_source.asset_id == "vignette" && fragment_source.asset_id == "vignette" &&
-                    vignette_pipeline_.pipeline != VK_NULL_HANDLE)
+                    vignette_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
-                    program = vignette_program_;
+                    program = vignette_effect_.program;
                     return true;
                 }
                 if (vertex_source.asset_id == "colour-adjust" && fragment_source.asset_id == "colour-adjust" &&
-                    colour_adjust_pipeline_.pipeline != VK_NULL_HANDLE)
+                    colour_adjust_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
-                    program = colour_adjust_program_;
+                    program = colour_adjust_effect_.program;
                     return true;
                 }
                 if (vertex_source.asset_id == "chromatic-aberration" && fragment_source.asset_id == "chromatic-aberration" &&
-                    chromatic_pipeline_.pipeline != VK_NULL_HANDLE)
+                    chromatic_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
-                    program = chromatic_program_;
+                    program = chromatic_effect_.program;
                     return true;
                 }
                 if (vertex_source.asset_id == "pixelate" && fragment_source.asset_id == "pixelate" &&
-                    pixelate_pipeline_.pipeline != VK_NULL_HANDLE)
+                    pixelate_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = pixelate_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "radial-blur" && fragment_source.asset_id == "radial-blur" &&
-                    radial_pipeline_.pipeline != VK_NULL_HANDLE)
+                    radial_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = radial_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "heat-haze" && fragment_source.asset_id == "heat-haze" &&
-                    heat_pipeline_.pipeline != VK_NULL_HANDLE)
+                    heat_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = heat_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "shockwave" && fragment_source.asset_id == "shockwave" &&
-                    shockwave_pipeline_.pipeline != VK_NULL_HANDLE)
+                    shockwave_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = shockwave_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "crt" && fragment_source.asset_id == "crt" &&
-                    crt_pipeline_.pipeline != VK_NULL_HANDLE)
+                    crt_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = crt_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "dither" && fragment_source.asset_id == "dither" &&
-                    dither_pipeline_.pipeline != VK_NULL_HANDLE)
+                    dither_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = dither_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "film-grain" && fragment_source.asset_id == "film-grain" &&
-                    film_grain_pipeline_.pipeline != VK_NULL_HANDLE)
+                    film_grain_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = film_grain_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "bloom-bright" && fragment_source.asset_id == "bloom-bright" &&
-                    bright_pipeline_.pipeline != VK_NULL_HANDLE)
+                    bright_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = bright_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "bloom-blur" && fragment_source.asset_id == "bloom-blur" &&
-                    blur_pipeline_.pipeline != VK_NULL_HANDLE)
+                    blur_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = blur_program_;
                     return true;
                 }
                 if (vertex_source.asset_id == "bloom-composite" && fragment_source.asset_id == "bloom-composite" &&
-                    composite_pipeline_.pipeline != VK_NULL_HANDLE)
+                    composite_effect_.pipeline.pipeline != VK_NULL_HANDLE)
                 {
                     program = composite_program_;
                     return true;
@@ -645,10 +578,7 @@ namespace sl::detail
                     active_program_ = program;
                     return true;
                 }
-                if (program != cull_program_ && program != lighting_program_ && program != vignette_program_ &&
-                    program != colour_adjust_program_ && program != bright_program_ && program != blur_program_ &&
-                    program != composite_program_ && program != crt_program_ && program != dither_program_ &&
-                    program != shockwave_program_ && program != film_grain_program_) return false;
+                if (program_kind(program) == BuiltinProgram::unknown && program != cull_program_) return false;
                 active_program_ = program;
                 return true;
             }
@@ -663,37 +593,28 @@ namespace sl::detail
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
                 if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
-                if (program == colour_adjust_program_ && name && std::strcmp(name, "source") == 0)
+                if (program == colour_adjust_effect_.program && name && std::strcmp(name, "source") == 0)
                 {
                     active_program_ = program;
                     return true;
                 }
-                if (program == radial_program_ && name && std::strcmp(name, "samples") == 0)
+                if (program_kind(program) == BuiltinProgram::radial && name && std::strcmp(name, "samples") == 0)
                 {
                     active_program_ = program;
                     radial_constants_.samples = value;
                     return true;
                 }
-                if (program == blur_program_ && name)
+                if (program_kind(program) == BuiltinProgram::blur && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "premultipliedSource") == 0)
-                    {
-                        blur_constants_.premultiplied_source = value;
-                        return true;
-                    }
-                    if (std::strcmp(name, "premultipliedOutput") == 0)
-                    {
-                        blur_constants_.premultiplied_output = value;
-                        return true;
-                    }
+                    return set_blur_uniform(name, value);
                 }
                 if (program == cull_program_ && name && std::strcmp(name, "lightCount") == 0)
                 {
                     cull_constants_[4] = value;
                     return true;
                 }
-                if (program == lighting_program_ && name)
+                if (program_kind(program) == BuiltinProgram::lighting && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "lightCount") == 0) lighting_constants_.light_count = value;
@@ -707,22 +628,22 @@ namespace sl::detail
             bool set_shader_float(std::uint32_t program, const char *name, float value) override
             {
                 if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
-                if (program == lighting_program_ && name && std::strcmp(name, "ambient") == 0)
+                if (program_kind(program) == BuiltinProgram::lighting && name && std::strcmp(name, "ambient") == 0)
                 {
                     active_program_ = program;
                     lighting_constants_.ambient = value;
                     return true;
                 }
-                if (program == vignette_program_ && name)
+                if (program == vignette_effect_.program && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "radius") == 0) vignette_constants_.radius = value;
-                    else if (std::strcmp(name, "softness") == 0) vignette_constants_.softness = value;
-                    else if (std::strcmp(name, "intensity") == 0) vignette_constants_.intensity = value;
+                    if (std::strcmp(name, "radius") == 0) vignette_effect_.constants.radius = value;
+                    else if (std::strcmp(name, "softness") == 0) vignette_effect_.constants.softness = value;
+                    else if (std::strcmp(name, "intensity") == 0) vignette_effect_.constants.intensity = value;
                     else return true;
                     return true;
                 }
-                if (program == colour_adjust_program_ && name)
+                if (program == colour_adjust_effect_.program && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "brightness") == 0) colour_adjust_constants_.values[0] = value;
@@ -732,20 +653,20 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
-                if (program == chromatic_program_ && name && std::strcmp(name, "strength") == 0)
+                if (program == chromatic_effect_.program && name && std::strcmp(name, "strength") == 0)
                 {
                     active_program_ = program;
                     chromatic_constants_.strength = value;
                     return true;
                 }
-                if (program == pixelate_program_ && name && std::strcmp(name, "pixelSize") == 0)
+                if (program_kind(program) == BuiltinProgram::pixelate && name && std::strcmp(name, "pixelSize") == 0)
                 {
                     active_program_ = program;
                     pixelate_constants_.pixel_size[0] = value;
                     pixelate_constants_.pixel_size[1] = value;
                     return true;
                 }
-                if (program == crt_program_ && name)
+                if (program_kind(program) == BuiltinProgram::crt && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "pixelSize") == 0) { crt_constants_.pixel_size = value; return true; }
@@ -753,14 +674,14 @@ namespace sl::detail
                     if (std::strcmp(name, "curvature") == 0) { crt_constants_.curvature = value; return true; }
                     return true;
                 }
-                if (program == dither_program_ && name)
+                if (program_kind(program) == BuiltinProgram::dither && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "pixelSize") == 0) { dither_constants_.pixel_size = value; return true; }
                     if (std::strcmp(name, "levels") == 0) { dither_constants_.levels = value; return true; }
                     return true;
                 }
-                if (program == film_grain_program_ && name)
+                if (program_kind(program) == BuiltinProgram::film_grain && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "strength") == 0) film_grain_constants_.strength = value;
@@ -768,14 +689,14 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
-                if (program == radial_program_ && name)
+                if (program_kind(program) == BuiltinProgram::radial && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "strength") == 0) radial_constants_.strength = value;
                     else return true;
                     return true;
                 }
-                if (program == heat_program_ && name)
+                if (program_kind(program) == BuiltinProgram::heat && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "strength") == 0) heat_constants_.strength = value;
@@ -784,7 +705,7 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
-                if (program == shockwave_program_ && name)
+                if (program_kind(program) == BuiltinProgram::shockwave && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "radius") == 0) shockwave_constants_.radius = value;
@@ -793,37 +714,18 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
-                if (program == bright_program_ && name && std::strcmp(name, "threshold") == 0)
+                if (program_kind(program) == BuiltinProgram::bright && name && std::strcmp(name, "threshold") == 0)
                 {
                     active_program_ = program;
                     bright_constants_.threshold = value;
                     return true;
                 }
-                if (program == blur_program_ && name && std::strcmp(name, "radius") == 0)
+                if (program_kind(program) == BuiltinProgram::blur && name)
                 {
                     active_program_ = program;
-                    blur_constants_.radius = value;
-                    return true;
+                    return set_blur_uniform(name, value);
                 }
-                if (program == blur_program_ && name && std::strcmp(name, "premultipliedSource") == 0)
-                {
-                    active_program_ = program;
-                    blur_constants_.premultiplied_source = value;
-                    return true;
-                }
-                if (program == blur_program_ && name && std::strcmp(name, "opacity") == 0)
-                {
-                    active_program_ = program;
-                    blur_constants_.opacity = value;
-                    return true;
-                }
-                if (program == blur_program_ && name && std::strcmp(name, "premultipliedOutput") == 0)
-                {
-                    active_program_ = program;
-                    blur_constants_.premultiplied_output = value;
-                    return true;
-                }
-                if (program == composite_program_ && name && std::strcmp(name, "intensity") == 0)
+                if (program_kind(program) == BuiltinProgram::composite && name && std::strcmp(name, "intensity") == 0)
                 {
                     active_program_ = program;
                     composite_constants_.intensity = value;
@@ -838,41 +740,41 @@ namespace sl::detail
                     const float values[2] = {x, y};
                     return set_dynamic_uniform(program, name, values, sizeof(values));
                 }
-                if (program == blur_program_ && name)
+                if (program_kind(program) == BuiltinProgram::blur && name)
                 {
                     active_program_ = program;
                     if (std::strcmp(name, "texel") == 0) { blur_constants_.texel[0] = x; blur_constants_.texel[1] = y; return true; }
                     if (std::strcmp(name, "direction") == 0) { blur_constants_.direction[0] = x; blur_constants_.direction[1] = y; return true; }
                 }
-                if (program == pixelate_program_ && name && std::strcmp(name, "resolution") == 0)
+                if (program_kind(program) == BuiltinProgram::pixelate && name && std::strcmp(name, "resolution") == 0)
                 {
                     active_program_ = program;
                     pixelate_constants_.resolution[0] = x;
                     pixelate_constants_.resolution[1] = y;
                     return true;
                 }
-                if (program == crt_program_ && name && std::strcmp(name, "resolution") == 0)
+                if (program_kind(program) == BuiltinProgram::crt && name && std::strcmp(name, "resolution") == 0)
                 {
                     active_program_ = program;
                     crt_constants_.resolution[0] = x;
                     crt_constants_.resolution[1] = y;
                     return true;
                 }
-                if (program == dither_program_ && name && std::strcmp(name, "resolution") == 0)
+                if (program_kind(program) == BuiltinProgram::dither && name && std::strcmp(name, "resolution") == 0)
                 {
                     active_program_ = program;
                     dither_constants_.resolution[0] = x;
                     dither_constants_.resolution[1] = y;
                     return true;
                 }
-                if (program == radial_program_ && name && std::strcmp(name, "centre") == 0)
+                if (program_kind(program) == BuiltinProgram::radial && name && std::strcmp(name, "centre") == 0)
                 {
                     active_program_ = program;
                     radial_constants_.centre[0] = x;
                     radial_constants_.centre[1] = y;
                     return true;
                 }
-                if (program == shockwave_program_ && name && std::strcmp(name, "centre") == 0)
+                if (program_kind(program) == BuiltinProgram::shockwave && name && std::strcmp(name, "centre") == 0)
                 {
                     active_program_ = program;
                     shockwave_constants_.centre[0] = x;
@@ -889,7 +791,7 @@ namespace sl::detail
                     return set_dynamic_uniform(program, name, values, sizeof(values));
                 }
                 if (!name) return unsupported();
-                if (program == lighting_program_ && std::strcmp(name, "tileCount") == 0)
+                if (program_kind(program) == BuiltinProgram::lighting && std::strcmp(name, "tileCount") == 0)
                 {
                     active_program_ = program;
                     lighting_constants_.tile_count_x = x;
@@ -926,68 +828,69 @@ namespace sl::detail
                 {
                     return set_dynamic_uniform(program, name, matrix, sizeof(float) * 16);
                 }
-                if (program == lighting_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::lighting && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, lighting_projection_.size(), lighting_projection_.begin());
                     return true;
                 }
-                if (program == vignette_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program == vignette_effect_.program && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, vignette_projection_.size(), vignette_projection_.begin());
                     return true;
                 }
-                if ((program == bright_program_ || program == blur_program_ || program == composite_program_) &&
+                if ((program_kind(program) == BuiltinProgram::bright || program_kind(program) == BuiltinProgram::blur ||
+                    program_kind(program) == BuiltinProgram::composite) &&
                     name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == colour_adjust_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program == colour_adjust_effect_.program && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == chromatic_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program == chromatic_effect_.program && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == pixelate_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::pixelate && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == radial_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::radial && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == heat_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::heat && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == shockwave_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::shockwave && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == film_grain_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::film_grain && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
-                if (program == crt_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                if (program_kind(program) == BuiltinProgram::crt && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
@@ -1124,7 +1027,7 @@ namespace sl::detail
                         static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
                     return;
                 }
-                if (active_program_ == lighting_program_)
+                if (program_kind(active_program_) == BuiltinProgram::lighting)
                 {
                     lighting_textures_[0] = texture_handle;
                     std::array<VulkanImage, 9> images{};
@@ -1150,7 +1053,7 @@ namespace sl::detail
                         lighting_projection_.data(), &lighting_constants_, sizeof(lighting_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == composite_program_)
+                if (program_kind(active_program_) == BuiltinProgram::composite)
                 {
                     VulkanImage images[2]{};
                     VulkanSampler samplers[2]{};
@@ -1165,7 +1068,7 @@ namespace sl::detail
                             images, samplers, composite_descriptor_, last_error_)
                         : context_.update_composite_descriptor(composite_descriptor_, images, samplers, last_error_);
                     if (!descriptor_ready) return;
-                    context_.record_postprocess_draw(composite_pipeline_.pipeline, composite_pipeline_.layout,
+                    context_.record_postprocess_draw(composite_effect_.pipeline.pipeline, composite_effect_.pipeline.layout,
                         buffer.buffer, composite_descriptor_, static_cast<std::uint32_t>(upload_count),
                         postprocess_projection_.data(), &composite_constants_, sizeof(composite_constants_), last_error_);
                     return;
@@ -1193,86 +1096,86 @@ namespace sl::detail
                     }
                 }
                 if (descriptor == VK_NULL_HANDLE) return;
-                if (active_program_ == vignette_program_)
+                if (active_program_ == vignette_effect_.program)
                 {
-                    context_.record_postprocess_draw(vignette_pipeline_.pipeline, vignette_pipeline_.layout,
+                    context_.record_postprocess_draw(vignette_effect_.pipeline.pipeline, vignette_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), vignette_projection_.data(),
-                        &vignette_constants_, sizeof(vignette_constants_), last_error_);
+                        &vignette_effect_.constants, sizeof(vignette_effect_.constants), last_error_);
                     return;
                 }
-                if (active_program_ == colour_adjust_program_)
+                if (active_program_ == colour_adjust_effect_.program)
                 {
-                    context_.record_postprocess_draw(colour_adjust_pipeline_.pipeline, colour_adjust_pipeline_.layout,
+                    context_.record_postprocess_draw(colour_adjust_effect_.pipeline.pipeline, colour_adjust_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == chromatic_program_)
+                if (active_program_ == chromatic_effect_.program)
                 {
-                    context_.record_postprocess_draw(chromatic_pipeline_.pipeline, chromatic_pipeline_.layout,
+                    context_.record_postprocess_draw(chromatic_effect_.pipeline.pipeline, chromatic_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &chromatic_constants_, sizeof(chromatic_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == pixelate_program_)
+                if (program_kind(active_program_) == BuiltinProgram::pixelate)
                 {
-                    context_.record_postprocess_draw(pixelate_pipeline_.pipeline, pixelate_pipeline_.layout,
+                    context_.record_postprocess_draw(pixelate_effect_.pipeline.pipeline, pixelate_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &pixelate_constants_, sizeof(pixelate_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == radial_program_)
+                if (program_kind(active_program_) == BuiltinProgram::radial)
                 {
-                    context_.record_postprocess_draw(radial_pipeline_.pipeline, radial_pipeline_.layout,
+                    context_.record_postprocess_draw(radial_effect_.pipeline.pipeline, radial_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &radial_constants_, sizeof(radial_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == heat_program_)
+                if (program_kind(active_program_) == BuiltinProgram::heat)
                 {
-                    context_.record_postprocess_draw(heat_pipeline_.pipeline, heat_pipeline_.layout,
+                    context_.record_postprocess_draw(heat_effect_.pipeline.pipeline, heat_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &heat_constants_, sizeof(heat_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == shockwave_program_)
+                if (program_kind(active_program_) == BuiltinProgram::shockwave)
                 {
-                    context_.record_postprocess_draw(shockwave_pipeline_.pipeline, shockwave_pipeline_.layout,
+                    context_.record_postprocess_draw(shockwave_effect_.pipeline.pipeline, shockwave_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &shockwave_constants_, sizeof(shockwave_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == crt_program_)
+                if (program_kind(active_program_) == BuiltinProgram::crt)
                 {
-                    context_.record_postprocess_draw(crt_pipeline_.pipeline, crt_pipeline_.layout,
+                    context_.record_postprocess_draw(crt_effect_.pipeline.pipeline, crt_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &crt_constants_, sizeof(crt_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == dither_program_)
+                if (program_kind(active_program_) == BuiltinProgram::dither)
                 {
-                    context_.record_postprocess_draw(dither_pipeline_.pipeline, dither_pipeline_.layout,
+                    context_.record_postprocess_draw(dither_effect_.pipeline.pipeline, dither_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &dither_constants_, sizeof(dither_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == film_grain_program_)
+                if (program_kind(active_program_) == BuiltinProgram::film_grain)
                 {
-                    context_.record_postprocess_draw(film_grain_pipeline_.pipeline, film_grain_pipeline_.layout,
+                    context_.record_postprocess_draw(film_grain_effect_.pipeline.pipeline, film_grain_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &film_grain_constants_, sizeof(film_grain_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == bright_program_)
+                if (program_kind(active_program_) == BuiltinProgram::bright)
                 {
-                    context_.record_postprocess_draw(bright_pipeline_.pipeline, bright_pipeline_.layout,
+                    context_.record_postprocess_draw(bright_effect_.pipeline.pipeline, bright_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &bright_constants_, sizeof(bright_constants_), last_error_);
                     return;
                 }
-                if (active_program_ == blur_program_)
+                if (program_kind(active_program_) == BuiltinProgram::blur)
                 {
-                    context_.record_postprocess_draw(blur_pipeline_.pipeline, blur_pipeline_.layout,
+                    context_.record_postprocess_draw(blur_effect_.pipeline.pipeline, blur_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &blur_constants_, sizeof(blur_constants_), last_error_);
                     return;
@@ -1330,7 +1233,7 @@ namespace sl::detail
                         dynamic_iterator->second.bound_textures[unit] = texture;
                     return;
                 }
-                if (active_program_ == composite_program_ && unit == 1)
+                if (program_kind(active_program_) == BuiltinProgram::composite && unit == 1)
                 {
                     composite_bloom_texture_ = texture;
                     return;
@@ -1343,6 +1246,88 @@ namespace sl::detail
             }
 
         private:
+            enum class BuiltinProgram
+            {
+                unknown,
+                lighting,
+                vignette,
+                colour_adjust,
+                chromatic,
+                pixelate,
+                radial,
+                heat,
+                shockwave,
+                crt,
+                dither,
+                film_grain,
+                bright,
+                blur,
+                composite,
+            };
+
+            static BuiltinProgram program_kind(std::uint32_t program)
+            {
+                if (program == lighting_program_) return BuiltinProgram::lighting;
+                if (program == vignette_program_) return BuiltinProgram::vignette;
+                if (program == colour_adjust_program_) return BuiltinProgram::colour_adjust;
+                if (program == chromatic_program_) return BuiltinProgram::chromatic;
+                if (program == pixelate_program_) return BuiltinProgram::pixelate;
+                if (program == radial_program_) return BuiltinProgram::radial;
+                if (program == heat_program_) return BuiltinProgram::heat;
+                if (program == shockwave_program_) return BuiltinProgram::shockwave;
+                if (program == crt_program_) return BuiltinProgram::crt;
+                if (program == dither_program_) return BuiltinProgram::dither;
+                if (program == film_grain_program_) return BuiltinProgram::film_grain;
+                if (program == bright_program_) return BuiltinProgram::bright;
+                if (program == blur_program_) return BuiltinProgram::blur;
+                if (program == composite_program_) return BuiltinProgram::composite;
+                return BuiltinProgram::unknown;
+            }
+
+            bool set_blur_uniform(const char *name, float value)
+            {
+                struct Field
+                {
+                    const char *name;
+                    enum class Kind { radius, opacity } kind;
+                };
+                static constexpr Field fields[] = {
+                    {"radius", Field::Kind::radius},
+                    {"opacity", Field::Kind::opacity},
+                };
+                for (const Field &field : fields)
+                {
+                    if (std::strcmp(name, field.name) != 0) continue;
+                    if (field.kind == Field::Kind::radius) blur_constants_.radius = value;
+                    else blur_constants_.opacity = value;
+                    return true;
+                }
+                return unsupported();
+            }
+
+            bool set_blur_uniform(const char *name, int value)
+            {
+                struct Field
+                {
+                    const char *name;
+                    enum class Kind { premultiplied_source, premultiplied_output } kind;
+                };
+                static constexpr Field fields[] = {
+                    {"premultipliedSource", Field::Kind::premultiplied_source},
+                    {"premultipliedOutput", Field::Kind::premultiplied_output},
+                };
+                for (const Field &field : fields)
+                {
+                    if (std::strcmp(name, field.name) != 0) continue;
+                    if (field.kind == Field::Kind::premultiplied_source)
+                        blur_constants_.premultiplied_source = value;
+                    else
+                        blur_constants_.premultiplied_output = value;
+                    return true;
+                }
+                return unsupported();
+            }
+
             bool update_storage_descriptor()
             {
                 VulkanBuffer buffers[3]{};
@@ -1365,6 +1350,41 @@ namespace sl::detail
                     context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, pipelines_[2], error) &&
                     context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, pipelines_[3], error) &&
                     context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
+            }
+
+            bool create_effect_pipelines(std::string &error)
+            {
+                struct EffectSpec
+                {
+                    BuiltinEffect *effect;
+                    const VulkanShaderModule *fragment;
+                    const VulkanDescriptorSetLayout *descriptors;
+                    std::uint32_t push_constant_size;
+                    bool premultiplied_alpha;
+                };
+                const EffectSpec effects[] = {
+                    {&vignette_effect_, &vignette_fragment_module_, &descriptor_layout_, sizeof(BuiltinEffect::VignetteConstants), false},
+                    {&colour_adjust_effect_, &colour_adjust_fragment_module_, &descriptor_layout_, sizeof(ColourAdjustConstants), false},
+                    {&pixelate_effect_, &pixelate_fragment_module_, &descriptor_layout_, sizeof(PixelateConstants), false},
+                    {&radial_effect_, &radial_fragment_module_, &descriptor_layout_, sizeof(RadialConstants), false},
+                    {&heat_effect_, &heat_fragment_module_, &descriptor_layout_, sizeof(HeatConstants), false},
+                    {&shockwave_effect_, &shockwave_fragment_module_, &descriptor_layout_, sizeof(ShockwaveConstants), false},
+                    {&chromatic_effect_, &chromatic_fragment_module_, &descriptor_layout_, sizeof(ChromaticConstants), false},
+                    {&crt_effect_, &crt_fragment_module_, &descriptor_layout_, sizeof(CRTConstants), false},
+                    {&dither_effect_, &dither_fragment_module_, &descriptor_layout_, sizeof(DitherConstants), false},
+                    {&film_grain_effect_, &film_grain_fragment_module_, &descriptor_layout_, sizeof(FilmGrainConstants), false},
+                    {&bright_effect_, &bright_fragment_module_, &descriptor_layout_, sizeof(BrightConstants), false},
+                    {&blur_effect_, &blur_fragment_module_, &descriptor_layout_, sizeof(BlurConstants), true},
+                    {&composite_effect_, &composite_fragment_module_, &composite_descriptor_layout_, sizeof(CompositeConstants), false},
+                };
+                for (const EffectSpec &effect : effects)
+                {
+                    if (!context_.create_graphics_pipeline(lighting_vertex_module_, *effect.fragment,
+                        *effect.descriptors, PrimitiveType::triangle_fan, effect.effect->pipeline, error,
+                        nullptr, effect.push_constant_size, false, effect.premultiplied_alpha))
+                        return false;
+                }
+                return true;
             }
 
             bool unsupported()
@@ -1460,31 +1480,38 @@ namespace sl::detail
             VulkanShaderModule lighting_fragment_module_;
             VulkanGraphicsPipeline lighting_pipeline_;
             VulkanShaderModule vignette_fragment_module_;
-            VulkanGraphicsPipeline vignette_pipeline_;
+            struct BuiltinEffect
+            {
+                struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; };
+                std::uint32_t program = 0;
+                VulkanGraphicsPipeline pipeline;
+                VignetteConstants constants;
+            };
+            BuiltinEffect vignette_effect_{vignette_program_, {}};
             VulkanShaderModule colour_adjust_fragment_module_;
-            VulkanGraphicsPipeline colour_adjust_pipeline_;
+            BuiltinEffect colour_adjust_effect_{colour_adjust_program_, {}};
             VulkanShaderModule chromatic_fragment_module_;
-            VulkanGraphicsPipeline chromatic_pipeline_;
+            BuiltinEffect chromatic_effect_{chromatic_program_, {}};
             VulkanShaderModule pixelate_fragment_module_;
-            VulkanGraphicsPipeline pixelate_pipeline_;
+            BuiltinEffect pixelate_effect_{pixelate_program_, {}};
             VulkanShaderModule radial_fragment_module_;
-            VulkanGraphicsPipeline radial_pipeline_;
+            BuiltinEffect radial_effect_{radial_program_, {}};
             VulkanShaderModule heat_fragment_module_;
-            VulkanGraphicsPipeline heat_pipeline_;
+            BuiltinEffect heat_effect_{heat_program_, {}};
             VulkanShaderModule shockwave_fragment_module_;
-            VulkanGraphicsPipeline shockwave_pipeline_;
+            BuiltinEffect shockwave_effect_{shockwave_program_, {}};
             VulkanShaderModule crt_fragment_module_;
-            VulkanGraphicsPipeline crt_pipeline_;
+            BuiltinEffect crt_effect_{crt_program_, {}};
             VulkanShaderModule dither_fragment_module_;
-            VulkanGraphicsPipeline dither_pipeline_;
+            BuiltinEffect dither_effect_{dither_program_, {}};
             VulkanShaderModule film_grain_fragment_module_;
-            VulkanGraphicsPipeline film_grain_pipeline_;
+            BuiltinEffect film_grain_effect_{film_grain_program_, {}};
             VulkanShaderModule bright_fragment_module_;
-            VulkanGraphicsPipeline bright_pipeline_;
+            BuiltinEffect bright_effect_{bright_program_, {}};
             VulkanShaderModule blur_fragment_module_;
-            VulkanGraphicsPipeline blur_pipeline_;
+            BuiltinEffect blur_effect_{blur_program_, {}};
             VulkanShaderModule composite_fragment_module_;
-            VulkanGraphicsPipeline composite_pipeline_;
+            BuiltinEffect composite_effect_{composite_program_, {}};
             VulkanDescriptorSetLayout composite_descriptor_layout_;
             VkDescriptorSet composite_descriptor_ = VK_NULL_HANDLE;
             std::uint32_t composite_bloom_texture_ = 0;
@@ -1536,7 +1563,6 @@ namespace sl::detail
             } lighting_constants_;
             std::array<float, 16> lighting_projection_{};
             std::array<std::uint32_t, 9> lighting_textures_{};
-            struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; } vignette_constants_;
             struct ColourAdjustConstants { float values[4] = {0.0f, 1.0f, 1.0f, 0.0f}; } colour_adjust_constants_;
             struct ChromaticConstants { float strength = 0.0f; } chromatic_constants_;
             struct PixelateConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size[2] = {8.0f, 8.0f}; } pixelate_constants_;

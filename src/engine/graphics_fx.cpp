@@ -106,7 +106,8 @@ namespace sl
 			return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
 		}
 
-		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture, bool flipVertical)
+		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture,
+			bool flipVertical, bool premultipliedAlpha)
 		{
 			const float left = static_cast<float>(x);
 			const float top = static_cast<float>(y);
@@ -121,7 +122,7 @@ namespace sl
 				{left, bottom, 0.0f, bottomV, 1.0f, 1.0f, 1.0f, 1.0f},
 			};
 			if (detail::Renderer *renderer = detail::active_renderer())
-				renderer->set_premultiplied_alpha(true);
+				renderer->set_premultiplied_alpha(premultipliedAlpha);
 			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture);
 		}
 	} // namespace detail

@@ -15,5 +15,6 @@ namespace sl::detail
     std::string load_glsl_shader(const char *name);
 
     /** Draw a textured quad at (x, y, width, height), used by every fullscreen effect pass. */
-    void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture, bool flipVertical);
+    void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture,
+                                bool flipVertical, bool premultipliedAlpha = true);
 }

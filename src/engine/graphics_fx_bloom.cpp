@@ -147,6 +147,9 @@ namespace sl
 
 		const int smallWidth = std::max(1, width / downsample_);
 		const int smallHeight = std::max(1, height / downsample_);
+		const bool opengl = graphics_backend() == GraphicsBackend::opengl;
+		const float effectiveIntensity = opengl ? intensity_ * 0.12f : intensity_;
+		const float effectiveRadius = opengl ? radius_ * 0.45f : radius_;
 		if (!ensure_targets(smallWidth, smallHeight))
 		{
 			return;
@@ -161,7 +164,7 @@ namespace sl
 		brightShader_.set_uniform("threshold", threshold_);
 		detail::gl2d_ortho_matrix(smallWidth, smallHeight, projection);
 		brightShader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(0, 0, smallWidth, smallHeight, source->gpu_texture, flipVertical);
+		submit_fullscreen_quad(0, 0, smallWidth, smallHeight, source->gpu_texture, flipVertical, false);
 		end_render_target();
 
 		// repeat the separable blur several times: a small single pass can only spread a
@@ -175,8 +178,11 @@ namespace sl
 			begin_render_target(blurDestination);
 			clear_render_target(Colour{0, 0, 0, 0});
 			blurShader_.set_uniform("source", 0);
+			blurShader_.set_uniform("premultipliedSource", 1);
+			blurShader_.set_uniform("premultipliedOutput", 1);
+			blurShader_.set_uniform("opacity", 1.0f);
 			blurShader_.set_uniform("texel", 1.0f / smallWidth, 1.0f / smallHeight);
-			blurShader_.set_uniform("radius", radius_);
+			blurShader_.set_uniform("radius", effectiveRadius);
 			blurShader_.set_uniform("direction", 1.0f, 0.0f);
 			detail::gl2d_ortho_matrix(smallWidth, smallHeight, projection);
 			blurShader_.set_uniform_mat4("uProjection", projection);
@@ -194,7 +200,7 @@ namespace sl
 		}
 
 		// pass 4: composite the blurred glow back over the full-resolution source
-		compositeShader_.set_uniform("intensity", intensity_);
+		compositeShader_.set_uniform("intensity", effectiveIntensity);
 		if (detail::Renderer *renderer = detail::active_renderer())
 			renderer->bind_texture_unit(1, blurSource->gpu_texture);
 		compositeShader_.set_uniform("bloomTex", 1);
