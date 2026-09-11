@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is a small Allegro 4-style 2D game and rendering library built on
+`simlib` is a small Allegro4 style 2D game and rendering library built on
 SDL2, with selectable OpenGL 4.3 and Vulkan backends. It provides bitmap
 primitives and sprites, TrueType text, Dear ImGui integration, SDL_mixer audio,
 render targets and lighting effects, ZIP resource archives, Perlin/simplex
