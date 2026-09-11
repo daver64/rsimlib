@@ -228,10 +228,10 @@ ctest --test-dir build
 ## Running the examples
 
 ```bash
-./exhello --vulkan   # every graphical example also accepts --gl
-./exfont    # proportional and monospace TrueType font demo
+./exhello # every graphical example also accepts --gl
+./exfont  # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
-./exlighting --vulkan # radial lights and polygon shadows demo
+./exlighting # radial lights and polygon shadows demo
 ./exphysics # Box2D physics demo
 ./exvulkan # textured-quad smoke test (OpenGL by default)
 ./exdb # SQLite example; removes its temporary database on exit
@@ -243,10 +243,10 @@ ctest --test-dir build
 ./exparticles # particle emitter example
 ./exresources # packaged asset archive example
 ./expostprocess # Bloom and Vignette example
-./ex3d --gl # direct OpenGL 3D example
-./ex3d_vulkan --vulkan # direct Vulkan 3D example
-./sltest --vulkan # sample game: menu, physics playground, Lua console
-./slpack    # pack files into a ZIP resource archive
+./ex3d # direct OpenGL 3D example
+./ex3d_vulkan # direct Vulkan 3D example
+./sltest # sample game: menu, physics playground, Lua console
+./slpack # pack files into a ZIP resource archive
 ```
 
 In `sltest`, press `4` from the menu to open the embedded Lua console —
