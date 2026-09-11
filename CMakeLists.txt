@@ -27,6 +27,9 @@ if(SIMLIB_VALIDATE_SHADERS)
             blur.frag
             composite.frag
             vignette.frag
+            tint.frag
+            ex3d.vert
+            ex3d.frag
             lighting.frag
             light_cull.comp
         )
@@ -65,7 +68,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_composite.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -371,6 +374,58 @@ set_target_properties(exshader PROPERTIES
 add_executable(exrendertarget src/examples/exrendertarget/exrendertarget.cpp)
 target_link_libraries(exrendertarget PRIVATE simlib)
 set_target_properties(exrendertarget PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exaudio src/examples/exaudio/exaudio.cpp)
+target_link_libraries(exaudio PRIVATE simlib)
+set_target_properties(exaudio PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exinput src/examples/exinput/exinput.cpp)
+target_link_libraries(exinput PRIVATE simlib)
+set_target_properties(exinput PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exgui src/examples/exgui/exgui.cpp)
+target_link_libraries(exgui PRIVATE simlib imgui)
+set_target_properties(exgui PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exparticles src/examples/exparticles/exparticles.cpp)
+target_link_libraries(exparticles PRIVATE simlib)
+set_target_properties(exparticles PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(exresources src/examples/exresources/exresources.cpp)
+target_link_libraries(exresources PRIVATE simlib)
+set_target_properties(exresources PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(expostprocess src/examples/expostprocess/expostprocess.cpp)
+target_link_libraries(expostprocess PRIVATE simlib)
+set_target_properties(expostprocess PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(ex3d src/examples/ex3d/ex3d.cpp)
+target_link_libraries(ex3d PRIVATE simlib)
+set_target_properties(ex3d PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
+target_include_directories(ex3d_vulkan PRIVATE src/engine)
+target_compile_definitions(ex3d_vulkan PRIVATE
+    SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
+)
+target_link_libraries(ex3d_vulkan PRIVATE simlib)
+set_target_properties(ex3d_vulkan PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 

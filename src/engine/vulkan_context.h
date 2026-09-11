@@ -58,6 +58,12 @@ namespace sl::detail
         VkPipelineLayout layout = VK_NULL_HANDLE;
     };
 
+    struct Vulkan3DVertex
+    {
+        float position[3];
+        float colour[3];
+    };
+
     struct VulkanComputePipeline
     {
         VkPipeline pipeline = VK_NULL_HANDLE;
@@ -80,6 +86,7 @@ namespace sl::detail
         void destroy_swapchain();
         bool begin_frame(std::string &error);
         bool end_frame(std::string &error);
+        bool frame_active() const { return frame_active_; }
         bool begin_offscreen_render_pass(VkFramebuffer framebuffer, int width, int height,
                          std::string &error);
         bool end_offscreen_render_pass(std::string &error);
@@ -87,6 +94,9 @@ namespace sl::detail
                     VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
                     std::uint32_t vertex_count, PrimitiveType topology,
                     const float *projection, std::string &error);
+                bool record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                        VkBuffer vertex_buffer, std::uint32_t vertex_count,
+                        const float *mvp, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                 VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
                 VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
@@ -175,7 +185,8 @@ namespace sl::detail
                           PrimitiveType topology,
                           VulkanGraphicsPipeline &result, std::string &error,
                           const VulkanStorageDescriptorLayout *storage_layout = nullptr,
-                          std::uint32_t fragment_push_constant_size = 0);
+                          std::uint32_t fragment_push_constant_size = 0,
+                          bool three_dimensional = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
             bool create_compute_pipeline(const VulkanShaderModule &compute,
                                          const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -191,6 +202,7 @@ namespace sl::detail
         std::uint32_t graphics_queue_family() const { return graphics_queue_family_; }
         VkRenderPass render_pass() const { return render_pass_; }
         VkFormat render_target_format() const { return swapchain_format_; }
+        VkFormat depth_format() const { return depth_format_; }
         VkCommandBuffer command_buffer() const { return command_buffer_; }
         std::uint32_t swapchain_image_count() const { return static_cast<std::uint32_t>(framebuffers_.size()); }
 
@@ -203,6 +215,7 @@ namespace sl::detail
         unsigned int graphics_queue_family_ = 0;
         VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
         VkFormat swapchain_format_ = VK_FORMAT_UNDEFINED;
+        VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
         VkExtent2D swapchain_extent_{};
         std::vector<VkImage> swapchain_images_;
         std::vector<VkImageView> swapchain_image_views_;
@@ -212,6 +225,7 @@ namespace sl::detail
         VkRenderPass offscreen_render_pass_ = VK_NULL_HANDLE;
         VkRenderPass resume_offscreen_render_pass_ = VK_NULL_HANDLE;
         std::vector<VkFramebuffer> framebuffers_;
+        VulkanImage depth_image_{};
         VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
         VkSemaphore image_available_ = VK_NULL_HANDLE;
         VkSemaphore render_finished_ = VK_NULL_HANDLE;

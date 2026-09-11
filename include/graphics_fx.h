@@ -78,6 +78,9 @@ namespace sl
 
         /** Bind this shader program for subsequent OpenGL calls. */
         bool use() const;
+        /** Draw a textured quad with this shader using the active renderer. */
+        bool draw_textured_quad(Bitmap *texture, float x, float y, float width, float height,
+                    bool flipVertical = false) const;
         /** Unbind the current shader program. */
         static void stop();
         /** Dispatch this program as a compute shader. */

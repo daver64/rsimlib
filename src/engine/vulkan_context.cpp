@@ -240,6 +240,27 @@ namespace sl::detail
         swapchain_format_ = surface_format.format;
         swapchain_extent_ = extent;
 
+        const VkFormat depth_candidates[] = {
+            VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM};
+        for (const VkFormat candidate : depth_candidates)
+        {
+            VkFormatProperties properties{};
+            vkGetPhysicalDeviceFormatProperties(physical_device_, candidate, &properties);
+            if ((properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
+            {
+                depth_format_ = candidate;
+                break;
+            }
+        }
+        if (depth_format_ == VK_FORMAT_UNDEFINED ||
+            !create_image(static_cast<int>(extent.width), static_cast<int>(extent.height), depth_format_,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depth_image_, error))
+        {
+            error = "Unable to create the Vulkan depth buffer.";
+            destroy_swapchain();
+            return false;
+        }
+
         unsigned int actual_image_count = 0;
         vkGetSwapchainImagesKHR(device_, swapchain_, &actual_image_count, nullptr);
         swapchain_images_.resize(actual_image_count);
@@ -280,10 +301,21 @@ namespace sl::detail
         attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         VkAttachmentReference color_reference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        VkAttachmentDescription depth_attachment{};
+        depth_attachment.format = depth_format_;
+        depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference depth_reference{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &color_reference;
+        subpass.pDepthStencilAttachment = &depth_reference;
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
@@ -291,8 +323,9 @@ namespace sl::detail
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         VkRenderPassCreateInfo render_pass_info{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-        render_pass_info.attachmentCount = 1;
-        render_pass_info.pAttachments = &attachment;
+        VkAttachmentDescription attachments[] = {attachment, depth_attachment};
+        render_pass_info.attachmentCount = 2;
+        render_pass_info.pAttachments = attachments;
         render_pass_info.subpassCount = 1;
         render_pass_info.pSubpasses = &subpass;
         render_pass_info.dependencyCount = 1;
@@ -305,12 +338,17 @@ namespace sl::detail
         }
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan swapchain resume render pass.";
             destroy_swapchain();
             return false;
         }
+        subpass.pDepthStencilAttachment = nullptr;
+        render_pass_info.attachmentCount = 1;
+        render_pass_info.pAttachments = &attachment;
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachment.format = swapchain_format_;
@@ -334,8 +372,9 @@ namespace sl::detail
         {
             VkFramebufferCreateInfo framebuffer_info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
             framebuffer_info.renderPass = render_pass_;
-            framebuffer_info.attachmentCount = 1;
-            framebuffer_info.pAttachments = &swapchain_image_views_[index];
+            VkImageView framebuffer_attachments[] = {swapchain_image_views_[index], depth_image_.view};
+            framebuffer_info.attachmentCount = 2;
+            framebuffer_info.pAttachments = framebuffer_attachments;
             framebuffer_info.width = swapchain_extent_.width;
             framebuffer_info.height = swapchain_extent_.height;
             framebuffer_info.layers = 1;
@@ -377,11 +416,12 @@ namespace sl::detail
 
     bool VulkanContext::begin_frame(std::string &error)
     {
-        if (!is_valid() || render_pass_ == VK_NULL_HANDLE || frame_active_)
+        if (!is_valid() || render_pass_ == VK_NULL_HANDLE)
         {
             error = "Vulkan frame cannot begin in the current state.";
             return false;
         }
+        if (frame_active_) return true;
         if (vkWaitForFences(device_, 1, &in_flight_, VK_TRUE, UINT64_MAX) != VK_SUCCESS ||
             vkResetFences(device_, 1, &in_flight_) != VK_SUCCESS)
         {
@@ -404,14 +444,15 @@ namespace sl::detail
             return false;
         }
         command_buffer_recording_ = true;
-        VkClearValue clear_value{};
-        clear_value.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        VkClearValue clear_values[2]{};
+        clear_values[1].depthStencil = {1.0f, 0};
+        clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo render_begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         render_begin.renderPass = render_pass_;
         render_begin.framebuffer = framebuffers_[current_image_];
         render_begin.renderArea.extent = swapchain_extent_;
-        render_begin.clearValueCount = 1;
-        render_begin.pClearValues = &clear_value;
+        render_begin.clearValueCount = 2;
+        render_begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &render_begin, VK_SUBPASS_CONTENTS_INLINE);
         active_extent_ = swapchain_extent_;
         active_render_pass_ = render_pass_;
@@ -558,6 +599,30 @@ namespace sl::detail
         }
         vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
         (void)topology;
+        return true;
+    }
+
+    bool VulkanContext::record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                                       VkBuffer vertex_buffer, std::uint32_t vertex_count,
+                                       const float *mvp, std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
+            layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || !mvp || vertex_count == 0)
+        {
+            error = "Invalid Vulkan 3D draw state.";
+            return false;
+        }
+        VkViewport viewport{0.0f, 0.0f, static_cast<float>(active_extent_.width),
+            static_cast<float>(active_extent_.height), 0.0f, 1.0f};
+        VkRect2D scissor{{0, 0}, active_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+            sizeof(float) * 16, mvp);
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
         return true;
     }
 
@@ -920,7 +985,9 @@ namespace sl::detail
         view_info.image = result.image;
         view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
         view_info.format = format;
-        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view_info.subresourceRange.aspectMask =
+            (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0
+                ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         view_info.subresourceRange.levelCount = 1;
         view_info.subresourceRange.layerCount = 1;
         if (vkCreateImageView(device_, &view_info, nullptr, &result.view) != VK_SUCCESS)
@@ -1585,7 +1652,8 @@ namespace sl::detail
                                                  PrimitiveType topology,
                                                  VulkanGraphicsPipeline &result, std::string &error,
                                                  const VulkanStorageDescriptorLayout *storage_layout,
-                                                 std::uint32_t fragment_push_constant_size)
+                                                 std::uint32_t fragment_push_constant_size,
+                                                 bool three_dimensional)
     {
         result = {};
         if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
@@ -1593,7 +1661,21 @@ namespace sl::detail
             error = "Invalid Vulkan graphics pipeline inputs.";
             return false;
         }
-        if (storage_layout || fragment_push_constant_size > 0)
+        if (three_dimensional)
+        {
+            VkPushConstantRange range{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16};
+            VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+            layout_info.setLayoutCount = 1;
+            layout_info.pSetLayouts = &descriptor_layout.layout;
+            layout_info.pushConstantRangeCount = 1;
+            layout_info.pPushConstantRanges = &range;
+            if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)
+            {
+                error = "Unable to create Vulkan 3D pipeline layout.";
+                return false;
+            }
+        }
+        else if (storage_layout || fragment_push_constant_size > 0)
         {
             VkDescriptorSetLayout layouts[2] = {descriptor_layout.layout, VK_NULL_HANDLE};
             if (storage_layout) layouts[1] = storage_layout->layout;
@@ -1619,17 +1701,22 @@ namespace sl::detail
         };
         VkVertexInputBindingDescription binding{};
         binding.binding = 0;
-        binding.stride = sizeof(Vertex2D);
+        binding.stride = three_dimensional ? sizeof(Vulkan3DVertex) : sizeof(Vertex2D);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
         VkVertexInputAttributeDescription attributes[3] = {
             {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
             {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
             {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
         };
+        if (three_dimensional)
+        {
+            attributes[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, position))};
+            attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, colour))};
+        }
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
         vertex_input.vertexBindingDescriptionCount = 1;
         vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = 3;
+        vertex_input.vertexAttributeDescriptionCount = three_dimensional ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)
@@ -1663,6 +1750,10 @@ namespace sl::detail
         VkPipelineColorBlendStateCreateInfo blending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
         blending.attachmentCount = 1;
         blending.pAttachments = &blend_attachment;
+        VkPipelineDepthStencilStateCreateInfo depth{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+        depth.depthTestEnable = three_dimensional ? VK_TRUE : VK_FALSE;
+        depth.depthWriteEnable = three_dimensional ? VK_TRUE : VK_FALSE;
+        depth.depthCompareOp = VK_COMPARE_OP_LESS;
         const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
         VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
         dynamic.dynamicStateCount = 2;
@@ -1676,6 +1767,7 @@ namespace sl::detail
         pipeline_info.pRasterizationState = &rasterization;
         pipeline_info.pMultisampleState = &multisample;
         pipeline_info.pColorBlendState = &blending;
+        pipeline_info.pDepthStencilState = three_dimensional ? &depth : nullptr;
         pipeline_info.pDynamicState = &dynamic;
         pipeline_info.layout = result.layout;
         pipeline_info.renderPass = render_pass_;
@@ -1757,6 +1849,7 @@ namespace sl::detail
                 vkDestroyFramebuffer(device_, framebuffer, nullptr);
             }
             framebuffers_.clear();
+            destroy_image(depth_image_);
             if (render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, render_pass_, nullptr);
             if (resume_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_render_pass_, nullptr);
             if (offscreen_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, offscreen_render_pass_, nullptr);
@@ -1790,6 +1883,7 @@ namespace sl::detail
             }
         }
         swapchain_format_ = VK_FORMAT_UNDEFINED;
+        depth_format_ = VK_FORMAT_UNDEFINED;
         swapchain_extent_ = {};
     }
 

@@ -106,7 +106,7 @@ namespace
 		int y = 158;
 		for (const Product &product : products)
 		{
-			sl::gprintf(32, y, text, "%-4d %-21s %-14s $%7.2f %5d",
+			sl::gprintf(32, y, text, "%-4d %-21s %-14s £%7.2f %5d",
 				product.id, product.name.c_str(), product.category.c_str(),
 				product.price, product.stock);
 			y += 24;
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!sl::configure_graphics_backend_from_args(argc, argv) ||
-		!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 900, 420))
+		!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 900, 600))
 	{
 		remove_database(database_filename);
 		return -1;

@@ -317,6 +317,21 @@ namespace sl::detail
                 glActiveTexture(GL_TEXTURE0);
                 return true;
             }
+            bool begin_shader_2d(std::uint32_t program, int width, int height) override
+            {
+                if (!initialise_2d() || !use_shader(program) || width <= 0 || height <= 0) return false;
+                float projection[16] = {};
+                projection[0] = 2.0f / width;
+                projection[5] = -2.0f / height;
+                projection[10] = -1.0f;
+                projection[12] = -1.0f; projection[13] = 1.0f; projection[15] = 1.0f;
+                if (!set_shader_mat4(program, "uProjection", projection) ||
+                    !set_shader_int(program, "uTexture", 0)) return false;
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glActiveTexture(GL_TEXTURE0);
+                return true;
+            }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 context_.clear(red, green, blue, alpha);

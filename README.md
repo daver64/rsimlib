@@ -17,15 +17,39 @@ This repository contains:
 - **`sltest`** — a sample game/test application built on `simlib`, with a
     menu, simple physics/entity system, and Lua REPL console (`src/examples/sltest/`).
 - **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/examples/slpack/`).
-- **`exhello`** — a minimal "hello world" example (`src/examples/exhello/`).
-- **`exfont`** — a proportional and monospace TrueType comparison (`src/examples/exfont/`).
-- **`exrotatesprite`** — a continuously rotating sprite example (`src/examples/exrotatesprite/`).
-- **`exlighting`** — radial multi-light and polygon-shadow example (`src/examples/exlighting/`).
-- **`exphysics`** — Box2D body, fixture, and stepping example (`src/examples/exphysics/`).
-- **`exvulkan`** — textured-quad backend smoke test with Bloom (`src/examples/exvulkan/`).
-- **`exdb`** — SQLite database creation, population, and display example (`src/examples/exdb/`).
-- **`exshader`** — shader file loading and compilation example (`src/examples/exshader/`).
-- **`exrendertarget`** — off-screen rendering and compositing example (`src/examples/exrendertarget/`).
+
+The standalone `ex*` programs are listed below with the primary API each one illustrates.
+
+Create the archive used by `exresources` from the repository root with:
+
+```bash
+./slpack resource_demo.zip assets
+./exresources resource_demo.zip
+```
+
+### Example programs
+
+- **`exhello`** — window setup, frame presentation, clearing, and basic text via `set_gfx_mode()`, `clear_to_colour()`, and `gprintf_center()`.
+- **`exfont`** — TrueType loading, font selection, measurement, and text rendering.
+- **`extriangle`** — immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
+- **`exrotatesprite`** — bitmap loading, sprite rotation, scaling, and frame timing.
+- **`exbitmap`** — bitmap creation, pixel access, blitting, and image loading.
+- **`exlighting`** — render targets, radial lights, shadow casters, and `LightingPass`.
+- **`exphysics`** — Box2D world/body/fixture creation, stepping, and contact polling.
+- **`exvulkan`** — backend selection, textured sprites, render targets, and Bloom.
+- **`exlua`** — Lua runtime setup and execution through the sol2 bindings.
+- **`exluaconsole`** — interactive Lua command input, output, and console integration.
+- **`exdb`** — SQLite transactions, prepared statements, bound parameters, queries, and display through `rdb::Database`.
+- **`exshader`** — file-based GLSL loading, runtime compilation, texture upload, and `Shader::draw_textured_quad()`.
+- **`exrendertarget`** — off-screen rendering, render-target lifetime, and compositing.
+- **`exaudio`** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
+- **`exinput`** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
+- **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
+- **`exparticles`** — particle emission, movement, lifetime/color fades, gravity, and batching through `ParticleEmitter`.
+- **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
+- **`expostprocess`** — render-target composition with Bloom and Vignette effect passes.
+- **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
+- **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
 ### `sltest` screenshot
 
@@ -84,11 +108,13 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 
 `graphics_backend_available()` reports compiled support. OpenGL and Vulkan are
 available on all platforms; D3D11 is compiled in only on Windows builds and is
-currently boilerplate (device/swap-chain/present only, no drawing yet — see
-below); D3D12 remains a reserved backend choice with no implementation.
+currently experimental Windows-only support — see below); D3D12 provides
+Windows-only context and presentation boilerplate and is not feature-parity
+with OpenGL or Vulkan.
 
-All graphical applications accept `--gl`, `--vulkan`, and (Windows only)
-`--d3d11`; OpenGL is the default when no backend flag is given. User shaders
+All graphical applications accept `--gl` and `--vulkan`; the experimental
+Windows backends also accept `--d3d11` and `--d3d12`. OpenGL is the default
+when no backend flag is given. User shaders
 can be written once in GLSL for both backends (see [Renderer
 capabilities](#renderer-capabilities)), or raw SPIR-V can be supplied directly
 with explicit descriptor bindings and push-constant layouts for cases that
@@ -143,6 +169,20 @@ validated before the engine library builds:
 cmake --build build --target shader_validation
 ```
 
+`ex3d` is intentionally an OpenGL escape-hatch example rather than a 3D
+engine layer. It uses simlib for the window/context, input, presentation, and
+GLM camera/model helpers, then owns its VAO, buffers, shaders, depth state, and
+draw calls directly. Vulkan and D3D applications can use the corresponding
+native context/command APIs without requiring simlib to impose a 3D scene
+model.
+
+`ex3d_vulkan` follows the same pattern using simlib's Vulkan device, swapchain,
+render pass, frame synchronization, and buffer helpers. It owns its Vulkan
+shaders, pipeline, vertex buffer, and MVP push constants. The shared swapchain
+render pass now includes a depth attachment and the 3D pipeline enables depth
+testing. Applications can query the shared depth format or extend the native
+setup with additional depth/stencil resources as needed.
+
 ### D3D11 backend (Windows only)
 
 `GraphicsBackend::d3d11` compiles in only when targeting Windows
@@ -183,10 +223,9 @@ This produces the application executables in the repository root, including
 created in the `build/` directory when testing is enabled. Static archives are
 written to `lib/`: `libsimlib.a`, `libimgui.a`, `liblua.a`, and `libbox2d.a`.
 
-To run the test suite (currently covers the ZIP resource archive reader):
+To run the test suite:
 
 ```bash
-cmake --build build --target resource_test
 ctest --test-dir build
 ```
 
@@ -199,6 +238,17 @@ ctest --test-dir build
 ./exlighting --vulkan # radial lights and polygon shadows demo
 ./exphysics # Box2D physics demo
 ./exvulkan # textured-quad smoke test (OpenGL by default)
+./exdb # SQLite example; removes its temporary database on exit
+./exshader # visible custom GLSL shader example
+./exrendertarget # off-screen render-target example
+./exaudio # sound effect and streamed music example
+./exinput # keyboard, mouse, and joystick example
+./exgui # Dear ImGui integration example
+./exparticles # particle emitter example
+./exresources # packaged asset archive example
+./expostprocess # Bloom and Vignette example
+./ex3d --gl # direct OpenGL 3D example
+./ex3d_vulkan --vulkan # direct Vulkan 3D example
 ./sltest --vulkan # sample game: menu, physics playground, Lua console
 ./slpack    # pack files into a ZIP resource archive
 ```
@@ -969,6 +1019,15 @@ src/examples/slpack/  slpack asset-packing CLI
 src/examples/exhello/ exhello minimal example
 src/examples/exfont/  exfont proportional-font example
 src/examples/exrotatesprite/ exrotatesprite rotating-sprite example
+src/examples/ex3d/    ex3d OpenGL 3D escape-hatch example
+src/examples/ex3d_vulkan/ ex3d Vulkan escape-hatch example
+src/examples/exaudio/ exaudio sound and music example
+src/examples/exdb/    exdb SQLite example
+src/examples/exgui/   exgui Dear ImGui example
+src/examples/exinput/ exinput keyboard/mouse/gamepad example
+src/examples/exparticles/ exparticles particle example
+src/examples/expostprocess/ expostprocess effects example
+src/examples/exresources/ exresources ZIP asset example
 assets/                   Textures, music, and sound effects used by sltest
 ```
 

@@ -19,6 +19,14 @@ imgui.ini
 /exdb
 /exshader
 /exrendertarget
+/exaudio
+/exinput
+/exgui
+/exparticles
+/exresources
+/expostprocess
+/ex3d
+/ex3d_vulkan
 /lib/
 applications
 exdb.sqlite

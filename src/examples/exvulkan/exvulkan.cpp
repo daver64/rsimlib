@@ -2,7 +2,7 @@
 
 int main(int argc, char *argv[])
 {
-    if (!sl::configure_graphics_backend_from_args(argc, argv) ||
+    if (!sl::set_graphics_backend(sl::GraphicsBackend::vulkan) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
         return -1;

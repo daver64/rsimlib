@@ -269,6 +269,7 @@ namespace sl::detail
             }
             bool begin_frame(std::string &error) override
             {
+                if (frame_active_ && !context_.frame_active()) frame_active_ = false;
                 if (frame_active_) return true;
                 frame_active_ = context_.begin_frame(error);
                 if (frame_active_)
@@ -635,6 +636,16 @@ namespace sl::detail
                 projection_[5] = height > 0 ? -2.0f / height : 0.0f;
                 projection_[10] = -1.0f; projection_[12] = -1.0f; projection_[13] = 1.0f; projection_[15] = 1.0f;
                 return true;
+            }
+            bool begin_shader_2d(std::uint32_t program, int width, int height) override
+            {
+                if (!begin_frame(last_error_) || width <= 0 || height <= 0 || !use_shader(program)) return false;
+                float projection[16] = {};
+                projection[0] = 2.0f / width;
+                projection[5] = -2.0f / height;
+                projection[10] = -1.0f;
+                projection[12] = -1.0f; projection[13] = 1.0f; projection[15] = 1.0f;
+                return set_shader_mat4(program, "uProjection", projection);
             }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {

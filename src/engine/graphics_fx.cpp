@@ -341,6 +341,24 @@ namespace sl
 		return detail::active_renderer() && detail::active_renderer()->use_shader(program_);
 	}
 
+	bool Shader::draw_textured_quad(Bitmap *texture, float x, float y, float width, float height,
+		bool flipVertical) const
+	{
+		if (!is_valid() || !texture || width <= 0.0f || height <= 0.0f || !upload_bitmap(texture)) return false;
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer || !renderer->begin_shader_2d(program_, screen_width(), screen_height())) return false;
+		const float top = flipVertical ? 1.0f : 0.0f;
+		const float bottom = flipVertical ? 0.0f : 1.0f;
+		const detail::Vertex2D vertices[4] = {
+			{x, y, 0.0f, top, 1.0f, 1.0f, 1.0f, 1.0f},
+			{x + width, y, 1.0f, top, 1.0f, 1.0f, 1.0f, 1.0f},
+			{x + width, y + height, 1.0f, bottom, 1.0f, 1.0f, 1.0f, 1.0f},
+			{x, y + height, 0.0f, bottom, 1.0f, 1.0f, 1.0f, 1.0f}};
+		renderer->submit_2d(detail::PrimitiveType::triangle_fan, vertices, 4, texture->gpu_texture);
+		renderer->stop_shader();
+		return true;
+	}
+
 	void Shader::stop()
 	{
 		if (detail::Renderer *renderer = detail::active_renderer()) renderer->stop_shader();
