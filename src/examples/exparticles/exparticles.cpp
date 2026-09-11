@@ -1,5 +1,4 @@
 #include "sl.h"
-#include "particles.h"
 
 #include <algorithm>
 

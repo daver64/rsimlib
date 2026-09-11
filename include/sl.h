@@ -6,17 +6,12 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include "audio.h"
-#include "display.h"
-#include "draw.h"
-#include "font.h"
-#include "gui.h"
-#include "system.h"
-
 #include <imgui.h>
 #include <cstdint>
 #include <string>
 
+#include "atlas.h"
+#include "audio.h"
 #include "config.h"
 #include "display.h"
 #include "draw.h"
@@ -25,13 +20,18 @@
 #include "font.h"
 #include "graphics_fx.h"
 #include "gamepad.h"
+#include "gui.h"
 #include "input.h"
 #include "lua_canvas.h"
 #include "lua_runtime.h"
 #include "noise.h"
 #include "physics.h"
+#include "rdb.h"
+#include "rdb_drivers.h"
+#include "rdb_unified.h"
 #include "resource.h"
 #include "scene3d.h"
+#include "particles.h"
 #include "system.h"
 
 /** @mainpage simlib
