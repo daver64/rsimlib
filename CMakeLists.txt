@@ -3,6 +3,12 @@ project(simlib LANGUAGES C CXX)
 
 include(CTest)
 
+# Single-config generators (Makefiles, Ninja) default to an unoptimized build if
+# this is left unset, which is easily mistaken for a genuine performance bug.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 
 set(CMAKE_CXX_STANDARD 17)
@@ -32,6 +38,8 @@ if(SIMLIB_VALIDATE_SHADERS)
             pixelate.frag
             radial_blur.frag
             heat_haze.frag
+            crt.frag
+            dither.frag
                         colour_adjust.frag
             tint.frag
             ex3d.vert
@@ -74,7 +82,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_crt.frag vulkan_dither.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -204,6 +212,18 @@ add_library(simlib STATIC
     src/engine/atlas.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
+    src/engine/graphics_fx_bloom.cpp
+    src/engine/graphics_fx_blur.cpp
+    src/engine/graphics_fx_vignette.cpp
+    src/engine/graphics_fx_colour_adjust.cpp
+    src/engine/graphics_fx_chromatic_aberration.cpp
+    src/engine/graphics_fx_pixelate.cpp
+    src/engine/graphics_fx_radial_blur.cpp
+    src/engine/graphics_fx_heat_haze.cpp
+    src/engine/graphics_fx_crt.cpp
+    src/engine/graphics_fx_dither.cpp
+    src/engine/graphics_fx_screen_shake.cpp
+    src/engine/graphics_fx_lighting.cpp
     src/engine/gamepad.cpp
     src/engine/audio_backend.cpp
     src/engine/audio_fx.cpp

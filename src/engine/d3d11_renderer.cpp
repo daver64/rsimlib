@@ -93,6 +93,7 @@ namespace sl::detail
                 return context_.resize(width, height, error);
             }
             bool set_vsync(bool enabled) override { vsync_enabled_ = enabled; return true; }
+            bool vsync_active() const override { return vsync_enabled_; }
             void present() override { context_.present(vsync_enabled_); }
             bool begin_frame(std::string &) override { return context_.is_valid(); }
             bool end_frame(std::string &) override { present(); return true; }

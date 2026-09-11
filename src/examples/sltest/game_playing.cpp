@@ -445,11 +445,11 @@ namespace game
             if (post_process_ready)
             {
                 playing_lighting.apply(playing_scene, lights, 0, 0,
-                    sl::screen_width(), sl::screen_height(), true);
+                    sl::screen_width(), sl::screen_height());
                 sl::end_render_target();
             }
             playing_vignette.apply(playing_lit_scene, 0, 0,
-                sl::screen_width(), sl::screen_height(), true);
+                sl::screen_width(), sl::screen_height());
         }
 
         sl::rectfill(sl::screen,sl::screen_width()/6,0,

@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         cool_light.colour = {100, 170, 255};
 
         const std::vector<sl::Light> lights = {warm_light, cool_light};
-        lighting.apply(scene, lights, 0, 0, 800, 600, true,
+        lighting.apply(scene, lights, 0, 0, 800, 600,
             disable_shadows ? std::vector<sl::ShadowCaster>{} : casters);
         sl::show_video_bitmap();
         sl::end_frame();

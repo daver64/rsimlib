@@ -1,10 +1,13 @@
 /** @file
- * @brief Implements shader-based bloom, vignette, and screen-fade effects.
+ * @brief Common graphics_fx infrastructure shared by the individual effect implementations:
+ * the ping-pong buffer, the Shader wrapper, shared helpers, and screen fades. Each effect
+ * (Bloom, Vignette, CRTFilter, etc.) is implemented in its own graphics_fx_*.cpp file.
  */
 
 #define GL_GLEXT_PROTOTYPES
 
 #include "graphics_fx.h"
+#include "graphics_fx_internal.h"
 
 #include "display.h"
 #include "draw.h"
@@ -15,29 +18,92 @@
 #include <SDL2/SDL_opengl_glext.h>
 #include <SDL2/SDL.h>
 
-#include <algorithm>
-#include <cmath>
-#include <fstream>
-#include <iterator>
 #include <filesystem>
-#include <utility>
-#include <vector>
 #include <fstream>
 #include <iterator>
+#include <utility>
 
 namespace sl
 {
-	namespace
+	PingPongBuffer::~PingPongBuffer()
 	{
+		shutdown();
+	}
 
+	void PingPongBuffer::initialise(int width, int height)
+	{
+		shutdown();
+		width_ = width;
+		height_ = height;
+		buffers_[0] = create_render_target(width, height);
+		buffers_[1] = create_render_target(width, height);
+		if (!buffers_[0] || !buffers_[1])
+		{
+			shutdown();
+			return;
+		}
+		next_index_ = 0;
+		source_ = nullptr;
+		current_target_ = buffers_[0];
+	}
 
+	void PingPongBuffer::shutdown()
+	{
+		for (Bitmap *buffer : buffers_)
+		{
+			if (buffer)
+			{
+				destroy_bitmap(buffer);
+			}
+		}
+		buffers_[0] = nullptr;
+		buffers_[1] = nullptr;
+		source_ = nullptr;
+		current_target_ = nullptr;
+		width_ = 0;
+		height_ = 0;
+		next_index_ = 0;
+	}
+
+	bool PingPongBuffer::valid() const
+	{
+		return buffers_[0] != nullptr && buffers_[1] != nullptr && width_ > 0 && height_ > 0;
+	}
+
+	Bitmap *PingPongBuffer::begin(Bitmap *source)
+	{
+		if (!valid()) return nullptr;
+		source_ = source;
+		current_target_ = buffers_[next_index_];
+		next_index_ = 1 - next_index_;
+		return current_target_;
+	}
+
+	Bitmap *PingPongBuffer::source() const
+	{
+		return source_;
+	}
+
+	Bitmap *PingPongBuffer::target() const
+	{
+		return current_target_;
+	}
+
+	Bitmap *PingPongBuffer::advance()
+	{
+		if (!valid() || !current_target_) return nullptr;
+		source_ = current_target_;
+		return source_;
+	}
+
+	namespace detail
+	{
 		std::string load_glsl_shader(const char *name)
 		{
 			std::ifstream file(std::filesystem::path(SIMLIB_GLSL_SHADER_DIR) / name);
 			return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
 		}
 
-		/** Draw a textured quad at (x, y, width, height), used by every bloom pass. */
 		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture, bool flipVertical)
 		{
 			const float left = static_cast<float>(x);
@@ -54,117 +120,7 @@ namespace sl
 			};
 			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture);
 		}
-
-		struct Point
-		{
-			float x;
-			float y;
-		};
-
-		struct GpuLight
-		{
-			float positionRadius[4];
-			float colourIntensity[4];
-			float shadowSoftness[4];
-		};
-
-		Point project_from_light(Point point, const Light &light, float distance)
-		{
-			const float dx = point.x - light.x;
-			const float dy = point.y - light.y;
-			const float length = std::sqrt(dx * dx + dy * dy);
-			if (length <= 0.0001f)
-			{
-				return point;
-			}
-			return {point.x + dx / length * distance, point.y + dy / length * distance};
-		}
-
-		void fill_shadow_triangle(Bitmap *mask, Point first, Point second, Point third)
-		{
-			const float area = (second.x - first.x) * (third.y - first.y) -
-				(second.y - first.y) * (third.x - first.x);
-			if (std::abs(area) <= 0.0001f)
-			{
-				return;
-			}
-
-			const int minimumX = std::max(0, static_cast<int>(std::floor(std::min({first.x, second.x, third.x}))));
-			const int maximumX = std::min(mask->width - 1, static_cast<int>(std::ceil(std::max({first.x, second.x, third.x}))));
-			const int minimumY = std::max(0, static_cast<int>(std::floor(std::min({first.y, second.y, third.y}))));
-			const int maximumY = std::min(mask->height - 1, static_cast<int>(std::ceil(std::max({first.y, second.y, third.y}))));
-			if (minimumX > maximumX || minimumY > maximumY)
-			{
-				return;
-			}
-
-			for (int y = minimumY; y <= maximumY; ++y)
-			{
-				for (int x = minimumX; x <= maximumX; ++x)
-				{
-					const Point sample{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
-					const float edgeA = (second.x - first.x) * (sample.y - first.y) -
-						(second.y - first.y) * (sample.x - first.x);
-					const float edgeB = (third.x - second.x) * (sample.y - second.y) -
-						(third.y - second.y) * (sample.x - second.x);
-					const float edgeC = (first.x - third.x) * (sample.y - third.y) -
-						(first.y - third.y) * (sample.x - third.x);
-					if ((edgeA >= 0.0f && edgeB >= 0.0f && edgeC >= 0.0f) ||
-						(edgeA <= 0.0f && edgeB <= 0.0f && edgeC <= 0.0f))
-					{
-						const std::size_t offset = (static_cast<std::size_t>(y) * mask->width + x) * 4;
-						mask->pixels[offset] = 0;
-						mask->pixels[offset + 1] = 0;
-						mask->pixels[offset + 2] = 0;
-						mask->pixels[offset + 3] = 255;
-					}
-				}
-			}
-		}
-
-		void draw_shadow_edge(Bitmap *mask, Point first, Point second, const Light &light, float projectionDistance)
-		{
-			const Point edge{second.x - first.x, second.y - first.y};
-			const Point normal{edge.y, -edge.x};
-			const Point midpoint{(first.x + second.x) * 0.5f, (first.y + second.y) * 0.5f};
-			const float facing = (light.x - midpoint.x) * normal.x + (light.y - midpoint.y) * normal.y;
-			if (facing <= 0.0f)
-			{
-				return;
-			}
-
-			const Point firstFar = project_from_light(first, light, projectionDistance);
-			const Point secondFar = project_from_light(second, light, projectionDistance);
-			fill_shadow_triangle(mask, first, second, secondFar);
-			fill_shadow_triangle(mask, first, secondFar, firstFar);
-		}
-
-		void draw_shadow_caster(Bitmap *mask, const ShadowCaster &caster, const Light &light)
-		{
-			if (caster.vertices.size() < 2)
-			{
-				return;
-			}
-			const float projectionDistance = static_cast<float>(std::max(mask->width, mask->height)) * 4.0f;
-			for (std::size_t index = 0; index < caster.vertices.size(); ++index)
-			{
-				const ShadowPoint &first = caster.vertices[index];
-				const ShadowPoint &second = caster.vertices[(index + 1) % caster.vertices.size()];
-				draw_shadow_edge(mask, {first.x, first.y}, {second.x, second.y}, light, projectionDistance);
-			}
-		}
-
-	} // namespace
-
-	ShadowCaster make_rectangle_shadow_caster(float left, float top, float right, float bottom)
-	{
-		return ShadowCaster{{
-			{left, top},
-			{right, top},
-			{right, bottom},
-			{left, bottom},
-		}};
-	}
+	} // namespace detail
 
 	Shader::Shader(const std::string &vertexSource, const std::string &fragmentSource)
 	{
@@ -342,12 +298,12 @@ namespace sl
 		return detail::active_renderer() && detail::active_renderer()->use_shader(program_);
 	}
 
-	bool Shader::draw_textured_quad(Bitmap *texture, float x, float y, float width, float height,
-		bool flipVertical) const
+	bool Shader::draw_textured_quad(Bitmap *texture, float x, float y, float width, float height) const
 	{
 		if (!is_valid() || !texture || width <= 0.0f || height <= 0.0f || !upload_bitmap(texture)) return false;
 		detail::Renderer *renderer = detail::active_renderer();
 		if (!renderer || !renderer->begin_shader_2d(program_, screen_width(), screen_height())) return false;
+		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
 		const float top = flipVertical ? 1.0f : 0.0f;
 		const float bottom = flipVertical ? 0.0f : 1.0f;
 		const detail::Vertex2D vertices[4] = {
@@ -398,792 +354,6 @@ namespace sl
 	bool Shader::set_uniform_mat4(const char *name, const float *matrix4x4) const
 	{
 		return detail::active_renderer() && detail::active_renderer()->set_shader_mat4(program_, name, matrix4x4);
-	}
-
-	Bloom::~Bloom()
-	{
-		shutdown();
-	}
-
-	Bloom::Bloom(Bloom &&other) noexcept
-		: brightShader_(std::move(other.brightShader_)),
-		  blurShader_(std::move(other.blurShader_)),
-		  compositeShader_(std::move(other.compositeShader_)),
-		  threshold_(other.threshold_),
-		  intensity_(other.intensity_),
-		  radius_(other.radius_),
-		  downsample_(other.downsample_),
-		  blurTargetA_(std::exchange(other.blurTargetA_, nullptr)),
-		  blurTargetB_(std::exchange(other.blurTargetB_, nullptr))
-	{
-	}
-
-	Bloom &Bloom::operator=(Bloom &&other) noexcept
-	{
-		if (this != &other)
-		{
-			shutdown();
-			brightShader_ = std::move(other.brightShader_);
-			blurShader_ = std::move(other.blurShader_);
-			compositeShader_ = std::move(other.compositeShader_);
-			threshold_ = other.threshold_;
-			intensity_ = other.intensity_;
-			radius_ = other.radius_;
-			downsample_ = other.downsample_;
-			blurTargetA_ = std::exchange(other.blurTargetA_, nullptr);
-			blurTargetB_ = std::exchange(other.blurTargetB_, nullptr);
-		}
-		return *this;
-	}
-
-	bool Bloom::initialise()
-	{
-		if (is_valid())
-		{
-			return true;
-		}
-		const std::string vertex = load_glsl_shader("fullscreen.vert");
-		return !vertex.empty() &&
-			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag"), "bloom-bright") &&
-			blurShader_.load(vertex, load_glsl_shader("blur.frag"), "bloom-blur") &&
-			compositeShader_.load(vertex, load_glsl_shader("composite.frag"), "bloom-composite");
-	}
-
-	void Bloom::shutdown()
-	{
-		brightShader_.reset();
-		blurShader_.reset();
-		compositeShader_.reset();
-		destroy_bitmap(blurTargetA_);
-		destroy_bitmap(blurTargetB_);
-		blurTargetA_ = nullptr;
-		blurTargetB_ = nullptr;
-	}
-
-	bool Bloom::is_valid() const
-	{
-		return brightShader_.is_valid() && blurShader_.is_valid() && compositeShader_.is_valid();
-	}
-
-	const std::string &Bloom::error() const
-	{
-		if (!brightShader_.is_valid())
-			return brightShader_.error();
-		if (!blurShader_.is_valid())
-			return blurShader_.error();
-		return compositeShader_.error();
-	}
-
-	void Bloom::set_threshold(float threshold)
-	{
-		threshold_ = std::clamp(threshold, 0.0f, 1.0f);
-	}
-
-	void Bloom::set_intensity(float intensity)
-	{
-		intensity_ = std::max(intensity, 0.0f);
-	}
-
-	void Bloom::set_radius(float radius)
-	{
-		radius_ = std::max(radius, 0.0f);
-	}
-
-	void Bloom::set_downsample(int factor)
-	{
-		downsample_ = std::max(1, factor);
-	}
-
-	bool Bloom::ensure_targets(int width, int height) const
-	{
-		if (blurTargetA_ && blurTargetB_ && blurTargetA_->width == width && blurTargetA_->height == height)
-		{
-			return true;
-		}
-		destroy_bitmap(blurTargetA_);
-		destroy_bitmap(blurTargetB_);
-		blurTargetA_ = create_render_target(width, height);
-		blurTargetB_ = create_render_target(width, height);
-		return blurTargetA_ != nullptr && blurTargetB_ != nullptr;
-	}
-
-	void Bloom::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source))
-		{
-			return;
-		}
-
-		if (width <= 0)
-		{
-			width = screen_width();
-		}
-		if (height <= 0)
-		{
-			height = screen_height();
-		}
-		if (width <= 0 || height <= 0)
-		{
-			return;
-		}
-
-		const int smallWidth = std::max(1, width / downsample_);
-		const int smallHeight = std::max(1, height / downsample_);
-		if (!ensure_targets(smallWidth, smallHeight))
-		{
-			return;
-		}
-
-		float projection[16];
-
-		// pass 1: threshold + downsample source into blurTargetA_
-		begin_render_target(blurTargetA_);
-		clear_render_target(Colour{0, 0, 0, 0});
-		brightShader_.set_uniform("source", 0);
-		brightShader_.set_uniform("threshold", threshold_);
-		detail::gl2d_ortho_matrix(smallWidth, smallHeight, projection);
-		brightShader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(0, 0, smallWidth, smallHeight, source->gpu_texture, flipVertical);
-		end_render_target();
-
-		// repeat the separable blur several times: a small single pass can only spread a
-		// handful of texels, so iterating approximates a much wider Gaussian on the cheap
-		Bitmap *blurSource = blurTargetA_;
-		Bitmap *blurDestination = blurTargetB_;
-		constexpr int blurIterations = 4;
-		for (int iteration = 0; iteration < blurIterations; ++iteration)
-		{
-			// horizontal
-			begin_render_target(blurDestination);
-			clear_render_target(Colour{0, 0, 0, 0});
-			blurShader_.set_uniform("source", 0);
-			blurShader_.set_uniform("texel", 1.0f / smallWidth, 1.0f / smallHeight);
-			blurShader_.set_uniform("radius", radius_);
-			blurShader_.set_uniform("direction", 1.0f, 0.0f);
-			detail::gl2d_ortho_matrix(smallWidth, smallHeight, projection);
-			blurShader_.set_uniform_mat4("uProjection", projection);
-			submit_fullscreen_quad(0, 0, smallWidth, smallHeight, blurSource->gpu_texture, false);
-			end_render_target();
-			std::swap(blurSource, blurDestination);
-
-			// vertical
-			begin_render_target(blurDestination);
-			clear_render_target(Colour{0, 0, 0, 0});
-			blurShader_.set_uniform("direction", 0.0f, 1.0f);
-			submit_fullscreen_quad(0, 0, smallWidth, smallHeight, blurSource->gpu_texture, false);
-			end_render_target();
-			std::swap(blurSource, blurDestination);
-		}
-
-		// pass 4: composite the blurred glow back over the full-resolution source
-		compositeShader_.set_uniform("intensity", intensity_);
-		if (detail::Renderer *renderer = detail::active_renderer())
-			renderer->bind_texture_unit(1, blurSource->gpu_texture);
-		compositeShader_.set_uniform("bloomTex", 1);
-		compositeShader_.set_uniform("source", 0);
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		compositeShader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	Vignette::~Vignette()
-	{
-		shutdown();
-	}
-
-	Vignette::Vignette(Vignette &&other) noexcept
-		: shader_(std::move(other.shader_)),
-		  radius_(other.radius_),
-		  softness_(other.softness_),
-		  intensity_(other.intensity_)
-	{
-	}
-
-	Vignette &Vignette::operator=(Vignette &&other) noexcept
-	{
-		if (this != &other)
-		{
-			shader_ = std::move(other.shader_);
-			radius_ = other.radius_;
-			softness_ = other.softness_;
-			intensity_ = other.intensity_;
-		}
-		return *this;
-	}
-
-	bool Vignette::initialise()
-	{
-		if (is_valid())
-		{
-			return true;
-		}
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("vignette.frag"), "vignette");
-	}
-
-	void Vignette::shutdown()
-	{
-		shader_.reset();
-	}
-
-	bool Vignette::is_valid() const
-	{
-		return shader_.is_valid();
-	}
-
-	const std::string &Vignette::error() const
-	{
-		return shader_.error();
-	}
-
-	void Vignette::set_radius(float radius)
-	{
-		radius_ = std::clamp(radius, 0.0f, 1.0f);
-	}
-
-	void Vignette::set_softness(float softness)
-	{
-		softness_ = std::clamp(softness, 0.0001f, 1.0f);
-	}
-
-	void Vignette::set_intensity(float intensity)
-	{
-		intensity_ = std::clamp(intensity, 0.0f, 1.0f);
-	}
-
-	void Vignette::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source))
-		{
-			return;
-		}
-
-		if (width <= 0)
-		{
-			width = screen_width();
-		}
-		if (height <= 0)
-		{
-			height = screen_height();
-		}
-		if (width <= 0 || height <= 0)
-		{
-			return;
-		}
-
-		float projection[16];
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("radius", radius_);
-		shader_.set_uniform("softness", softness_);
-		shader_.set_uniform("intensity", intensity_);
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, sourceFlipVertical);
-		Shader::stop();
-	}
-
-	bool ColourAdjust::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("colour_adjust.frag"),
-			"colour-adjust");
-	}
-
-	void ColourAdjust::shutdown()
-	{
-		shader_.reset();
-	}
-
-	bool ColourAdjust::is_valid() const
-	{
-		return shader_.is_valid();
-	}
-
-	const std::string &ColourAdjust::error() const
-	{
-		return shader_.error();
-	}
-
-	void ColourAdjust::set_brightness(float value) { brightness_ = value; }
-	void ColourAdjust::set_contrast(float value) { contrast_ = value; }
-	void ColourAdjust::set_saturation(float value) { saturation_ = value; }
-	void ColourAdjust::set_exposure(float value) { exposure_ = value; }
-
-	void ColourAdjust::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("brightness", brightness_);
-		shader_.set_uniform("contrast", contrast_);
-		shader_.set_uniform("saturation", saturation_);
-		shader_.set_uniform("exposure", exposure_);
-		float projection[16];
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	bool ChromaticAberration::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("chromatic_aberration.frag"),
-			"chromatic-aberration");
-	}
-
-	void ChromaticAberration::shutdown() { shader_.reset(); }
-	bool ChromaticAberration::is_valid() const { return shader_.is_valid(); }
-	const std::string &ChromaticAberration::error() const { return shader_.error(); }
-	void ChromaticAberration::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
-
-	void ChromaticAberration::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("strength", strength_);
-		float projection[16];
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	bool Pixelate::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("pixelate.frag"),
-			"pixelate");
-	}
-
-	void Pixelate::shutdown() { shader_.reset(); }
-	bool Pixelate::is_valid() const { return shader_.is_valid(); }
-	const std::string &Pixelate::error() const { return shader_.error(); }
-	void Pixelate::set_pixel_size(float size) { pixel_size_ = std::max(1.0f, size); }
-
-	void Pixelate::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("resolution", static_cast<float>(width), static_cast<float>(height));
-		shader_.set_uniform("pixelSize", pixel_size_);
-		float projection[16];
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	bool RadialBlur::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("radial_blur.frag"),
-			"radial-blur");
-	}
-	void RadialBlur::shutdown() { shader_.reset(); }
-	bool RadialBlur::is_valid() const { return shader_.is_valid(); }
-	const std::string &RadialBlur::error() const { return shader_.error(); }
-	void RadialBlur::set_centre(float x, float y) { centre_x_ = x; centre_y_ = y; }
-	void RadialBlur::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
-	void RadialBlur::set_samples(int samples) { samples_ = std::clamp(samples, 1, 16); }
-
-	void RadialBlur::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("centre", centre_x_, centre_y_);
-		shader_.set_uniform("strength", strength_);
-		shader_.set_uniform("samples", samples_);
-		float projection[16];
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	bool HeatHaze::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("heat_haze.frag"),
-			"heat-haze");
-	}
-	void HeatHaze::shutdown() { shader_.reset(); }
-	bool HeatHaze::is_valid() const { return shader_.is_valid(); }
-	const std::string &HeatHaze::error() const { return shader_.error(); }
-	void HeatHaze::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
-	void HeatHaze::set_frequency(float frequency) { frequency_ = std::max(0.0f, frequency); }
-	void HeatHaze::set_time(float time) { time_ = time; }
-
-	void HeatHaze::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("strength", strength_);
-		shader_.set_uniform("frequency", frequency_);
-		shader_.set_uniform("time", time_);
-		float projection[16];
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
-		Shader::stop();
-	}
-
-	ScreenShake::~ScreenShake()
-	{
-		clear();
-	}
-
-	void ScreenShake::trigger(float amplitude, float duration)
-	{
-		amplitude_ = std::max(0.0f, amplitude);
-		duration_ = std::max(0.0f, duration);
-		remaining_ = duration_;
-	}
-
-	void ScreenShake::update(float delta_seconds)
-	{
-		if (remaining_ <= 0.0f)
-		{
-			clear();
-			return;
-		}
-		remaining_ = std::max(0.0f, remaining_ - std::max(0.0f, delta_seconds));
-		const float falloff = duration_ > 0.0f ? remaining_ / duration_ : 0.0f;
-		const float time = static_cast<float>(SDL_GetTicks()) * 0.01f;
-		offset_x_ = std::sin(time * 1.73f) * amplitude_ * falloff;
-		offset_y_ = std::cos(time * 2.11f) * amplitude_ * falloff;
-		detail::set_screen_offset(offset_x_, offset_y_);
-	}
-
-	void ScreenShake::clear()
-	{
-		remaining_ = 0.0f;
-		offset_x_ = 0.0f;
-		offset_y_ = 0.0f;
-		detail::set_screen_offset(0.0f, 0.0f);
-	}
-
-	bool ScreenShake::active() const { return remaining_ > 0.0f; }
-
-	Blur::~Blur() { shutdown(); }
-
-	Blur::Blur(Blur &&other) noexcept
-		: shader_(std::move(other.shader_)), radius_(other.radius_), iterations_(other.iterations_),
-		  target_a_(std::exchange(other.target_a_, nullptr)), target_b_(std::exchange(other.target_b_, nullptr)) {}
-
-	Blur &Blur::operator=(Blur &&other) noexcept
-	{
-		if (this != &other)
-		{
-			shutdown();
-			shader_ = std::move(other.shader_);
-			radius_ = other.radius_;
-			iterations_ = other.iterations_;
-			target_a_ = std::exchange(other.target_a_, nullptr);
-			target_b_ = std::exchange(other.target_b_, nullptr);
-		}
-		return *this;
-	}
-
-	bool Blur::initialise()
-	{
-		if (is_valid()) return true;
-		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("blur.frag"), "bloom-blur");
-	}
-
-	void Blur::shutdown()
-	{
-		destroy_bitmap(target_a_);
-		destroy_bitmap(target_b_);
-		target_a_ = nullptr;
-		target_b_ = nullptr;
-		shader_.reset();
-	}
-
-	bool Blur::is_valid() const { return shader_.is_valid(); }
-	const std::string &Blur::error() const { return shader_.error(); }
-	void Blur::set_radius(float radius) { radius_ = std::max(0.0f, radius); }
-	void Blur::set_iterations(int iterations) { iterations_ = std::clamp(iterations, 1, 8); }
-
-	bool Blur::ensure_targets(int width, int height) const
-	{
-		if (target_a_ && target_b_ && target_a_->width == width && target_a_->height == height) return true;
-		destroy_bitmap(target_a_);
-		destroy_bitmap(target_b_);
-		target_a_ = create_render_target(width, height);
-		target_b_ = create_render_target(width, height);
-		return target_a_ && target_b_;
-	}
-
-	void Blur::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0 || !ensure_targets(width, height)) return;
-		Bitmap *input = source;
-		Bitmap *horizontal = target_a_;
-		Bitmap *vertical = target_b_;
-		float projection[16];
-		for (int iteration = 0; iteration < iterations_; ++iteration)
-		{
-			begin_render_target(horizontal);
-			clear_render_target({0, 0, 0, 0});
-			shader_.set_uniform("source", 0);
-			shader_.set_uniform("texel", 1.0f / width, 1.0f / height);
-			shader_.set_uniform("radius", radius_);
-			shader_.set_uniform("direction", 1.0f, 0.0f);
-			detail::gl2d_ortho_matrix(width, height, projection);
-			shader_.set_uniform_mat4("uProjection", projection);
-			submit_fullscreen_quad(0, 0, width, height, input->gpu_texture, iteration == 0 ? flipVertical : false);
-			end_render_target();
-			input = horizontal;
-			begin_render_target(vertical);
-			clear_render_target({0, 0, 0, 0});
-			shader_.set_uniform("direction", 0.0f, 1.0f);
-			submit_fullscreen_quad(0, 0, width, height, input->gpu_texture, false);
-			end_render_target();
-			input = vertical;
-		}
-		shader_.set_uniform("source", 0);
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, input->gpu_texture, false);
-		Shader::stop();
-	}
-
-	LightingPass::~LightingPass()
-	{
-		shutdown();
-	}
-
-	LightingPass::LightingPass(LightingPass &&other) noexcept
-		: shader_(std::move(other.shader_)), cullShader_(std::move(other.cullShader_)), ambient_(other.ambient_),
-		  shadowMasks_(std::exchange(other.shadowMasks_, {})),
-		  lightBuffer_(std::exchange(other.lightBuffer_, 0)),
-		  tileCountsBuffer_(std::exchange(other.tileCountsBuffer_, 0)),
-		  tileIndicesBuffer_(std::exchange(other.tileIndicesBuffer_, 0)),
-		  tileCountX_(other.tileCountX_), tileCountY_(other.tileCountY_)
-	{
-	}
-
-	LightingPass &LightingPass::operator=(LightingPass &&other) noexcept
-	{
-		if (this != &other)
-		{
-			shutdown();
-			shader_ = std::move(other.shader_);
-			cullShader_ = std::move(other.cullShader_);
-			ambient_ = other.ambient_;
-			shadowMasks_ = std::exchange(other.shadowMasks_, {});
-			lightBuffer_ = std::exchange(other.lightBuffer_, 0);
-			tileCountsBuffer_ = std::exchange(other.tileCountsBuffer_, 0);
-			tileIndicesBuffer_ = std::exchange(other.tileIndicesBuffer_, 0);
-			tileCountX_ = other.tileCountX_;
-			tileCountY_ = other.tileCountY_;
-		}
-		return *this;
-	}
-
-	bool LightingPass::initialise()
-	{
-		if (is_valid())
-		{
-			return true;
-		}
-		shadowMasks_.resize(max_shadow_lights, nullptr);
-		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
-			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
-		{
-			return false;
-		}
-		if (!detail::active_renderer()->create_storage_buffer(sizeof(GpuLight), lightBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileCountsBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_)) return false;
-		return true;
-	}
-
-	void LightingPass::shutdown()
-	{
-		shader_.reset();
-		for (Bitmap *&shadowMask : shadowMasks_)
-		{
-			destroy_bitmap(shadowMask);
-			shadowMask = nullptr;
-		}
-		if (lightBuffer_ != 0)
-		{
-			detail::active_renderer()->destroy_storage_buffer(lightBuffer_);
-			lightBuffer_ = 0;
-		}
-		if (tileCountsBuffer_ != 0)
-		{
-			detail::active_renderer()->destroy_storage_buffer(tileCountsBuffer_);
-			tileCountsBuffer_ = 0;
-		}
-		if (tileIndicesBuffer_ != 0)
-		{
-			detail::active_renderer()->destroy_storage_buffer(tileIndicesBuffer_);
-			tileIndicesBuffer_ = 0;
-		}
-	}
-
-	bool LightingPass::is_valid() const
-	{
-		return shader_.is_valid() && cullShader_.is_valid() && lightBuffer_ != 0 &&
-			tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
-	}
-
-	const std::string &LightingPass::error() const
-	{
-		return shader_.error();
-	}
-
-	void LightingPass::set_ambient(float ambient)
-	{
-		ambient_ = std::clamp(ambient, 0.0f, 1.0f);
-	}
-
-	bool LightingPass::ensure_shadow_mask(std::size_t index, int width, int height) const
-	{
-		if (index >= shadowMasks_.size())
-		{
-			return false;
-		}
-		Bitmap *&shadowMask = shadowMasks_[index];
-		if (shadowMask && shadowMask->width == width && shadowMask->height == height)
-		{
-			return true;
-		}
-		destroy_bitmap(shadowMask);
-		shadowMask = create_bitmap(width, height);
-		return shadowMask != nullptr;
-	}
-
-	void LightingPass::apply(Bitmap *source, const Light &light, int x, int y, int width, int height,
-		bool flipVertical, const std::vector<ShadowCaster> &casters) const
-	{
-		apply(source, std::vector<Light>{light}, x, y, width, height, flipVertical, casters);
-	}
-
-	void LightingPass::apply(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
-		bool flipVertical, const std::vector<ShadowCaster> &casters) const
-	{
-		if (!source || !is_valid() || !upload_bitmap(source))
-		{
-			return;
-		}
-
-		if (width <= 0)
-		{
-			width = screen_width();
-		}
-		if (height <= 0)
-		{
-			height = screen_height();
-		}
-		if (width <= 0 || height <= 0)
-		{
-			return;
-		}
-		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
-		const std::size_t lightCount = lights.size();
-		const std::size_t shadowLightCount = casters.empty()
-			? 0
-			: std::min<std::size_t>(lightCount, max_shadow_lights);
-		for (std::size_t index = 0; index < shadowLightCount; ++index)
-		{
-			if (!ensure_shadow_mask(index, source->width, source->height))
-			{
-				return;
-			}
-			clear_to_colour(shadowMasks_[index], {255, 255, 255});
-			for (const ShadowCaster &caster : casters)
-			{
-				draw_shadow_caster(shadowMasks_[index], caster, lights[index]);
-			}
-			if (!upload_bitmap(shadowMasks_[index]))
-			{
-				return;
-			}
-		}
-
-		std::vector<GpuLight> gpuLights(lightCount);
-		for (std::size_t index = 0; index < lightCount; ++index)
-		{
-			const Light &light = lights[index];
-			GpuLight &gpuLight = gpuLights[index];
-			gpuLight.positionRadius[0] = light.x;
-			gpuLight.positionRadius[1] = light.y;
-			gpuLight.positionRadius[2] = std::max(light.radius, 0.0f);
-			gpuLight.positionRadius[3] = 0.0f;
-			gpuLight.colourIntensity[0] = static_cast<float>(light.colour.red) / 255.0f;
-			gpuLight.colourIntensity[1] = static_cast<float>(light.colour.green) / 255.0f;
-			gpuLight.colourIntensity[2] = static_cast<float>(light.colour.blue) / 255.0f;
-			gpuLight.colourIntensity[3] = std::max(light.intensity, 0.0f);
-			gpuLight.shadowSoftness[0] = std::max(light.shadow_softness, 0.0f);
-			gpuLight.shadowSoftness[1] = 0.0f;
-			gpuLight.shadowSoftness[2] = 0.0f;
-			gpuLight.shadowSoftness[3] = 0.0f;
-		}
-		detail::Renderer *renderer = detail::active_renderer();
-		renderer->upload_storage_buffer(lightBuffer_, gpuLights.size() * sizeof(GpuLight), gpuLights.data(), false);
-		renderer->bind_storage_buffer(2, lightBuffer_);
-
-		const int tileCountX = (source->width + tile_size - 1) / tile_size;
-		const int tileCountY = (source->height + tile_size - 1) / tile_size;
-		const bool tileBuffersNeedResize = tileCountX != tileCountX_ || tileCountY != tileCountY_;
-		tileCountX_ = tileCountX;
-		tileCountY_ = tileCountY;
-		const std::size_t tileCount = static_cast<std::size_t>(tileCountX_) * tileCountY_;
-		if (tileBuffersNeedResize)
-		{
-			renderer->upload_storage_buffer(tileCountsBuffer_, tileCount * sizeof(std::uint32_t), nullptr, false);
-		}
-		renderer->bind_storage_buffer(3, tileCountsBuffer_);
-		if (tileBuffersNeedResize)
-		{
-			renderer->upload_storage_buffer(tileIndicesBuffer_, tileCount * max_lights_per_tile * sizeof(std::uint32_t), nullptr, false);
-		}
-		renderer->bind_storage_buffer(4, tileIndicesBuffer_);
-		cullShader_.set_uniform("screenSize", source->width, source->height);
-		cullShader_.set_uniform("tileCount", tileCountX_, tileCountY_);
-		cullShader_.set_uniform("lightCount", static_cast<int>(lightCount));
-		cullShader_.dispatch_compute(static_cast<unsigned int>(tileCountX_), static_cast<unsigned int>(tileCountY_), 1);
-		renderer->storage_barrier();
-
-		float projection[16];
-		shader_.set_uniform("source", 0);
-		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
-		shader_.set_uniform("shadowLightCount", static_cast<int>(shadowLightCount));
-		shader_.set_uniform("tileCount", tileCountX_, tileCountY_);
-		for (std::size_t index = 0; index < shadowLightCount; ++index)
-		{
-			const std::string suffix = "[" + std::to_string(index) + "]";
-			renderer->bind_texture_unit(static_cast<unsigned int>(index + 1), shadowMasks_[index]->gpu_texture);
-			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));
-		}
-		shader_.set_uniform("ambient", ambient_);
-		shader_.set_uniform("flipVertical", sourceFlipVertical ? 1 : 0);
-		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
-		shader_.set_uniform_mat4("uProjection", projection);
-		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, sourceFlipVertical);
-		Shader::stop();
 	}
 
 	void ScreenFade::set_colour(Colour colour)

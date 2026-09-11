@@ -23,6 +23,7 @@ namespace sl::detail
         void shutdown();
         bool resize(int width, int height, std::string &error);
         bool set_vsync(bool enabled);
+        bool vsync_active() const;
         void present();
         void clear(float red, float green, float blue, float alpha);
         bool is_valid() const;

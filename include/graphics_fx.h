@@ -79,8 +79,7 @@ namespace sl
         /** Bind this shader program for subsequent OpenGL calls. */
         bool use() const;
         /** Draw a textured quad with this shader using the active renderer. */
-        bool draw_textured_quad(Bitmap *texture, float x, float y, float width, float height,
-                    bool flipVertical = false) const;
+        bool draw_textured_quad(Bitmap *texture, float x, float y, float width, float height) const;
         /** Unbind the current shader program. */
         static void stop();
         /** Dispatch this program as a compute shader. */
@@ -101,6 +100,34 @@ namespace sl
     private:
         std::uint32_t program_ = 0;
         std::string error_;
+    };
+
+    /** Internal helper for chaining fullscreen post-process passes without managing one bitmap per effect. */
+    class PingPongBuffer
+    {
+    public:
+        PingPongBuffer() = default;
+        ~PingPongBuffer();
+
+        PingPongBuffer(const PingPongBuffer &) = delete;
+        PingPongBuffer &operator=(const PingPongBuffer &) = delete;
+
+        void initialise(int width, int height);
+        void shutdown();
+        bool valid() const;
+
+        Bitmap *begin(Bitmap *source);
+        Bitmap *source() const;
+        Bitmap *target() const;
+        Bitmap *advance();
+
+    private:
+        Bitmap *buffers_[2] = {nullptr, nullptr};
+        Bitmap *source_ = nullptr;
+        Bitmap *current_target_ = nullptr;
+        int width_ = 0;
+        int height_ = 0;
+        int next_index_ = 0;
     };
 
     class Bloom
@@ -140,10 +167,10 @@ namespace sl
         /**
          * Apply a wide-area glow to a bitmap region: thresholds bright pixels,
          * downsamples, blurs with a separable Gaussian, then composites the result
-         * back over the original at full resolution. Set flipVertical for
-         * render-target sources (see create_render_target()).
+         * back over the original at full resolution. Texture orientation is
+         * resolved by the active backend.
          */
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0, bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader brightShader_;
@@ -189,9 +216,9 @@ namespace sl
 
         /**
          * Darken a bitmap region's edges and draw the result to the current render target.
-         * Set flipVertical for render-target sources (see create_render_target()).
+         * Texture orientation is resolved by the active backend.
          */
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0, bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -215,8 +242,7 @@ namespace sl
         void set_contrast(float value);
         void set_saturation(float value);
         void set_exposure(float value);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -243,8 +269,7 @@ namespace sl
         const std::string &error() const;
         void set_radius(float radius);
         void set_iterations(int iterations);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -265,8 +290,7 @@ namespace sl
         bool is_valid() const;
         const std::string &error() const;
         void set_strength(float strength);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -282,8 +306,7 @@ namespace sl
         bool is_valid() const;
         const std::string &error() const;
         void set_pixel_size(float size);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -301,8 +324,7 @@ namespace sl
         void set_centre(float x, float y);
         void set_strength(float strength);
         void set_samples(int samples);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
@@ -323,14 +345,51 @@ namespace sl
         void set_strength(float strength);
         void set_frequency(float frequency);
         void set_time(float time);
-        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
-                   bool flipVertical = false) const;
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
         float strength_ = 0.008f;
         float frequency_ = 24.0f;
         float time_ = 0.0f;
+    };
+
+    /** A retro CRT composite combining scanlines, light curvature, and blocky pixelation. */
+    class CRTFilter
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_pixel_size(float size);
+        void set_scanline_strength(float strength);
+        void set_curvature(float curvature);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+
+    private:
+        Shader shader_;
+        float pixel_size_ = 4.0f;
+        float scanline_strength_ = 0.35f;
+        float curvature_ = 0.18f;
+    };
+
+    /** Applies ordered (Bayer) dithering to reduce colour depth for a retro/print look. */
+    class DitherFilter
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_pixel_size(float size);
+        void set_levels(float levels);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+
+    private:
+        Shader shader_;
+        float pixel_size_ = 1.0f;
+        float levels_ = 4.0f;
     };
 
     /** Applies a decaying camera offset to 2D projections for impact and motion effects. */
@@ -412,11 +471,11 @@ namespace sl
 
         /** Apply ambient plus radial lighting and polygon shadows to a bitmap. */
         void apply(Bitmap *source, const Light &light, int x = 0, int y = 0,
-                   int width = 0, int height = 0, bool flipVertical = false,
+                   int width = 0, int height = 0,
                    const std::vector<ShadowCaster> &casters = {}) const;
         /** Apply an arbitrary batch of lights; only the first max_shadow_lights receive shadows. */
         void apply(Bitmap *source, const std::vector<Light> &lights, int x = 0, int y = 0,
-               int width = 0, int height = 0, bool flipVertical = false,
+               int width = 0, int height = 0,
                const std::vector<ShadowCaster> &casters = {}) const;
 
     private:

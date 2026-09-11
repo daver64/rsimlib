@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
             const float time = static_cast<float>(sl::time_ms()) * 0.001f;
             const float x = 400.0f + std::cos(time) * 170.0f;
             const float y = 180.0f + std::sin(time * 1.3f) * 55.0f;
-            shader.draw_textured_quad(texture, x - 96.0f, y, 192.0f, 192.0f, true);
+            shader.draw_textured_quad(texture, x - 96.0f, y, 192.0f, 192.0f);
         }
         sl::gprintf_center(120, {232, 236, 244}, "Shader file loading example");
         sl::gprintf_center(160, ready ? sl::Colour{130, 220, 150} : sl::Colour{240, 130, 120},

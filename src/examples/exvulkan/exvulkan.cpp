@@ -55,10 +55,7 @@ int main(int argc, char *argv[])
 
         if (has_scene && bloom.is_valid())
         {
-            // Vulkan and OpenGL render targets differ in Y convention for a single
-            // composite hop straight to the screen; flip only on the OpenGL backend.
-            const bool flip_source = sl::graphics_backend() == sl::GraphicsBackend::opengl;
-            bloom.apply(scene, 0, 0, sl::screen_width(), sl::screen_height(), flip_source);
+            bloom.apply(scene, 0, 0, sl::screen_width(), sl::screen_height());
         }
 
         sl::show_video_bitmap();

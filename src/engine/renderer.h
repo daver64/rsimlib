@@ -103,6 +103,9 @@ namespace sl::detail
         virtual bool resize(int width, int height, std::string &error) = 0;
         /** Set the backend presentation interval. */
         virtual bool set_vsync(bool enabled) = 0;
+        /** Whether present() currently blocks to pace frames to the display refresh.
+         * Used to avoid double frame-pacing against the software frame limiter. */
+        virtual bool vsync_active() const { return false; }
         /** Present the current backend framebuffer. */
         virtual void present() = 0;
         /** Begin/end a backend frame around command recording. */

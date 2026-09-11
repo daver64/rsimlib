@@ -61,6 +61,11 @@ namespace sl::detail
         return context_ && SDL_GL_SetSwapInterval(enabled ? 1 : 0) == 0;
     }
 
+    bool GLContext::vsync_active() const
+    {
+        return context_ && SDL_GL_GetSwapInterval() != 0;
+    }
+
     void GLContext::present()
     {
         if (window_)

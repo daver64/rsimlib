@@ -121,6 +121,11 @@ namespace sl::detail
                 return context_.set_vsync(enabled);
             }
 
+            bool vsync_active() const override
+            {
+                return context_.vsync_active();
+            }
+
             void present() override
             {
                 context_.present();

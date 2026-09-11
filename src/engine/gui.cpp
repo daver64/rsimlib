@@ -101,6 +101,8 @@ namespace sl
             ImGui_ImplOpenGL3_Shutdown();
         else if (graphics_backend() == GraphicsBackend::vulkan && vulkan_gui_ready)
         {
+            if (detail::VulkanContext *context = detail::active_renderer()->vulkan_context())
+                vkDeviceWaitIdle(context->device());
             ImGui_ImplVulkan_Shutdown();
             if (detail::VulkanContext *context = detail::active_renderer()->vulkan_context())
                 context->destroy_imgui_descriptor_pool(vulkan_descriptor_pool);

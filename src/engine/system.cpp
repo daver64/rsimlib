@@ -4,6 +4,9 @@
 
 #include "system.h"
 
+#include "display.h"
+#include "renderer.h"
+
 #include <SDL2/SDL.h>
 
 namespace sl
@@ -20,7 +23,7 @@ namespace sl
 
 	void shutdown()
 	{
-		SDL_Quit();
+		display_shutdown();
 	}
 	std::uint64_t time_ms()
 	{
@@ -56,12 +59,18 @@ namespace sl
 
 		if (target_fps > 0)
 		{
-			const Uint64 target_duration_ms = 1000 / static_cast<Uint64>(target_fps);
-			const Uint64 elapsed = now - last_frame_ticks;
-			if (elapsed < target_duration_ms)
+			// Skip the software delay when the backend already paces presentation via
+			// vsync: sleeping on top of that double-paces the frame and causes stutter.
+			detail::Renderer *renderer = detail::active_renderer();
+			if (!renderer || !renderer->vsync_active())
 			{
-				SDL_Delay(static_cast<Uint32>(target_duration_ms - elapsed));
-				now = SDL_GetTicks64();
+				const Uint64 target_duration_ms = 1000 / static_cast<Uint64>(target_fps);
+				const Uint64 elapsed = now - last_frame_ticks;
+				if (elapsed < target_duration_ms)
+				{
+					SDL_Delay(static_cast<Uint32>(target_duration_ms - elapsed));
+					now = SDL_GetTicks64();
+				}
 			}
 		}
 

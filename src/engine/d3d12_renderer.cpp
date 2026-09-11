@@ -35,6 +35,7 @@ namespace sl::detail
                 vsync_enabled_ = enabled;
                 return true;
             }
+            bool vsync_active() const override { return vsync_enabled_; }
             void present() override { context_.present(vsync_enabled_); }
             bool begin_frame(std::string &) override
             {

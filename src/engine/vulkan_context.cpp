@@ -340,6 +340,8 @@ namespace sl::detail
         attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0] = attachment;
+        attachments[1] = depth_attachment;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan swapchain resume render pass.";
@@ -361,6 +363,7 @@ namespace sl::detail
         }
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        attachments[0] = attachment;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_offscreen_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan offscreen resume render pass.";
