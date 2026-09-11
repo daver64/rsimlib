@@ -7,10 +7,6 @@ render targets and lighting effects, ZIP resource archives, Perlin/simplex
 noise, Box2D physics, and a sandboxed Lua console through
 [sol2](https://github.com/ThePhD/sol2).
 
-> **Experimental software:** simlib is under active development and expected to
-> grow organically. APIs, behavior, and project structure may change as the
-> library evolves.
-
 This repository contains:
 
 - **`simlib`** — the static engine library (`src/engine/`).
