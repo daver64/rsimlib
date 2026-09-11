@@ -38,8 +38,9 @@ int main(int argc, char *argv[])
         sl::show_video_bitmap();
         sl::end_frame();
     }
-
+    sl::wait_for_graphics();
     sl::destroy_bitmap(balloon);
+    
     sl::shutdown();
     return 0;
 }

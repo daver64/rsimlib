@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
     }
 
     sl::gui_shutdown();
+    sl::wait_for_graphics();
     sl::shutdown();
     return 0;
 }

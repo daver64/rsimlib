@@ -146,7 +146,8 @@ int main(int argc, char *argv[])
 		draw_table(database_filename, products);
 	}
 
-	sl::shutdown();
+	sl::wait_for_graphics();
+    sl::shutdown();
 	remove_database(database_filename);
 	return 0;
 }

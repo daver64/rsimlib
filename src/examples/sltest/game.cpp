@@ -133,6 +133,7 @@ namespace game
         sl::display_shutdown();
         sl::audio_fx_shutdown();
         sl::music_shutdown();
+        sl::wait_for_graphics();
         sl::shutdown();
     }
 

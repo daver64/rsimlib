@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
     {
         sl::close_font(sans_font);
     }
+    sl::wait_for_graphics();
     sl::shutdown();
     return 0;
 }

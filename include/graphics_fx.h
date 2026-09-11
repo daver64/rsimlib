@@ -354,6 +354,33 @@ namespace sl
         float time_ = 0.0f;
     };
 
+    /** Pushes pixels outward along an expanding ring centered on a focal point. */
+    class Shockwave
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        /** Set the normalized focal point; (0, 0) is top-left and (1, 1) is bottom-right. */
+        void set_centre(float x, float y);
+        /** Set the normalized distance of the expanding ring from its focal point. */
+        void set_radius(float radius);
+        /** Set the normalized thickness of the distortion ring. */
+        void set_width(float width);
+        /** Set the normalized outward displacement at the ring peak. */
+        void set_strength(float strength);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+
+    private:
+        Shader shader_;
+        float centre_x_ = 0.5f;
+        float centre_y_ = 0.5f;
+        float radius_ = 0.25f;
+        float width_ = 0.08f;
+        float strength_ = 0.025f;
+    };
+
     /** A retro CRT composite combining scanlines, light curvature, and blocky pixelation. */
     class CRTFilter
     {

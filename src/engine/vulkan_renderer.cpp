@@ -136,6 +136,10 @@ namespace sl::detail
                         !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, error,
                             nullptr, sizeof(HeatConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_shockwave.frag.spv", shockwave_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, shockwave_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, shockwave_pipeline_, error,
+                            nullptr, sizeof(ShockwaveConstants))) return false;
                     if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_chromatic_aberration.frag.spv", chromatic_fragment_module_, error) ||
                         !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, error,
@@ -199,6 +203,7 @@ namespace sl::detail
                     context_.destroy_graphics_pipeline(pixelate_pipeline_);
                     context_.destroy_graphics_pipeline(radial_pipeline_);
                     context_.destroy_graphics_pipeline(heat_pipeline_);
+                    context_.destroy_graphics_pipeline(shockwave_pipeline_);
                     context_.destroy_graphics_pipeline(chromatic_pipeline_);
                     context_.destroy_graphics_pipeline(crt_pipeline_);
                     context_.destroy_graphics_pipeline(dither_pipeline_);
@@ -216,6 +221,7 @@ namespace sl::detail
                     context_.destroy_shader_module(pixelate_fragment_module_);
                     context_.destroy_shader_module(radial_fragment_module_);
                     context_.destroy_shader_module(heat_fragment_module_);
+                    context_.destroy_shader_module(shockwave_fragment_module_);
                     context_.destroy_shader_module(chromatic_fragment_module_);
                     context_.destroy_shader_module(crt_fragment_module_);
                     context_.destroy_shader_module(dither_fragment_module_);
@@ -289,6 +295,9 @@ namespace sl::detail
                         !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, last_error_,
                             nullptr, sizeof(HeatConstants)) ||
+                            !context_.create_graphics_pipeline(lighting_vertex_module_, shockwave_fragment_module_,
+                                descriptor_layout_, PrimitiveType::triangle_fan, shockwave_pipeline_, last_error_,
+                                nullptr, sizeof(ShockwaveConstants)) ||
                         !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, last_error_,
                             nullptr, sizeof(ChromaticConstants)) ||
@@ -324,6 +333,10 @@ namespace sl::detail
                     context_.end_frame(last_error_);
                     frame_active_ = false;
                 }
+            }
+            void wait_idle() override
+            {
+                if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
             }
             bool begin_frame(std::string &error) override
             {
@@ -487,6 +500,12 @@ namespace sl::detail
                     program = heat_program_;
                     return true;
                 }
+                if (vertex_source.asset_id == "shockwave" && fragment_source.asset_id == "shockwave" &&
+                    shockwave_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = shockwave_program_;
+                    return true;
+                }
                 if (vertex_source.asset_id == "crt" && fragment_source.asset_id == "crt" &&
                     crt_pipeline_.pipeline != VK_NULL_HANDLE)
                 {
@@ -577,7 +596,8 @@ namespace sl::detail
                 }
                 if (program != cull_program_ && program != lighting_program_ && program != vignette_program_ &&
                     program != colour_adjust_program_ && program != bright_program_ && program != blur_program_ &&
-                    program != composite_program_ && program != crt_program_ && program != dither_program_) return false;
+                    program != composite_program_ && program != crt_program_ && program != dither_program_ &&
+                    program != shockwave_program_) return false;
                 active_program_ = program;
                 return true;
             }
@@ -691,6 +711,15 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
+                if (program == shockwave_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "radius") == 0) shockwave_constants_.radius = value;
+                    else if (std::strcmp(name, "width") == 0) shockwave_constants_.width = value;
+                    else if (std::strcmp(name, "strength") == 0) shockwave_constants_.strength = value;
+                    else return true;
+                    return true;
+                }
                 if (program == bright_program_ && name && std::strcmp(name, "threshold") == 0)
                 {
                     active_program_ = program;
@@ -750,6 +779,13 @@ namespace sl::detail
                     active_program_ = program;
                     radial_constants_.centre[0] = x;
                     radial_constants_.centre[1] = y;
+                    return true;
+                }
+                if (program == shockwave_program_ && name && std::strcmp(name, "centre") == 0)
+                {
+                    active_program_ = program;
+                    shockwave_constants_.centre[0] = x;
+                    shockwave_constants_.centre[1] = y;
                     return true;
                 }
                 return unsupported();
@@ -843,6 +879,12 @@ namespace sl::detail
                     return true;
                 }
                 if (program == heat_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == shockwave_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
@@ -1115,6 +1157,13 @@ namespace sl::detail
                         &heat_constants_, sizeof(heat_constants_), last_error_);
                     return;
                 }
+                if (active_program_ == shockwave_program_)
+                {
+                    context_.record_postprocess_draw(shockwave_pipeline_.pipeline, shockwave_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &shockwave_constants_, sizeof(shockwave_constants_), last_error_);
+                    return;
+                }
                 if (active_program_ == crt_program_)
                 {
                     context_.record_postprocess_draw(crt_pipeline_.pipeline, crt_pipeline_.layout,
@@ -1337,6 +1386,8 @@ namespace sl::detail
             VulkanGraphicsPipeline radial_pipeline_;
             VulkanShaderModule heat_fragment_module_;
             VulkanGraphicsPipeline heat_pipeline_;
+            VulkanShaderModule shockwave_fragment_module_;
+            VulkanGraphicsPipeline shockwave_pipeline_;
             VulkanShaderModule crt_fragment_module_;
             VulkanGraphicsPipeline crt_pipeline_;
             VulkanShaderModule dither_fragment_module_;
@@ -1358,6 +1409,7 @@ namespace sl::detail
             static constexpr std::uint32_t pixelate_program_ = 0x80000008u;
             static constexpr std::uint32_t radial_program_ = 0x80000009u;
             static constexpr std::uint32_t heat_program_ = 0x8000000Au;
+            static constexpr std::uint32_t shockwave_program_ = 0x8000000Du;
             static constexpr std::uint32_t crt_program_ = 0x8000000Bu;
             static constexpr std::uint32_t dither_program_ = 0x8000000Cu;
             static constexpr std::uint32_t bright_program_ = 0x80000003u;
@@ -1402,6 +1454,7 @@ namespace sl::detail
             struct PixelateConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size[2] = {8.0f, 8.0f}; } pixelate_constants_;
             struct RadialConstants { float centre[2] = {0.5f, 0.5f}; float strength = 0.25f; int samples = 8; } radial_constants_;
             struct HeatConstants { float strength = 0.008f; float frequency = 24.0f; float time = 0.0f; } heat_constants_;
+            struct ShockwaveConstants { float centre[2] = {0.5f, 0.5f}; float radius = 0.25f; float width = 0.08f; float strength = 0.025f; } shockwave_constants_;
             struct CRTConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 4.0f; float scanline_strength = 0.35f; float curvature = 0.18f; } crt_constants_;
             struct DitherConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 1.0f; float levels = 4.0f; } dither_constants_;
             std::array<float, 16> vignette_projection_{};

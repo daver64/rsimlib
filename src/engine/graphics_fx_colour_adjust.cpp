@@ -16,9 +16,10 @@ namespace sl
 
 	bool ColourAdjust::initialise()
 	{
-		if (is_valid()) return true;
+		if (is_valid())
+			return true;
 		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("colour_adjust.frag"),
-			"colour-adjust");
+							"colour-adjust");
 	}
 
 	void ColourAdjust::shutdown()
@@ -44,10 +45,14 @@ namespace sl
 	void ColourAdjust::apply(Bitmap *source, int x, int y, int width, int height) const
 	{
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
+		if (!source || !is_valid() || !upload_bitmap(source))
+			return;
+		if (width <= 0)
+			width = screen_width();
+		if (height <= 0)
+			height = screen_height();
+		if (width <= 0 || height <= 0)
+			return;
 		shader_.set_uniform("source", 0);
 		shader_.set_uniform("brightness", brightness_);
 		shader_.set_uniform("contrast", contrast_);

@@ -108,6 +108,8 @@ namespace sl::detail
         virtual bool vsync_active() const { return false; }
         /** Present the current backend framebuffer. */
         virtual void present() = 0;
+        /** Wait for all submitted backend graphics work to complete. */
+        virtual void wait_idle() {}
         /** Begin/end a backend frame around command recording. */
         virtual bool begin_frame(std::string &error) = 0;
         virtual bool end_frame(std::string &error) = 0;

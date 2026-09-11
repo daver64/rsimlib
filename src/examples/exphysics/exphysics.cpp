@@ -82,6 +82,6 @@ int main(int argc, char *argv[])
     sl::destroy_physics_body(floor);
     sl::destroy_physics_body(triangle);
     sl::destroy_physics_world(world);
+    sl::wait_for_graphics();
     sl::shutdown();
-    return 0;
 }

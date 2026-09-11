@@ -71,6 +71,8 @@ namespace sl
     void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha = 255);
     /** Present the current OpenGL framebuffer to the window. */
     void show_video_bitmap();
+    /** Wait until all submitted graphics work has completed. */
+    void wait_for_graphics();
     /** Release the OpenGL context, window, and SDL video state. */
     void display_shutdown();
     /** Return the active SDL window, or nullptr if not initialized. */

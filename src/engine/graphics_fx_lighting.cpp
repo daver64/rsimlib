@@ -48,7 +48,7 @@ namespace sl
 		void fill_shadow_triangle(Bitmap *mask, Point first, Point second, Point third)
 		{
 			const float area = (second.x - first.x) * (third.y - first.y) -
-				(second.y - first.y) * (third.x - first.x);
+							   (second.y - first.y) * (third.x - first.x);
 			if (std::abs(area) <= 0.0001f)
 			{
 				return;
@@ -69,11 +69,11 @@ namespace sl
 				{
 					const Point sample{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
 					const float edgeA = (second.x - first.x) * (sample.y - first.y) -
-						(second.y - first.y) * (sample.x - first.x);
+										(second.y - first.y) * (sample.x - first.x);
 					const float edgeB = (third.x - second.x) * (sample.y - second.y) -
-						(third.y - second.y) * (sample.x - second.x);
+										(third.y - second.y) * (sample.x - second.x);
 					const float edgeC = (first.x - third.x) * (sample.y - third.y) -
-						(first.y - third.y) * (sample.x - third.x);
+										(first.y - third.y) * (sample.x - third.x);
 					if ((edgeA >= 0.0f && edgeB >= 0.0f && edgeC >= 0.0f) ||
 						(edgeA <= 0.0f && edgeB <= 0.0f && edgeC <= 0.0f))
 					{
@@ -178,7 +178,8 @@ namespace sl
 		}
 		if (!detail::active_renderer()->create_storage_buffer(sizeof(GpuLight), lightBuffer_) ||
 			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileCountsBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_)) return false;
+			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_))
+			return false;
 		return true;
 	}
 
@@ -210,7 +211,7 @@ namespace sl
 	bool LightingPass::is_valid() const
 	{
 		return shader_.is_valid() && cullShader_.is_valid() && lightBuffer_ != 0 &&
-			tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
+			   tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
 	}
 
 	const std::string &LightingPass::error() const
@@ -240,13 +241,13 @@ namespace sl
 	}
 
 	void LightingPass::apply(Bitmap *source, const Light &light, int x, int y, int width, int height,
-		const std::vector<ShadowCaster> &casters) const
+							 const std::vector<ShadowCaster> &casters) const
 	{
 		apply(source, std::vector<Light>{light}, x, y, width, height, casters);
 	}
 
 	void LightingPass::apply(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
-		const std::vector<ShadowCaster> &casters) const
+							 const std::vector<ShadowCaster> &casters) const
 	{
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
 		if (!source || !is_valid() || !upload_bitmap(source))
@@ -269,8 +270,8 @@ namespace sl
 		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
 		const std::size_t lightCount = lights.size();
 		const std::size_t shadowLightCount = casters.empty()
-			? 0
-			: std::min<std::size_t>(lightCount, max_shadow_lights);
+												 ? 0
+												 : std::min<std::size_t>(lightCount, max_shadow_lights);
 		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
 			if (!ensure_shadow_mask(index, source->width, source->height))

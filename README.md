@@ -43,9 +43,60 @@ Create the archive used by `exresources` from the repository root with:
 - **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
 - **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
 - **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`expostprocess`** — render-target composition with ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Bloom, and Vignette effect passes.
+- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, and Vignette effect passes.
 - **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
+
+## Graphics effects
+
+`simlib` includes configurable post-process effects for render targets and
+bitmaps. [`expostprocess`](src/examples/expostprocess/expostprocess.cpp) shows
+how to compose them with `PingPongBuffer`, including an interactive Shockwave
+triggered from the mouse position.
+
+Effects that own GPU resources must be initialized after `set_gfx_mode()` and
+shut down before the display is destroyed. After the final frame, call
+`wait_for_graphics()` once before releasing GPU-backed effects, render targets,
+bitmaps, or ImGui resources; call `shutdown()` last.
+
+| Type | Main API | Description |
+| --- | --- | --- |
+| `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader, bind it, set uniforms, and release it. Custom GLSL is compiled to SPIR-V at runtime on Vulkan. |
+| `PingPongBuffer` | `initialise`, `begin`, `source`, `target`, `advance`, `shutdown` | Alternate between two render targets while chaining fullscreen effects without allocating one bitmap per pass. |
+| `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
+| `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
+| `ColourAdjust` | `initialise`, `set_brightness`, `set_contrast`, `set_saturation`, `set_exposure`, `apply`, `shutdown` | Adjust brightness, contrast, saturation, and exposure. |
+| `Blur` | `initialise`, `set_radius`, `set_iterations`, `apply`, `shutdown` | Apply a separable Gaussian blur using temporary render targets. |
+| `ChromaticAberration` | `initialise`, `set_strength`, `apply`, `shutdown` | Separate RGB samples toward the edges for lens and damage effects. |
+| `Pixelate` | `initialise`, `set_pixel_size`, `apply`, `shutdown` | Reduce a bitmap to configurable screen-space colour blocks. |
+| `RadialBlur` | `initialise`, `set_centre`, `set_strength`, `set_samples`, `apply`, `shutdown` | Blur along rays from a focal point. |
+| `HeatHaze` | `initialise`, `set_strength`, `set_frequency`, `set_time`, `apply`, `shutdown` | Apply animated sinusoidal UV distortion. |
+| `Shockwave` | `initialise`, `set_centre`, `set_radius`, `set_width`, `set_strength`, `apply`, `shutdown` | Push pixels outward along an expanding ring centered on a focal point. |
+| `CRTFilter` | `initialise`, `set_pixel_size`, `set_scanline_strength`, `set_curvature`, `apply`, `shutdown` | Combine scanlines, light curvature, and pixelation for a CRT look. |
+| `DitherFilter` | `initialise`, `set_pixel_size`, `set_levels`, `apply`, `shutdown` | Apply ordered Bayer dithering to reduce colour depth. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply coloured radial lights and polygon-caster shadows to a bitmap. |
+| `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
+| `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |
+
+### 2D lighting
+
+`Light` describes a radial screen-space light:
+
+| Field | Description |
+| --- | --- |
+| `x`, `y` | Light position in pixels, using the same top-left origin as drawing APIs. |
+| `radius` | Maximum illumination distance in pixels. |
+| `intensity` | Brightness multiplier for this light. |
+| `shadow_softness` | Shadow-mask filter radius in pixels; `0` produces hard shadows. |
+| `colour` | RGB light colour. |
+
+`ShadowCaster` describes a polygon that blocks light. Its `vertices` are
+screen-space pixel coordinates using the top-left origin. Vertices should be
+ordered around the polygon perimeter. Use
+`make_rectangle_shadow_caster(left, top, right, bottom)` when a rectangle is
+the most convenient representation. The current implementation projects
+polygon edges away from each light and supports soft shadow filtering through
+`shadow_softness`.
 
 ### `sltest` screenshot
 
@@ -474,51 +525,7 @@ application:
 Images, samples, streams, and fonts can accept an `Archive` overload directly,
 so callers do not need to extract bundled assets to temporary files.
 
-### Graphics effects
-
-`Shader`, `Bloom`, `Vignette`, `ColourAdjust`, `Blur`, `ChromaticAberration`,
-`Pixelate`, `RadialBlur`, `HeatHaze`, `LightingPass`, `ScreenFade`, and
-`ScreenShake` are declared in
-[`include/graphics_fx.h`](include/graphics_fx.h). Effects that own GPU state
-must be initialized after the display exists and shut down before the display
-context is destroyed.
-
-| Type | Main API | Description |
-| --- | --- | --- |
-| `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader (compiled to SPIR-V at runtime on Vulkan), bind it, set uniforms, and release it. |
-| `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
-| `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
-| `ColourAdjust` | `initialise`, `set_brightness`, `set_contrast`, `set_saturation`, `set_exposure`, `apply`, `shutdown` | Adjust brightness, contrast, saturation, and exposure. |
-| `Blur` | `initialise`, `set_radius`, `set_iterations`, `apply`, `shutdown` | Apply a separable Gaussian blur using temporary render targets. |
-| `ChromaticAberration` | `initialise`, `set_strength`, `apply`, `shutdown` | Separate RGB samples toward the edges for lens and damage effects. |
-| `Pixelate` | `initialise`, `set_pixel_size`, `apply`, `shutdown` | Reduce a bitmap to configurable screen-space colour blocks. |
-| `RadialBlur` | `initialise`, `set_centre`, `set_strength`, `set_samples`, `apply`, `shutdown` | Blur along rays from a focal point. |
-| `HeatHaze` | `initialise`, `set_strength`, `set_frequency`, `set_time`, `apply`, `shutdown` | Apply animated sinusoidal UV distortion. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of coloured radial lights and polygon-caster shadows to a bitmap. |
-| `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
-| `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |
-
-Ambient illumination is applied once, then each light's coloured contribution
-
-#### 2D lighting
-
-`Light` describes a radial screen-space light:
-
-| Field | Description |
-| --- | --- |
-| `x`, `y` | Light position in pixels, using the same top-left origin as drawing APIs. |
-| `radius` | Maximum illumination distance in pixels. |
-| `intensity` | Brightness multiplier for this light. |
-| `shadow_softness` | Shadow-mask filter radius in pixels; `0` produces hard shadows. |
-| `colour` | RGB light colour. |
-
-`ShadowCaster` describes a polygon that blocks light. Its `vertices` are
-screen-space pixel coordinates using the top-left origin. Vertices should be
-ordered around the polygon perimeter. Use
-`make_rectangle_shadow_caster(left, top, right, bottom)` when a rectangle is
-the most convenient representation.
-The current implementation projects polygon edges away from each light and
-accepts an arbitrary number of lights per `LightingPass::apply()` call through
+`LightingPass` accepts an arbitrary number of lights per `LightingPass::apply()` call through
 backend-specific shader storage buffers. The first eight lights can use geometric
 polygon shadows; additional lights remain unshadowed. All supplied casters
 affect every shadow-capable light in that call.

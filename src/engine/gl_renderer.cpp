@@ -131,6 +131,8 @@ namespace sl::detail
                 context_.present();
             }
 
+            void wait_idle() override { glFinish(); }
+
             bool begin_frame(std::string &) override { return true; }
             bool end_frame(std::string &) override { present(); return true; }
 

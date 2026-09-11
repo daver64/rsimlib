@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
     context->destroy_descriptor_set_layout(descriptor_layout);
     context->destroy_shader_module(vertex_module);
     context->destroy_shader_module(fragment_module);
+    sl::wait_for_graphics();
     sl::shutdown();
     return 0;
 }

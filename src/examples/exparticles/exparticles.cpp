@@ -74,6 +74,6 @@ int main(int argc, char *argv[])
         sl::end_frame();
     }
 
+    sl::wait_for_graphics();
     sl::shutdown();
-    return 0;
 }

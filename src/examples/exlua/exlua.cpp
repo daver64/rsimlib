@@ -39,5 +39,6 @@ int main(int argc, char *argv[])
     canvas.render(sl::screen);
     sl::show_video_bitmap();
     process_input();
-    return 0;
+    sl::wait_for_graphics();
+    sl::shutdown();
 }

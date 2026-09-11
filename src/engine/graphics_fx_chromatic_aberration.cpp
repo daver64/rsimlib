@@ -18,9 +18,10 @@ namespace sl
 
 	bool ChromaticAberration::initialise()
 	{
-		if (is_valid()) return true;
+		if (is_valid())
+			return true;
 		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("chromatic_aberration.frag"),
-			"chromatic-aberration");
+							"chromatic-aberration");
 	}
 
 	void ChromaticAberration::shutdown() { shader_.reset(); }
@@ -31,10 +32,14 @@ namespace sl
 	void ChromaticAberration::apply(Bitmap *source, int x, int y, int width, int height) const
 	{
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0) return;
+		if (!source || !is_valid() || !upload_bitmap(source))
+			return;
+		if (width <= 0)
+			width = screen_width();
+		if (height <= 0)
+			height = screen_height();
+		if (width <= 0 || height <= 0)
+			return;
 		shader_.set_uniform("source", 0);
 		shader_.set_uniform("strength", strength_);
 		float projection[16];

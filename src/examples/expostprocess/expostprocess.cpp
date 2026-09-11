@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     sl::Pixelate pixelate;
     sl::RadialBlur radial_blur;
     sl::HeatHaze heat_haze;
+    sl::Shockwave shockwave;
     sl::CRTFilter crt_filter;
     sl::DitherFilter dither_filter;
     sl::ScreenShake screen_shake;
@@ -43,6 +44,7 @@ int main(int argc, char *argv[])
     const bool pixelate_ready = pixelate.initialise();
     const bool radial_ready = radial_blur.initialise();
     const bool heat_ready = heat_haze.initialise();
+    const bool shockwave_ready = shockwave.initialise();
     const bool crt_ready = crt_filter.initialise();
     const bool dither_ready = dither_filter.initialise();
     bloom.set_threshold(0.35f);
@@ -64,6 +66,8 @@ int main(int argc, char *argv[])
     radial_blur.set_samples(10);
     heat_haze.set_strength(0.008f);
     heat_haze.set_frequency(24.0f);
+    shockwave.set_width(0.075f);
+    shockwave.set_strength(0.028f);
     crt_filter.set_pixel_size(4.0f);
     crt_filter.set_scanline_strength(0.35f);
     crt_filter.set_curvature(0.18f);
@@ -78,6 +82,7 @@ int main(int argc, char *argv[])
     bool use_pixelate = false;
     bool use_radial = false;
     bool use_heat = false;
+    float shockwave_elapsed = -1.0f;
     bool use_crt = false;
     bool use_dither = false;
     bool running = true;
@@ -112,6 +117,8 @@ int main(int argc, char *argv[])
                     use_radial = !use_radial;
                 else if (event.key() == sl::Event::Key::letter_h && heat_ready)
                     use_heat = !use_heat;
+                else if (event.key() == sl::Event::Key::letter_x && shockwave_ready)
+                    shockwave_elapsed = 0.0f;
                 else if (event.key() == sl::Event::Key::letter_t && crt_ready)
                     use_crt = !use_crt;
                 else if (event.key() == sl::Event::Key::letter_d && dither_ready)
@@ -123,7 +130,9 @@ int main(int argc, char *argv[])
         }
 
         const float time = static_cast<float>(sl::time_ms()) * 0.001f;
-        screen_shake.update(std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f));
+        const float elapsed = std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f);
+        screen_shake.update(elapsed);
+        if (shockwave_elapsed >= 0.0f) shockwave_elapsed += elapsed;
         sl::begin_render_target(scene);
         sl::clear_render_target({18, 23, 34});
         sl::gprintf_center(30, {232, 236, 244}, "Post-processing example");
@@ -132,7 +141,7 @@ int main(int argc, char *argv[])
             use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
         sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  T: CRT %s",
             use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
-        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s", use_dither ? "on" : "off");
+        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  X: Shockwave", use_dither ? "on" : "off");
         sl::circlefill(sl::screen, 400.0f + std::cos(time) * 180.0f,
             280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
         sl::circlefill(sl::screen, 180.0f, 420.0f, 34.0f, {80, 190, 255});
@@ -198,6 +207,18 @@ int main(int argc, char *argv[])
             sl::end_render_target();
             effect_source = post_process.advance();
         }
+        if (shockwave_elapsed >= 0.0f && shockwave_elapsed < 0.9f)
+        {
+            shockwave.set_centre(static_cast<float>(sl::mouse_x()) / 800.0f,
+                                 static_cast<float>(sl::mouse_y()) / 600.0f);
+            shockwave.set_radius(shockwave_elapsed * 0.95f);
+            post_process.begin(effect_source);
+            sl::begin_render_target(post_process.target());
+            sl::clear_render_target({8, 11, 18});
+            shockwave.apply(post_process.source(), 0, 0, 800, 600);
+            sl::end_render_target();
+            effect_source = post_process.advance();
+        }
         if (use_vignette)
         {
             post_process.begin(effect_source);
@@ -234,6 +255,7 @@ int main(int argc, char *argv[])
         sl::end_frame();
     }
 
+    sl::wait_for_graphics();
     vignette.shutdown();
     bloom.shutdown();
     colour_adjust.shutdown();
@@ -242,11 +264,11 @@ int main(int argc, char *argv[])
     pixelate.shutdown();
     radial_blur.shutdown();
     heat_haze.shutdown();
+    shockwave.shutdown();
     crt_filter.shutdown();
     dither_filter.shutdown();
     post_process.shutdown();
     sl::destroy_bitmap(scene);
     sl::destroy_bitmap(balloon);
     sl::shutdown();
-    return 0;
 }

@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
     }
 
     cleanup_audio(audio);
+    sl::wait_for_graphics();
     sl::shutdown();
     return 0;
 }

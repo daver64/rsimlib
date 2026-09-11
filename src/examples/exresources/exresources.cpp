@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
         process_input(running);
         draw_screen(archive_path, archive, texture, script_preview);
     }
-
+    sl::wait_for_graphics();
     sl::destroy_bitmap(texture);
     sl::shutdown();
     archive.close();

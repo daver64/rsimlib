@@ -72,7 +72,8 @@ namespace sl
 
 	Bitmap *PingPongBuffer::begin(Bitmap *source)
 	{
-		if (!valid()) return nullptr;
+		if (!valid())
+			return nullptr;
 		source_ = source;
 		current_target_ = buffers_[next_index_];
 		next_index_ = 1 - next_index_;
@@ -91,7 +92,8 @@ namespace sl
 
 	Bitmap *PingPongBuffer::advance()
 	{
-		if (!valid() || !current_target_) return nullptr;
+		if (!valid() || !current_target_)
+			return nullptr;
 		source_ = current_target_;
 		return source_;
 	}
@@ -169,8 +171,8 @@ namespace sl
 	}
 
 	bool Shader::load(const std::string &vertexSource, const std::string &fragmentSource,
-					   const std::vector<std::string> &vulkanSamplerNames,
-					   const std::vector<ShaderUniform> &vulkanUniforms)
+					  const std::vector<std::string> &vulkanSamplerNames,
+					  const std::vector<ShaderUniform> &vulkanUniforms)
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
@@ -191,8 +193,8 @@ namespace sl
 	}
 
 	bool Shader::load_files(const std::string &vertexPath, const std::string &fragmentPath,
-		const std::vector<std::string> &vulkanSamplerNames,
-		const std::vector<ShaderUniform> &vulkanUniforms, const std::string &assetId)
+							const std::vector<std::string> &vulkanSamplerNames,
+							const std::vector<ShaderUniform> &vulkanUniforms, const std::string &assetId)
 	{
 		reset();
 		std::ifstream vertexFile(vertexPath, std::ios::binary);
@@ -200,7 +202,7 @@ namespace sl
 		if (!vertexFile || !fragmentFile)
 		{
 			error_ = !vertexFile ? "Unable to open vertex shader file: " + vertexPath
-				: "Unable to open fragment shader file: " + fragmentPath;
+								 : "Unable to open fragment shader file: " + fragmentPath;
 			return false;
 		}
 		const std::string vertexSource(std::istreambuf_iterator<char>(vertexFile), {});
@@ -208,7 +210,7 @@ namespace sl
 		if (vertexSource.empty() || fragmentSource.empty())
 		{
 			error_ = vertexSource.empty() ? "Vertex shader file is empty: " + vertexPath
-				: "Fragment shader file is empty: " + fragmentPath;
+										  : "Fragment shader file is empty: " + fragmentPath;
 			return false;
 		}
 		if (vulkanSamplerNames.empty() && vulkanUniforms.empty() && assetId.empty())
@@ -300,9 +302,11 @@ namespace sl
 
 	bool Shader::draw_textured_quad(Bitmap *texture, float x, float y, float width, float height) const
 	{
-		if (!is_valid() || !texture || width <= 0.0f || height <= 0.0f || !upload_bitmap(texture)) return false;
+		if (!is_valid() || !texture || width <= 0.0f || height <= 0.0f || !upload_bitmap(texture))
+			return false;
 		detail::Renderer *renderer = detail::active_renderer();
-		if (!renderer || !renderer->begin_shader_2d(program_, screen_width(), screen_height())) return false;
+		if (!renderer || !renderer->begin_shader_2d(program_, screen_width(), screen_height()))
+			return false;
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
 		const float top = flipVertical ? 1.0f : 0.0f;
 		const float bottom = flipVertical ? 0.0f : 1.0f;
@@ -318,7 +322,8 @@ namespace sl
 
 	void Shader::stop()
 	{
-		if (detail::Renderer *renderer = detail::active_renderer()) renderer->stop_shader();
+		if (detail::Renderer *renderer = detail::active_renderer())
+			renderer->stop_shader();
 	}
 
 	bool Shader::dispatch_compute(unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const

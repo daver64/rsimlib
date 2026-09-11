@@ -157,6 +157,7 @@ int main(int argc, char *argv[])
     glDeleteBuffers(1, &vbo);
     glDeleteVertexArrays(1, &vao);
     glDeleteProgram(program);
+    sl::wait_for_graphics();
     sl::shutdown();
     return 0;
 }

@@ -61,9 +61,9 @@ namespace sl
 		}
 		const std::string vertex = load_glsl_shader("fullscreen.vert");
 		return !vertex.empty() &&
-			brightShader_.load(vertex, load_glsl_shader("bright_pass.frag"), "bloom-bright") &&
-			blurShader_.load(vertex, load_glsl_shader("blur.frag"), "bloom-blur") &&
-			compositeShader_.load(vertex, load_glsl_shader("composite.frag"), "bloom-composite");
+			   brightShader_.load(vertex, load_glsl_shader("bright_pass.frag"), "bloom-bright") &&
+			   blurShader_.load(vertex, load_glsl_shader("blur.frag"), "bloom-blur") &&
+			   compositeShader_.load(vertex, load_glsl_shader("composite.frag"), "bloom-composite");
 	}
 
 	void Bloom::shutdown()

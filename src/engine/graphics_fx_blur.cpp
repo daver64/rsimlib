@@ -39,7 +39,8 @@ namespace sl
 
 	bool Blur::initialise()
 	{
-		if (is_valid()) return true;
+		if (is_valid())
+			return true;
 		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("blur.frag"), "bloom-blur");
 	}
 
@@ -59,7 +60,8 @@ namespace sl
 
 	bool Blur::ensure_targets(int width, int height) const
 	{
-		if (target_a_ && target_b_ && target_a_->width == width && target_a_->height == height) return true;
+		if (target_a_ && target_b_ && target_a_->width == width && target_a_->height == height)
+			return true;
 		destroy_bitmap(target_a_);
 		destroy_bitmap(target_b_);
 		target_a_ = create_render_target(width, height);
@@ -70,10 +72,14 @@ namespace sl
 	void Blur::apply(Bitmap *source, int x, int y, int width, int height) const
 	{
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
-		if (!source || !is_valid() || !upload_bitmap(source)) return;
-		if (width <= 0) width = screen_width();
-		if (height <= 0) height = screen_height();
-		if (width <= 0 || height <= 0 || !ensure_targets(width, height)) return;
+		if (!source || !is_valid() || !upload_bitmap(source))
+			return;
+		if (width <= 0)
+			width = screen_width();
+		if (height <= 0)
+			height = screen_height();
+		if (width <= 0 || height <= 0 || !ensure_targets(width, height))
+			return;
 		Bitmap *input = source;
 		Bitmap *horizontal = target_a_;
 		Bitmap *vertical = target_b_;

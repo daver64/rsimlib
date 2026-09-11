@@ -315,6 +315,14 @@ namespace sl
         }
     }
 
+    void wait_for_graphics()
+    {
+        if (renderer)
+        {
+            renderer->wait_idle();
+        }
+    }
+
     void display_shutdown()
     {
         detail::destroy_screen();
