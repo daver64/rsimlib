@@ -6,6 +6,6 @@ layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 fragColor;
 void main() {
     vec4 base = texture(source, uv);
-    vec3 bloom = texture(bloomTex, uv).rgb;
-    fragColor = vec4(base.rgb + bloom * composite.intensity, base.a);
+    vec4 bloom = texture(bloomTex, uv);
+    fragColor = vec4(base.rgb + bloom.rgb * composite.intensity, max(base.a, bloom.a));
 }

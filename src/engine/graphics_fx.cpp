@@ -120,6 +120,8 @@ namespace sl
 				{right, bottom, 1.0f, bottomV, 1.0f, 1.0f, 1.0f, 1.0f},
 				{left, bottom, 0.0f, bottomV, 1.0f, 1.0f, 1.0f, 1.0f},
 			};
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(true);
 			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, texture);
 		}
 	} // namespace detail

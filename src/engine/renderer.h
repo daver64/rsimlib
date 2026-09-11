@@ -161,6 +161,7 @@ namespace sl::detail
         /** Bind the default 2D pipeline and projection. */
         virtual bool begin_2d(int width, int height) = 0;
         virtual bool begin_shader_2d(std::uint32_t program, int width, int height) = 0;
+        virtual void set_premultiplied_alpha(bool enabled) = 0;
         virtual bool clear_frame(float red, float green, float blue, float alpha) = 0;
         /** Submit colored textured vertices using the backend's 2D pipeline. */
         virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,

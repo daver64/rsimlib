@@ -15,6 +15,7 @@
 #include <iterator>
 #include <array>
 #include <algorithm>
+#include <map>
 #include <cstring>
 #include <cstdlib>
 #include <system_error>
@@ -163,7 +164,7 @@ namespace sl::detail
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_blur.frag.spv", blur_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, error,
-                        nullptr, sizeof(BlurConstants))) return false;
+                        nullptr, sizeof(BlurConstants), false, true)) return false;
                 if (!context_.create_composite_descriptor_layout(composite_descriptor_layout_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_composite.frag.spv", composite_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
@@ -197,6 +198,8 @@ namespace sl::detail
                     context_.destroy_sampler(target.sampler);
                     context_.destroy_framebuffer(target.framebuffer);
                     context_.destroy_image(target.image);
+                    context_.destroy_image(target.depth);
+                    context_.destroy_image(target.depth);
                 }
                 render_targets_.clear();
                 for (VulkanGraphicsPipeline &pipeline : pipelines_)
@@ -315,7 +318,7 @@ namespace sl::detail
                         nullptr, sizeof(BrightConstants)) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, blur_pipeline_, last_error_,
-                        nullptr, sizeof(BlurConstants)) ||
+                        nullptr, sizeof(BlurConstants), false, true) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, composite_fragment_module_,
                         composite_descriptor_layout_, PrimitiveType::triangle_fan, composite_pipeline_, last_error_,
                         nullptr, sizeof(CompositeConstants)))
@@ -424,17 +427,21 @@ namespace sl::detail
                 if (!context_.create_image(width, height, context_.render_target_format(),
                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                            resource.image, last_error_) ||
+                    !context_.create_image(width, height, context_.depth_format(),
+                                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                           resource.depth, last_error_) ||
                     !context_.create_sampler(TextureFilter::linear, resource.sampler, last_error_) ||
-                    !context_.create_render_target_framebuffer(resource.image, width, height,
+                    !context_.create_render_target_framebuffer(resource.image, resource.depth, width, height,
                                                                resource.framebuffer, last_error_))
                 {
                     context_.destroy_framebuffer(resource.framebuffer);
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
+                    context_.destroy_image(resource.depth);
                     return false;
                 }
-                texture = next_texture_++;
                 framebuffer = next_render_target_++;
+                texture = 0x40000000u | framebuffer;
                 resource.texture_handle = texture;
                 if (!context_.allocate_texture_descriptor(descriptor_pool_, descriptor_layout_, resource.image,
                                                           resource.sampler, resource.descriptor, last_error_))
@@ -442,6 +449,7 @@ namespace sl::detail
                     context_.destroy_framebuffer(resource.framebuffer);
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
+                    context_.destroy_image(resource.depth);
                     return false;
                 }
                 render_targets_.emplace(framebuffer, std::move(resource));
@@ -454,16 +462,38 @@ namespace sl::detail
                 context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_framebuffer(iterator->second.framebuffer);
                 context_.destroy_image(iterator->second.image);
+                context_.destroy_image(iterator->second.depth);
                 render_targets_.erase(iterator);
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
             {
                 const auto iterator = render_targets_.find(framebuffer);
-                return iterator != render_targets_.end() && begin_frame(error) &&
-                    context_.begin_offscreen_render_pass(iterator->second.framebuffer, width, height, error);
+                if (iterator == render_targets_.end() || !begin_frame(error) ||
+                    !context_.begin_offscreen_render_pass(iterator->second.framebuffer, iterator->second.image,
+                        width, height, error))
+                    return false;
+                active_render_targets_.push_back(framebuffer);
+                iterator->second.image.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                return true;
             }
             bool end_render_target(std::string &error) override
-            { return context_.end_offscreen_render_pass(error); }
+            {
+                if (!context_.end_offscreen_render_pass(error)) return false;
+                if (!active_render_targets_.empty())
+                {
+                    const std::uint32_t framebuffer = active_render_targets_.back();
+                    active_render_targets_.pop_back();
+                    const auto iterator = render_targets_.find(framebuffer);
+                    if (iterator != render_targets_.end())
+                    {
+                        iterator->second.image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                        if (!context_.update_texture_descriptor(iterator->second.descriptor,
+                            iterator->second.image, iterator->second.sampler, last_error_))
+                            return false;
+                    }
+                }
+                return true;
+            }
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                std::uint32_t &program, std::string &error) override
             {
@@ -638,6 +668,20 @@ namespace sl::detail
                     radial_constants_.samples = value;
                     return true;
                 }
+                if (program == blur_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "premultipliedSource") == 0)
+                    {
+                        blur_constants_.premultiplied_source = value;
+                        return true;
+                    }
+                    if (std::strcmp(name, "premultipliedOutput") == 0)
+                    {
+                        blur_constants_.premultiplied_output = value;
+                        return true;
+                    }
+                }
                 if (program == cull_program_ && name && std::strcmp(name, "lightCount") == 0)
                 {
                     cull_constants_[4] = value;
@@ -753,6 +797,24 @@ namespace sl::detail
                 {
                     active_program_ = program;
                     blur_constants_.radius = value;
+                    return true;
+                }
+                if (program == blur_program_ && name && std::strcmp(name, "premultipliedSource") == 0)
+                {
+                    active_program_ = program;
+                    blur_constants_.premultiplied_source = value;
+                    return true;
+                }
+                if (program == blur_program_ && name && std::strcmp(name, "opacity") == 0)
+                {
+                    active_program_ = program;
+                    blur_constants_.opacity = value;
+                    return true;
+                }
+                if (program == blur_program_ && name && std::strcmp(name, "premultipliedOutput") == 0)
+                {
+                    active_program_ = program;
+                    blur_constants_.premultiplied_output = value;
                     return true;
                 }
                 if (program == composite_program_ && name && std::strcmp(name, "intensity") == 0)
@@ -953,6 +1015,7 @@ namespace sl::detail
                 projection[15] = 1.0f;
                 return set_shader_mat4(program, "uProjection", projection);
             }
+            void set_premultiplied_alpha(bool) override {}
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 if (!frame_active_ && !begin_frame(last_error_)) return false;
@@ -987,30 +1050,36 @@ namespace sl::detail
                 }
                 if (!context_.upload_buffer(buffer, upload_vertices, required_size, last_error_)) return;
                 const std::uint32_t texture_handle = texture == 0 ? white_texture_ : texture;
+                auto prepare_texture = [this](VulkanImage &image)
+                {
+                    return context_.prepare_image_for_sampling(image, last_error_);
+                };
+                auto resolve_registered_texture = [this, &prepare_texture](std::uint32_t handle,
+                    VulkanImage &image, VulkanSampler &sampler)
+                {
+                    const auto texture_iterator = textures_.find(handle);
+                    if (texture_iterator != textures_.end())
+                    {
+                        image = texture_iterator->second.image;
+                        sampler = texture_iterator->second.sampler;
+                        return prepare_texture(image);
+                    }
+                    for (const auto &[framebuffer, target] : render_targets_)
+                    {
+                        if (target.texture_handle == handle)
+                        {
+                            image = target.image;
+                            sampler = target.sampler;
+                            return prepare_texture(image);
+                        }
+                    }
+                    last_error_ = "Vulkan sampled texture handle is not registered.";
+                    return false;
+                };
                 const auto dynamic_iterator = dynamic_programs_.find(active_program_);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
                     DynamicVulkanProgram &dynamic = dynamic_iterator->second;
-                    auto resolve_texture = [this](std::uint32_t handle, VulkanImage &image, VulkanSampler &sampler)
-                    {
-                        const auto texture_iterator = textures_.find(handle);
-                        if (texture_iterator != textures_.end())
-                        {
-                            image = texture_iterator->second.image;
-                            sampler = texture_iterator->second.sampler;
-                            return true;
-                        }
-                        for (const auto &[framebuffer, target] : render_targets_)
-                        {
-                            if (target.texture_handle == handle)
-                            {
-                                image = target.image;
-                                sampler = target.sampler;
-                                return true;
-                            }
-                        }
-                        return false;
-                    };
                     std::vector<VulkanImage> images(dynamic.sampler_names.size());
                     std::vector<VulkanSampler> samplers(dynamic.sampler_names.size());
                     for (std::size_t index = 0; index < images.size(); ++index)
@@ -1018,8 +1087,8 @@ namespace sl::detail
                         const std::uint32_t handle = index < dynamic.bound_textures.size() && dynamic.bound_textures[index] != 0
                             ? dynamic.bound_textures[index]
                             : (index == 0 ? texture_handle : white_texture_);
-                        if (!resolve_texture(handle, images[index], samplers[index]) &&
-                            !resolve_texture(white_texture_, images[index], samplers[index]))
+                        if (!resolve_registered_texture(handle, images[index], samplers[index]) &&
+                            !resolve_registered_texture(white_texture_, images[index], samplers[index]))
                         {
                             return;
                         }
@@ -1052,32 +1121,12 @@ namespace sl::detail
                 if (active_program_ == lighting_program_)
                 {
                     lighting_textures_[0] = texture_handle;
-                    auto find_texture = [this](std::uint32_t handle, VulkanImage &image, VulkanSampler &sampler)
-                    {
-                        const auto texture_iterator = textures_.find(handle);
-                        if (texture_iterator != textures_.end())
-                        {
-                            image = texture_iterator->second.image;
-                            sampler = texture_iterator->second.sampler;
-                            return true;
-                        }
-                        for (const auto &[framebuffer, target] : render_targets_)
-                        {
-                            if (target.texture_handle == handle)
-                            {
-                                image = target.image;
-                                sampler = target.sampler;
-                                return true;
-                            }
-                        }
-                        return false;
-                    };
                     std::array<VulkanImage, 9> images{};
                     std::array<VulkanSampler, 9> samplers{};
                     for (std::size_t index = 0; index < lighting_textures_.size(); ++index)
                     {
-                        if (!find_texture(lighting_textures_[index], images[index], samplers[index]) &&
-                            !find_texture(white_texture_, images[index], samplers[index]))
+                        if (!resolve_registered_texture(lighting_textures_[index], images[index], samplers[index]) &&
+                            !resolve_registered_texture(white_texture_, images[index], samplers[index]))
                         {
                             return;
                         }
@@ -1100,28 +1149,8 @@ namespace sl::detail
                     VulkanImage images[2]{};
                     VulkanSampler samplers[2]{};
                     const std::uint32_t bloom_handle = composite_bloom_texture_ != 0 ? composite_bloom_texture_ : white_texture_;
-                    auto resolve_texture = [this](std::uint32_t handle, VulkanImage &image, VulkanSampler &sampler)
-                    {
-                        const auto texture_iterator = textures_.find(handle);
-                        if (texture_iterator != textures_.end())
-                        {
-                            image = texture_iterator->second.image;
-                            sampler = texture_iterator->second.sampler;
-                            return true;
-                        }
-                        for (const auto &[framebuffer, target] : render_targets_)
-                        {
-                            if (target.texture_handle == handle)
-                            {
-                                image = target.image;
-                                sampler = target.sampler;
-                                return true;
-                            }
-                        }
-                        return false;
-                    };
-                    if (!resolve_texture(texture_handle, images[0], samplers[0]) ||
-                        !resolve_texture(bloom_handle, images[1], samplers[1]))
+                    if (!resolve_registered_texture(texture_handle, images[0], samplers[0]) ||
+                        !resolve_registered_texture(bloom_handle, images[1], samplers[1]))
                     {
                         return;
                     }
@@ -1138,12 +1167,26 @@ namespace sl::detail
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 const auto texture_iterator = textures_.find(texture_handle);
                 if (texture_iterator != textures_.end())
+                {
                     descriptor = texture_iterator->second.descriptor;
+                    VulkanImage image = texture_iterator->second.image;
+                    VulkanSampler sampler = texture_iterator->second.sampler;
+                    if (!prepare_texture(image)) return;
+                }
                 else
                 {
                     for (const auto &[handle, target] : render_targets_)
-                        if (target.texture_handle == texture_handle) descriptor = target.descriptor;
+                    {
+                        if (target.texture_handle == texture_handle)
+                        {
+                            VulkanImage image = target.image;
+                            VulkanSampler sampler = target.sampler;
+                            if (!prepare_texture(image)) return;
+                            descriptor = target.descriptor;
+                        }
+                    }
                 }
+                if (descriptor == VK_NULL_HANDLE) return;
                 if (active_program_ == vignette_program_)
                 {
                     context_.record_postprocess_draw(vignette_pipeline_.pipeline, vignette_pipeline_.layout,
@@ -1499,7 +1542,7 @@ namespace sl::detail
             struct FilmGrainConstants { float strength = 0.08f; float time = 0.0f; } film_grain_constants_;
             std::array<float, 16> vignette_projection_{};
             struct BrightConstants { float threshold = 0.0f; } bright_constants_;
-            struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; } blur_constants_;
+            struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; int premultiplied_source = 0; float opacity = 1.0f; int premultiplied_output = 0; } blur_constants_;
             struct CompositeConstants { float intensity = 0.0f; } composite_constants_;
             std::array<float, 16> postprocess_projection_{};
             struct VulkanTexture
@@ -1511,6 +1554,7 @@ namespace sl::detail
             struct VulkanRenderTarget
             {
                 VulkanImage image;
+                VulkanImage depth;
                 VulkanSampler sampler;
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 VkFramebuffer framebuffer = VK_NULL_HANDLE;
@@ -1518,7 +1562,8 @@ namespace sl::detail
             };
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::vector<VulkanTexture> retired_textures_;
-            std::unordered_map<std::uint32_t, VulkanRenderTarget> render_targets_;
+            std::map<std::uint32_t, VulkanRenderTarget> render_targets_;
+            std::vector<std::uint32_t> active_render_targets_;
             std::uint32_t next_texture_ = 1;
             std::uint32_t next_render_target_ = 1;
 

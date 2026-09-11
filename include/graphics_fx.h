@@ -269,12 +269,14 @@ namespace sl
         const std::string &error() const;
         void set_radius(float radius);
         void set_iterations(int iterations);
+        void set_opacity(float opacity);
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
         Shader shader_;
         float radius_ = 1.5f;
         int iterations_ = 2;
+        float opacity_ = 1.0f;
         mutable Bitmap *target_a_ = nullptr;
         mutable Bitmap *target_b_ = nullptr;
 

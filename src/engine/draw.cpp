@@ -114,6 +114,8 @@ namespace sl
 			}
 
 			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
 
 			const float leftTexture = static_cast<float>(sourceX) / bitmap->width;
 			const float topTexture = static_cast<float>(sourceY) / bitmap->height;

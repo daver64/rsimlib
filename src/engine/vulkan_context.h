@@ -87,9 +87,11 @@ namespace sl::detail
         bool begin_frame(std::string &error);
         bool end_frame(std::string &error);
         bool frame_active() const { return frame_active_; }
-        bool begin_offscreen_render_pass(VkFramebuffer framebuffer, int width, int height,
+        bool begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
+                         int width, int height,
                          std::string &error);
         bool end_offscreen_render_pass(std::string &error);
+        bool prepare_image_for_sampling(VulkanImage &image, std::string &error);
         bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
                     VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
                     std::uint32_t vertex_count, PrimitiveType topology,
@@ -124,7 +126,8 @@ namespace sl::detail
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                   VulkanImage &result, std::string &error);
         void destroy_image(VulkanImage &image);
-        bool create_render_target_framebuffer(const VulkanImage &image, int width, int height,
+        bool create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
+                      int width, int height,
                               VkFramebuffer &framebuffer, std::string &error);
         void destroy_framebuffer(VkFramebuffer &framebuffer);
         bool load_shader_module(const std::filesystem::path &path, VulkanShaderModule &result,
@@ -143,6 +146,8 @@ namespace sl::detail
                          const VulkanDescriptorSetLayout &layout,
                          const VulkanImage &image, const VulkanSampler &sampler,
                          VkDescriptorSet &set, std::string &error);
+                bool update_texture_descriptor(VkDescriptorSet set, const VulkanImage &image,
+                                   const VulkanSampler &sampler, std::string &error);
         void free_descriptor_set(const VulkanDescriptorPool &pool, VkDescriptorSet &set);
         bool allocate_lighting_descriptor(const VulkanDescriptorPool &pool,
                  const VulkanDescriptorSetLayout &layout,
@@ -186,7 +191,8 @@ namespace sl::detail
                           VulkanGraphicsPipeline &result, std::string &error,
                           const VulkanStorageDescriptorLayout *storage_layout = nullptr,
                           std::uint32_t fragment_push_constant_size = 0,
-                          bool three_dimensional = false);
+                          bool three_dimensional = false,
+                          bool premultiplied_alpha = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
             bool create_compute_pipeline(const VulkanShaderModule &compute,
                                          const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -243,12 +249,14 @@ namespace sl::detail
             VkRenderPass resume_render_pass = VK_NULL_HANDLE;
             VkFramebuffer framebuffer = VK_NULL_HANDLE;
             bool offscreen = false;
+            VkImage offscreen_image = VK_NULL_HANDLE;
         };
         std::vector<RenderPassState> render_pass_stack_;
         bool frame_active_ = false;
         bool command_buffer_recording_ = false;
         bool render_pass_active_ = false;
         bool offscreen_active_ = false;
+        VkImage active_offscreen_image_ = VK_NULL_HANDLE;
         bool vsync_enabled_ = true;
 
         std::uint32_t find_memory_type(std::uint32_t type_filter,

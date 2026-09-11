@@ -340,6 +340,8 @@ namespace sl::detail
         attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        depth_attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachments[0] = attachment;
         attachments[1] = depth_attachment;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_render_pass_) != VK_SUCCESS)
@@ -348,13 +350,17 @@ namespace sl::detail
             destroy_swapchain();
             return false;
         }
-        subpass.pDepthStencilAttachment = nullptr;
-        render_pass_info.attachmentCount = 1;
-        render_pass_info.pAttachments = &attachment;
+        subpass.pDepthStencilAttachment = &depth_reference;
+        render_pass_info.attachmentCount = 2;
+        render_pass_info.pAttachments = attachments;
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachment.format = swapchain_format_;
         attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &offscreen_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan offscreen render pass.";
@@ -362,8 +368,13 @@ namespace sl::detail
             return false;
         }
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-        attachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        depth_attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachments[0] = attachment;
+        depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[1] = depth_attachment;
         if (vkCreateRenderPass(device_, &render_pass_info, nullptr, &resume_offscreen_render_pass_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan offscreen resume render pass.";
@@ -515,7 +526,8 @@ namespace sl::detail
         return true;
     }
 
-    bool VulkanContext::begin_offscreen_render_pass(VkFramebuffer framebuffer, int width, int height,
+    bool VulkanContext::begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
+                                                    int width, int height,
                                                     std::string &error)
     {
         if (!frame_active_ || framebuffer == VK_NULL_HANDLE)
@@ -525,15 +537,16 @@ namespace sl::detail
         }
         if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
         render_pass_stack_.push_back({active_extent_, active_render_pass_, active_resume_render_pass_,
-            active_framebuffer_, offscreen_active_});
-        VkClearValue clear{};
-        clear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+            active_framebuffer_, offscreen_active_, active_offscreen_image_});
+        VkClearValue clears[2]{};
+        clears[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+        clears[1].depthStencil = {1.0f, 0};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         begin.renderPass = offscreen_render_pass_;
         begin.framebuffer = framebuffer;
         begin.renderArea.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
-        begin.clearValueCount = 1;
-        begin.pClearValues = &clear;
+        begin.clearValueCount = 2;
+        begin.pClearValues = clears;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_extent_ = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
         active_render_pass_ = offscreen_render_pass_;
@@ -541,6 +554,8 @@ namespace sl::detail
         active_framebuffer_ = framebuffer;
         render_pass_active_ = true;
         offscreen_active_ = true;
+        active_offscreen_image_ = image.image;
+        image.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         return true;
     }
 
@@ -553,6 +568,20 @@ namespace sl::detail
         }
         if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
+        if (active_offscreen_image_ != VK_NULL_HANDLE)
+        {
+            VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+            barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.image = active_offscreen_image_;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.layerCount = 1;
+            vkCmdPipelineBarrier(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+        }
         const RenderPassState previous = render_pass_stack_.back();
         render_pass_stack_.pop_back();
         VkClearValue clear_values[2]{};
@@ -562,7 +591,7 @@ namespace sl::detail
         begin.renderPass = previous.resume_render_pass;
         begin.framebuffer = previous.framebuffer;
         begin.renderArea.extent = previous.extent;
-        begin.clearValueCount = previous.offscreen ? 1u : 2u;
+        begin.clearValueCount = 2;
         begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_extent_ = previous.extent;
@@ -570,6 +599,55 @@ namespace sl::detail
         active_resume_render_pass_ = previous.resume_render_pass;
         active_framebuffer_ = previous.framebuffer;
         offscreen_active_ = previous.offscreen;
+        active_offscreen_image_ = previous.offscreen_image;
+        render_pass_active_ = true;
+        return true;
+    }
+
+    bool VulkanContext::prepare_image_for_sampling(VulkanImage &image, std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || image.image == VK_NULL_HANDLE)
+        {
+            error = "Invalid Vulkan sampled-image transition state.";
+            return false;
+        }
+        if (image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            return true;
+        std::fprintf(stderr, "Vulkan sample barrier image=%llx tracked=%d\n",
+            static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(image.image)),
+            static_cast<int>(image.layout));
+        if (render_pass_active_)
+        {
+            vkCmdEndRenderPass(command_buffer_);
+            render_pass_active_ = false;
+        }
+        VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        barrier.oldLayout = image.layout == VK_IMAGE_LAYOUT_UNDEFINED
+            ? VK_IMAGE_LAYOUT_UNDEFINED : image.layout;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = image.layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.image = image.image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.layerCount = 1;
+        const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        vkCmdPipelineBarrier(command_buffer_, source_stage, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0, 0, nullptr, 0, nullptr, 1, &barrier);
+        image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkClearValue clear_values[2]{};
+        clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clear_values[1].depthStencil = {1.0f, 0};
+        VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        begin.renderPass = active_resume_render_pass_;
+        begin.framebuffer = active_framebuffer_;
+        begin.renderArea.extent = active_extent_;
+        begin.clearValueCount = 2;
+        begin.pClearValues = clear_values;
+        vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_render_pass_ = active_resume_render_pass_;
         render_pass_active_ = true;
         return true;
     }
@@ -1020,20 +1098,22 @@ namespace sl::detail
         image = {};
     }
 
-    bool VulkanContext::create_render_target_framebuffer(const VulkanImage &image, int width, int height,
+    bool VulkanContext::create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
+                                                         int width, int height,
                                                          VkFramebuffer &framebuffer,
                                                          std::string &error)
     {
         framebuffer = VK_NULL_HANDLE;
-        if (render_pass_ == VK_NULL_HANDLE || image.view == VK_NULL_HANDLE)
+        if (render_pass_ == VK_NULL_HANDLE || image.view == VK_NULL_HANDLE || depth.view == VK_NULL_HANDLE)
         {
             error = "Vulkan render-target framebuffer requires an active render pass and image view.";
             return false;
         }
         VkFramebufferCreateInfo info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
         info.renderPass = offscreen_render_pass_;
-        info.attachmentCount = 1;
-        info.pAttachments = &image.view;
+        const VkImageView attachments[] = {image.view, depth.view};
+        info.attachmentCount = 2;
+        info.pAttachments = attachments;
         info.width = static_cast<std::uint32_t>(width);
         info.height = static_cast<std::uint32_t>(height);
         info.layers = 1;
@@ -1232,6 +1312,29 @@ namespace sl::detail
         }
         VkDescriptorImageInfo image_info{};
         image_info.imageView = image.view;
+        image_info.imageLayout = image.layout == VK_IMAGE_LAYOUT_UNDEFINED
+            ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : image.layout;
+        image_info.sampler = sampler.sampler;
+        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write.dstSet = set;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &image_info;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::update_texture_descriptor(VkDescriptorSet set, const VulkanImage &image,
+                                                  const VulkanSampler &sampler, std::string &error)
+    {
+        if (set == VK_NULL_HANDLE || image.view == VK_NULL_HANDLE || sampler.sampler == VK_NULL_HANDLE)
+        {
+            error = "Invalid Vulkan texture descriptor update.";
+            return false;
+        }
+        VkDescriptorImageInfo image_info{};
+        image_info.imageView = image.view;
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         image_info.sampler = sampler.sampler;
         VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -1280,7 +1383,8 @@ namespace sl::detail
                 return false;
             }
             image_infos[index].imageView = images[index].view;
-            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].imageLayout = images[index].layout == VK_IMAGE_LAYOUT_UNDEFINED
+                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : images[index].layout;
             image_infos[index].sampler = samplers[index].sampler;
         }
         VkWriteDescriptorSet writes[2]{};
@@ -1317,7 +1421,8 @@ namespace sl::detail
                 return false;
             }
             image_infos[index].imageView = images[index].view;
-            image_infos[index].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[index].imageLayout = images[index].layout == VK_IMAGE_LAYOUT_UNDEFINED
+                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : images[index].layout;
             image_infos[index].sampler = samplers[index].sampler;
         }
         VkWriteDescriptorSet writes[2]{};
@@ -1663,7 +1768,8 @@ namespace sl::detail
                                                  VulkanGraphicsPipeline &result, std::string &error,
                                                  const VulkanStorageDescriptorLayout *storage_layout,
                                                  std::uint32_t fragment_push_constant_size,
-                                                 bool three_dimensional)
+                                                 bool three_dimensional,
+                                                 bool premultiplied_alpha)
     {
         result = {};
         if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
@@ -1749,7 +1855,7 @@ namespace sl::detail
         multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
         VkPipelineColorBlendAttachmentState blend_attachment{};
         blend_attachment.blendEnable = VK_TRUE;
-        blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.srcColorBlendFactor = premultiplied_alpha ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
         blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -1777,7 +1883,7 @@ namespace sl::detail
         pipeline_info.pRasterizationState = &rasterization;
         pipeline_info.pMultisampleState = &multisample;
         pipeline_info.pColorBlendState = &blending;
-        pipeline_info.pDepthStencilState = three_dimensional ? &depth : nullptr;
+        pipeline_info.pDepthStencilState = &depth;
         pipeline_info.pDynamicState = &dynamic;
         pipeline_info.layout = result.layout;
         pipeline_info.renderPass = render_pass_;

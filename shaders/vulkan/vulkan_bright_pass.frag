@@ -4,6 +4,6 @@ layout(push_constant) uniform Bright { layout(offset = 64) float threshold; } br
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 fragColor;
 void main() {
-    vec3 colour = texture(source, uv).rgb;
-    fragColor = vec4(max(colour - vec3(bright.threshold), vec3(0.0)), 1.0);
+    vec4 sourceColour = texture(source, uv);
+    fragColor = vec4(max(sourceColour.rgb - vec3(bright.threshold), vec3(0.0)), sourceColour.a);
 }

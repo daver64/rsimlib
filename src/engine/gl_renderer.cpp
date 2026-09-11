@@ -365,9 +365,13 @@ namespace sl::detail
                 if (!set_shader_mat4(program, "uProjection", projection) ||
                     !set_shader_int(program, "uTexture", 0)) return false;
                 glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 glActiveTexture(GL_TEXTURE0);
                 return true;
+            }
+            void set_premultiplied_alpha(bool enabled) override
+            {
+                glBlendFunc(enabled ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
