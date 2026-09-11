@@ -84,12 +84,8 @@ namespace sl
 		Bitmap *input = source;
 		Bitmap *horizontal = target_a_;
 		Bitmap *vertical = target_b_;
-		const bool opengl = graphics_backend() == GraphicsBackend::opengl;
-		const float effectiveRadius = opengl ? radius_ * 0.33f : radius_;
-		const float effectiveOpacity = opengl ? opacity_ * 0.15f : opacity_;
-		const int effectiveIterations = opengl ? std::max(1, iterations_ - 2) : iterations_;
 		float projection[16];
-		for (int iteration = 0; iteration < effectiveIterations; ++iteration)
+		for (int iteration = 0; iteration < iterations_; ++iteration)
 		{
 			begin_render_target(horizontal);
 			clear_render_target({0, 0, 0, 0});
@@ -98,7 +94,7 @@ namespace sl
 			shader_.set_uniform("premultipliedOutput", 1);
 			shader_.set_uniform("opacity", 1.0f);
 			shader_.set_uniform("texel", 1.0f / width, 1.0f / height);
-			shader_.set_uniform("radius", effectiveRadius);
+			shader_.set_uniform("radius", radius_);
 			shader_.set_uniform("direction", 1.0f, 0.0f);
 			detail::gl2d_ortho_matrix(width, height, projection);
 			shader_.set_uniform_mat4("uProjection", projection);
@@ -114,7 +110,7 @@ namespace sl
 		}
 		shader_.set_uniform("source", 0);
 		shader_.set_uniform("premultipliedOutput", 1);
-		shader_.set_uniform("opacity", effectiveOpacity);
+		shader_.set_uniform("opacity", opacity_);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
 		shader_.set_uniform_mat4("uProjection", projection);
 		submit_fullscreen_quad(x, y, width, height, input->gpu_texture, false);

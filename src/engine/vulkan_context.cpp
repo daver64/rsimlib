@@ -382,6 +382,7 @@ namespace sl::detail
             return false;
         }
         framebuffers_.resize(swapchain_image_views_.size());
+        swapchain_image_layouts_.assign(swapchain_images_.size(), VK_IMAGE_LAYOUT_UNDEFINED);
         for (std::size_t index = 0; index < framebuffers_.size(); ++index)
         {
             VkFramebufferCreateInfo framebuffer_info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
@@ -568,20 +569,6 @@ namespace sl::detail
         }
         if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
-        if (active_offscreen_image_ != VK_NULL_HANDLE)
-        {
-            VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-            barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barrier.image = active_offscreen_image_;
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            barrier.subresourceRange.levelCount = 1;
-            barrier.subresourceRange.layerCount = 1;
-            vkCmdPipelineBarrier(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-        }
         const RenderPassState previous = render_pass_stack_.back();
         render_pass_stack_.pop_back();
         VkClearValue clear_values[2]{};
@@ -939,9 +926,15 @@ namespace sl::detail
         }
         VulkanBuffer staging;
         const std::size_t byte_count = static_cast<std::size_t>(width) * height * 4;
+        std::vector<std::uint8_t> upload_pixels(pixels, pixels + byte_count);
+        if (image.format == VK_FORMAT_B8G8R8A8_UNORM || image.format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            for (std::size_t index = 0; index < upload_pixels.size(); index += 4)
+                std::swap(upload_pixels[index], upload_pixels[index + 2]);
+        }
         if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                           staging, error) || !upload_buffer(staging, pixels, byte_count, error))
+                           staging, error) || !upload_buffer(staging, upload_pixels.data(), byte_count, error))
         {
             destroy_buffer(staging);
             return false;
@@ -1034,6 +1027,7 @@ namespace sl::detail
                                      VulkanImage &result, std::string &error)
     {
         result = {};
+        result.format = format;
         VkImageCreateInfo image_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
         image_info.imageType = VK_IMAGE_TYPE_2D;
         image_info.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};

@@ -45,6 +45,12 @@ namespace sl
 			return bitmap && bitmap->kind == BitmapKind::Screen;
 		}
 
+		void sync_render_target(Bitmap *bitmap)
+		{
+			if (bitmap && bitmap->fbo != 0 && bitmap->ram_dirty)
+				upload_bitmap(bitmap);
+		}
+
 		/** Return the byte offset of one RGBA pixel. */
 		std::size_t pixel_offset(const Bitmap &bitmap, int x, int y)
 		{
@@ -694,6 +700,7 @@ namespace sl
 		draw_line(bitmap, iright, itop, iright, ibottom, colour);
 		draw_line(bitmap, iright, ibottom, ileft, ibottom, colour);
 		draw_line(bitmap, ileft, ibottom, ileft, itop, colour);
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a filled rectangle. */
@@ -722,6 +729,7 @@ namespace sl
 			{
 				putpixel(bitmap, x, y, colour);
 			}
+		sync_render_target(bitmap);
 		}
 	}
 
@@ -763,6 +771,7 @@ namespace sl
 			const int halfWidth = static_cast<int>(std::sqrt(std::max(0.0f, 1.0f - ratio * ratio)) * radiusX);
 			for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX)
 				putpixel(bitmap, ix + offsetX, iy + offsetY, colour);
+		sync_render_target(bitmap);
 		}
 	}
 
@@ -809,6 +818,7 @@ namespace sl
 				if ((a >= 0 && b >= 0 && c >= 0) || (a <= 0 && b <= 0 && c <= 0))
 					putpixel(bitmap, x, y, colour);
 			}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a line between two points. */

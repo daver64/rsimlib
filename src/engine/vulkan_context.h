@@ -25,6 +25,7 @@ namespace sl::detail
         VkDeviceMemory memory = VK_NULL_HANDLE;
         VkImageView view = VK_NULL_HANDLE;
         VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkFormat format = VK_FORMAT_UNDEFINED;
     };
 
     struct VulkanShaderModule
@@ -225,6 +226,8 @@ namespace sl::detail
         VkExtent2D swapchain_extent_{};
         std::vector<VkImage> swapchain_images_;
         std::vector<VkImageView> swapchain_image_views_;
+        std::vector<VkImageLayout> swapchain_image_layouts_;
+        VkImageLayout depth_image_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
         VkCommandPool command_pool_ = VK_NULL_HANDLE;
         VkRenderPass render_pass_ = VK_NULL_HANDLE;
         VkRenderPass resume_render_pass_ = VK_NULL_HANDLE;

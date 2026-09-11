@@ -12,8 +12,11 @@ int main(int argc, char *argv[])
     }
 
     sl::Shader shader;
+    const char *vertex_shader = sl::graphics_backend() == sl::GraphicsBackend::vulkan
+        ? "shaders/vulkan/vulkan_2d.vert"
+        : "shaders/glsl/default_2d.vert";
     const bool loaded = shader.load_files(
-        "shaders/glsl/default_2d.vert",
+        vertex_shader,
         "shaders/glsl/tint.frag",
         {"uTexture"});
     sl::Bitmap *texture = sl::load_bitmap("assets/textures/balloon_red.png");

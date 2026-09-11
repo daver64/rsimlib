@@ -403,8 +403,14 @@ namespace sl::detail
             bool upload_texture(std::uint32_t texture, int width, int height, const std::uint8_t *pixels) override
             {
                 const auto iterator = textures_.find(texture);
-                return iterator != textures_.end() &&
-                    context_.upload_image_rgba(iterator->second.image, width, height, pixels, last_error_);
+                if (iterator != textures_.end())
+                    return context_.upload_image_rgba(iterator->second.image, width, height, pixels, last_error_);
+                for (auto &[framebuffer, target] : render_targets_)
+                {
+                    if (target.texture_handle == texture)
+                        return context_.upload_image_rgba(target.image, width, height, pixels, last_error_);
+                }
+                return false;
             }
             void destroy_texture(std::uint32_t texture) override
             {
