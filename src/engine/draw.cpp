@@ -1077,7 +1077,8 @@ namespace sl
 		{
 			return;
 		}
-		draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y);
+		const bool flipVertical = bitmap->fbo != 0 && graphics_backend() == GraphicsBackend::opengl;
+		draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, flipVertical);
 	}
 	/** Draw a stretched sprite. */
 	void draw_sprite_stretched(Bitmap *bitmap, float x, float y, int width, int height)

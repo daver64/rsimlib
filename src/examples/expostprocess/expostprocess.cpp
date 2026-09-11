@@ -263,11 +263,14 @@ int main(int argc, char *argv[])
             sl::end_render_target();
             effect_source = post_process.advance();
         }
-        if (use_bloom) bloom.apply(effect_source, 0, 0, 800, 600);
-        else if (sl::graphics_backend() == sl::GraphicsBackend::opengl)
-            sl::draw_sprite_v_flip(effect_source, 0.0f, 0.0f);
+        if (use_bloom)
+        {
+            bloom.apply(effect_source, 0, 0, 800, 600);
+        }
         else
+        {
             sl::draw_sprite(effect_source, 0.0f, 0.0f);
+        }
         sl::show_video_bitmap();
         sl::end_frame();
     }

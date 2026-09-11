@@ -145,9 +145,8 @@ namespace sl
     /**
      * Create an offscreen render target: a GPU texture with a framebuffer attached,
      * usable as a draw destination for sprites/particles/text (see begin_render_target()).
-     * Note: because of how framebuffer textures are rasterized, its content samples
-     * vertically flipped compared to a normal loaded image; use draw_sprite_v_flip()
-     * (not draw_sprite()) when compositing it back onto the screen.
+    * Note: draw_sprite() automatically accounts for backend-specific framebuffer
+    * texture orientation when compositing a render target.
      */
     Bitmap *create_render_target(int width, int height);
     /** Redirect subsequent sprite/particle/text drawing to a render target created with create_render_target(). */
@@ -226,7 +225,7 @@ namespace sl
     bool upload_bitmap(Bitmap *bitmap);
     /** Synchronize a bitmap's GPU texture to RAM pixels. */
     bool download_bitmap(Bitmap *bitmap);
-    /** Draw a bitmap at the supplied top-left screen position. */
+    /** Draw a bitmap at the supplied top-left screen position. Render targets are backend-corrected. */
     void draw_sprite(Bitmap *bitmap, float x, float y);
     /** Draw a stretched sprite */
     void draw_sprite_stretched(Bitmap *bitmap, float x, float y, int width, int height);

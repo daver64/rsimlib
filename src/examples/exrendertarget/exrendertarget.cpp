@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
         }
 
         sl::clear_to_colour(sl::screen, {14, 18, 25});
-        sl::draw_sprite_v_flip(target, 240, 130);
+        sl::draw_sprite(target, 240, 130);
         sl::gprintf_center(32, {232, 236, 244}, "Render target example - press Escape to exit");
         sl::show_video_bitmap();
         sl::end_frame();
