@@ -24,7 +24,7 @@ namespace game
         bool mode_fading_out = false;
         bool mode_fading_in = false;
         float mode_fade_timer = 0.0f;
-        constexpr float mode_fade_duration = 0.2f;
+        constexpr float mode_fade_duration = 0.5f;
         std::uint8_t mode_fade_alpha = 0;
         sl::ScreenFade mode_fade;
     }
