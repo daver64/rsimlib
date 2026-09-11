@@ -460,6 +460,7 @@ namespace sl::detail
         active_framebuffer_ = framebuffers_[current_image_];
         frame_active_ = true;
         render_pass_active_ = true;
+        render_pass_stack_.clear();
         return true;
     }
 
@@ -479,6 +480,7 @@ namespace sl::detail
             return false;
         }
         command_buffer_recording_ = false;
+        render_pass_stack_.clear();
         VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
         submit.waitSemaphoreCount = 1;
@@ -513,12 +515,14 @@ namespace sl::detail
     bool VulkanContext::begin_offscreen_render_pass(VkFramebuffer framebuffer, int width, int height,
                                                     std::string &error)
     {
-        if (!frame_active_ || offscreen_active_ || framebuffer == VK_NULL_HANDLE)
+        if (!frame_active_ || framebuffer == VK_NULL_HANDLE)
         {
             error = "Invalid Vulkan offscreen render-pass state.";
             return false;
         }
         if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        render_pass_stack_.push_back({active_extent_, active_render_pass_, active_resume_render_pass_,
+            active_framebuffer_, offscreen_active_});
         VkClearValue clear{};
         clear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -539,27 +543,30 @@ namespace sl::detail
 
     bool VulkanContext::end_offscreen_render_pass(std::string &error)
     {
-        if (!frame_active_ || !offscreen_active_)
+        if (!frame_active_ || !offscreen_active_ || render_pass_stack_.empty())
         {
             error = "Vulkan offscreen render pass is not active.";
             return false;
         }
         if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
-        VkClearValue clear{};
-        clear.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        const RenderPassState previous = render_pass_stack_.back();
+        render_pass_stack_.pop_back();
+        VkClearValue clear_values[2]{};
+        clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clear_values[1].depthStencil = {1.0f, 0};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-        begin.renderPass = render_pass_;
-        begin.framebuffer = framebuffers_[current_image_];
-        begin.renderArea.extent = swapchain_extent_;
-        begin.clearValueCount = 1;
-        begin.pClearValues = &clear;
+        begin.renderPass = previous.resume_render_pass;
+        begin.framebuffer = previous.framebuffer;
+        begin.renderArea.extent = previous.extent;
+        begin.clearValueCount = previous.offscreen ? 1u : 2u;
+        begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
-        active_extent_ = swapchain_extent_;
-        active_render_pass_ = render_pass_;
-        active_resume_render_pass_ = resume_render_pass_;
-        active_framebuffer_ = framebuffers_[current_image_];
-        offscreen_active_ = false;
+        active_extent_ = previous.extent;
+        active_render_pass_ = previous.resume_render_pass;
+        active_resume_render_pass_ = previous.resume_render_pass;
+        active_framebuffer_ = previous.framebuffer;
+        offscreen_active_ = previous.offscreen;
         render_pass_active_ = true;
         return true;
     }
@@ -1849,6 +1856,7 @@ namespace sl::detail
                 vkDestroyFramebuffer(device_, framebuffer, nullptr);
             }
             framebuffers_.clear();
+            render_pass_stack_.clear();
             destroy_image(depth_image_);
             if (render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, render_pass_, nullptr);
             if (resume_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_render_pass_, nullptr);

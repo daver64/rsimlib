@@ -41,9 +41,9 @@ Create the archive used by `exresources` from the repository root with:
 - **`exaudio`** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
 - **`exinput`** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
 - **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
-- **`exparticles`** — particle emission, movement, lifetime/color fades, gravity, and batching through `ParticleEmitter`.
+- **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
 - **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`expostprocess`** — render-target composition with Bloom and Vignette effect passes.
+- **`expostprocess`** — render-target composition with ColourAdjust, Blur, Bloom, and Vignette effect passes.
 - **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
@@ -186,7 +186,8 @@ setup with additional depth/stencil resources as needed.
 are wrapped in `#ifdef _WIN32`, and `CMakeLists.txt` only adds the source and
 links `d3d11`/`dxgi` when `WIN32` is set). It currently establishes the device,
 swap chain, and back-buffer render target view. It supports RGBA textures,
-off-screen color render targets, clearing, presenting, and the built-in textured
+off-screen colour render targets, clearing, presenting, and the built-in textured
+off-screen colour render targets, clearing, presenting, and the built-in textured
 2D submission path. Custom shader and compute operations are not implemented
 yet; they return an explicit error rather than crashing. This has not been built
 or run on a Windows machine; it has only been verified to leave non-Windows
@@ -228,7 +229,7 @@ ctest --test-dir build
 ## Running the examples
 
 ```bash
-./exhello # every graphical example also accepts --gl
+./exhello # every graphical example also accepts --gl or --vulkan
 ./exfont  # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
@@ -485,7 +486,9 @@ context is destroyed.
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader (compiled to SPIR-V at runtime on Vulkan), bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of colored radial lights and polygon-caster shadows to a bitmap. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of coloured radial lights and polygon-caster shadows to a bitmap. |
+| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of coloured radial lights and polygon-caster shadows to a bitmap. |
+Ambient illumination is applied once, then each light's coloured contribution
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 
 #### 2D lighting
@@ -544,7 +547,7 @@ lighting.shutdown();
 ```
 
 For multiple lights, pass `std::vector<sl::Light>` instead of one `Light`.
-Ambient illumination is applied once, then each light's colored contribution is
+Ambient illumination is applied once, then each light's coloured contribution is
 accumulated. Initialize and shut down `LightingPass` while the selected display
 backend is alive.
 

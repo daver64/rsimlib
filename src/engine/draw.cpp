@@ -389,7 +389,6 @@ namespace sl
 			renderer->end_render_target(error);
 			if (!error.empty()) sl::detail::set_error(error);
 		}
-		restore_window_viewport();
 		detail::set_render_target_size(0, 0);
 	}
 

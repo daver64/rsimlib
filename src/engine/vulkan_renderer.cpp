@@ -117,9 +117,13 @@ namespace sl::detail
                         lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, error,
                         &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int))) return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_vignette.frag.spv", vignette_fragment_module_, error) ||
-                    !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, error,
                         nullptr, sizeof(VignetteConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_colour_adjust.frag.spv", colour_adjust_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, error,
+                            nullptr, sizeof(ColourAdjustConstants))) return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, error,
@@ -167,6 +171,7 @@ namespace sl::detail
                     context_.destroy_graphics_pipeline(pipeline);
                 context_.destroy_graphics_pipeline(lighting_pipeline_);
                 context_.destroy_graphics_pipeline(vignette_pipeline_);
+                    context_.destroy_graphics_pipeline(colour_adjust_pipeline_);
                 context_.destroy_graphics_pipeline(bright_pipeline_);
                 context_.destroy_graphics_pipeline(blur_pipeline_);
                 context_.destroy_graphics_pipeline(composite_pipeline_);
@@ -177,6 +182,7 @@ namespace sl::detail
                 context_.destroy_shader_module(lighting_vertex_module_);
                 context_.destroy_shader_module(lighting_fragment_module_);
                 context_.destroy_shader_module(vignette_fragment_module_);
+                    context_.destroy_shader_module(colour_adjust_fragment_module_);
                 context_.destroy_shader_module(bright_fragment_module_);
                 context_.destroy_shader_module(blur_fragment_module_);
                 context_.destroy_shader_module(composite_fragment_module_);
@@ -235,6 +241,9 @@ namespace sl::detail
                     !context_.create_graphics_pipeline(lighting_vertex_module_, vignette_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, vignette_pipeline_, last_error_,
                         nullptr, sizeof(VignetteConstants)) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, last_error_,
+                            nullptr, sizeof(ColourAdjustConstants)) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
                         nullptr, sizeof(BrightConstants)) ||
@@ -399,6 +408,12 @@ namespace sl::detail
                     program = vignette_program_;
                     return true;
                 }
+                if (vertex_source.asset_id == "colour-adjust" && fragment_source.asset_id == "colour-adjust" &&
+                    colour_adjust_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = colour_adjust_program_;
+                    return true;
+                }
                 if (vertex_source.asset_id == "bloom-bright" && fragment_source.asset_id == "bloom-bright" &&
                     bright_pipeline_.pipeline != VK_NULL_HANDLE)
                 {
@@ -476,7 +491,8 @@ namespace sl::detail
                     return true;
                 }
                 if (program != cull_program_ && program != lighting_program_ && program != vignette_program_ &&
-                    program != bright_program_ && program != blur_program_ && program != composite_program_) return false;
+                    program != colour_adjust_program_ && program != bright_program_ && program != blur_program_ &&
+                    program != composite_program_) return false;
                 active_program_ = program;
                 return true;
             }
@@ -491,6 +507,11 @@ namespace sl::detail
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
                 if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
+                if (program == colour_adjust_program_ && name && std::strcmp(name, "source") == 0)
+                {
+                    active_program_ = program;
+                    return true;
+                }
                 if (program == cull_program_ && name && std::strcmp(name, "lightCount") == 0)
                 {
                     cull_constants_[4] = value;
@@ -522,6 +543,16 @@ namespace sl::detail
                     if (std::strcmp(name, "radius") == 0) vignette_constants_.radius = value;
                     else if (std::strcmp(name, "softness") == 0) vignette_constants_.softness = value;
                     else if (std::strcmp(name, "intensity") == 0) vignette_constants_.intensity = value;
+                    else return true;
+                    return true;
+                }
+                if (program == colour_adjust_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "brightness") == 0) colour_adjust_constants_.values[0] = value;
+                    else if (std::strcmp(name, "contrast") == 0) colour_adjust_constants_.values[1] = value;
+                    else if (std::strcmp(name, "saturation") == 0) colour_adjust_constants_.values[2] = value;
+                    else if (std::strcmp(name, "exposure") == 0) colour_adjust_constants_.values[3] = value;
                     else return true;
                     return true;
                 }
@@ -619,6 +650,12 @@ namespace sl::detail
                 }
                 if ((program == bright_program_ || program == blur_program_ || program == composite_program_) &&
                     name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == colour_adjust_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
@@ -840,6 +877,13 @@ namespace sl::detail
                         &vignette_constants_, sizeof(vignette_constants_), last_error_);
                     return;
                 }
+                if (active_program_ == colour_adjust_program_)
+                {
+                    context_.record_postprocess_draw(colour_adjust_pipeline_.pipeline, colour_adjust_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
+                    return;
+                }
                 if (active_program_ == bright_program_)
                 {
                     context_.record_postprocess_draw(bright_pipeline_.pipeline, bright_pipeline_.layout,
@@ -1038,6 +1082,8 @@ namespace sl::detail
             VulkanGraphicsPipeline lighting_pipeline_;
             VulkanShaderModule vignette_fragment_module_;
             VulkanGraphicsPipeline vignette_pipeline_;
+            VulkanShaderModule colour_adjust_fragment_module_;
+            VulkanGraphicsPipeline colour_adjust_pipeline_;
             VulkanShaderModule bright_fragment_module_;
             VulkanGraphicsPipeline bright_pipeline_;
             VulkanShaderModule blur_fragment_module_;
@@ -1050,6 +1096,7 @@ namespace sl::detail
             static constexpr std::uint32_t cull_program_ = 0x80000000u;
             static constexpr std::uint32_t lighting_program_ = 0x80000001u;
             static constexpr std::uint32_t vignette_program_ = 0x80000002u;
+            static constexpr std::uint32_t colour_adjust_program_ = 0x80000006u;
             static constexpr std::uint32_t bright_program_ = 0x80000003u;
             static constexpr std::uint32_t blur_program_ = 0x80000004u;
             static constexpr std::uint32_t composite_program_ = 0x80000005u;
@@ -1086,6 +1133,7 @@ namespace sl::detail
             std::array<float, 16> lighting_projection_{};
             std::array<std::uint32_t, 9> lighting_textures_{};
             struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; } vignette_constants_;
+            struct ColourAdjustConstants { float values[4] = {0.0f, 1.0f, 1.0f, 0.0f}; } colour_adjust_constants_;
             std::array<float, 16> vignette_projection_{};
             struct BrightConstants { float threshold = 0.0f; } bright_constants_;
             struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; } blur_constants_;

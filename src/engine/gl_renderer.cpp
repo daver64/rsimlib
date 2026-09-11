@@ -107,6 +107,7 @@ namespace sl::detail
             {
                 shutdown_2d();
                 texture_sizes_.clear();
+                render_target_stack_.clear();
                 context_.shutdown();
             }
 
@@ -198,6 +199,16 @@ namespace sl::detail
             {
                 texture = 0;
                 framebuffer = 0;
+                GLint previous_framebuffer = 0;
+                GLint previous_viewport[4] = {};
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
+                glGetIntegerv(GL_VIEWPORT, previous_viewport);
+                const auto restore_state = [&]()
+                {
+                    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
+                    glViewport(previous_viewport[0], previous_viewport[1],
+                        previous_viewport[2], previous_viewport[3]);
+                };
                 if (width <= 0 || height <= 0)
                 {
                     return false;
@@ -221,8 +232,10 @@ namespace sl::detail
                     {
                         glDeleteFramebuffers(1, &fbo);
                     }
+                    restore_state();
                     return false;
                 }
+                restore_state();
                 framebuffer = fbo;
                 return true;
             }
@@ -242,13 +255,25 @@ namespace sl::detail
                 {
                     return false;
                 }
+                RenderTargetState previous{};
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous.framebuffer);
+                glGetIntegerv(GL_VIEWPORT, previous.viewport);
+                render_target_stack_.push_back(previous);
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
                 glViewport(0, 0, width, height);
                 return true;
             }
             bool end_render_target(std::string &) override
             {
-                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                if (render_target_stack_.empty())
+                {
+                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    return true;
+                }
+                const RenderTargetState previous = render_target_stack_.back();
+                render_target_stack_.pop_back();
+                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous.framebuffer));
+                glViewport(previous.viewport[0], previous.viewport[1], previous.viewport[2], previous.viewport[3]);
                 return true;
             }
 
@@ -486,6 +511,12 @@ namespace sl::detail
             }
 
         private:
+                        struct RenderTargetState
+                        {
+                            GLint framebuffer = 0;
+                            GLint viewport[4] = {};
+                        };
+
             template <typename Setter>
             bool set_location(std::uint32_t program, const char *name, Setter setter)
             {
@@ -503,6 +534,7 @@ namespace sl::detail
             std::uint32_t white_texture_ = 0;
             std::string shader_error_;
             std::unordered_map<GLuint, std::pair<int, int>> texture_sizes_;
+            std::vector<RenderTargetState> render_target_stack_;
         };
     }
 

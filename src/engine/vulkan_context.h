@@ -236,6 +236,15 @@ namespace sl::detail
         VkRenderPass active_resume_render_pass_ = VK_NULL_HANDLE;
         VkFramebuffer active_framebuffer_ = VK_NULL_HANDLE;
         std::vector<VulkanBuffer> upload_staging_buffers_;
+        struct RenderPassState
+        {
+            VkExtent2D extent{};
+            VkRenderPass render_pass = VK_NULL_HANDLE;
+            VkRenderPass resume_render_pass = VK_NULL_HANDLE;
+            VkFramebuffer framebuffer = VK_NULL_HANDLE;
+            bool offscreen = false;
+        };
+        std::vector<RenderPassState> render_pass_stack_;
         bool frame_active_ = false;
         bool command_buffer_recording_ = false;
         bool render_pass_active_ = false;

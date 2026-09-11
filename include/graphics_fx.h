@@ -200,6 +200,62 @@ namespace sl
         float intensity_ = 0.8f;
     };
 
+    /** Applies brightness, contrast, saturation, and exposure to a bitmap. */
+    class ColourAdjust
+    {
+    public:
+        ColourAdjust() = default;
+        ~ColourAdjust() = default;
+
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_brightness(float value);
+        void set_contrast(float value);
+        void set_saturation(float value);
+        void set_exposure(float value);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float brightness_ = 0.0f;
+        float contrast_ = 1.0f;
+        float saturation_ = 1.0f;
+        float exposure_ = 0.0f;
+    };
+
+    /** Applies a separable Gaussian blur to a bitmap using two temporary targets. */
+    class Blur
+    {
+    public:
+        Blur() = default;
+        ~Blur();
+        Blur(const Blur &) = delete;
+        Blur &operator=(const Blur &) = delete;
+        Blur(Blur &&other) noexcept;
+        Blur &operator=(Blur &&other) noexcept;
+
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_radius(float radius);
+        void set_iterations(int iterations);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float radius_ = 1.5f;
+        int iterations_ = 2;
+        mutable Bitmap *target_a_ = nullptr;
+        mutable Bitmap *target_b_ = nullptr;
+
+        bool ensure_targets(int width, int height) const;
+    };
+
     /** A radial 2D light expressed in screen pixels. */
     struct Light
     {
