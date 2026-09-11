@@ -81,6 +81,10 @@ int main(int argc, char *argv[])
         cool_light.radius = 220.0f;
         cool_light.intensity = 0.65f;
         cool_light.shadow_softness = hard_shadows ? 0.0f : 2.0f;
+        cool_light.direction_x = -0.8944f;
+        cool_light.direction_y = 0.4472f;
+        cool_light.inner_angle = 12.0f;
+        cool_light.outer_angle = 28.0f;
         cool_light.colour = {100, 170, 255};
 
         const std::vector<sl::Light> lights = {warm_light, cool_light};

@@ -297,15 +297,22 @@ namespace sl
 			gpuLight.positionRadius[0] = light.x;
 			gpuLight.positionRadius[1] = light.y;
 			gpuLight.positionRadius[2] = std::max(light.radius, 0.0f);
+			const float directionLength = std::sqrt(light.direction_x * light.direction_x + light.direction_y * light.direction_y);
+			const bool spotlight = light.inner_angle > 0.0f && light.outer_angle > 0.0f && directionLength > 0.0001f;
 			gpuLight.positionRadius[3] = 0.0f;
 			gpuLight.colourIntensity[0] = static_cast<float>(light.colour.red) / 255.0f;
 			gpuLight.colourIntensity[1] = static_cast<float>(light.colour.green) / 255.0f;
 			gpuLight.colourIntensity[2] = static_cast<float>(light.colour.blue) / 255.0f;
 			gpuLight.colourIntensity[3] = std::max(light.intensity, 0.0f);
 			gpuLight.shadowSoftness[0] = std::max(light.shadow_softness, 0.0f);
-			gpuLight.shadowSoftness[1] = 0.0f;
-			gpuLight.shadowSoftness[2] = 0.0f;
-			gpuLight.shadowSoftness[3] = 0.0f;
+			gpuLight.shadowSoftness[1] = spotlight ? light.direction_x / directionLength : 0.0f;
+			gpuLight.shadowSoftness[2] = spotlight ? light.direction_y / directionLength : 0.0f;
+			gpuLight.shadowSoftness[3] = spotlight
+				? std::cos(std::clamp(light.outer_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
+				: -1.0f;
+			gpuLight.positionRadius[3] = spotlight
+				? std::cos(std::clamp(light.inner_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
+				: 0.0f;
 		}
 		detail::Renderer *renderer = detail::active_renderer();
 		renderer->upload_storage_buffer(lightBuffer_, gpuLights.size() * sizeof(GpuLight), gpuLights.data(), false);

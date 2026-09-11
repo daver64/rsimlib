@@ -463,7 +463,7 @@ namespace sl
         float offset_y_ = 0.0f;
     };
 
-    /** A radial 2D light expressed in screen pixels. */
+    /** A radial or optional cone-shaped 2D light expressed in screen pixels. */
     struct Light
     {
         float x = 0.0f;
@@ -471,6 +471,12 @@ namespace sl
         float radius = 256.0f;
         float intensity = 1.0f;
         float shadow_softness = 0.0f;
+        /** Direction in screen space; used when the cone angles are positive. */
+        float direction_x = 0.0f;
+        float direction_y = -1.0f;
+        /** Inner/outer cone angles in degrees. Zero angles disable spotlight falloff. */
+        float inner_angle = 0.0f;
+        float outer_angle = 0.0f;
         Colour colour{255, 255, 255};
     };
 
