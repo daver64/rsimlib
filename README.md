@@ -79,6 +79,37 @@ bitmaps, or ImGui resources; call `shutdown()` last.
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 | `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |
 
+To chain fullscreen effects, render a scene into a source render target, then
+alternate the source and target with `PingPongBuffer` for each pass:
+
+```cpp
+sl::PingPongBuffer effects;
+effects.initialise(800, 600);
+
+sl::ColourAdjust colour_adjust;
+sl::Blur blur;
+colour_adjust.initialise();
+blur.initialise();
+
+sl::Bitmap *result = scene;
+
+effects.begin(result);
+sl::begin_render_target(effects.target());
+sl::clear_render_target({0, 0, 0});
+colour_adjust.apply(effects.source(), 0, 0, 800, 600);
+sl::end_render_target();
+result = effects.advance();
+
+effects.begin(result);
+sl::begin_render_target(effects.target());
+sl::clear_render_target({0, 0, 0});
+blur.apply(effects.source(), 0, 0, 800, 600);
+sl::end_render_target();
+result = effects.advance();
+
+sl::draw_sprite(result, 0.0f, 0.0f);
+```
+
 ### 2D lighting
 
 `Light` describes a radial screen-space light:
