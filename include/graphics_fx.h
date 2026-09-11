@@ -256,6 +256,105 @@ namespace sl
         bool ensure_targets(int width, int height) const;
     };
 
+    /** Separates RGB samples toward the screen edges for a lens/damage effect. */
+    class ChromaticAberration
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_strength(float strength);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float strength_ = 0.004f;
+    };
+
+    /** Reduces a bitmap to configurable screen-space colour blocks. */
+    class Pixelate
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_pixel_size(float size);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float pixel_size_ = 8.0f;
+    };
+
+    /** Blurs pixels along rays from a configurable focal point. */
+    class RadialBlur
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_centre(float x, float y);
+        void set_strength(float strength);
+        void set_samples(int samples);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float centre_x_ = 0.5f;
+        float centre_y_ = 0.5f;
+        float strength_ = 0.25f;
+        int samples_ = 8;
+    };
+
+    /** Applies animated sinusoidal UV distortion for heat, water, or portal effects. */
+    class HeatHaze
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        void set_strength(float strength);
+        void set_frequency(float frequency);
+        void set_time(float time);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0,
+                   bool flipVertical = false) const;
+
+    private:
+        Shader shader_;
+        float strength_ = 0.008f;
+        float frequency_ = 24.0f;
+        float time_ = 0.0f;
+    };
+
+    /** Applies a decaying camera offset to 2D projections for impact and motion effects. */
+    class ScreenShake
+    {
+    public:
+        ScreenShake() = default;
+        ~ScreenShake();
+        ScreenShake(const ScreenShake &) = delete;
+        ScreenShake &operator=(const ScreenShake &) = delete;
+
+        void trigger(float amplitude, float duration);
+        void update(float delta_seconds);
+        void clear();
+        bool active() const;
+
+    private:
+        float amplitude_ = 0.0f;
+        float duration_ = 0.0f;
+        float remaining_ = 0.0f;
+        float offset_x_ = 0.0f;
+        float offset_y_ = 0.0f;
+    };
+
     /** A radial 2D light expressed in screen pixels. */
     struct Light
     {

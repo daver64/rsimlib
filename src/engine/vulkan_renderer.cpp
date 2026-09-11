@@ -124,6 +124,22 @@ namespace sl::detail
                         !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, error,
                             nullptr, sizeof(ColourAdjustConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_pixelate.frag.spv", pixelate_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, pixelate_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, pixelate_pipeline_, error,
+                            nullptr, sizeof(PixelateConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_radial_blur.frag.spv", radial_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, radial_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, radial_pipeline_, error,
+                            nullptr, sizeof(RadialConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_heat_haze.frag.spv", heat_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, error,
+                            nullptr, sizeof(HeatConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_chromatic_aberration.frag.spv", chromatic_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, error,
+                            nullptr, sizeof(ChromaticConstants))) return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, error,
@@ -172,6 +188,10 @@ namespace sl::detail
                 context_.destroy_graphics_pipeline(lighting_pipeline_);
                 context_.destroy_graphics_pipeline(vignette_pipeline_);
                     context_.destroy_graphics_pipeline(colour_adjust_pipeline_);
+                    context_.destroy_graphics_pipeline(pixelate_pipeline_);
+                    context_.destroy_graphics_pipeline(radial_pipeline_);
+                    context_.destroy_graphics_pipeline(heat_pipeline_);
+                    context_.destroy_graphics_pipeline(chromatic_pipeline_);
                 context_.destroy_graphics_pipeline(bright_pipeline_);
                 context_.destroy_graphics_pipeline(blur_pipeline_);
                 context_.destroy_graphics_pipeline(composite_pipeline_);
@@ -183,6 +203,10 @@ namespace sl::detail
                 context_.destroy_shader_module(lighting_fragment_module_);
                 context_.destroy_shader_module(vignette_fragment_module_);
                     context_.destroy_shader_module(colour_adjust_fragment_module_);
+                    context_.destroy_shader_module(pixelate_fragment_module_);
+                    context_.destroy_shader_module(radial_fragment_module_);
+                    context_.destroy_shader_module(heat_fragment_module_);
+                    context_.destroy_shader_module(chromatic_fragment_module_);
                 context_.destroy_shader_module(bright_fragment_module_);
                 context_.destroy_shader_module(blur_fragment_module_);
                 context_.destroy_shader_module(composite_fragment_module_);
@@ -244,6 +268,18 @@ namespace sl::detail
                         !context_.create_graphics_pipeline(lighting_vertex_module_, colour_adjust_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, colour_adjust_pipeline_, last_error_,
                             nullptr, sizeof(ColourAdjustConstants)) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, pixelate_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, pixelate_pipeline_, last_error_,
+                            nullptr, sizeof(PixelateConstants)) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, radial_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, radial_pipeline_, last_error_,
+                            nullptr, sizeof(RadialConstants)) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, heat_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, heat_pipeline_, last_error_,
+                            nullptr, sizeof(HeatConstants)) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, last_error_,
+                            nullptr, sizeof(ChromaticConstants)) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, last_error_,
                         nullptr, sizeof(BrightConstants)) ||
@@ -414,6 +450,30 @@ namespace sl::detail
                     program = colour_adjust_program_;
                     return true;
                 }
+                if (vertex_source.asset_id == "chromatic-aberration" && fragment_source.asset_id == "chromatic-aberration" &&
+                    chromatic_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = chromatic_program_;
+                    return true;
+                }
+                if (vertex_source.asset_id == "pixelate" && fragment_source.asset_id == "pixelate" &&
+                    pixelate_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = pixelate_program_;
+                    return true;
+                }
+                if (vertex_source.asset_id == "radial-blur" && fragment_source.asset_id == "radial-blur" &&
+                    radial_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = radial_program_;
+                    return true;
+                }
+                if (vertex_source.asset_id == "heat-haze" && fragment_source.asset_id == "heat-haze" &&
+                    heat_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = heat_program_;
+                    return true;
+                }
                 if (vertex_source.asset_id == "bloom-bright" && fragment_source.asset_id == "bloom-bright" &&
                     bright_pipeline_.pipeline != VK_NULL_HANDLE)
                 {
@@ -512,6 +572,12 @@ namespace sl::detail
                     active_program_ = program;
                     return true;
                 }
+                if (program == radial_program_ && name && std::strcmp(name, "samples") == 0)
+                {
+                    active_program_ = program;
+                    radial_constants_.samples = value;
+                    return true;
+                }
                 if (program == cull_program_ && name && std::strcmp(name, "lightCount") == 0)
                 {
                     cull_constants_[4] = value;
@@ -556,6 +622,35 @@ namespace sl::detail
                     else return true;
                     return true;
                 }
+                if (program == chromatic_program_ && name && std::strcmp(name, "strength") == 0)
+                {
+                    active_program_ = program;
+                    chromatic_constants_.strength = value;
+                    return true;
+                }
+                if (program == pixelate_program_ && name && std::strcmp(name, "pixelSize") == 0)
+                {
+                    active_program_ = program;
+                    pixelate_constants_.pixel_size[0] = value;
+                    pixelate_constants_.pixel_size[1] = value;
+                    return true;
+                }
+                if (program == radial_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "strength") == 0) radial_constants_.strength = value;
+                    else return true;
+                    return true;
+                }
+                if (program == heat_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "strength") == 0) heat_constants_.strength = value;
+                    else if (std::strcmp(name, "frequency") == 0) heat_constants_.frequency = value;
+                    else if (std::strcmp(name, "time") == 0) heat_constants_.time = value;
+                    else return true;
+                    return true;
+                }
                 if (program == bright_program_ && name && std::strcmp(name, "threshold") == 0)
                 {
                     active_program_ = program;
@@ -588,6 +683,20 @@ namespace sl::detail
                     active_program_ = program;
                     if (std::strcmp(name, "texel") == 0) { blur_constants_.texel[0] = x; blur_constants_.texel[1] = y; return true; }
                     if (std::strcmp(name, "direction") == 0) { blur_constants_.direction[0] = x; blur_constants_.direction[1] = y; return true; }
+                }
+                if (program == pixelate_program_ && name && std::strcmp(name, "resolution") == 0)
+                {
+                    active_program_ = program;
+                    pixelate_constants_.resolution[0] = x;
+                    pixelate_constants_.resolution[1] = y;
+                    return true;
+                }
+                if (program == radial_program_ && name && std::strcmp(name, "centre") == 0)
+                {
+                    active_program_ = program;
+                    radial_constants_.centre[0] = x;
+                    radial_constants_.centre[1] = y;
+                    return true;
                 }
                 return unsupported();
             }
@@ -661,6 +770,30 @@ namespace sl::detail
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
                     return true;
                 }
+                if (program == chromatic_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == pixelate_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == radial_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == heat_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
                 return unsupported();
             }
             bool initialise_2d() override { return pipelines_[4].pipeline != VK_NULL_HANDLE; }
@@ -671,7 +804,10 @@ namespace sl::detail
                 projection_.fill(0.0f);
                 projection_[0] = width > 0 ? 2.0f / width : 0.0f;
                 projection_[5] = height > 0 ? -2.0f / height : 0.0f;
-                projection_[10] = -1.0f; projection_[12] = -1.0f; projection_[13] = 1.0f; projection_[15] = 1.0f;
+                projection_[10] = -1.0f;
+                projection_[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
+                projection_[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
+                projection_[15] = 1.0f;
                 return true;
             }
             bool begin_shader_2d(std::uint32_t program, int width, int height) override
@@ -681,7 +817,9 @@ namespace sl::detail
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
                 projection[10] = -1.0f;
-                projection[12] = -1.0f; projection[13] = 1.0f; projection[15] = 1.0f;
+                projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
+                projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
+                projection[15] = 1.0f;
                 return set_shader_mat4(program, "uProjection", projection);
             }
             bool clear_frame(float red, float green, float blue, float alpha) override
@@ -884,6 +1022,34 @@ namespace sl::detail
                         &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
                     return;
                 }
+                if (active_program_ == chromatic_program_)
+                {
+                    context_.record_postprocess_draw(chromatic_pipeline_.pipeline, chromatic_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &chromatic_constants_, sizeof(chromatic_constants_), last_error_);
+                    return;
+                }
+                if (active_program_ == pixelate_program_)
+                {
+                    context_.record_postprocess_draw(pixelate_pipeline_.pipeline, pixelate_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &pixelate_constants_, sizeof(pixelate_constants_), last_error_);
+                    return;
+                }
+                if (active_program_ == radial_program_)
+                {
+                    context_.record_postprocess_draw(radial_pipeline_.pipeline, radial_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &radial_constants_, sizeof(radial_constants_), last_error_);
+                    return;
+                }
+                if (active_program_ == heat_program_)
+                {
+                    context_.record_postprocess_draw(heat_pipeline_.pipeline, heat_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &heat_constants_, sizeof(heat_constants_), last_error_);
+                    return;
+                }
                 if (active_program_ == bright_program_)
                 {
                     context_.record_postprocess_draw(bright_pipeline_.pipeline, bright_pipeline_.layout,
@@ -1084,6 +1250,14 @@ namespace sl::detail
             VulkanGraphicsPipeline vignette_pipeline_;
             VulkanShaderModule colour_adjust_fragment_module_;
             VulkanGraphicsPipeline colour_adjust_pipeline_;
+            VulkanShaderModule chromatic_fragment_module_;
+            VulkanGraphicsPipeline chromatic_pipeline_;
+            VulkanShaderModule pixelate_fragment_module_;
+            VulkanGraphicsPipeline pixelate_pipeline_;
+            VulkanShaderModule radial_fragment_module_;
+            VulkanGraphicsPipeline radial_pipeline_;
+            VulkanShaderModule heat_fragment_module_;
+            VulkanGraphicsPipeline heat_pipeline_;
             VulkanShaderModule bright_fragment_module_;
             VulkanGraphicsPipeline bright_pipeline_;
             VulkanShaderModule blur_fragment_module_;
@@ -1097,6 +1271,10 @@ namespace sl::detail
             static constexpr std::uint32_t lighting_program_ = 0x80000001u;
             static constexpr std::uint32_t vignette_program_ = 0x80000002u;
             static constexpr std::uint32_t colour_adjust_program_ = 0x80000006u;
+            static constexpr std::uint32_t chromatic_program_ = 0x80000007u;
+            static constexpr std::uint32_t pixelate_program_ = 0x80000008u;
+            static constexpr std::uint32_t radial_program_ = 0x80000009u;
+            static constexpr std::uint32_t heat_program_ = 0x8000000Au;
             static constexpr std::uint32_t bright_program_ = 0x80000003u;
             static constexpr std::uint32_t blur_program_ = 0x80000004u;
             static constexpr std::uint32_t composite_program_ = 0x80000005u;
@@ -1134,6 +1312,10 @@ namespace sl::detail
             std::array<std::uint32_t, 9> lighting_textures_{};
             struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; } vignette_constants_;
             struct ColourAdjustConstants { float values[4] = {0.0f, 1.0f, 1.0f, 0.0f}; } colour_adjust_constants_;
+            struct ChromaticConstants { float strength = 0.0f; } chromatic_constants_;
+            struct PixelateConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size[2] = {8.0f, 8.0f}; } pixelate_constants_;
+            struct RadialConstants { float centre[2] = {0.5f, 0.5f}; float strength = 0.25f; int samples = 8; } radial_constants_;
+            struct HeatConstants { float strength = 0.008f; float frequency = 24.0f; float time = 0.0f; } heat_constants_;
             std::array<float, 16> vignette_projection_{};
             struct BrightConstants { float threshold = 0.0f; } bright_constants_;
             struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; } blur_constants_;

@@ -43,7 +43,7 @@ Create the archive used by `exresources` from the repository root with:
 - **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
 - **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
 - **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`expostprocess`** — render-target composition with ColourAdjust, Blur, Bloom, and Vignette effect passes.
+- **`expostprocess`** — render-target composition with ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Bloom, and Vignette effect passes.
 - **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
@@ -243,7 +243,7 @@ ctest --test-dir build
 ./exgui # Dear ImGui integration example
 ./exparticles # particle emitter example
 ./exresources # packaged asset archive example
-./expostprocess # Bloom and Vignette example
+./expostprocess # full post-processing effects example
 ./ex3d # direct OpenGL 3D example
 ./ex3d_vulkan # direct Vulkan 3D example
 ./sltest # sample game: menu, physics playground, Lua console
@@ -476,7 +476,9 @@ so callers do not need to extract bundled assets to temporary files.
 
 ### Graphics effects
 
-`Shader`, `Bloom`, `Vignette`, `LightingPass`, and `ScreenFade` are declared in
+`Shader`, `Bloom`, `Vignette`, `ColourAdjust`, `Blur`, `ChromaticAberration`,
+`Pixelate`, `RadialBlur`, `HeatHaze`, `LightingPass`, `ScreenFade`, and
+`ScreenShake` are declared in
 [`include/graphics_fx.h`](include/graphics_fx.h). Effects that own GPU state
 must be initialized after the display exists and shut down before the display
 context is destroyed.
@@ -486,10 +488,17 @@ context is destroyed.
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader (compiled to SPIR-V at runtime on Vulkan), bind it, set uniforms, and release it. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
+| `ColourAdjust` | `initialise`, `set_brightness`, `set_contrast`, `set_saturation`, `set_exposure`, `apply`, `shutdown` | Adjust brightness, contrast, saturation, and exposure. |
+| `Blur` | `initialise`, `set_radius`, `set_iterations`, `apply`, `shutdown` | Apply a separable Gaussian blur using temporary render targets. |
+| `ChromaticAberration` | `initialise`, `set_strength`, `apply`, `shutdown` | Separate RGB samples toward the edges for lens and damage effects. |
+| `Pixelate` | `initialise`, `set_pixel_size`, `apply`, `shutdown` | Reduce a bitmap to configurable screen-space colour blocks. |
+| `RadialBlur` | `initialise`, `set_centre`, `set_strength`, `set_samples`, `apply`, `shutdown` | Blur along rays from a focal point. |
+| `HeatHaze` | `initialise`, `set_strength`, `set_frequency`, `set_time`, `apply`, `shutdown` | Apply animated sinusoidal UV distortion. |
 | `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of coloured radial lights and polygon-caster shadows to a bitmap. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply an arbitrary vector of coloured radial lights and polygon-caster shadows to a bitmap. |
-Ambient illumination is applied once, then each light's coloured contribution
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
+| `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |
+
+Ambient illumination is applied once, then each light's coloured contribution
 
 #### 2D lighting
 

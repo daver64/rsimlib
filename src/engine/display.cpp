@@ -34,6 +34,8 @@ namespace sl
         int logicalHeight = 0;
         int renderTargetWidth = 0;
         int renderTargetHeight = 0;
+        float screenOffsetX = 0.0f;
+        float screenOffsetY = 0.0f;
     } // namespace
 
     bool set_graphics_backend(GraphicsBackend backend)
@@ -279,6 +281,16 @@ namespace sl
             renderTargetWidth = targetWidth;
             renderTargetHeight = targetHeight;
         }
+
+        void set_screen_offset(float x, float y)
+        {
+            screenOffsetX = x;
+            screenOffsetY = y;
+        }
+
+        float screen_offset_x() { return screenOffsetX; }
+        float screen_offset_y() { return screenOffsetY; }
+
     } // namespace detail
 
     void clear_to_colour(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha)

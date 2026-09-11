@@ -13,6 +13,7 @@
 
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
+#include <SDL2/SDL.h>
 
 #include <algorithm>
 #include <cmath>
@@ -726,6 +727,158 @@ namespace sl
 		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
 		Shader::stop();
 	}
+
+	bool ChromaticAberration::initialise()
+	{
+		if (is_valid()) return true;
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("chromatic_aberration.frag"),
+			"chromatic-aberration");
+	}
+
+	void ChromaticAberration::shutdown() { shader_.reset(); }
+	bool ChromaticAberration::is_valid() const { return shader_.is_valid(); }
+	const std::string &ChromaticAberration::error() const { return shader_.error(); }
+	void ChromaticAberration::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
+
+	void ChromaticAberration::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
+	{
+		if (!source || !is_valid() || !upload_bitmap(source)) return;
+		if (width <= 0) width = screen_width();
+		if (height <= 0) height = screen_height();
+		if (width <= 0 || height <= 0) return;
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("strength", strength_);
+		float projection[16];
+		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+		shader_.set_uniform_mat4("uProjection", projection);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		Shader::stop();
+	}
+
+	bool Pixelate::initialise()
+	{
+		if (is_valid()) return true;
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("pixelate.frag"),
+			"pixelate");
+	}
+
+	void Pixelate::shutdown() { shader_.reset(); }
+	bool Pixelate::is_valid() const { return shader_.is_valid(); }
+	const std::string &Pixelate::error() const { return shader_.error(); }
+	void Pixelate::set_pixel_size(float size) { pixel_size_ = std::max(1.0f, size); }
+
+	void Pixelate::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
+	{
+		if (!source || !is_valid() || !upload_bitmap(source)) return;
+		if (width <= 0) width = screen_width();
+		if (height <= 0) height = screen_height();
+		if (width <= 0 || height <= 0) return;
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("resolution", static_cast<float>(width), static_cast<float>(height));
+		shader_.set_uniform("pixelSize", pixel_size_);
+		float projection[16];
+		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+		shader_.set_uniform_mat4("uProjection", projection);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		Shader::stop();
+	}
+
+	bool RadialBlur::initialise()
+	{
+		if (is_valid()) return true;
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("radial_blur.frag"),
+			"radial-blur");
+	}
+	void RadialBlur::shutdown() { shader_.reset(); }
+	bool RadialBlur::is_valid() const { return shader_.is_valid(); }
+	const std::string &RadialBlur::error() const { return shader_.error(); }
+	void RadialBlur::set_centre(float x, float y) { centre_x_ = x; centre_y_ = y; }
+	void RadialBlur::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
+	void RadialBlur::set_samples(int samples) { samples_ = std::clamp(samples, 1, 16); }
+
+	void RadialBlur::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
+	{
+		if (!source || !is_valid() || !upload_bitmap(source)) return;
+		if (width <= 0) width = screen_width();
+		if (height <= 0) height = screen_height();
+		if (width <= 0 || height <= 0) return;
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("centre", centre_x_, centre_y_);
+		shader_.set_uniform("strength", strength_);
+		shader_.set_uniform("samples", samples_);
+		float projection[16];
+		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+		shader_.set_uniform_mat4("uProjection", projection);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		Shader::stop();
+	}
+
+	bool HeatHaze::initialise()
+	{
+		if (is_valid()) return true;
+		return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("heat_haze.frag"),
+			"heat-haze");
+	}
+	void HeatHaze::shutdown() { shader_.reset(); }
+	bool HeatHaze::is_valid() const { return shader_.is_valid(); }
+	const std::string &HeatHaze::error() const { return shader_.error(); }
+	void HeatHaze::set_strength(float strength) { strength_ = std::max(0.0f, strength); }
+	void HeatHaze::set_frequency(float frequency) { frequency_ = std::max(0.0f, frequency); }
+	void HeatHaze::set_time(float time) { time_ = time; }
+
+	void HeatHaze::apply(Bitmap *source, int x, int y, int width, int height, bool flipVertical) const
+	{
+		if (!source || !is_valid() || !upload_bitmap(source)) return;
+		if (width <= 0) width = screen_width();
+		if (height <= 0) height = screen_height();
+		if (width <= 0 || height <= 0) return;
+		shader_.set_uniform("source", 0);
+		shader_.set_uniform("strength", strength_);
+		shader_.set_uniform("frequency", frequency_);
+		shader_.set_uniform("time", time_);
+		float projection[16];
+		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
+		shader_.set_uniform_mat4("uProjection", projection);
+		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, flipVertical);
+		Shader::stop();
+	}
+
+	ScreenShake::~ScreenShake()
+	{
+		clear();
+	}
+
+	void ScreenShake::trigger(float amplitude, float duration)
+	{
+		amplitude_ = std::max(0.0f, amplitude);
+		duration_ = std::max(0.0f, duration);
+		remaining_ = duration_;
+	}
+
+	void ScreenShake::update(float delta_seconds)
+	{
+		if (remaining_ <= 0.0f)
+		{
+			clear();
+			return;
+		}
+		remaining_ = std::max(0.0f, remaining_ - std::max(0.0f, delta_seconds));
+		const float falloff = duration_ > 0.0f ? remaining_ / duration_ : 0.0f;
+		const float time = static_cast<float>(SDL_GetTicks()) * 0.01f;
+		offset_x_ = std::sin(time * 1.73f) * amplitude_ * falloff;
+		offset_y_ = std::cos(time * 2.11f) * amplitude_ * falloff;
+		detail::set_screen_offset(offset_x_, offset_y_);
+	}
+
+	void ScreenShake::clear()
+	{
+		remaining_ = 0.0f;
+		offset_x_ = 0.0f;
+		offset_y_ = 0.0f;
+		detail::set_screen_offset(0.0f, 0.0f);
+	}
+
+	bool ScreenShake::active() const { return remaining_ > 0.0f; }
 
 	Blur::~Blur() { shutdown(); }
 

@@ -58,6 +58,13 @@ namespace sl
     {
         /** Override screen_width()/screen_height() while an offscreen render target is bound; 0 clears it. */
         void set_render_target_size(int width, int height);
+        void set_screen_offset(float x, float y);
+        float screen_offset_x();
+        float screen_offset_y();
+        /** Set the transient 2D camera offset used by backend projections. */
+        void set_screen_offset(float x, float y);
+        float screen_offset_x();
+        float screen_offset_y();
     } // namespace detail
 
     /** Clear the current framebuffer using an RGBA colour. */

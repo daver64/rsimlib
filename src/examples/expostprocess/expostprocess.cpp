@@ -15,12 +15,20 @@ int main(int argc, char *argv[])
     sl::Bitmap *scene = sl::create_render_target(800, 600);
     sl::Bitmap *processed_scene = sl::create_render_target(800, 600);
     sl::Bitmap *effect_scene = sl::create_render_target(800, 600);
-    if (!balloon || !scene || !processed_scene || !effect_scene)
+    sl::Bitmap *aberration_scene = sl::create_render_target(800, 600);
+    sl::Bitmap *pixelated_scene = sl::create_render_target(800, 600);
+    sl::Bitmap *radial_scene = sl::create_render_target(800, 600);
+    sl::Bitmap *heat_scene = sl::create_render_target(800, 600);
+    if (!balloon || !scene || !processed_scene || !effect_scene || !aberration_scene || !pixelated_scene || !radial_scene || !heat_scene)
     {
         sl::destroy_bitmap(balloon);
         sl::destroy_bitmap(scene);
         sl::destroy_bitmap(processed_scene);
         sl::destroy_bitmap(effect_scene);
+        sl::destroy_bitmap(aberration_scene);
+        sl::destroy_bitmap(pixelated_scene);
+        sl::destroy_bitmap(radial_scene);
+        sl::destroy_bitmap(heat_scene);
         sl::shutdown();
         return -1;
     }
@@ -29,10 +37,19 @@ int main(int argc, char *argv[])
     sl::Vignette vignette;
     sl::ColourAdjust colour_adjust;
     sl::Blur blur;
+    sl::ChromaticAberration chromatic_aberration;
+    sl::Pixelate pixelate;
+    sl::RadialBlur radial_blur;
+    sl::HeatHaze heat_haze;
+    sl::ScreenShake screen_shake;
     const bool bloom_ready = bloom.initialise();
     const bool vignette_ready = vignette.initialise();
     const bool colour_adjust_ready = colour_adjust.initialise();
     const bool blur_ready = blur.initialise();
+    const bool chromatic_ready = chromatic_aberration.initialise();
+    const bool pixelate_ready = pixelate.initialise();
+    const bool radial_ready = radial_blur.initialise();
+    const bool heat_ready = heat_haze.initialise();
     bloom.set_threshold(0.35f);
     bloom.set_intensity(1.15f);
     bloom.set_radius(1.8f);
@@ -45,11 +62,22 @@ int main(int argc, char *argv[])
     colour_adjust.set_exposure(0.25f);
     blur.set_radius(2.5f);
     blur.set_iterations(2);
+    chromatic_aberration.set_strength(0.018f);
+    pixelate.set_pixel_size(10.0f);
+    radial_blur.set_centre(0.5f, 0.5f);
+    radial_blur.set_strength(0.32f);
+    radial_blur.set_samples(10);
+    heat_haze.set_strength(0.008f);
+    heat_haze.set_frequency(24.0f);
 
     bool use_bloom = bloom_ready;
     bool use_vignette = vignette_ready;
     bool use_colour_adjust = false;
     bool use_blur = false;
+    bool use_chromatic = false;
+    bool use_pixelate = false;
+    bool use_radial = false;
+    bool use_heat = false;
     bool running = true;
     sl::set_fps(60);
 
@@ -74,18 +102,30 @@ int main(int argc, char *argv[])
                     use_colour_adjust = !use_colour_adjust;
                 else if (event.key() == sl::Event::Key::letter_l && blur_ready)
                     use_blur = !use_blur;
+                else if (event.key() == sl::Event::Key::letter_a && chromatic_ready)
+                    use_chromatic = !use_chromatic;
+                else if (event.key() == sl::Event::Key::letter_p && pixelate_ready)
+                    use_pixelate = !use_pixelate;
+                else if (event.key() == sl::Event::Key::letter_r && radial_ready)
+                    use_radial = !use_radial;
+                else if (event.key() == sl::Event::Key::letter_h && heat_ready)
+                    use_heat = !use_heat;
+                else if (event.key() == sl::Event::Key::letter_s)
+                    screen_shake.trigger(12.0f, 0.45f);
             }
             sl::display_handle_event(event);
         }
 
         const float time = static_cast<float>(sl::time_ms()) * 0.001f;
+        screen_shake.update(std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f));
         sl::begin_render_target(scene);
         sl::clear_render_target({18, 23, 34});
         sl::gprintf_center(30, {232, 236, 244}, "Post-processing example");
-        sl::gprintf_center(56, {170, 185, 205},
-                "B: Bloom %s  V: Vignette %s  C: Colour %s  L: Blur %s  Escape: exit",
+        sl::gprintf_center(56, {170, 185, 205}, "B: Bloom %s  V: Vignette %s  C: Colour %s  L: Blur %s",
             use_bloom ? "on" : "off", use_vignette ? "on" : "off",
-                use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
+            use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
+        sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  S: Shake",
+            use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off");
         sl::circlefill(sl::screen, 400.0f + std::cos(time) * 180.0f,
             280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
         sl::circlefill(sl::screen, 180.0f, 420.0f, 34.0f, {80, 190, 255});
@@ -93,6 +133,7 @@ int main(int argc, char *argv[])
         sl::draw_sprite_rotated(balloon, 400.0f, 310.0f, time * 35.0f);
         sl::end_render_target();
 
+        screen_shake.clear();
         sl::clear_to_colour(sl::screen, {8, 11, 18});
         const bool flip_source = sl::graphics_backend() == sl::GraphicsBackend::opengl;
         sl::Bitmap *effect_source = scene;
@@ -111,6 +152,39 @@ int main(int argc, char *argv[])
             blur.apply(effect_source, 0, 0, 800, 600, flip_source);
             sl::end_render_target();
             effect_source = effect_scene;
+        }
+        if (use_chromatic)
+        {
+            sl::begin_render_target(aberration_scene);
+            sl::clear_render_target({8, 11, 18});
+            chromatic_aberration.apply(effect_source, 0, 0, 800, 600, flip_source);
+            sl::end_render_target();
+            effect_source = aberration_scene;
+        }
+        if (use_pixelate)
+        {
+            sl::begin_render_target(pixelated_scene);
+            sl::clear_render_target({8, 11, 18});
+            pixelate.apply(effect_source, 0, 0, 800, 600, flip_source);
+            sl::end_render_target();
+            effect_source = pixelated_scene;
+        }
+        if (use_radial)
+        {
+            sl::begin_render_target(radial_scene);
+            sl::clear_render_target({8, 11, 18});
+            radial_blur.apply(effect_source, 0, 0, 800, 600, flip_source);
+            sl::end_render_target();
+            effect_source = radial_scene;
+        }
+        if (use_heat)
+        {
+            heat_haze.set_time(static_cast<float>(sl::time_ms()) * 0.001f);
+            sl::begin_render_target(heat_scene);
+            sl::clear_render_target({8, 11, 18});
+            heat_haze.apply(effect_source, 0, 0, 800, 600, flip_source);
+            sl::end_render_target();
+            effect_source = heat_scene;
         }
         if (use_vignette)
         {
@@ -132,6 +206,14 @@ int main(int argc, char *argv[])
     bloom.shutdown();
     colour_adjust.shutdown();
     blur.shutdown();
+    chromatic_aberration.shutdown();
+    pixelate.shutdown();
+    radial_blur.shutdown();
+    heat_haze.shutdown();
+    sl::destroy_bitmap(pixelated_scene);
+    sl::destroy_bitmap(radial_scene);
+    sl::destroy_bitmap(heat_scene);
+    sl::destroy_bitmap(aberration_scene);
     sl::destroy_bitmap(effect_scene);
     sl::destroy_bitmap(processed_scene);
     sl::destroy_bitmap(scene);

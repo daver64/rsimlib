@@ -334,7 +334,10 @@ namespace sl::detail
                 float projection[16] = {};
                 projection[0] = width > 0 ? 2.0f / width : 0.0f;
                 projection[5] = height > 0 ? -2.0f / height : 0.0f;
-                projection[10] = -1.0f; projection[12] = -1.0f; projection[13] = 1.0f; projection[15] = 1.0f;
+                projection[10] = -1.0f;
+                projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
+                projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
+                projection[15] = 1.0f;
                 set_shader_mat4(default_2d_shader_, "uProjection", projection);
                 set_shader_int(default_2d_shader_, "uTexture", 0);
                 glEnable(GL_BLEND);
@@ -349,7 +352,9 @@ namespace sl::detail
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
                 projection[10] = -1.0f;
-                projection[12] = -1.0f; projection[13] = 1.0f; projection[15] = 1.0f;
+                projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
+                projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
+                projection[15] = 1.0f;
                 if (!set_shader_mat4(program, "uProjection", projection) ||
                     !set_shader_int(program, "uTexture", 0)) return false;
                 glEnable(GL_BLEND);
