@@ -122,7 +122,7 @@ sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
     libvulkan-dev glslang-tools spirv-tools
 ```
 
-Dear ImGui, Lua, and sol2 are fetched automatically via CMake's `FetchContent`
+Dear ImGui, Lua, sol2, and Box2D are fetched automatically via CMake's `FetchContent`
 — no manual setup required.
 
 The window/context, presentation lifecycle, 2D texture/render-target
