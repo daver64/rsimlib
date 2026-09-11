@@ -43,7 +43,7 @@ Create the archive used by `exresources` from the repository root with:
 - **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
 - **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
 - **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, and Vignette effect passes.
+- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
 - **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
@@ -74,6 +74,7 @@ bitmaps, or ImGui resources; call `shutdown()` last.
 | `Shockwave` | `initialise`, `set_centre`, `set_radius`, `set_width`, `set_strength`, `apply`, `shutdown` | Push pixels outward along an expanding ring centered on a focal point. |
 | `CRTFilter` | `initialise`, `set_pixel_size`, `set_scanline_strength`, `set_curvature`, `apply`, `shutdown` | Combine scanlines, light curvature, and pixelation for a CRT look. |
 | `DitherFilter` | `initialise`, `set_pixel_size`, `set_levels`, `apply`, `shutdown` | Apply ordered Bayer dithering to reduce colour depth. |
+| `FilmGrain` | `initialise`, `set_strength`, `set_time`, `apply`, `shutdown` | Add animated monochrome film grain with configurable intensity. |
 | `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply coloured radial lights and polygon-caster shadows to a bitmap. |
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 | `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |

@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
     sl::Shockwave shockwave;
     sl::CRTFilter crt_filter;
     sl::DitherFilter dither_filter;
+    sl::FilmGrain film_grain;
     sl::ScreenShake screen_shake;
     const bool bloom_ready = bloom.initialise();
     const bool vignette_ready = vignette.initialise();
@@ -47,6 +48,7 @@ int main(int argc, char *argv[])
     const bool shockwave_ready = shockwave.initialise();
     const bool crt_ready = crt_filter.initialise();
     const bool dither_ready = dither_filter.initialise();
+    const bool film_grain_ready = film_grain.initialise();
     bloom.set_threshold(0.35f);
     bloom.set_intensity(1.15f);
     bloom.set_radius(1.8f);
@@ -73,6 +75,7 @@ int main(int argc, char *argv[])
     crt_filter.set_curvature(0.18f);
     dither_filter.set_pixel_size(2.0f);
     dither_filter.set_levels(4.0f);
+    film_grain.set_strength(0.18f);
 
     bool use_bloom = bloom_ready;
     bool use_vignette = vignette_ready;
@@ -85,6 +88,7 @@ int main(int argc, char *argv[])
     float shockwave_elapsed = -1.0f;
     bool use_crt = false;
     bool use_dither = false;
+    bool use_film_grain = false;
     bool running = true;
     sl::set_fps(60);
 
@@ -123,6 +127,8 @@ int main(int argc, char *argv[])
                     use_crt = !use_crt;
                 else if (event.key() == sl::Event::Key::letter_d && dither_ready)
                     use_dither = !use_dither;
+                else if (event.key() == sl::Event::Key::letter_f && film_grain_ready)
+                    use_film_grain = !use_film_grain;
                 else if (event.key() == sl::Event::Key::letter_s)
                     screen_shake.trigger(12.0f, 0.45f);
             }
@@ -141,7 +147,8 @@ int main(int argc, char *argv[])
             use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
         sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  T: CRT %s",
             use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
-        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  X: Shockwave", use_dither ? "on" : "off");
+        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  F: Grain %s  X: Shockwave",
+            use_dither ? "on" : "off", use_film_grain ? "on" : "off");
         sl::circlefill(sl::screen, 400.0f + std::cos(time) * 180.0f,
             280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
         sl::circlefill(sl::screen, 180.0f, 420.0f, 34.0f, {80, 190, 255});
@@ -246,6 +253,16 @@ int main(int argc, char *argv[])
             sl::end_render_target();
             effect_source = post_process.advance();
         }
+        if (use_film_grain)
+        {
+            film_grain.set_time(time);
+            post_process.begin(effect_source);
+            sl::begin_render_target(post_process.target());
+            sl::clear_render_target({8, 11, 18});
+            film_grain.apply(post_process.source(), 0, 0, 800, 600);
+            sl::end_render_target();
+            effect_source = post_process.advance();
+        }
         if (use_bloom) bloom.apply(effect_source, 0, 0, 800, 600);
         else if (sl::graphics_backend() == sl::GraphicsBackend::opengl)
             sl::draw_sprite_v_flip(effect_source, 0.0f, 0.0f);
@@ -267,6 +284,7 @@ int main(int argc, char *argv[])
     shockwave.shutdown();
     crt_filter.shutdown();
     dither_filter.shutdown();
+    film_grain.shutdown();
     post_process.shutdown();
     sl::destroy_bitmap(scene);
     sl::destroy_bitmap(balloon);

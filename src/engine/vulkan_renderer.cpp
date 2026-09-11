@@ -152,6 +152,10 @@ namespace sl::detail
                         !context_.create_graphics_pipeline(lighting_vertex_module_, dither_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, dither_pipeline_, error,
                             nullptr, sizeof(DitherConstants))) return false;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_film_grain.frag.spv", film_grain_fragment_module_, error) ||
+                        !context_.create_graphics_pipeline(lighting_vertex_module_, film_grain_fragment_module_,
+                            descriptor_layout_, PrimitiveType::triangle_fan, film_grain_pipeline_, error,
+                            nullptr, sizeof(FilmGrainConstants))) return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_bright_pass.frag.spv", bright_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, bright_fragment_module_,
                         descriptor_layout_, PrimitiveType::triangle_fan, bright_pipeline_, error,
@@ -207,6 +211,7 @@ namespace sl::detail
                     context_.destroy_graphics_pipeline(chromatic_pipeline_);
                     context_.destroy_graphics_pipeline(crt_pipeline_);
                     context_.destroy_graphics_pipeline(dither_pipeline_);
+                    context_.destroy_graphics_pipeline(film_grain_pipeline_);
                 context_.destroy_graphics_pipeline(bright_pipeline_);
                 context_.destroy_graphics_pipeline(blur_pipeline_);
                 context_.destroy_graphics_pipeline(composite_pipeline_);
@@ -225,6 +230,7 @@ namespace sl::detail
                     context_.destroy_shader_module(chromatic_fragment_module_);
                     context_.destroy_shader_module(crt_fragment_module_);
                     context_.destroy_shader_module(dither_fragment_module_);
+                    context_.destroy_shader_module(film_grain_fragment_module_);
                 context_.destroy_shader_module(bright_fragment_module_);
                 context_.destroy_shader_module(blur_fragment_module_);
                 context_.destroy_shader_module(composite_fragment_module_);
@@ -298,6 +304,9 @@ namespace sl::detail
                             !context_.create_graphics_pipeline(lighting_vertex_module_, shockwave_fragment_module_,
                                 descriptor_layout_, PrimitiveType::triangle_fan, shockwave_pipeline_, last_error_,
                                 nullptr, sizeof(ShockwaveConstants)) ||
+                            !context_.create_graphics_pipeline(lighting_vertex_module_, film_grain_fragment_module_,
+                                descriptor_layout_, PrimitiveType::triangle_fan, film_grain_pipeline_, last_error_,
+                                nullptr, sizeof(FilmGrainConstants)) ||
                         !context_.create_graphics_pipeline(lighting_vertex_module_, chromatic_fragment_module_,
                             descriptor_layout_, PrimitiveType::triangle_fan, chromatic_pipeline_, last_error_,
                             nullptr, sizeof(ChromaticConstants)) ||
@@ -518,6 +527,12 @@ namespace sl::detail
                     program = dither_program_;
                     return true;
                 }
+                if (vertex_source.asset_id == "film-grain" && fragment_source.asset_id == "film-grain" &&
+                    film_grain_pipeline_.pipeline != VK_NULL_HANDLE)
+                {
+                    program = film_grain_program_;
+                    return true;
+                }
                 if (vertex_source.asset_id == "bloom-bright" && fragment_source.asset_id == "bloom-bright" &&
                     bright_pipeline_.pipeline != VK_NULL_HANDLE)
                 {
@@ -597,7 +612,7 @@ namespace sl::detail
                 if (program != cull_program_ && program != lighting_program_ && program != vignette_program_ &&
                     program != colour_adjust_program_ && program != bright_program_ && program != blur_program_ &&
                     program != composite_program_ && program != crt_program_ && program != dither_program_ &&
-                    program != shockwave_program_) return false;
+                    program != shockwave_program_ && program != film_grain_program_) return false;
                 active_program_ = program;
                 return true;
             }
@@ -693,6 +708,14 @@ namespace sl::detail
                     active_program_ = program;
                     if (std::strcmp(name, "pixelSize") == 0) { dither_constants_.pixel_size = value; return true; }
                     if (std::strcmp(name, "levels") == 0) { dither_constants_.levels = value; return true; }
+                    return true;
+                }
+                if (program == film_grain_program_ && name)
+                {
+                    active_program_ = program;
+                    if (std::strcmp(name, "strength") == 0) film_grain_constants_.strength = value;
+                    else if (std::strcmp(name, "time") == 0) film_grain_constants_.time = value;
+                    else return true;
                     return true;
                 }
                 if (program == radial_program_ && name)
@@ -885,6 +908,12 @@ namespace sl::detail
                     return true;
                 }
                 if (program == shockwave_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
+                {
+                    active_program_ = program;
+                    std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
+                    return true;
+                }
+                if (program == film_grain_program_ && name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
                     std::copy_n(matrix, postprocess_projection_.size(), postprocess_projection_.begin());
@@ -1178,6 +1207,13 @@ namespace sl::detail
                         &dither_constants_, sizeof(dither_constants_), last_error_);
                     return;
                 }
+                if (active_program_ == film_grain_program_)
+                {
+                    context_.record_postprocess_draw(film_grain_pipeline_.pipeline, film_grain_pipeline_.layout,
+                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                        &film_grain_constants_, sizeof(film_grain_constants_), last_error_);
+                    return;
+                }
                 if (active_program_ == bright_program_)
                 {
                     context_.record_postprocess_draw(bright_pipeline_.pipeline, bright_pipeline_.layout,
@@ -1392,6 +1428,8 @@ namespace sl::detail
             VulkanGraphicsPipeline crt_pipeline_;
             VulkanShaderModule dither_fragment_module_;
             VulkanGraphicsPipeline dither_pipeline_;
+            VulkanShaderModule film_grain_fragment_module_;
+            VulkanGraphicsPipeline film_grain_pipeline_;
             VulkanShaderModule bright_fragment_module_;
             VulkanGraphicsPipeline bright_pipeline_;
             VulkanShaderModule blur_fragment_module_;
@@ -1412,6 +1450,7 @@ namespace sl::detail
             static constexpr std::uint32_t shockwave_program_ = 0x8000000Du;
             static constexpr std::uint32_t crt_program_ = 0x8000000Bu;
             static constexpr std::uint32_t dither_program_ = 0x8000000Cu;
+            static constexpr std::uint32_t film_grain_program_ = 0x8000000Eu;
             static constexpr std::uint32_t bright_program_ = 0x80000003u;
             static constexpr std::uint32_t blur_program_ = 0x80000004u;
             static constexpr std::uint32_t composite_program_ = 0x80000005u;
@@ -1457,6 +1496,7 @@ namespace sl::detail
             struct ShockwaveConstants { float centre[2] = {0.5f, 0.5f}; float radius = 0.25f; float width = 0.08f; float strength = 0.025f; } shockwave_constants_;
             struct CRTConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 4.0f; float scanline_strength = 0.35f; float curvature = 0.18f; } crt_constants_;
             struct DitherConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 1.0f; float levels = 4.0f; } dither_constants_;
+            struct FilmGrainConstants { float strength = 0.08f; float time = 0.0f; } film_grain_constants_;
             std::array<float, 16> vignette_projection_{};
             struct BrightConstants { float threshold = 0.0f; } bright_constants_;
             struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; } blur_constants_;

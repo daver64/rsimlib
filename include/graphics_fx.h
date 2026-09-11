@@ -419,6 +419,26 @@ namespace sl
         float levels_ = 4.0f;
     };
 
+    /** Adds animated monochrome film grain over a bitmap. */
+    class FilmGrain
+    {
+    public:
+        bool initialise();
+        void shutdown();
+        bool is_valid() const;
+        const std::string &error() const;
+        /** Set the grain intensity from 0 (off) upward. */
+        void set_strength(float strength);
+        /** Set the animation time in seconds. */
+        void set_time(float time);
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+
+    private:
+        Shader shader_;
+        float strength_ = 0.08f;
+        float time_ = 0.0f;
+    };
+
     /** Applies a decaying camera offset to 2D projections for impact and motion effects. */
     class ScreenShake
     {
