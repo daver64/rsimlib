@@ -1,7 +1,7 @@
 # simlib
 
 `simlib` is an easy-to-use, feature-packed Allegro4-style 2D game framework and rendering engine built on
-SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines nostalgic, immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, SQLite database persistence (`rdb`), and sandboxed Lua scripting via [sol2](https://github.com/ThePhD/sol2).
+SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, SQLite database persistence (`rdb`), and sandboxed Lua scripting via [sol2](https://github.com/ThePhD/sol2).
 
 ## Quick start
 
