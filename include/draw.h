@@ -178,38 +178,40 @@ namespace sl
     /** Read one pixel, returning a zero colour for invalid coordinates. */
     Colour getpixel(Bitmap *bitmap, int x, int y);
     /** Draw an outline circle. */
-    void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour);
+    void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour, float thickness = 1.0f);
     /** Draw a filled circle. */
     void circlefill(Bitmap *bitmap, float x, float y, float radius, Colour colour);
     /** Draw an outline rectangle using inclusive corner coordinates. */
-    void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour);
+    void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour, float thickness = 1.0f);
     /** Draw a filled rectangle using inclusive corner coordinates. */
     void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour);
     /** Draw an outline ellipse. */
-    void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Colour colour);
+    void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Colour colour, float thickness = 1.0f);
     /** Draw a filled ellipse. */
     void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Colour colour);
     /** Draw an outline triangle. */
-    void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
+    void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour, float thickness = 1.0f);
     /** Draw a filled triangle. */
     void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
     /** Draw a line between two points. */
-    void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour);
+    void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour, float thickness = 1.0f);
+    /** Flood-fill an enclosed area of a bitmap starting at (x, y) with a replacement colour. */
+    void flood_fill(Bitmap *bitmap, int x, int y, Colour colour);
 
     /** Draw a textured circle outline on the screen bitmap. */
-    void circle(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture);
+    void circle(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture, float thickness = 1.0f);
     /** Draw a textured filled circle on the screen bitmap. */
     void circlefill(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture);
     /** Draw a textured rectangle outline on the screen bitmap. */
-    void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture);
+    void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture, float thickness = 1.0f);
     /** Draw a textured filled rectangle on the screen bitmap. */
     void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture);
     /** Draw a textured ellipse outline on the screen bitmap. */
-    void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture);
+    void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture, float thickness = 1.0f);
     /** Draw a textured filled ellipse on the screen bitmap. */
     void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture);
     /** Draw a textured triangle outline on the screen bitmap. */
-    void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture);
+    void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture, float thickness = 1.0f);
     /** Draw a textured filled triangle on the screen bitmap. */
     void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture);
     /** Copy pixels while treating fully transparent source pixels as transparent. */

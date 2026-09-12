@@ -59,7 +59,19 @@ void test_backend(sl::GraphicsBackend backend)
     assert(rect_pixel.green == 0);
     assert(rect_pixel.blue == 0);
 
-    // 5. Test texture creation, upload, and download
+    // 5. Test flood fill on RAM bitmap
+    sl::Bitmap *ram_bmp = sl::create_bitmap(32, 32);
+    assert(ram_bmp != nullptr);
+    sl::clear_to_colour(ram_bmp, sl::Colour{0, 0, 0, 255});
+    sl::rect(ram_bmp, 5, 5, 25, 25, sl::Colour{255, 255, 255, 255}, 1.0f);
+    sl::flood_fill(ram_bmp, 10, 10, sl::Colour{0, 255, 0, 255});
+    sl::Colour filled_inner = sl::getpixel(ram_bmp, 10, 10);
+    assert(filled_inner.red == 0 && filled_inner.green == 255 && filled_inner.blue == 0);
+    sl::Colour outside_unfilled = sl::getpixel(ram_bmp, 2, 2);
+    assert(outside_unfilled.red == 0 && outside_unfilled.green == 0 && outside_unfilled.blue == 0);
+    sl::destroy_bitmap(ram_bmp);
+
+    // 6. Test texture creation, upload, and download
     sl::Bitmap *tex_bmp = sl::create_video_bitmap(32, 32);
     assert(tex_bmp != nullptr);
     sl::clear_to_colour(tex_bmp, sl::Colour{200, 150, 50, 255});

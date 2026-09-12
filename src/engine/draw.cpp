@@ -18,6 +18,7 @@
 #include <cstring>
 #include <filesystem>
 #include <cstdio>
+#include <queue>
 #include <vector>
 
 namespace sl
@@ -107,6 +108,11 @@ namespace sl
 
 		constexpr float pi = 3.14159265358979323846f;
 
+		void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap *texture, Colour colour, float thickness = 1.0f);
+		void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap *texture, Colour colour, float thickness = 1.0f);
+		void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap *texture, Colour colour, float thickness = 1.0f);
+		void draw_screen_thick_line(float x1, float y1, float x2, float y2, float thickness, Bitmap *texture, Colour colour);
+
 		/** Draw a bitmap region as a scaled and optionally flipped quad. */
 		void draw_textured_quad(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false)
 		{
@@ -176,8 +182,74 @@ namespace sl
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
 
+		/** Render a plain or textured line directly to the screen with optional thickness. */
+		void draw_screen_thick_line(float x1, float y1, float x2, float y2, float thickness, Bitmap *texture, Colour colour)
+		{
+			if (thickness <= 1.0f)
+			{
+				float red = 1.0f, green = 1.0f, blue = 1.0f, alpha = 1.0f;
+				std::uint32_t glTexture = 0;
+				if (texture)
+				{
+					if (is_screen(texture) || !upload_bitmap(texture)) return;
+					glTexture = texture->gpu_texture;
+				}
+				else
+				{
+					colour_components(colour, red, green, blue, alpha);
+				}
+				detail::gl2d_begin(screen_width(), screen_height());
+				if (detail::Renderer *renderer = detail::active_renderer())
+					renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
+				const detail::GLVertex vertices[2] = {
+					{x1, y1, 0.0f, 0.0f, red, green, blue, alpha},
+					{x2, y2, 1.0f, 1.0f, red, green, blue, alpha},
+				};
+				detail::gl2d_submit(detail::PrimitiveType::lines, vertices, 2, glTexture);
+				return;
+			}
+
+			const float dx = x2 - x1;
+			const float dy = y2 - y1;
+			const float len = std::sqrt(dx * dx + dy * dy);
+			if (len < 1e-6f)
+			{
+				draw_screen_ellipse(x1, y1, thickness * 0.5f, thickness * 0.5f, true, texture, colour);
+				return;
+			}
+
+			const float nx = -dy / len;
+			const float ny = dx / len;
+			const float hx = nx * (thickness * 0.5f);
+			const float hy = ny * (thickness * 0.5f);
+
+			float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+			std::uint32_t glTexture = 0;
+			if (texture)
+			{
+				if (is_screen(texture) || !upload_bitmap(texture)) return;
+				glTexture = texture->gpu_texture;
+			}
+			else
+			{
+				colour_components(colour, r, g, b, a);
+			}
+
+			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
+
+			const detail::GLVertex quad[4] = {
+				{x1 - hx, y1 - hy, 0.0f, 0.0f, r, g, b, a},
+				{x1 + hx, y1 + hy, 1.0f, 0.0f, r, g, b, a},
+				{x2 + hx, y2 + hy, 1.0f, 1.0f, r, g, b, a},
+				{x2 - hx, y2 - hy, 0.0f, 1.0f, r, g, b, a},
+			};
+			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, quad, 4, glTexture);
+		}
+
 		/** Render a plain or textured ellipse directly to the screen. */
-		void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap *texture, Colour colour)
+		void draw_screen_ellipse(float x, float y, float radiusX, float radiusY, bool filled, Bitmap *texture, Colour colour, float thickness)
 		{
 			std::uint32_t glTexture = 0;
 			if (texture)
@@ -199,9 +271,9 @@ namespace sl
 			if (detail::Renderer *renderer = detail::active_renderer())
 				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
 
-			std::vector<detail::GLVertex> vertices;
 			if (filled)
 			{
+				std::vector<detail::GLVertex> vertices;
 				vertices.reserve(static_cast<std::size_t>(segments) + 2);
 				vertices.push_back({x, y, 0.5f, 0.5f, r, g, b, a});
 				for (int index = 0; index <= segments; ++index)
@@ -213,8 +285,9 @@ namespace sl
 				}
 				detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices.data(), static_cast<int>(vertices.size()), glTexture);
 			}
-			else
+			else if (thickness <= 1.0f)
 			{
+				std::vector<detail::GLVertex> vertices;
 				vertices.reserve(static_cast<std::size_t>(segments));
 				for (int index = 0; index < segments; ++index)
 				{
@@ -225,92 +298,187 @@ namespace sl
 				}
 				detail::gl2d_submit(detail::PrimitiveType::line_loop, vertices.data(), static_cast<int>(vertices.size()), glTexture);
 			}
+			else
+			{
+				const float rOutX = radiusX + thickness * 0.5f;
+				const float rOutY = radiusY + thickness * 0.5f;
+				const float rInX = std::max(0.0f, radiusX - thickness * 0.5f);
+				const float rInY = std::max(0.0f, radiusY - thickness * 0.5f);
+				if (rInX <= 0.0f || rInY <= 0.0f)
+				{
+					draw_screen_ellipse(x, y, rOutX, rOutY, true, texture, colour);
+					return;
+				}
+
+				std::vector<detail::GLVertex> vertices;
+				vertices.reserve(static_cast<std::size_t>(segments) * 6);
+				for (int index = 0; index < segments; ++index)
+				{
+					const float angle0 = 2.0f * pi * index / segments;
+					const float angle1 = 2.0f * pi * (index + 1) / segments;
+					const float cos0 = std::cos(angle0), sin0 = std::sin(angle0);
+					const float cos1 = std::cos(angle1), sin1 = std::sin(angle1);
+
+					const detail::GLVertex o0{x + rOutX * cos0, y + rOutY * sin0, 0.5f + 0.5f * cos0, 0.5f + 0.5f * sin0, r, g, b, a};
+					const detail::GLVertex i0{x + rInX * cos0, y + rInY * sin0, 0.5f + 0.5f * cos0, 0.5f + 0.5f * sin0, r, g, b, a};
+					const detail::GLVertex o1{x + rOutX * cos1, y + rOutY * sin1, 0.5f + 0.5f * cos1, 0.5f + 0.5f * sin1, r, g, b, a};
+					const detail::GLVertex i1{x + rInX * cos1, y + rInY * sin1, 0.5f + 0.5f * cos1, 0.5f + 0.5f * sin1, r, g, b, a};
+
+					vertices.push_back(o0);
+					vertices.push_back(i0);
+					vertices.push_back(i1);
+					vertices.push_back(o0);
+					vertices.push_back(i1);
+					vertices.push_back(o1);
+				}
+				detail::gl2d_submit(detail::PrimitiveType::triangles, vertices.data(), static_cast<int>(vertices.size()), glTexture);
+			}
 		}
 
 		/** Render a plain or textured triangle directly to the screen. */
-		void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap *texture, Colour colour)
+		void draw_screen_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bool filled, Bitmap *texture, Colour colour, float thickness)
 		{
-			std::uint32_t glTexture = 0;
-			if (texture)
+			if (filled || thickness <= 1.0f)
 			{
-				if (is_screen(texture) || !upload_bitmap(texture))
+				std::uint32_t glTexture = 0;
+				if (texture)
 				{
-					return;
+					if (is_screen(texture) || !upload_bitmap(texture))
+					{
+						return;
+					}
+					glTexture = texture->gpu_texture;
 				}
-				glTexture = texture->gpu_texture;
-			}
-			float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
-			if (!texture)
-			{
-				colour_components(colour, r, g, b, a);
+				float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+				if (!texture)
+				{
+					colour_components(colour, r, g, b, a);
+				}
+
+				detail::gl2d_begin(screen_width(), screen_height());
+				if (detail::Renderer *renderer = detail::active_renderer())
+					renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
+				const detail::GLVertex vertices[3] = {
+					{x1, y1, 0.0f, 0.0f, r, g, b, a},
+					{x2, y2, 1.0f, 0.0f, r, g, b, a},
+					{x3, y3, 0.5f, 1.0f, r, g, b, a},
+				};
+				detail::gl2d_submit(filled ? detail::PrimitiveType::triangles : detail::PrimitiveType::line_loop, vertices, 3, glTexture);
+				return;
 			}
 
-			detail::gl2d_begin(screen_width(), screen_height());
-			if (detail::Renderer *renderer = detail::active_renderer())
-				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
-			const detail::GLVertex vertices[3] = {
-				{x1, y1, 0.0f, 0.0f, r, g, b, a},
-				{x2, y2, 1.0f, 0.0f, r, g, b, a},
-				{x3, y3, 0.5f, 1.0f, r, g, b, a},
-			};
-			detail::gl2d_submit(filled ? detail::PrimitiveType::triangles : detail::PrimitiveType::line_loop, vertices, 3, glTexture);
+			draw_screen_thick_line(x1, y1, x2, y2, thickness, texture, colour);
+			draw_screen_thick_line(x2, y2, x3, y3, thickness, texture, colour);
+			draw_screen_thick_line(x3, y3, x1, y1, thickness, texture, colour);
 		}
 
 		/** Render a plain or textured rectangle directly to the screen. */
-		void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap *texture, Colour colour)
+		void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap *texture, Colour colour, float thickness)
 		{
-			std::uint32_t glTexture = 0;
-			if (texture)
+			if (left > right) std::swap(left, right);
+			if (top > bottom) std::swap(top, bottom);
+
+			if (filled || thickness <= 1.0f)
 			{
-				if (is_screen(texture) || !upload_bitmap(texture))
+				std::uint32_t glTexture = 0;
+				if (texture)
 				{
-					return;
+					if (is_screen(texture) || !upload_bitmap(texture))
+					{
+						return;
+					}
+					glTexture = texture->gpu_texture;
 				}
-				glTexture = texture->gpu_texture;
-			}
-			float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
-			if (!texture)
-			{
-				colour_components(colour, r, g, b, a);
+				float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+				if (!texture)
+				{
+					colour_components(colour, r, g, b, a);
+				}
+
+				detail::gl2d_begin(screen_width(), screen_height());
+				if (detail::Renderer *renderer = detail::active_renderer())
+					renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
+				const detail::GLVertex vertices[4] = {
+					{left, top, 0.0f, 0.0f, r, g, b, a},
+					{right, top, 1.0f, 0.0f, r, g, b, a},
+					{right, bottom, 1.0f, 1.0f, r, g, b, a},
+					{left, bottom, 0.0f, 1.0f, r, g, b, a},
+				};
+				detail::gl2d_submit(filled ? detail::PrimitiveType::triangle_fan : detail::PrimitiveType::line_loop, vertices, 4, glTexture);
+				return;
 			}
 
-			detail::gl2d_begin(screen_width(), screen_height());
-			if (detail::Renderer *renderer = detail::active_renderer())
-				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
-			const detail::GLVertex vertices[4] = {
-				{left, top, 0.0f, 0.0f, r, g, b, a},
-				{right, top, 1.0f, 0.0f, r, g, b, a},
-				{right, bottom, 1.0f, 1.0f, r, g, b, a},
-				{left, bottom, 0.0f, 1.0f, r, g, b, a},
-			};
-			detail::gl2d_submit(filled ? detail::PrimitiveType::triangle_fan : detail::PrimitiveType::line_loop, vertices, 4, glTexture);
+			const float w = right - left;
+			const float h = bottom - top;
+			if (thickness >= w * 0.5f || thickness >= h * 0.5f)
+			{
+				draw_screen_rect(left, top, right, bottom, true, texture, colour);
+				return;
+			}
+
+			draw_screen_rect(left, top, right, top + thickness, true, texture, colour);
+			draw_screen_rect(left, bottom - thickness, right, bottom, true, texture, colour);
+			draw_screen_rect(left, top + thickness, left + thickness, bottom - thickness, true, texture, colour);
+			draw_screen_rect(right - thickness, top + thickness, right, bottom - thickness, true, texture, colour);
 		}
 
-		/** Rasterize a line into a bitmap using integer coordinates. */
-		void draw_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, Colour colour)
+		/** Rasterize a line into a bitmap using integer coordinates and optional thickness. */
+		void draw_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, Colour colour, float thickness = 1.0f)
 		{
-			const int deltaX = std::abs(x2 - x1);
-			const int stepX = x1 < x2 ? 1 : -1;
-			const int deltaY = -std::abs(y2 - y1);
-			const int stepY = y1 < y2 ? 1 : -1;
-			int error = deltaX + deltaY;
-			for (;;)
+			if (!bitmap) return;
+			if (thickness <= 1.0f)
 			{
-				putpixel(bitmap, x1, y1, colour);
-				if (x1 == x2 && y1 == y2)
+				const int deltaX = std::abs(x2 - x1);
+				const int stepX = x1 < x2 ? 1 : -1;
+				const int deltaY = -std::abs(y2 - y1);
+				const int stepY = y1 < y2 ? 1 : -1;
+				int error = deltaX + deltaY;
+				for (;;)
 				{
-					return;
+					putpixel(bitmap, x1, y1, colour);
+					if (x1 == x2 && y1 == y2)
+					{
+						return;
+					}
+					const int doubledError = error * 2;
+					if (doubledError >= deltaY)
+					{
+						error += deltaY;
+						x1 += stepX;
+					}
+					if (doubledError <= deltaX)
+					{
+						error += deltaX;
+						y1 += stepY;
+					}
 				}
-				const int doubledError = error * 2;
-				if (doubledError >= deltaY)
+			}
+			else
+			{
+				const float radius = (thickness - 1.0f) * 0.5f;
+				const int deltaX = std::abs(x2 - x1);
+				const int stepX = x1 < x2 ? 1 : -1;
+				const int deltaY = -std::abs(y2 - y1);
+				const int stepY = y1 < y2 ? 1 : -1;
+				int error = deltaX + deltaY;
+				for (;;)
 				{
-					error += deltaY;
-					x1 += stepX;
-				}
-				if (doubledError <= deltaX)
-				{
-					error += deltaX;
-					y1 += stepY;
+					circlefill(bitmap, static_cast<float>(x1), static_cast<float>(y1), radius, colour);
+					if (x1 == x2 && y1 == y2)
+					{
+						return;
+					}
+					const int doubledError = error * 2;
+					if (doubledError >= deltaY)
+					{
+						error += deltaY;
+						x1 += stepX;
+					}
+					if (doubledError <= deltaX)
+					{
+						error += deltaX;
+						y1 += stepY;
+					}
 				}
 			}
 		}
@@ -648,23 +816,29 @@ namespace sl
 	}
 
 	/** Draw an outline circle. */
-	void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour)
+	void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour, float thickness)
 	{
 		if (!bitmap || radius < 0.0f)
 			return;
 		if (is_screen(bitmap))
 		{
-			draw_screen_ellipse(x, y, radius, radius, false, nullptr, colour);
+			draw_screen_ellipse(x, y, radius, radius, false, nullptr, colour, thickness);
 			return;
 		}
 		const int ix = static_cast<int>(std::lround(x));
 		const int iy = static_cast<int>(std::lround(y));
-		const int iradius = static_cast<int>(std::lround(radius));
+		const float halfThick = (thickness - 1.0f) * 0.5f;
 		for (int degrees = 0; degrees < 360; ++degrees)
 		{
 			const float angle = degrees * pi / 180.0f;
-			putpixel(bitmap, ix + static_cast<int>(std::lround(iradius * std::cos(angle))), iy + static_cast<int>(std::lround(iradius * std::sin(angle))), colour);
+			const float px = ix + radius * std::cos(angle);
+			const float py = iy + radius * std::sin(angle);
+			if (thickness <= 1.0f)
+				putpixel(bitmap, static_cast<int>(std::lround(px)), static_cast<int>(std::lround(py)), colour);
+			else
+				circlefill(bitmap, px, py, halfThick, colour);
 		}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a filled circle. */
@@ -686,24 +860,25 @@ namespace sl
 			for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX)
 				putpixel(bitmap, ix + offsetX, iy + offsetY, colour);
 		}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw an outline rectangle. */
-	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour)
+	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour, float thickness)
 	{
 		if (is_screen(bitmap))
 		{
-			draw_screen_rect(left, top, right, bottom, false, nullptr, colour);
+			draw_screen_rect(left, top, right, bottom, false, nullptr, colour, thickness);
 			return;
 		}
 		const int ileft = static_cast<int>(std::lround(left));
 		const int itop = static_cast<int>(std::lround(top));
 		const int iright = static_cast<int>(std::lround(right));
 		const int ibottom = static_cast<int>(std::lround(bottom));
-		draw_line(bitmap, ileft, itop, iright, itop, colour);
-		draw_line(bitmap, iright, itop, iright, ibottom, colour);
-		draw_line(bitmap, iright, ibottom, ileft, ibottom, colour);
-		draw_line(bitmap, ileft, ibottom, ileft, itop, colour);
+		draw_line(bitmap, ileft, itop, iright, itop, colour, thickness);
+		draw_line(bitmap, iright, itop, iright, ibottom, colour, thickness);
+		draw_line(bitmap, iright, ibottom, ileft, ibottom, colour, thickness);
+		draw_line(bitmap, ileft, ibottom, ileft, itop, colour, thickness);
 		sync_render_target(bitmap);
 	}
 
@@ -733,27 +908,34 @@ namespace sl
 			{
 				putpixel(bitmap, x, y, colour);
 			}
-		sync_render_target(bitmap);
 		}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw an outline ellipse. */
-	void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Colour colour)
+	void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Colour colour, float thickness)
 	{
 		if (!bitmap || radiusX < 0.0f || radiusY < 0.0f)
 			return;
 		if (is_screen(bitmap))
 		{
-			draw_screen_ellipse(x, y, radiusX, radiusY, false, nullptr, colour);
+			draw_screen_ellipse(x, y, radiusX, radiusY, false, nullptr, colour, thickness);
 			return;
 		}
 		const int ix = static_cast<int>(std::lround(x));
 		const int iy = static_cast<int>(std::lround(y));
+		const float halfThick = (thickness - 1.0f) * 0.5f;
 		for (int degrees = 0; degrees < 360; ++degrees)
 		{
 			const float angle = degrees * pi / 180.0f;
-			putpixel(bitmap, ix + static_cast<int>(std::lround(radiusX * std::cos(angle))), iy + static_cast<int>(std::lround(radiusY * std::sin(angle))), colour);
+			const float px = ix + radiusX * std::cos(angle);
+			const float py = iy + radiusY * std::sin(angle);
+			if (thickness <= 1.0f)
+				putpixel(bitmap, static_cast<int>(std::lround(px)), static_cast<int>(std::lround(py)), colour);
+			else
+				circlefill(bitmap, px, py, halfThick, colour);
 		}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a filled ellipse. */
@@ -775,21 +957,22 @@ namespace sl
 			const int halfWidth = static_cast<int>(std::sqrt(std::max(0.0f, 1.0f - ratio * ratio)) * radiusX);
 			for (int offsetX = -halfWidth; offsetX <= halfWidth; ++offsetX)
 				putpixel(bitmap, ix + offsetX, iy + offsetY, colour);
-		sync_render_target(bitmap);
 		}
+		sync_render_target(bitmap);
 	}
 
 	/** Draw an outline triangle. */
-	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour)
+	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour, float thickness)
 	{
 		if (is_screen(bitmap))
 		{
-			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour);
+			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour, thickness);
 			return;
 		}
-		draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
-		draw_line(bitmap, static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), colour);
-		draw_line(bitmap, static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), colour);
+		draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour, thickness);
+		draw_line(bitmap, static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), colour, thickness);
+		draw_line(bitmap, static_cast<int>(std::lround(x3)), static_cast<int>(std::lround(y3)), static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), colour, thickness);
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a filled triangle. */
@@ -825,8 +1008,8 @@ namespace sl
 		sync_render_target(bitmap);
 	}
 
-	/** Draw a line between two points. */
-	void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour)
+	/** Draw a line between two points with optional thickness. */
+	void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour, float thickness)
 	{
 		if (!bitmap)
 		{
@@ -834,24 +1017,76 @@ namespace sl
 		}
 		if (is_screen(bitmap))
 		{
-			float red, green, blue, alpha;
-			colour_components(colour, red, green, blue, alpha);
-			detail::gl2d_begin(screen_width(), screen_height());
-			const detail::GLVertex vertices[2] = {
-				{x1, y1, 0.0f, 0.0f, red, green, blue, alpha},
-				{x2, y2, 1.0f, 1.0f, red, green, blue, alpha},
-			};
-			detail::gl2d_submit(detail::PrimitiveType::lines, vertices, 2);
+			draw_screen_thick_line(x1, y1, x2, y2, thickness, nullptr, colour);
 			return;
 		}
-		draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
+		draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour, thickness);
+		sync_render_target(bitmap);
+	}
+
+	/** Flood-fill an enclosed area of a bitmap starting at (x, y) with a replacement colour. */
+	void flood_fill(Bitmap *bitmap, int x, int y, Colour colour)
+	{
+		if (!bitmap || !ensure_ram_pixels(bitmap))
+			return;
+		if (x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height)
+			return;
+
+		const std::size_t stride = static_cast<std::size_t>(bitmap->width) * bytes_per_pixel;
+		const std::size_t start_offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * bytes_per_pixel;
+		const Colour target{
+			bitmap->pixels[start_offset + 0],
+			bitmap->pixels[start_offset + 1],
+			bitmap->pixels[start_offset + 2],
+			bitmap->pixels[start_offset + 3]
+		};
+
+		if (target.red == colour.red && target.green == colour.green &&
+			target.blue == colour.blue && target.alpha == colour.alpha)
+		{
+			return;
+		}
+
+		std::queue<std::pair<int, int>> queue;
+		queue.push({x, y});
+
+		while (!queue.empty())
+		{
+			const auto [px, py] = queue.front();
+			queue.pop();
+
+			if (px < 0 || px >= bitmap->width || py < 0 || py >= bitmap->height)
+				continue;
+
+			const std::size_t offset = static_cast<std::size_t>(py) * stride + static_cast<std::size_t>(px) * bytes_per_pixel;
+			if (bitmap->pixels[offset + 0] != target.red ||
+				bitmap->pixels[offset + 1] != target.green ||
+				bitmap->pixels[offset + 2] != target.blue ||
+				bitmap->pixels[offset + 3] != target.alpha)
+			{
+				continue;
+			}
+
+			bitmap->pixels[offset + 0] = colour.red;
+			bitmap->pixels[offset + 1] = colour.green;
+			bitmap->pixels[offset + 2] = colour.blue;
+			bitmap->pixels[offset + 3] = colour.alpha;
+
+			queue.push({px + 1, py});
+			queue.push({px - 1, py});
+			queue.push({px, py + 1});
+			queue.push({px, py - 1});
+		}
+
+		bitmap->ram_dirty = true;
+		sync_render_target(bitmap);
 	}
 
 	/** Draw a textured circle outline. */
-	void circle(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture)
+	void circle(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture, float thickness)
 	{
 		if (is_screen(bitmap) && radius >= 0.0f)
-			draw_screen_ellipse(x, y, radius, radius, false, texture, {});
+			draw_screen_ellipse(x, y, radius, radius, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled circle. */
 	void circlefill(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture)
@@ -860,10 +1095,10 @@ namespace sl
 			draw_screen_ellipse(x, y, radius, radius, true, texture, {});
 	}
 	/** Draw a textured rectangle outline. */
-	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture)
+	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture, float thickness)
 	{
 		if (is_screen(bitmap))
-			draw_screen_rect(left, top, right, bottom, false, texture, {});
+			draw_screen_rect(left, top, right, bottom, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled rectangle. */
 	void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture)
@@ -872,10 +1107,10 @@ namespace sl
 			draw_screen_rect(left, top, right, bottom, true, texture, {});
 	}
 	/** Draw a textured ellipse outline. */
-	void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture)
+	void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture, float thickness)
 	{
 		if (is_screen(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f)
-			draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {});
+			draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled ellipse. */
 	void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture)
@@ -884,10 +1119,10 @@ namespace sl
 			draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {});
 	}
 	/** Draw a textured triangle outline. */
-	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture)
+	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture, float thickness)
 	{
 		if (is_screen(bitmap))
-			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {});
+			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled triangle. */
 	void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture)

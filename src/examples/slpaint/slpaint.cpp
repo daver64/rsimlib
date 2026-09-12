@@ -160,6 +160,7 @@ namespace
         sl::Colour background{255, 255, 255};
 
         int brush_size = 4;
+        int line_thickness = 4;
         bool filled_shapes = false;
 
         bool running = true;
@@ -191,6 +192,13 @@ namespace
         std::vector<std::vector<std::uint8_t>> redo_stack;
 
         std::string status = "Ready";
+
+        void adjust_size(int delta)
+        {
+            brush_size = std::clamp(brush_size + delta, 1, 64);
+            line_thickness = brush_size;
+            status = "Size: " + std::to_string(brush_size) + "px";
+        }
 
         void initialise()
         {
@@ -443,86 +451,10 @@ namespace
         // Flood fill
         // ------------------------------------------------------------
 
-        static bool same_colour(
-            const sl::Colour &a,
-            const sl::Colour &b)
-        {
-            return a.red == b.red &&
-                   a.green == b.green &&
-                   a.blue == b.blue &&
-                   a.alpha == b.alpha;
-        }
-
         void flood_fill(int sx, int sy, sl::Colour replacement)
         {
-            if (!sl::acquire_bitmap(canvas))
-                return;
-
-            const std::size_t stride =
-                static_cast<std::size_t>(canvas->width) * 4;
-
-            const std::size_t start_offset =
-                static_cast<std::size_t>(sy) * stride +
-                static_cast<std::size_t>(sx) * 4;
-
-            sl::Colour target{
-                canvas->pixels[start_offset + 0],
-                canvas->pixels[start_offset + 1],
-                canvas->pixels[start_offset + 2],
-                canvas->pixels[start_offset + 3]
-            };
-
-            if (same_colour(target, replacement))
-            {
-                sl::release_bitmap(canvas);
-                return;
-            }
-
-            std::queue<Point> queue;
-            queue.push({sx, sy});
-
-            while (!queue.empty())
-            {
-                Point p = queue.front();
-                queue.pop();
-
-                if (p.x < 0 ||
-                    p.x >= canvas->width ||
-                    p.y < 0 ||
-                    p.y >= canvas->height)
-                {
-                    continue;
-                }
-
-                const std::size_t offset =
-                    static_cast<std::size_t>(p.y) * stride +
-                    static_cast<std::size_t>(p.x) * 4;
-
-                sl::Colour current{
-                    canvas->pixels[offset + 0],
-                    canvas->pixels[offset + 1],
-                    canvas->pixels[offset + 2],
-                    canvas->pixels[offset + 3]
-                };
-
-                if (!same_colour(current, target))
-                    continue;
-
-                canvas->pixels[offset + 0] = replacement.red;
-                canvas->pixels[offset + 1] = replacement.green;
-                canvas->pixels[offset + 2] = replacement.blue;
-                canvas->pixels[offset + 3] = replacement.alpha;
-
-                queue.push({p.x + 1, p.y});
-                queue.push({p.x - 1, p.y});
-                queue.push({p.x, p.y + 1});
-                queue.push({p.x, p.y - 1});
-            }
-
-            canvas->ram_dirty = true;
-            sl::release_bitmap(canvas);
+            sl::flood_fill(canvas, sx, sy, replacement);
         }
-
 
         // ------------------------------------------------------------
         // Selection
@@ -898,7 +830,8 @@ namespace
                     start_y,
                     x,
                     y,
-                    colour);
+                    colour,
+                    static_cast<float>(line_thickness));
 
                 break;
             }
@@ -933,7 +866,8 @@ namespace
                         r.y,
                         r.x + r.w,
                         r.y + r.h,
-                        colour);
+                        colour,
+                        static_cast<float>(line_thickness));
                 }
 
                 break;
@@ -981,7 +915,8 @@ namespace
                         cy,
                         rx,
                         ry,
-                        colour);
+                        colour,
+                        static_cast<float>(line_thickness));
                 }
 
                 break;
@@ -1120,18 +1055,19 @@ namespace
                 return;
             }
 
-            // Brush-size buttons.
-            const int sizes[] = {1, 4, 8, 16};
+            // Size buttons (1, 2, 4, 8, 16).
+            const int sizes[] = {1, 2, 4, 8, 16};
 
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < 5; ++i)
             {
                 const int x =
-                    PANEL_X + 8 + i * 36;
+                    PANEL_X + 6 + i * 30;
 
-                if (button_hit(mx, my, x, 410, 32, 28))
+                if (button_hit(mx, my, x, 410, 26, 28))
                 {
                     brush_size = sizes[i];
-                    status = "Brush size";
+                    line_thickness = sizes[i];
+                    status = "Size: " + std::to_string(brush_size) + "px";
                     return;
                 }
             }
@@ -1346,18 +1282,45 @@ namespace
 
             case sl::Event::Key::digit_1:
                 brush_size = 1;
+                line_thickness = 1;
+                status = "Size: 1px";
                 break;
 
             case sl::Event::Key::digit_2:
-                brush_size = 4;
+                brush_size = 2;
+                line_thickness = 2;
+                status = "Size: 2px";
                 break;
 
             case sl::Event::Key::digit_3:
-                brush_size = 8;
+                brush_size = 4;
+                line_thickness = 4;
+                status = "Size: 4px";
                 break;
 
             case sl::Event::Key::digit_4:
+                brush_size = 8;
+                line_thickness = 8;
+                status = "Size: 8px";
+                break;
+
+            case sl::Event::Key::digit_5:
                 brush_size = 16;
+                line_thickness = 16;
+                status = "Size: 16px";
+                break;
+
+            case sl::Event::Key::left_bracket:
+            case sl::Event::Key::minus:
+            case sl::Event::Key::keypad_minus:
+                adjust_size(brush_size <= 2 ? -1 : -2);
+                break;
+
+            case sl::Event::Key::right_bracket:
+            case sl::Event::Key::equals:
+            case sl::Event::Key::plus:
+            case sl::Event::Key::keypad_plus:
+                adjust_size(brush_size < 2 ? 1 : 2);
                 break;
 
             default:
@@ -1397,8 +1360,12 @@ namespace
                 y + h,
                 selected ? sl::Colour{70, 100, 150} : UI_BORDER);
 
+            sl::Font *font = sl::get_default_monospace_font();
+            const int text_w = sl::text_length(font, label);
+            const int text_x = w > text_w ? x + (w - text_w) / 2 : x + 4;
+
             sl::gprintf(
-                x + 8,
+                text_x,
                 y + 7,
                 UI_DARK,
                 "%s",
@@ -1485,7 +1452,8 @@ namespace
                         colour.red,
                         colour.green,
                         colour.blue,
-                        180});
+                        180},
+                    static_cast<float>(line_thickness));
             }
             else
             {
@@ -1536,7 +1504,8 @@ namespace
                             r.y,
                             r.x + r.w,
                             r.y + r.h,
-                            colour);
+                            colour,
+                            static_cast<float>(line_thickness));
                     }
                     else
                     {
@@ -1546,7 +1515,8 @@ namespace
                             r.y + r.h * 0.5f,
                             r.w * 0.5f,
                             r.h * 0.5f,
-                            colour);
+                            colour,
+                            static_cast<float>(line_thickness));
                     }
                 }
             }
@@ -1655,18 +1625,25 @@ namespace
                     t == tool);
             }
 
-            // Brush sizes.
-            const int sizes[] = {1, 4, 8, 16};
+            // Size label & buttons.
+            sl::gprintf(
+                PANEL_X + 8,
+                392,
+                UI_DARK,
+                "Size: %dpx",
+                brush_size);
 
-            for (int i = 0; i < 4; ++i)
+            const int sizes[] = {1, 2, 4, 8, 16};
+
+            for (int i = 0; i < 5; ++i)
             {
                 const int x =
-                    PANEL_X + 8 + i * 36;
+                    PANEL_X + 6 + i * 30;
 
                 draw_button(
                     x,
                     410,
-                    32,
+                    26,
                     28,
                     std::to_string(sizes[i]).c_str(),
                     brush_size == sizes[i]);
@@ -1788,7 +1765,7 @@ namespace
                 18,
                 730,
                 UI_DARK,
-                "LMB=foreground  RMB=background  "
+                "LMB=fg  RMB=bg  1-5/[-/+] size  "
                 "Ctrl-Z/Y undo/redo  Ctrl-C/X/V selection");
 
             sl::gprintf(
@@ -1910,7 +1887,6 @@ int main(int argc, char **argv)
 
     if (!app.canvas)
     {
-        sl::display_shutdown();
         sl::shutdown();
         return 1;
     }
@@ -1929,9 +1905,8 @@ int main(int argc, char **argv)
         sl::end_frame();
     }
 
+    sl::wait_for_graphics();
     app.shutdown();
-
-    sl::display_shutdown();
     sl::shutdown();
 
     return 0;

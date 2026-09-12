@@ -325,6 +325,8 @@ namespace sl
 
     void display_shutdown()
     {
+        wait_for_graphics();
+
         if (sl_default_monospace_font && ttfInitialized)
         {
             close_font(sl_default_monospace_font);

@@ -434,6 +434,7 @@ when using a windowed application.
 | `upload_bitmap(bitmap)` / `download_bitmap(bitmap)` | Synchronize pixel data between RAM and the GPU. |
 | `clear_to_colour(bitmap, colour)` | Fill a bitmap with one colour. |
 | `putpixel(bitmap, x, y, colour)` / `getpixel(bitmap, x, y)` | Write or read one pixel. |
+| `flood_fill(bitmap, x, y, colour)` | Flood-fill an enclosed area of a bitmap starting from (x, y) with a replacement colour. |
 | `draw_sprite(bitmap, x, y)` | Draw a bitmap at a top-left position. |
 | `draw_sprite_stretched(bitmap, x, y, width, height)` | Draw a bitmap scaled to a destination rectangle. |
 | `draw_sprite_rotated(bitmap, centerX, centerY, angleDegrees)` | Draw a bitmap around its centre with clockwise rotation. |
@@ -446,6 +447,7 @@ when using a windowed application.
 Shape primitives include `line`, `rect`, `rectfill`, `circle`, `circlefill`,
 `ellipse`, `ellipsefill`, `triangle`, and `trianglefill`. Each accepts a
 destination bitmap, geometry, and either a solid `Colour` or a texture.
+Outline shapes and `line` accept an optional `thickness` parameter (default `1.0f`).
 Coordinates use a top-left origin, and shape coordinates are floating point.
 
 ### Physics
