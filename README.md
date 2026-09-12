@@ -316,9 +316,9 @@ ctest --test-dir build
 ### Example programs
 
 ## Running the examples
-
+[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)
 ```bash
-.`./exhello`(src/examples/exhello/exhello.cpp) # every graphical example also accepts --gl or --vulkan
+`./exhello`(src/examples/exhello/exhello.cpp) # every graphical example also accepts --gl or --vulkan
 ./exfont  # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
