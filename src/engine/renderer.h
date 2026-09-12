@@ -207,6 +207,9 @@ namespace sl::detail
         /** Upload RGBA8 pixels into a texture. */
         virtual bool upload_texture(std::uint32_t texture, int width, int height,
                         const std::uint8_t *pixels) = 0;
+        /** Download RGBA8 pixels from a texture into host memory. */
+        virtual bool download_texture(std::uint32_t texture, int width, int height,
+                          std::uint8_t *out_pixels) = 0;
         /** Destroy a texture handle. */
         virtual void destroy_texture(std::uint32_t texture) = 0;
         /** Create a color render target and return its texture and framebuffer handles. */
@@ -217,6 +220,9 @@ namespace sl::detail
         virtual bool begin_render_target(std::uint32_t framebuffer, int width, int height,
                           std::string &error) = 0;
         virtual bool end_render_target(std::string &error) = 0;
+        /** Read back RGBA8 pixels from a render target (or framebuffer 0 for default display) into host memory. */
+        virtual bool download_render_target(std::uint32_t framebuffer, int width, int height,
+                                            std::uint8_t *out_pixels) = 0;
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                        std::uint32_t &program, std::string &error) = 0;

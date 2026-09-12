@@ -336,6 +336,7 @@ ctest --test-dir build
 ./excafluid # Cellular Automata fluid, falling sand, chemical reactions, and Box2D physics
 ./ex3d # direct OpenGL 3D example
 ./ex3d_vulkan # direct Vulkan 3D example
+./slpaint # interactive retro paint application with drawing tools, palette, and undo/redo
 ./sltest # sample game: menu, physics playground, Lua console
 ./slpack # pack files into a ZIP resource archive
 ```
@@ -369,6 +370,7 @@ or press `ESC` to return to the menu.
 - **[`excafluid`](src/examples/excafluid/excafluid.cpp)** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
 - **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
+- **[`slpaint`](src/examples/slpaint/slpaint.cpp)** — interactive retro paint application with drawing tools (pencil, brush, eraser, line, rect, ellipse, flood fill, color picker, select), palette, and multi-level undo/redo.
 
 
 

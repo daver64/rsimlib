@@ -53,6 +53,14 @@ namespace sl::detail
         }
     }
 
+    void gl2d_submit(PrimitiveType primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture)
+    {
+        if (Renderer *renderer = active_renderer())
+        {
+            renderer->submit_2d(primitiveMode, vertices, count, texture);
+        }
+    }
+
     void gl2d_flush()
     {
         if (Renderer *renderer = active_renderer())

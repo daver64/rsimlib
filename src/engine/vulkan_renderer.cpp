@@ -317,7 +317,7 @@ namespace sl::detail
             {
                 VulkanTexture resource;
                 if (!context_.create_image(description.width, description.height, VK_FORMAT_R8G8B8A8_UNORM,
-                                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                                            resource.image, last_error_) ||
                     !context_.create_sampler(description.filter, resource.sampler, last_error_))
                 {
@@ -348,6 +348,19 @@ namespace sl::detail
                 }
                 return false;
             }
+            bool download_texture(std::uint32_t texture, int width, int height, std::uint8_t *out_pixels) override
+            {
+                flush_2d();
+                auto iterator = textures_.find(texture);
+                if (iterator != textures_.end())
+                    return context_.download_image_rgba(iterator->second.image, width, height, out_pixels, last_error_);
+                for (auto &[framebuffer, target] : render_targets_)
+                {
+                    if (target.texture_handle == texture)
+                        return context_.download_image_rgba(target.image, width, height, out_pixels, last_error_);
+                }
+                return false;
+            }
             void destroy_texture(std::uint32_t texture) override
             {
                 if (batch_texture_ == texture)
@@ -371,7 +384,7 @@ namespace sl::detail
             {
                 VulkanRenderTarget resource;
                 if (!context_.create_image(width, height, context_.render_target_format(),
-                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                            resource.image, last_error_) ||
                     !context_.create_image(width, height, context_.depth_format(),
                                            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -438,10 +451,23 @@ namespace sl::detail
                         iterator->second.image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                         if (!context_.update_texture_descriptor(iterator->second.descriptor,
                             iterator->second.image, iterator->second.sampler, last_error_))
+                        {
                             return false;
+                        }
                     }
                 }
                 return true;
+            }
+            bool download_render_target(std::uint32_t framebuffer, int width, int height, std::uint8_t *out_pixels) override
+            {
+                flush_2d();
+                if (framebuffer == 0)
+                {
+                    return context_.download_swapchain_rgba(width, height, out_pixels, last_error_);
+                }
+                auto iterator = render_targets_.find(framebuffer);
+                if (iterator == render_targets_.end()) return false;
+                return context_.download_image_rgba(iterator->second.image, width, height, out_pixels, last_error_);
             }
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                std::uint32_t &program, std::string &error) override

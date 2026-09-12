@@ -1,5 +1,3 @@
-#define GL_GLEXT_PROTOTYPES
-
 /** @file
  * @brief Implements bitmap storage, primitives, sprites, and render targets.
  */
@@ -13,8 +11,6 @@
 #include "resource.h"
 
 #include <SDL2/SDL_image.h>
-#include <SDL2/SDL_opengl.h>
-#include <SDL2/SDL_opengl_glext.h>
 #include <png.h>
 
 #include <algorithm>
@@ -140,7 +136,7 @@ namespace sl
 				{right, bottom, textureRight, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
 				{x, bottom, textureLeft, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
 			};
-			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, bitmap->gpu_texture);
+			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
 
 		/** Draw a bitmap as a scaled quad rotated around its screen-space centre. */
@@ -169,13 +165,15 @@ namespace sl
 			const auto bottomLeft = rotate(-width * 0.5f, height * 0.5f);
 
 			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
 			const detail::GLVertex vertices[4] = {
 				{topLeft.first, topLeft.second, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
 				{topRight.first, topRight.second, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
 				{bottomRight.first, bottomRight.second, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
 				{bottomLeft.first, bottomLeft.second, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
 			};
-			detail::gl2d_submit(GL_TRIANGLE_FAN, vertices, 4, bitmap->gpu_texture);
+			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
 
 		/** Render a plain or textured ellipse directly to the screen. */
@@ -198,6 +196,8 @@ namespace sl
 
 			const int segments = std::max(16, std::min(256, static_cast<int>(std::max(radiusX, radiusY) * 2.0f)));
 			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
 
 			std::vector<detail::GLVertex> vertices;
 			if (filled)
@@ -211,7 +211,7 @@ namespace sl
 					const float v = 0.5f + 0.5f * std::sin(angle);
 					vertices.push_back({x + radiusX * std::cos(angle), y + radiusY * std::sin(angle), u, v, r, g, b, a});
 				}
-				detail::gl2d_submit(GL_TRIANGLE_FAN, vertices.data(), static_cast<int>(vertices.size()), glTexture);
+				detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices.data(), static_cast<int>(vertices.size()), glTexture);
 			}
 			else
 			{
@@ -223,7 +223,7 @@ namespace sl
 					const float v = 0.5f + 0.5f * std::sin(angle);
 					vertices.push_back({x + radiusX * std::cos(angle), y + radiusY * std::sin(angle), u, v, r, g, b, a});
 				}
-				detail::gl2d_submit(GL_LINE_LOOP, vertices.data(), static_cast<int>(vertices.size()), glTexture);
+				detail::gl2d_submit(detail::PrimitiveType::line_loop, vertices.data(), static_cast<int>(vertices.size()), glTexture);
 			}
 		}
 
@@ -246,12 +246,14 @@ namespace sl
 			}
 
 			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
 			const detail::GLVertex vertices[3] = {
 				{x1, y1, 0.0f, 0.0f, r, g, b, a},
 				{x2, y2, 1.0f, 0.0f, r, g, b, a},
 				{x3, y3, 0.5f, 1.0f, r, g, b, a},
 			};
-			detail::gl2d_submit(filled ? GL_TRIANGLES : GL_LINE_LOOP, vertices, 3, glTexture);
+			detail::gl2d_submit(filled ? detail::PrimitiveType::triangles : detail::PrimitiveType::line_loop, vertices, 3, glTexture);
 		}
 
 		/** Render a plain or textured rectangle directly to the screen. */
@@ -273,13 +275,15 @@ namespace sl
 			}
 
 			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(texture && texture->fbo != 0);
 			const detail::GLVertex vertices[4] = {
 				{left, top, 0.0f, 0.0f, r, g, b, a},
 				{right, top, 1.0f, 0.0f, r, g, b, a},
 				{right, bottom, 1.0f, 1.0f, r, g, b, a},
 				{left, bottom, 0.0f, 1.0f, r, g, b, a},
 			};
-			detail::gl2d_submit(filled ? GL_TRIANGLE_FAN : GL_LINE_LOOP, vertices, 4, glTexture);
+			detail::gl2d_submit(filled ? detail::PrimitiveType::triangle_fan : detail::PrimitiveType::line_loop, vertices, 4, glTexture);
 		}
 
 		/** Rasterize a line into a bitmap using integer coordinates. */
@@ -617,7 +621,7 @@ namespace sl
 			colour_components(colour, r, g, b, a);
 			detail::gl2d_begin(screen_width(), screen_height());
 			const detail::GLVertex vertex{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 0.0f, 0.0f, r, g, b, a};
-			detail::gl2d_submit(GL_POINTS, &vertex, 1);
+			detail::gl2d_submit(detail::PrimitiveType::points, &vertex, 1);
 			return;
 		}
 		if (!ensure_ram_pixels(bitmap) || x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height)
@@ -837,7 +841,7 @@ namespace sl
 				{x1, y1, 0.0f, 0.0f, red, green, blue, alpha},
 				{x2, y2, 1.0f, 1.0f, red, green, blue, alpha},
 			};
-			detail::gl2d_submit(GL_LINES, vertices, 2);
+			detail::gl2d_submit(detail::PrimitiveType::lines, vertices, 2);
 			return;
 		}
 		draw_line(bitmap, static_cast<int>(std::lround(x1)), static_cast<int>(std::lround(y1)), static_cast<int>(std::lround(x2)), static_cast<int>(std::lround(y2)), colour);
@@ -1057,29 +1061,32 @@ namespace sl
 			return false;
 		}
 		bitmap->pixels.resize(static_cast<std::size_t>(bitmap->width) * bitmap->height * bytes_per_pixel);
-		if (is_screen(bitmap))
-		{
-			glReadPixels(0, 0, bitmap->width, bitmap->height, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->pixels.data());
-			const std::size_t rowBytes = static_cast<std::size_t>(bitmap->width) * bytes_per_pixel;
-			std::vector<Uint8> row(rowBytes);
-			for (int top = 0, bottom = bitmap->height - 1; top < bottom; ++top, --bottom)
-			{
-				std::memcpy(row.data(), bitmap->pixels.data() + static_cast<std::size_t>(top) * rowBytes, rowBytes);
-				std::memcpy(bitmap->pixels.data() + static_cast<std::size_t>(top) * rowBytes, bitmap->pixels.data() + static_cast<std::size_t>(bottom) * rowBytes, rowBytes);
-				std::memcpy(bitmap->pixels.data() + static_cast<std::size_t>(bottom) * rowBytes, row.data(), rowBytes);
-			}
-			bitmap->ram_dirty = false;
-			return true;
-		}
-		if (bitmap->gpu_texture == 0)
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer)
 		{
 			return false;
 		}
-		glBindTexture(GL_TEXTURE_2D, bitmap->gpu_texture);
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->pixels.data());
-		bitmap->ram_dirty = false;
-		bitmap->gpu_dirty = false;
-		return true;
+
+		bool success = false;
+		if (is_screen(bitmap))
+		{
+			success = renderer->download_render_target(0, bitmap->width, bitmap->height, bitmap->pixels.data());
+		}
+		else if (bitmap->fbo != 0)
+		{
+			success = renderer->download_render_target(bitmap->fbo, bitmap->width, bitmap->height, bitmap->pixels.data());
+		}
+		else if (bitmap->gpu_texture != 0)
+		{
+			success = renderer->download_texture(bitmap->gpu_texture, bitmap->width, bitmap->height, bitmap->pixels.data());
+		}
+
+		if (success)
+		{
+			bitmap->ram_dirty = false;
+			bitmap->gpu_dirty = false;
+		}
+		return success;
 	}
 
 	/** Draw a bitmap at a screen position. */

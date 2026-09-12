@@ -11,6 +11,7 @@
 #include <SDL2/SDL_opengl_glext.h>
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <cstddef>
 #include <filesystem>
@@ -196,6 +197,21 @@ namespace sl::detail
                 return true;
             }
 
+            bool download_texture(std::uint32_t texture, int width, int height,
+                                  std::uint8_t *out_pixels) override
+            {
+                if (texture == 0 || !out_pixels || width <= 0 || height <= 0)
+                {
+                    return false;
+                }
+                flush_2d();
+                const GLuint handle = static_cast<GLuint>(texture);
+                glBindTexture(GL_TEXTURE_2D, handle);
+                glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
+                return true;
+            }
+
             void destroy_texture(std::uint32_t texture) override
             {
                 if (texture != 0)
@@ -293,6 +309,35 @@ namespace sl::detail
                 render_target_stack_.pop_back();
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous.framebuffer));
                 glViewport(previous.viewport[0], previous.viewport[1], previous.viewport[2], previous.viewport[3]);
+                return true;
+            }
+
+            bool download_render_target(std::uint32_t framebuffer, int width, int height,
+                                        std::uint8_t *out_pixels) override
+            {
+                if (!out_pixels || width <= 0 || height <= 0)
+                {
+                    return false;
+                }
+                flush_2d();
+                GLint previous_fbo = 0;
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_fbo);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_fbo));
+
+                // Flip rows vertically so origin is top-left
+                const std::size_t row_bytes = static_cast<std::size_t>(width) * 4;
+                std::vector<std::uint8_t> row(row_bytes);
+                for (int top = 0, bottom = height - 1; top < bottom; ++top, --bottom)
+                {
+                    std::memcpy(row.data(), out_pixels + static_cast<std::size_t>(top) * row_bytes, row_bytes);
+                    std::memcpy(out_pixels + static_cast<std::size_t>(top) * row_bytes,
+                                out_pixels + static_cast<std::size_t>(bottom) * row_bytes, row_bytes);
+                    std::memcpy(out_pixels + static_cast<std::size_t>(bottom) * row_bytes,
+                                row.data(), row_bytes);
+                }
                 return true;
             }
 

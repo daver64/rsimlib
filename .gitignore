@@ -29,8 +29,10 @@ imgui.ini
 /ex3d_vulkan
 /exatlas
 /excafluid
+/slpaint
 /lib/
 applications
 exdb.sqlite
 /assets/textures/dungeonsoup
 
+painting.png

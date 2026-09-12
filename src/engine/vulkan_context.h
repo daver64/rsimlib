@@ -124,6 +124,10 @@ namespace sl::detail
                    std::string &error);
         bool upload_image_rgba(VulkanImage &image, int width, int height,
                        const std::uint8_t *pixels, std::string &error);
+        bool download_image_rgba(VulkanImage &image, int width, int height,
+                         std::uint8_t *out_pixels, std::string &error);
+        bool download_swapchain_rgba(int width, int height,
+                            std::uint8_t *out_pixels, std::string &error);
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                   VulkanImage &result, std::string &error);
         void destroy_image(VulkanImage &image);

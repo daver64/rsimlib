@@ -50,11 +50,13 @@ namespace sl::detail
 
             bool create_texture(const TextureDesc &, std::uint32_t &) override { return unsupported(); }
             bool upload_texture(std::uint32_t, int, int, const std::uint8_t *) override { return unsupported(); }
+            bool download_texture(std::uint32_t, int, int, std::uint8_t *) override { return unsupported(); }
             void destroy_texture(std::uint32_t) override {}
             bool create_render_target(int, int, std::uint32_t &, std::uint32_t &) override { return unsupported(); }
             void destroy_render_target(std::uint32_t, std::uint32_t) override {}
             bool begin_render_target(std::uint32_t, int, int, std::string &) override { return unsupported(); }
             bool end_render_target(std::string &) override { return unsupported(); }
+            bool download_render_target(std::uint32_t, int, int, std::uint8_t *) override { return unsupported(); }
             bool create_shader(const ShaderSource &, const ShaderSource &, std::uint32_t &, std::string &error) override
             {
                 error = "D3D12 shader compilation is not implemented yet.";

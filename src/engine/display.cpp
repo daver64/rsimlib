@@ -325,6 +325,12 @@ namespace sl
 
     void display_shutdown()
     {
+        if (sl_default_monospace_font && ttfInitialized)
+        {
+            close_font(sl_default_monospace_font);
+            sl_default_monospace_font = nullptr;
+        }
+
         detail::destroy_screen();
         if (renderer)
         {
@@ -335,12 +341,6 @@ namespace sl
         {
             SDL_DestroyWindow(window);
             window = nullptr;
-        }
-
-        if (sl_default_monospace_font && ttfInitialized)
-        {
-            TTF_CloseFont(sl_default_monospace_font);
-            sl_default_monospace_font = nullptr;
         }
 
         if (ttfInitialized)

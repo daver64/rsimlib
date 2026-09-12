@@ -148,6 +148,42 @@ namespace sl::detail
                     static_cast<UINT>(width * 4), 0);
                 return true;
             }
+            bool download_texture(std::uint32_t texture, int width, int height, std::uint8_t *out_pixels) override
+            {
+                flush_2d();
+                if (texture == 0 || !out_pixels || width <= 0 || height <= 0 || !context_.device() || !context_.context()) return false;
+                const auto iterator = textures_.find(texture);
+                if (iterator == textures_.end() || !iterator->second.resource) return false;
+
+                D3D11_TEXTURE2D_DESC desc{};
+                iterator->second.resource->GetDesc(&desc);
+                desc.Usage = D3D11_USAGE_STAGING;
+                desc.BindFlags = 0;
+                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                desc.MiscFlags = 0;
+
+                ID3D11Texture2D *staging = nullptr;
+                if (FAILED(context_.device()->CreateTexture2D(&desc, nullptr, &staging))) return false;
+                context_.context()->CopyResource(staging, iterator->second.resource);
+
+                D3D11_MAPPED_SUBRESOURCE mapped{};
+                if (FAILED(context_.context()->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)))
+                {
+                    staging->Release();
+                    return false;
+                }
+
+                const int row_pitch = width * 4;
+                for (int y = 0; y < height; ++y)
+                {
+                    std::memcpy(out_pixels + y * row_pitch,
+                                static_cast<const std::uint8_t *>(mapped.pData) + y * mapped.RowPitch,
+                                row_pitch);
+                }
+                context_.context()->Unmap(staging, 0);
+                staging->Release();
+                return true;
+            }
             void destroy_texture(std::uint32_t texture) override
             {
                 if (batch_texture_ == texture)
@@ -205,6 +241,14 @@ namespace sl::detail
                 flush_2d();
                 context_.bind_backbuffer();
                 return true;
+            }
+            bool download_render_target(std::uint32_t framebuffer, int width, int height, std::uint8_t *out_pixels) override
+            {
+                flush_2d();
+                if (framebuffer == 0) return false;
+                const auto iterator = render_targets_.find(framebuffer);
+                if (iterator == render_targets_.end()) return false;
+                return download_texture(iterator->second.texture, width, height, out_pixels);
             }
             bool create_shader(const ShaderSource &, const ShaderSource &, std::uint32_t &, std::string &error) override
             {

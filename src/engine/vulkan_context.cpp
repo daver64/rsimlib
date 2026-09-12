@@ -226,7 +226,12 @@ namespace sl::detail
         swapchain_info.imageColorSpace = surface_format.colorSpace;
         swapchain_info.imageExtent = extent;
         swapchain_info.imageArrayLayers = 1;
-        swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VkImageUsageFlags swapchain_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        if (capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+        {
+            swapchain_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        }
+        swapchain_info.imageUsage = swapchain_usage;
         swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         swapchain_info.preTransform = capabilities.currentTransform;
         swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -1021,6 +1026,145 @@ namespace sl::detail
         destroy_buffer(staging);
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         return true;
+    }
+
+    bool VulkanContext::download_image_rgba(VulkanImage &image, int width, int height,
+                                            std::uint8_t *out_pixels, std::string &error)
+    {
+        if (image.image == VK_NULL_HANDLE || !out_pixels || width <= 0 || height <= 0)
+        {
+            error = "Invalid Vulkan image download parameters.";
+            return false;
+        }
+
+        if (device_ != VK_NULL_HANDLE)
+        {
+            vkDeviceWaitIdle(device_);
+        }
+
+        const std::size_t byte_count = static_cast<std::size_t>(width) * height * 4;
+        VulkanBuffer staging;
+        if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                           staging, error))
+        {
+            return false;
+        }
+
+        VkCommandBufferAllocateInfo alloc_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+        alloc_info.commandPool = command_pool_;
+        alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandBufferCount = 1;
+        VkCommandBuffer cmd = VK_NULL_HANDLE;
+        if (vkAllocateCommandBuffers(device_, &alloc_info, &cmd) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan download command buffer.";
+            destroy_buffer(staging);
+            return false;
+        }
+
+        VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if (vkBeginCommandBuffer(cmd, &begin_info) != VK_SUCCESS)
+        {
+            error = "Unable to begin Vulkan download command buffer.";
+            vkFreeCommandBuffers(device_, command_pool_, 1, &cmd);
+            destroy_buffer(staging);
+            return false;
+        }
+
+        const VkImageLayout original_layout = image.layout != VK_IMAGE_LAYOUT_UNDEFINED
+            ? image.layout : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkImageMemoryBarrier to_src{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        to_src.oldLayout = original_layout;
+        to_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        to_src.srcAccessMask = (original_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+            ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+        to_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        to_src.image = image.image;
+        to_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        to_src.subresourceRange.levelCount = 1;
+        to_src.subresourceRange.layerCount = 1;
+
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_src);
+
+        VkBufferImageCopy copy_region{};
+        copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy_region.imageSubresource.layerCount = 1;
+        copy_region.imageExtent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};
+
+        vkCmdCopyImageToBuffer(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                               staging.buffer, 1, &copy_region);
+
+        VkImageMemoryBarrier to_orig = to_src;
+        to_orig.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        to_orig.newLayout = original_layout;
+        to_orig.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        to_orig.dstAccessMask = to_src.srcAccessMask;
+
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_orig);
+
+        if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
+        {
+            error = "Unable to end Vulkan download command buffer.";
+            vkFreeCommandBuffers(device_, command_pool_, 1, &cmd);
+            destroy_buffer(staging);
+            return false;
+        }
+
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &cmd;
+        if (vkQueueSubmit(graphics_queue_, 1, &submit, VK_NULL_HANDLE) != VK_SUCCESS ||
+            vkQueueWaitIdle(graphics_queue_) != VK_SUCCESS)
+        {
+            error = "Unable to submit Vulkan download commands.";
+            vkFreeCommandBuffers(device_, command_pool_, 1, &cmd);
+            destroy_buffer(staging);
+            return false;
+        }
+        vkFreeCommandBuffers(device_, command_pool_, 1, &cmd);
+
+        void *mapped = nullptr;
+        if (vkMapMemory(device_, staging.memory, 0, byte_count, 0, &mapped) != VK_SUCCESS || !mapped)
+        {
+            error = "Unable to map Vulkan staging buffer for download.";
+            destroy_buffer(staging);
+            return false;
+        }
+
+        std::memcpy(out_pixels, mapped, byte_count);
+        vkUnmapMemory(device_, staging.memory);
+        destroy_buffer(staging);
+
+        if (image.format == VK_FORMAT_B8G8R8A8_UNORM || image.format == VK_FORMAT_B8G8R8A8_SRGB)
+        {
+            for (std::size_t index = 0; index < byte_count; index += 4)
+            {
+                std::swap(out_pixels[index], out_pixels[index + 2]);
+            }
+        }
+
+        image.layout = original_layout;
+        return true;
+    }
+
+    bool VulkanContext::download_swapchain_rgba(int width, int height,
+                                                std::uint8_t *out_pixels, std::string &error)
+    {
+        if (swapchain_images_.empty() || current_image_ >= swapchain_images_.size() || !out_pixels || width <= 0 || height <= 0)
+        {
+            error = "Invalid Vulkan swapchain download state.";
+            return false;
+        }
+        VulkanImage swapchain_img;
+        swapchain_img.image = swapchain_images_[current_image_];
+        swapchain_img.format = swapchain_format_;
+        swapchain_img.layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        return download_image_rgba(swapchain_img, width, height, out_pixels, error);
     }
 
     bool VulkanContext::create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,

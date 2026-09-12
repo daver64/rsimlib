@@ -27,6 +27,7 @@ namespace sl
          * currently bound. Pass texture = 0 to sample the built-in white pixel (flat colour).
          */
         void gl2d_submit(std::uint32_t primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture = 0);
+        void gl2d_submit(PrimitiveType primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture = 0);
 
         /** Flush any accumulated 2D batched primitives to the GPU. */
         void gl2d_flush();

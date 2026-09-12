@@ -479,7 +479,11 @@ set_target_properties(client_template PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-
+add_executable(slpaint src/examples/slpaint/slpaint.cpp)
+target_link_libraries(slpaint PRIVATE simlib)
+set_target_properties(slpaint PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 
 add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
@@ -538,6 +542,10 @@ if(BUILD_TESTING)
     add_executable(physics_test tests/physics_test.cpp)
     target_link_libraries(physics_test PRIVATE simlib)
     add_test(NAME physics COMMAND physics_test)
+
+    add_executable(renderer_test tests/renderer_test.cpp)
+    target_link_libraries(renderer_test PRIVATE simlib)
+    add_test(NAME renderer COMMAND renderer_test)
 endif()
 
 find_package(Doxygen QUIET)
