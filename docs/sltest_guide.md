@@ -2,6 +2,8 @@
 
 [← Back to README](../README.md)
 
+![sltest Screenshot](sltest1.png)
+
 `sltest` demonstrates how to structure a complete 2D game application using `simlib` services without heavyweight framework dependencies.
 
 ---
