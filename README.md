@@ -1,11 +1,7 @@
 # simlib
 
-`simlib` is a small Allegro4 style 2D game and rendering library built on
-SDL2, with selectable OpenGL 4.3 and Vulkan backends. It provides bitmap
-primitives and sprites, TrueType text, Dear ImGui integration, SDL_mixer audio,
-render targets and lighting effects, ZIP resource archives, Perlin/simplex
-noise, Box2D physics, and a sandboxed Lua console through
-[sol2](https://github.com/ThePhD/sol2).
+`simlib` is an easy-to-use, feature-packed Allegro4-style 2D game framework and rendering engine built on
+SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines nostalgic, immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, SQLite database persistence (`rdb`), and sandboxed Lua scripting via [sol2](https://github.com/ThePhD/sol2).
 
 ### `excafluid` sandbox demo
 
@@ -212,7 +208,7 @@ under `build/shaders/glsl/` and Vulkan SPIR-V under `build/shaders/vulkan/`.
 
 ### Current backend status
 
-The OpenGL and Vulkan backends support the built-in 2D primitives, sprites,
+The OpenGL and Vulkan backends support automatic hardware batched 2D primitives and sprites,
 TrueType text, render targets, ImGui, tiled lighting with shadows, Vignette,
 Bloom, resizing, fullscreen, and vsync. `sltest --vulkan` is the primary
 Vulkan integration smoke test. Arbitrary user shaders can be authored once in
@@ -223,7 +219,7 @@ supplied sampler/uniform metadata (see below).
 ### Renderer capabilities
 
 Both backends support top-left-origin 2D points, lines, line loops, triangles,
-triangle fans, textured sprites, alpha blending, nearest and linear texture
+triangle fans, textured sprites with automatic batching, alpha blending, nearest and linear texture
 sampling, render targets, TrueType text, Dear ImGui, fullscreen, resize, and
 vsync. Vulkan also supports the built-in tiled-lighting compute pass, Vignette,
 and Bloom effects through precompiled SPIR-V shader assets.
