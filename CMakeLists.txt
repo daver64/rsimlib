@@ -395,6 +395,12 @@ set_target_properties(exatlas PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(excafluid src/examples/excafluid/excafluid.cpp)
+target_link_libraries(excafluid PRIVATE simlib)
+set_target_properties(excafluid PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 add_executable(exdb src/examples/exdb/exdb.cpp)
 target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
 set_target_properties(exdb PROPERTIES
