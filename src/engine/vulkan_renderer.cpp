@@ -275,12 +275,14 @@ namespace sl::detail
             {
                 if (frame_active_)
                 {
+                    flush_2d();
                     context_.end_frame(last_error_);
                     frame_active_ = false;
                 }
             }
             void wait_idle() override
             {
+                flush_2d();
                 if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
             }
             bool begin_frame(std::string &error) override
@@ -304,6 +306,7 @@ namespace sl::detail
             bool end_frame(std::string &error) override
             {
                 if (!frame_active_) return true;
+                flush_2d();
                 frame_active_ = false;
                 return context_.end_frame(error);
             }
@@ -347,6 +350,10 @@ namespace sl::detail
             }
             void destroy_texture(std::uint32_t texture) override
             {
+                if (batch_texture_ == texture)
+                {
+                    flush_2d();
+                }
                 const auto iterator = textures_.find(texture);
                 if (iterator == textures_.end()) return;
                 if (frame_active_)
@@ -396,6 +403,7 @@ namespace sl::detail
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
             {
+                flush_2d();
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end()) return;
                 context_.destroy_sampler(iterator->second.sampler);
@@ -406,6 +414,7 @@ namespace sl::detail
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
             {
+                flush_2d();
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end() || !begin_frame(error) ||
                     !context_.begin_offscreen_render_pass(iterator->second.framebuffer, iterator->second.image,
@@ -417,6 +426,7 @@ namespace sl::detail
             }
             bool end_render_target(std::string &error) override
             {
+                flush_2d();
                 if (!context_.end_offscreen_render_pass(error)) return false;
                 if (!active_render_targets_.empty())
                 {
@@ -553,6 +563,7 @@ namespace sl::detail
             void destroy_shader(std::uint32_t module) override
             {
                 if (module == cull_program_) return;
+                flush_2d();
                 const auto dynamic_iterator = dynamic_programs_.find(module);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
@@ -575,16 +586,32 @@ namespace sl::detail
             {
                 if (dynamic_programs_.count(program))
                 {
-                    active_program_ = program;
+                    if (active_program_ != program)
+                    {
+                        flush_2d();
+                        active_program_ = program;
+                    }
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::unknown && program != cull_program_) return false;
-                active_program_ = program;
+                if (active_program_ != program)
+                {
+                    flush_2d();
+                    active_program_ = program;
+                }
                 return true;
             }
-            void stop_shader() override { active_program_ = 0; }
+            void stop_shader() override
+            {
+                if (active_program_ != 0)
+                {
+                    flush_2d();
+                    active_program_ = 0;
+                }
+            }
             bool dispatch_compute(std::uint32_t program, unsigned int groups_x, unsigned int groups_y, unsigned int groups_z) override
             {
+                flush_2d();
                 if (program != cull_program_ || storage_descriptor_ == VK_NULL_HANDLE) return unsupported();
                 return context_.record_compute_dispatch(cull_pipeline_.pipeline, cull_pipeline_.layout,
                     storage_descriptor_, cull_constants_.data(), sizeof(cull_constants_),
@@ -899,21 +926,33 @@ namespace sl::detail
                 return unsupported();
             }
             bool initialise_2d() override { return pipelines_[4].pipeline != VK_NULL_HANDLE; }
-            void shutdown_2d() override {}
+            void shutdown_2d() override
+            {
+                flush_2d();
+                batch_vertices_.clear();
+                batch_vertices_.shrink_to_fit();
+            }
             bool begin_2d(int width, int height) override
             {
                 if (!begin_frame(last_error_)) return false;
-                projection_.fill(0.0f);
-                projection_[0] = width > 0 ? 2.0f / width : 0.0f;
-                projection_[5] = height > 0 ? -2.0f / height : 0.0f;
-                projection_[10] = -1.0f;
-                projection_[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
-                projection_[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
-                projection_[15] = 1.0f;
+                std::array<float, 16> new_proj{};
+                new_proj[0] = width > 0 ? 2.0f / width : 0.0f;
+                new_proj[5] = height > 0 ? -2.0f / height : 0.0f;
+                new_proj[10] = -1.0f;
+                new_proj[12] = -1.0f + (width > 0 ? 2.0f * detail::screen_offset_x() / width : 0.0f);
+                new_proj[13] = 1.0f - (height > 0 ? 2.0f * detail::screen_offset_y() / height : 0.0f);
+                new_proj[15] = 1.0f;
+                if (active_program_ != 0 || new_proj != projection_)
+                {
+                    flush_2d();
+                    active_program_ = 0;
+                    projection_ = new_proj;
+                }
                 return true;
             }
             bool begin_shader_2d(std::uint32_t program, int width, int height) override
             {
+                flush_2d();
                 if (!begin_frame(last_error_) || width <= 0 || height <= 0 || !use_shader(program)) return false;
                 float projection[16] = {};
                 projection[0] = 2.0f / width;
@@ -927,37 +966,39 @@ namespace sl::detail
             void set_premultiplied_alpha(bool) override {}
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
+                flush_2d();
                 if (!frame_active_ && !begin_frame(last_error_)) return false;
                 return context_.clear_active_frame(red, green, blue, alpha, last_error_);
             }
-            void submit_2d(PrimitiveType primitive, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            void flush_2d() override
             {
-                if (!vertices || count <= 0 || !frame_active_) return;
-                std::vector<Vertex2D> line_loop_vertices;
-                const Vertex2D *upload_vertices = vertices;
-                int upload_count = count;
-                if (primitive == PrimitiveType::line_loop && count > 1)
-                {
-                    line_loop_vertices.assign(vertices, vertices + count);
-                    line_loop_vertices.push_back(vertices[0]);
-                    upload_vertices = line_loop_vertices.data();
-                    upload_count = count + 1;
-                }
+                if (batch_vertices_.empty() || !frame_active_) return;
+
+                const Vertex2D *upload_vertices = batch_vertices_.data();
+                const int upload_count = static_cast<int>(batch_vertices_.size());
+                const PrimitiveType primitive = batch_primitive_;
+                const std::uint32_t texture = batch_texture_;
+
                 const VkDeviceSize required_size = sizeof(Vertex2D) * static_cast<VkDeviceSize>(upload_count);
                 if (vertex_buffer_cursor_ == vertex_buffers_.size()) vertex_buffers_.emplace_back();
                 VulkanBuffer &buffer = vertex_buffers_[vertex_buffer_cursor_++];
                 if (buffer.size < required_size)
                 {
-                    // Grow with headroom (amortised doubling) rather than an exact fit: a tight
-                    // fit forces a destroy+allocate every single frame while a vertex count is
-                    // ramping up (e.g. a particle emitter spawning), causing visible stutter.
                     VkDeviceSize new_size = std::max<VkDeviceSize>(buffer.size, sizeof(Vertex2D) * 64);
                     while (new_size < required_size) new_size *= 2;
                     context_.destroy_buffer(buffer);
                     if (!context_.create_buffer(new_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, last_error_)) return;
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, last_error_))
+                    {
+                        batch_vertices_.clear();
+                        return;
+                    }
                 }
-                if (!context_.upload_buffer(buffer, upload_vertices, required_size, last_error_)) return;
+                if (!context_.upload_buffer(buffer, upload_vertices, required_size, last_error_))
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
                 const std::uint32_t texture_handle = texture == 0 ? white_texture_ : texture;
                 auto prepare_texture = [this](VulkanImage &image)
                 {
@@ -985,7 +1026,7 @@ namespace sl::detail
                     last_error_ = "Vulkan sampled texture handle is not registered.";
                     return false;
                 };
-                const auto dynamic_iterator = dynamic_programs_.find(active_program_);
+                const auto dynamic_iterator = dynamic_programs_.find(batch_program_);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
                     DynamicVulkanProgram &dynamic = dynamic_iterator->second;
@@ -999,24 +1040,37 @@ namespace sl::detail
                         if (!resolve_registered_texture(handle, images[index], samplers[index]) &&
                             !resolve_registered_texture(white_texture_, images[index], samplers[index]))
                         {
+                            batch_vertices_.clear();
                             return;
                         }
                     }
                     if (dynamic.descriptor_set == VK_NULL_HANDLE)
                     {
                         if (!context_.allocate_descriptor_set(descriptor_pool_, dynamic.descriptor_layout,
-                            dynamic.descriptor_set, last_error_)) return;
+                            dynamic.descriptor_set, last_error_))
+                        {
+                            batch_vertices_.clear();
+                            return;
+                        }
                     }
                     if (!images.empty() && !context_.update_dynamic_descriptor_set(dynamic.descriptor_set, images, samplers, last_error_))
+                    {
+                        batch_vertices_.clear();
                         return;
+                    }
                     const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
-                    if (pipeline_index >= dynamic.pipelines.size()) return;
+                    if (pipeline_index >= dynamic.pipelines.size())
+                    {
+                        batch_vertices_.clear();
+                        return;
+                    }
                     if (dynamic.pipelines[pipeline_index].pipeline == VK_NULL_HANDLE)
                     {
                         if (!context_.create_graphics_pipeline(dynamic.vertex_module, dynamic.fragment_module,
                             dynamic.descriptor_layout, primitive, dynamic.pipelines[pipeline_index], last_error_,
                             nullptr, dynamic.push_constant_size))
                         {
+                            batch_vertices_.clear();
                             return;
                         }
                     }
@@ -1025,9 +1079,10 @@ namespace sl::detail
                         static_cast<std::uint32_t>(upload_count), dynamic.projection.data(),
                         dynamic.push_constants.empty() ? nullptr : dynamic.push_constants.data(),
                         static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::lighting)
+                if (program_kind(batch_program_) == BuiltinProgram::lighting)
                 {
                     lighting_textures_[0] = texture_handle;
                     std::array<VulkanImage, 9> images{};
@@ -1037,6 +1092,7 @@ namespace sl::detail
                         if (!resolve_registered_texture(lighting_textures_[index], images[index], samplers[index]) &&
                             !resolve_registered_texture(white_texture_, images[index], samplers[index]))
                         {
+                            batch_vertices_.clear();
                             return;
                         }
                     }
@@ -1046,14 +1102,16 @@ namespace sl::detail
                         : context_.update_lighting_descriptor(lighting_descriptor_, images.data(), samplers.data(), last_error_);
                     if (!descriptor_ready || storage_descriptor_ == VK_NULL_HANDLE)
                     {
+                        batch_vertices_.clear();
                         return;
                     }
                     context_.record_lighting_draw(lighting_pipeline_.pipeline, lighting_pipeline_.layout,
                         buffer.buffer, lighting_descriptor_, storage_descriptor_, static_cast<std::uint32_t>(upload_count),
                         lighting_projection_.data(), &lighting_constants_, sizeof(lighting_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::composite)
+                if (program_kind(batch_program_) == BuiltinProgram::composite)
                 {
                     VulkanImage images[2]{};
                     VulkanSampler samplers[2]{};
@@ -1061,16 +1119,22 @@ namespace sl::detail
                     if (!resolve_registered_texture(texture_handle, images[0], samplers[0]) ||
                         !resolve_registered_texture(bloom_handle, images[1], samplers[1]))
                     {
+                        batch_vertices_.clear();
                         return;
                     }
                     const bool descriptor_ready = composite_descriptor_ == VK_NULL_HANDLE
                         ? context_.allocate_composite_descriptor(descriptor_pool_, composite_descriptor_layout_,
                             images, samplers, composite_descriptor_, last_error_)
                         : context_.update_composite_descriptor(composite_descriptor_, images, samplers, last_error_);
-                    if (!descriptor_ready) return;
+                    if (!descriptor_ready)
+                    {
+                        batch_vertices_.clear();
+                        return;
+                    }
                     context_.record_postprocess_draw(composite_effect_.pipeline.pipeline, composite_effect_.pipeline.layout,
                         buffer.buffer, composite_descriptor_, static_cast<std::uint32_t>(upload_count),
                         postprocess_projection_.data(), &composite_constants_, sizeof(composite_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
@@ -1080,7 +1144,11 @@ namespace sl::detail
                     descriptor = texture_iterator->second.descriptor;
                     VulkanImage image = texture_iterator->second.image;
                     VulkanSampler sampler = texture_iterator->second.sampler;
-                    if (!prepare_texture(image)) return;
+                    if (!prepare_texture(image))
+                    {
+                        batch_vertices_.clear();
+                        return;
+                    }
                 }
                 else
                 {
@@ -1090,103 +1158,154 @@ namespace sl::detail
                         {
                             VulkanImage image = target.image;
                             VulkanSampler sampler = target.sampler;
-                            if (!prepare_texture(image)) return;
+                            if (!prepare_texture(image))
+                            {
+                                batch_vertices_.clear();
+                                return;
+                            }
                             descriptor = target.descriptor;
                         }
                     }
                 }
-                if (descriptor == VK_NULL_HANDLE) return;
-                if (active_program_ == vignette_effect_.program)
+                if (descriptor == VK_NULL_HANDLE)
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                if (batch_program_ == vignette_effect_.program)
                 {
                     context_.record_postprocess_draw(vignette_effect_.pipeline.pipeline, vignette_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), vignette_projection_.data(),
                         &vignette_effect_.constants, sizeof(vignette_effect_.constants), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (active_program_ == colour_adjust_effect_.program)
+                if (batch_program_ == colour_adjust_effect_.program)
                 {
                     context_.record_postprocess_draw(colour_adjust_effect_.pipeline.pipeline, colour_adjust_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (active_program_ == chromatic_effect_.program)
+                if (batch_program_ == chromatic_effect_.program)
                 {
                     context_.record_postprocess_draw(chromatic_effect_.pipeline.pipeline, chromatic_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &chromatic_constants_, sizeof(chromatic_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::pixelate)
+                if (program_kind(batch_program_) == BuiltinProgram::pixelate)
                 {
                     context_.record_postprocess_draw(pixelate_effect_.pipeline.pipeline, pixelate_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &pixelate_constants_, sizeof(pixelate_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::radial)
+                if (program_kind(batch_program_) == BuiltinProgram::radial)
                 {
                     context_.record_postprocess_draw(radial_effect_.pipeline.pipeline, radial_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &radial_constants_, sizeof(radial_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::heat)
+                if (program_kind(batch_program_) == BuiltinProgram::heat)
                 {
                     context_.record_postprocess_draw(heat_effect_.pipeline.pipeline, heat_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &heat_constants_, sizeof(heat_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::shockwave)
+                if (program_kind(batch_program_) == BuiltinProgram::shockwave)
                 {
                     context_.record_postprocess_draw(shockwave_effect_.pipeline.pipeline, shockwave_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &shockwave_constants_, sizeof(shockwave_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::crt)
+                if (program_kind(batch_program_) == BuiltinProgram::crt)
                 {
                     context_.record_postprocess_draw(crt_effect_.pipeline.pipeline, crt_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &crt_constants_, sizeof(crt_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::dither)
+                if (program_kind(batch_program_) == BuiltinProgram::dither)
                 {
                     context_.record_postprocess_draw(dither_effect_.pipeline.pipeline, dither_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &dither_constants_, sizeof(dither_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::film_grain)
+                if (program_kind(batch_program_) == BuiltinProgram::film_grain)
                 {
                     context_.record_postprocess_draw(film_grain_effect_.pipeline.pipeline, film_grain_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &film_grain_constants_, sizeof(film_grain_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::bright)
+                if (program_kind(batch_program_) == BuiltinProgram::bright)
                 {
                     context_.record_postprocess_draw(bright_effect_.pipeline.pipeline, bright_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &bright_constants_, sizeof(bright_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
-                if (program_kind(active_program_) == BuiltinProgram::blur)
+                if (program_kind(batch_program_) == BuiltinProgram::blur)
                 {
                     context_.record_postprocess_draw(blur_effect_.pipeline.pipeline, blur_effect_.pipeline.layout,
                         buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                         &blur_constants_, sizeof(blur_constants_), last_error_);
+                    batch_vertices_.clear();
                     return;
                 }
                 const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
                 if (pipeline_index >= pipelines_.size())
                 {
+                    batch_vertices_.clear();
                     return;
                 }
                 context_.record_vertex_draw(pipelines_[pipeline_index].pipeline, pipelines_[pipeline_index].layout, buffer.buffer, descriptor,
                     static_cast<std::uint32_t>(upload_count), primitive, projection_.data(), last_error_);
+                batch_vertices_.clear();
+            }
+            void submit_2d(PrimitiveType primitive, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            {
+                if (!vertices || count <= 0 || !frame_active_) return;
+                const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
+                const PrimitiveType target_primitive = get_target_batch_primitive(primitive);
+                const int new_vertex_count = get_decomposed_vertex_count(primitive, count);
+                if (new_vertex_count <= 0) return;
+
+                if (!batch_vertices_.empty())
+                {
+                    if (batch_texture_ != resolved_texture ||
+                        batch_primitive_ != target_primitive ||
+                        batch_program_ != active_program_ ||
+                        batch_vertices_.size() + static_cast<std::size_t>(new_vertex_count) > MAX_BATCH_VERTICES)
+                    {
+                        flush_2d();
+                    }
+                }
+
+                if (batch_vertices_.empty())
+                {
+                    batch_texture_ = resolved_texture;
+                    batch_primitive_ = target_primitive;
+                    batch_program_ = active_program_;
+                }
+
+                PrimitiveType actual_primitive = batch_primitive_;
+                append_decomposed_vertices(primitive, vertices, count, actual_primitive, batch_vertices_);
             }
             bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) override
             {
@@ -1207,6 +1326,7 @@ namespace sl::detail
             }
             bool upload_storage_buffer(std::uint32_t buffer, std::size_t size, const void *data, bool) override
             {
+                flush_2d();
                 auto iterator = storage_buffers_.find(buffer);
                 if (iterator == storage_buffers_.end()) return false;
                 if (size > iterator->second.buffer.size)
@@ -1220,12 +1340,14 @@ namespace sl::detail
             }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
+                flush_2d();
                 if (binding < 2 || binding > 4) return;
                 storage_handles_[binding - 2] = buffer;
                 update_storage_descriptor();
             }
             void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
             {
+                flush_2d();
                 const auto dynamic_iterator = dynamic_programs_.find(active_program_);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
@@ -1242,6 +1364,7 @@ namespace sl::detail
             }
             void storage_barrier() override
             {
+                flush_2d();
                 // record_compute_dispatch already emits the required compute-to-fragment barrier.
             }
 
@@ -1615,6 +1738,12 @@ namespace sl::detail
             };
             std::unordered_map<std::uint32_t, DynamicVulkanProgram> dynamic_programs_;
             std::uint32_t next_dynamic_program_ = 1;
+
+            static constexpr std::size_t MAX_BATCH_VERTICES = 65536;
+            std::vector<Vertex2D> batch_vertices_;
+            PrimitiveType batch_primitive_ = PrimitiveType::triangles;
+            std::uint32_t batch_texture_ = 0;
+            std::uint32_t batch_program_ = 0;
         };
     }
 

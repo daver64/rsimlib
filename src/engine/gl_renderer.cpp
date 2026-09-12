@@ -128,10 +128,15 @@ namespace sl::detail
 
             void present() override
             {
+                flush_2d();
                 context_.present();
             }
 
-            void wait_idle() override { glFinish(); }
+            void wait_idle() override
+            {
+                flush_2d();
+                glFinish();
+            }
 
             bool begin_frame(std::string &) override { return true; }
             bool end_frame(std::string &) override { present(); return true; }
@@ -195,6 +200,10 @@ namespace sl::detail
             {
                 if (texture != 0)
                 {
+                    if (batch_texture_ == texture)
+                    {
+                        flush_2d();
+                    }
                     const GLuint handle = static_cast<GLuint>(texture);
                     glDeleteTextures(1, &handle);
                     texture_sizes_.erase(handle);
@@ -249,6 +258,7 @@ namespace sl::detail
 
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
             {
+                flush_2d();
                 if (framebuffer != 0)
                 {
                     const GLuint handle = static_cast<GLuint>(framebuffer);
@@ -262,6 +272,7 @@ namespace sl::detail
                 {
                     return false;
                 }
+                flush_2d();
                 RenderTargetState previous{};
                 glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous.framebuffer);
                 glGetIntegerv(GL_VIEWPORT, previous.viewport);
@@ -272,6 +283,7 @@ namespace sl::detail
             }
             bool end_render_target(std::string &) override
             {
+                flush_2d();
                 if (render_target_stack_.empty())
                 {
                     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -326,6 +338,9 @@ namespace sl::detail
 
             void shutdown_2d() override
             {
+                flush_2d();
+                batch_vertices_.clear();
+                batch_vertices_.shrink_to_fit();
                 if (vbo_ != 0) glDeleteBuffers(1, &vbo_);
                 if (vao_ != 0) glDeleteVertexArrays(1, &vao_);
                 vbo_ = 0; vao_ = 0;
@@ -333,28 +348,49 @@ namespace sl::detail
                 default_2d_shader_ = 0;
                 destroy_texture(white_texture_);
                 white_texture_ = 0;
+                active_2d_shader_ = 0;
+                last_2d_width_ = -1;
+                last_2d_height_ = -1;
+                last_offset_x_ = -1.0f;
+                last_offset_y_ = -1.0f;
+                premultiplied_alpha_ = false;
             }
 
             bool begin_2d(int width, int height) override
             {
                 if (!initialise_2d()) return false;
-                float projection[16] = {};
-                projection[0] = width > 0 ? 2.0f / width : 0.0f;
-                projection[5] = height > 0 ? -2.0f / height : 0.0f;
-                projection[10] = -1.0f;
-                projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
-                projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
-                projection[15] = 1.0f;
-                set_shader_mat4(default_2d_shader_, "uProjection", projection);
-                set_shader_int(default_2d_shader_, "uTexture", 0);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                glActiveTexture(GL_TEXTURE0);
+                const float off_x = detail::screen_offset_x();
+                const float off_y = detail::screen_offset_y();
+                if (active_2d_shader_ != default_2d_shader_ || last_2d_width_ != width || last_2d_height_ != height ||
+                    last_offset_x_ != off_x || last_offset_y_ != off_y)
+                {
+                    flush_2d();
+                    float projection[16] = {};
+                    projection[0] = width > 0 ? 2.0f / width : 0.0f;
+                    projection[5] = height > 0 ? -2.0f / height : 0.0f;
+                    projection[10] = -1.0f;
+                    projection[12] = -1.0f + (width > 0 ? 2.0f * off_x / width : 0.0f);
+                    projection[13] = 1.0f - (height > 0 ? 2.0f * off_y / height : 0.0f);
+                    projection[15] = 1.0f;
+                    use_shader(default_2d_shader_);
+                    set_shader_mat4(default_2d_shader_, "uProjection", projection);
+                    set_shader_int(default_2d_shader_, "uTexture", 0);
+                    glEnable(GL_BLEND);
+                    glBlendFunc(premultiplied_alpha_ ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    glActiveTexture(GL_TEXTURE0);
+                    active_2d_shader_ = default_2d_shader_;
+                    last_2d_width_ = width;
+                    last_2d_height_ = height;
+                    last_offset_x_ = off_x;
+                    last_offset_y_ = off_y;
+                }
                 return true;
             }
             bool begin_shader_2d(std::uint32_t program, int width, int height) override
             {
-                if (!initialise_2d() || !use_shader(program) || width <= 0 || height <= 0) return false;
+                if (!initialise_2d() || width <= 0 || height <= 0) return false;
+                flush_2d();
+                if (!use_shader(program)) return false;
                 float projection[16] = {};
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
@@ -367,28 +403,39 @@ namespace sl::detail
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 glActiveTexture(GL_TEXTURE0);
+                active_2d_shader_ = program;
+                last_2d_width_ = width;
+                last_2d_height_ = height;
+                last_offset_x_ = detail::screen_offset_x();
+                last_offset_y_ = detail::screen_offset_y();
                 return true;
             }
             void set_premultiplied_alpha(bool enabled) override
             {
-                glBlendFunc(enabled ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                if (premultiplied_alpha_ != enabled)
+                {
+                    flush_2d();
+                    premultiplied_alpha_ = enabled;
+                    glBlendFunc(enabled ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                }
             }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
+                flush_2d();
                 context_.clear(red, green, blue, alpha);
                 return true;
             }
 
-            void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            void flush_2d() override
             {
-                if (!vertices || count <= 0 || !initialise_2d()) return;
+                if (batch_vertices_.empty() || !initialise_2d()) return;
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture != 0 ? texture : white_texture_));
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(batch_texture_ != 0 ? batch_texture_ : white_texture_));
                 glBindVertexArray(vao_);
                 glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * count, vertices, GL_DYNAMIC_DRAW);
-                GLenum mode = GL_TRIANGLE_FAN;
-                switch (primitive_mode)
+                glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex2D) * batch_vertices_.size(), batch_vertices_.data(), GL_DYNAMIC_DRAW);
+                GLenum mode = GL_TRIANGLES;
+                switch (batch_primitive_)
                 {
                 case PrimitiveType::points: mode = GL_POINTS; break;
                 case PrimitiveType::lines: mode = GL_LINES; break;
@@ -396,8 +443,37 @@ namespace sl::detail
                 case PrimitiveType::triangles: mode = GL_TRIANGLES; break;
                 case PrimitiveType::triangle_fan: mode = GL_TRIANGLE_FAN; break;
                 }
-                glDrawArrays(mode, 0, count);
+                glDrawArrays(mode, 0, static_cast<GLsizei>(batch_vertices_.size()));
                 glBindVertexArray(0);
+                batch_vertices_.clear();
+            }
+
+            void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            {
+                if (!vertices || count <= 0 || !initialise_2d()) return;
+                const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
+                const PrimitiveType target_primitive = get_target_batch_primitive(primitive_mode);
+                const int new_vertex_count = get_decomposed_vertex_count(primitive_mode, count);
+                if (new_vertex_count <= 0) return;
+
+                if (!batch_vertices_.empty())
+                {
+                    if (batch_texture_ != resolved_texture ||
+                        batch_primitive_ != target_primitive ||
+                        batch_vertices_.size() + static_cast<std::size_t>(new_vertex_count) > MAX_BATCH_VERTICES)
+                    {
+                        flush_2d();
+                    }
+                }
+
+                if (batch_vertices_.empty())
+                {
+                    batch_texture_ = resolved_texture;
+                    batch_primitive_ = target_primitive;
+                }
+
+                PrimitiveType actual_primitive = batch_primitive_;
+                append_decomposed_vertices(primitive_mode, vertices, count, actual_primitive, batch_vertices_);
             }
 
             bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) override
@@ -419,13 +495,19 @@ namespace sl::detail
             }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
+                flush_2d();
                 glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, static_cast<GLuint>(buffer));
             }
             void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
             {
+                flush_2d();
                 glActiveTexture(GL_TEXTURE0 + unit); glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
             }
-            void storage_barrier() override { glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); }
+            void storage_barrier() override
+            {
+                flush_2d();
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            }
 
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                std::uint32_t &program, std::string &error) override
@@ -475,21 +557,40 @@ namespace sl::detail
 
             void destroy_shader(std::uint32_t program) override
             {
-                if (program != 0) glDeleteProgram(static_cast<GLuint>(program));
+                if (program != 0)
+                {
+                    if (active_2d_shader_ == program)
+                    {
+                        flush_2d();
+                        active_2d_shader_ = 0;
+                    }
+                    glDeleteProgram(static_cast<GLuint>(program));
+                }
             }
 
             bool use_shader(std::uint32_t program) override
             {
                 if (program == 0) return false;
+                if (active_2d_shader_ != program)
+                {
+                    flush_2d();
+                    active_2d_shader_ = program;
+                }
                 glUseProgram(static_cast<GLuint>(program));
                 return true;
             }
 
-            void stop_shader() override { glUseProgram(0); }
+            void stop_shader() override
+            {
+                flush_2d();
+                active_2d_shader_ = 0;
+                glUseProgram(0);
+            }
 
             bool dispatch_compute(std::uint32_t program, unsigned int groups_x,
                                   unsigned int groups_y, unsigned int groups_z) override
             {
+                flush_2d();
                 if (!use_shader(program)) return false;
                 glDispatchCompute(groups_x, groups_y, groups_z);
                 return true;
@@ -543,6 +644,8 @@ namespace sl::detail
                 return true;
             }
 
+            static constexpr std::size_t MAX_BATCH_VERTICES = 65536;
+
             GLContext context_;
             GLuint vao_ = 0;
             GLuint vbo_ = 0;
@@ -551,6 +654,16 @@ namespace sl::detail
             std::string shader_error_;
             std::unordered_map<GLuint, std::pair<int, int>> texture_sizes_;
             std::vector<RenderTargetState> render_target_stack_;
+
+            std::vector<Vertex2D> batch_vertices_;
+            PrimitiveType batch_primitive_ = PrimitiveType::triangles;
+            std::uint32_t batch_texture_ = 0;
+            bool premultiplied_alpha_ = false;
+            std::uint32_t active_2d_shader_ = 0;
+            int last_2d_width_ = -1;
+            int last_2d_height_ = -1;
+            float last_offset_x_ = -1.0f;
+            float last_offset_y_ = -1.0f;
         };
     }
 

@@ -52,4 +52,12 @@ namespace sl::detail
             renderer->submit_2d(mode, vertices, count, texture);
         }
     }
+
+    void gl2d_flush()
+    {
+        if (Renderer *renderer = active_renderer())
+        {
+            renderer->flush_2d();
+        }
+    }
 }

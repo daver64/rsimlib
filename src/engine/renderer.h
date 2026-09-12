@@ -85,6 +85,91 @@ namespace sl::detail
 
     using GLVertex = Vertex2D;
 
+    inline int get_decomposed_vertex_count(PrimitiveType input_primitive, int count)
+    {
+        if (count <= 0) return 0;
+        if (input_primitive == PrimitiveType::triangle_fan)
+        {
+            if (count == 4) return 6;
+            if (count == 3) return 3;
+            if (count > 4) return (count - 2) * 3;
+            return 0;
+        }
+        if (input_primitive == PrimitiveType::triangles) return count;
+        if (input_primitive == PrimitiveType::line_loop) return count > 1 ? count * 2 : 0;
+        if (input_primitive == PrimitiveType::lines) return count;
+        if (input_primitive == PrimitiveType::points) return count;
+        return count;
+    }
+
+    inline PrimitiveType get_target_batch_primitive(PrimitiveType input_primitive)
+    {
+        if (input_primitive == PrimitiveType::triangle_fan || input_primitive == PrimitiveType::triangles)
+            return PrimitiveType::triangles;
+        if (input_primitive == PrimitiveType::line_loop || input_primitive == PrimitiveType::lines)
+            return PrimitiveType::lines;
+        return PrimitiveType::points;
+    }
+
+    inline void append_decomposed_vertices(PrimitiveType input_primitive, const Vertex2D *vertices, int count,
+                                           PrimitiveType &out_batch_primitive, std::vector<Vertex2D> &out_batch_vertices)
+    {
+        if (!vertices || count <= 0) return;
+
+        if (input_primitive == PrimitiveType::triangle_fan)
+        {
+            out_batch_primitive = PrimitiveType::triangles;
+            if (count == 4)
+            {
+                const Vertex2D quad[6] = {
+                    vertices[0], vertices[1], vertices[2],
+                    vertices[0], vertices[2], vertices[3]
+                };
+                out_batch_vertices.insert(out_batch_vertices.end(), quad, quad + 6);
+            }
+            else if (count == 3)
+            {
+                out_batch_vertices.insert(out_batch_vertices.end(), vertices, vertices + 3);
+            }
+            else if (count > 4)
+            {
+                for (int i = 1; i < count - 1; ++i)
+                {
+                    out_batch_vertices.push_back(vertices[0]);
+                    out_batch_vertices.push_back(vertices[i]);
+                    out_batch_vertices.push_back(vertices[i + 1]);
+                }
+            }
+        }
+        else if (input_primitive == PrimitiveType::triangles)
+        {
+            out_batch_primitive = PrimitiveType::triangles;
+            out_batch_vertices.insert(out_batch_vertices.end(), vertices, vertices + count);
+        }
+        else if (input_primitive == PrimitiveType::line_loop)
+        {
+            out_batch_primitive = PrimitiveType::lines;
+            if (count > 1)
+            {
+                for (int i = 0; i < count; ++i)
+                {
+                    out_batch_vertices.push_back(vertices[i]);
+                    out_batch_vertices.push_back(vertices[(i + 1) % count]);
+                }
+            }
+        }
+        else if (input_primitive == PrimitiveType::lines)
+        {
+            out_batch_primitive = PrimitiveType::lines;
+            out_batch_vertices.insert(out_batch_vertices.end(), vertices, vertices + count);
+        }
+        else if (input_primitive == PrimitiveType::points)
+        {
+            out_batch_primitive = PrimitiveType::points;
+            out_batch_vertices.insert(out_batch_vertices.end(), vertices, vertices + count);
+        }
+    }
+
     /** Internal backend boundary for window/context and presentation ownership. */
     class Renderer
     {
@@ -166,6 +251,8 @@ namespace sl::detail
         /** Submit colored textured vertices using the backend's 2D pipeline. */
         virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,
                        int count, std::uint32_t texture) = 0;
+        /** Flush any batched 2D vertices to the GPU. */
+        virtual void flush_2d() {}
         /** Backend-neutral storage-buffer operations used by compute effects. */
         virtual bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) = 0;
         virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;

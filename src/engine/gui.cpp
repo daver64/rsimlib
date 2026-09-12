@@ -5,6 +5,7 @@
 #include "gui.h"
 
 #include "display.h"
+#include "gl2d.h"
 #include "renderer.h"
 #include "vulkan_context.h"
 
@@ -85,6 +86,7 @@ namespace sl
 
     void render()
     {
+        detail::gl2d_flush();
         ImGui::Render();
         if (graphics_backend() == GraphicsBackend::opengl)
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

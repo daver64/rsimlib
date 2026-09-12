@@ -28,6 +28,9 @@ namespace sl
          */
         void gl2d_submit(std::uint32_t primitiveMode, const Vertex2D *vertices, int count, std::uint32_t texture = 0);
 
+        /** Flush any accumulated 2D batched primitives to the GPU. */
+        void gl2d_flush();
+
         /** Compute a top-left-origin orthographic projection matrix (column-major, 16 floats). */
         void gl2d_ortho_matrix(int windowWidth, int windowHeight, float *outMatrix16);
 

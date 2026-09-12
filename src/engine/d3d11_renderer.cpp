@@ -94,7 +94,11 @@ namespace sl::detail
             }
             bool set_vsync(bool enabled) override { vsync_enabled_ = enabled; return true; }
             bool vsync_active() const override { return vsync_enabled_; }
-            void present() override { context_.present(vsync_enabled_); }
+            void present() override
+            {
+                flush_2d();
+                context_.present(vsync_enabled_);
+            }
             bool begin_frame(std::string &) override { return context_.is_valid(); }
             bool end_frame(std::string &) override { present(); return true; }
             SDL_GLContext native_context() const override { return nullptr; }
@@ -146,6 +150,10 @@ namespace sl::detail
             }
             void destroy_texture(std::uint32_t texture) override
             {
+                if (batch_texture_ == texture)
+                {
+                    flush_2d();
+                }
                 const auto iterator = textures_.find(texture);
                 if (iterator != textures_.end())
                 {
@@ -171,6 +179,7 @@ namespace sl::detail
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
             {
+                flush_2d();
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator != render_targets_.end())
                 {
@@ -181,6 +190,7 @@ namespace sl::detail
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
             {
+                flush_2d();
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end() || width <= 0 || height <= 0)
                 {
@@ -192,6 +202,7 @@ namespace sl::detail
             }
             bool end_render_target(std::string &) override
             {
+                flush_2d();
                 context_.bind_backbuffer();
                 return true;
             }
@@ -263,6 +274,9 @@ namespace sl::detail
             }
             void shutdown_2d() override
             {
+                flush_2d();
+                batch_vertices_.clear();
+                batch_vertices_.shrink_to_fit();
                 if (projection_buffer_) projection_buffer_->Release();
                 if (input_layout_) input_layout_->Release();
                 if (pixel_shader_) pixel_shader_->Release();
@@ -276,6 +290,7 @@ namespace sl::detail
             bool begin_2d(int width, int height) override
             {
                 if (!initialise_2d()) return false;
+                flush_2d();
                 D3D11_MAPPED_SUBRESOURCE mapped{};
                 if (FAILED(context_.context()->Map(projection_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
                 float projection[16] = {width > 0 ? 2.0f / width : 0.0f, 0, 0, 0, 0,
@@ -292,37 +307,75 @@ namespace sl::detail
             void set_premultiplied_alpha(bool) override {}
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
+                flush_2d();
                 context_.clear(red, green, blue, alpha);
                 return true;
             }
-            void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            void flush_2d() override
             {
-                if (!vertices || count <= 0 || !initialise_2d()) return;
+                if (batch_vertices_.empty() || !initialise_2d()) return;
+                const int count = static_cast<int>(batch_vertices_.size());
                 if (!vertex_buffer_ || vertex_capacity_ < static_cast<std::size_t>(count))
                 {
                     if (vertex_buffer_) vertex_buffer_->Release();
                     D3D11_BUFFER_DESC desc{static_cast<UINT>(sizeof(Vertex2D) * count), D3D11_USAGE_DYNAMIC,
                         D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
-                    if (FAILED(context_.device()->CreateBuffer(&desc, nullptr, &vertex_buffer_))) return;
+                    if (FAILED(context_.device()->CreateBuffer(&desc, nullptr, &vertex_buffer_)))
+                    {
+                        batch_vertices_.clear();
+                        return;
+                    }
                     vertex_capacity_ = static_cast<std::size_t>(count);
                 }
                 D3D11_MAPPED_SUBRESOURCE mapped{};
-                if (FAILED(context_.context()->Map(vertex_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
-                std::memcpy(mapped.pData, vertices, sizeof(Vertex2D) * count);
+                if (FAILED(context_.context()->Map(vertex_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                std::memcpy(mapped.pData, batch_vertices_.data(), sizeof(Vertex2D) * count);
                 context_.context()->Unmap(vertex_buffer_, 0);
-                const auto iterator = textures_.find(texture != 0 ? texture : white_texture_);
+                const auto iterator = textures_.find(batch_texture_ != 0 ? batch_texture_ : white_texture_);
                 ID3D11ShaderResourceView *view = iterator == textures_.end() ? nullptr : iterator->second.view;
                 ID3D11SamplerState *sampler = iterator == textures_.end() ? nullptr : iterator->second.sampler;
                 UINT stride = sizeof(Vertex2D), offset = 0;
                 context_.context()->IASetVertexBuffers(0, 1, &vertex_buffer_, &stride, &offset);
                 context_.context()->PSSetShaderResources(0, 1, &view);
                 context_.context()->PSSetSamplers(0, 1, &sampler);
-                D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-                if (primitive_mode == PrimitiveType::points) topology = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
-                else if (primitive_mode == PrimitiveType::lines) topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
-                else if (primitive_mode == PrimitiveType::triangles) topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                if (batch_primitive_ == PrimitiveType::points) topology = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+                else if (batch_primitive_ == PrimitiveType::lines) topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
+                else if (batch_primitive_ == PrimitiveType::triangles) topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
                 context_.context()->IASetPrimitiveTopology(topology);
                 context_.context()->Draw(static_cast<UINT>(count), 0);
+                batch_vertices_.clear();
+            }
+            void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
+            {
+                if (!vertices || count <= 0 || !initialise_2d()) return;
+                const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
+                const PrimitiveType target_primitive = get_target_batch_primitive(primitive_mode);
+                const int new_vertex_count = get_decomposed_vertex_count(primitive_mode, count);
+                if (new_vertex_count <= 0) return;
+
+                if (!batch_vertices_.empty())
+                {
+                    if (batch_texture_ != resolved_texture ||
+                        batch_primitive_ != target_primitive ||
+                        batch_vertices_.size() + static_cast<std::size_t>(new_vertex_count) > MAX_BATCH_VERTICES)
+                    {
+                        flush_2d();
+                    }
+                }
+
+                if (batch_vertices_.empty())
+                {
+                    batch_texture_ = resolved_texture;
+                    batch_primitive_ = target_primitive;
+                }
+
+                PrimitiveType actual_primitive = batch_primitive_;
+                append_decomposed_vertices(primitive_mode, vertices, count, actual_primitive, batch_vertices_);
             }
             bool create_storage_buffer(std::size_t, std::uint32_t &) override { return unsupported(); }
             void destroy_storage_buffer(std::uint32_t) override {}
@@ -353,6 +406,11 @@ namespace sl::detail
             ID3D11Buffer *vertex_buffer_ = nullptr;
             std::size_t vertex_capacity_ = 0;
             std::uint32_t white_texture_ = 0;
+
+            static constexpr std::size_t MAX_BATCH_VERTICES = 65536;
+            std::vector<Vertex2D> batch_vertices_;
+            PrimitiveType batch_primitive_ = PrimitiveType::triangles;
+            std::uint32_t batch_texture_ = 0;
         };
     }
 
