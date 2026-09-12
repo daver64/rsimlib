@@ -84,10 +84,17 @@ The engine simulates a grid of cells ($200 \times 150$ scaled $4\times$ to $800 
 
 1. **Submersion Sampling**:
    Each frame, the bounding box of every dynamic Box2D body is sampled against the underlying cellular grid:
-   $$\text{submerged\_ratio} = \frac{\text{cells}_{\text{liquid}}}{\text{cells}_{\text{total}}}$$
+
+   $$
+   \text{submerged\_ratio} = \frac{\text{cells}_{\text{liquid}}}{\text{cells}_{\text{total}}}
+   $$
 
 2. **Archimedes Buoyancy Force**:
-   $$\vec{F}_{\text{buoyancy}} = \text{submerged\_ratio} \cdot \bar{\rho}_{\text{fluid}} \cdot (\text{width} \cdot \text{height} \cdot g) \cdot \hat{j}$$
+
+   $$
+   \mathbf{F}_{\text{buoyancy}} = \text{submerged\_ratio} \cdot \bar{\rho}_{\text{fluid}} \cdot (\text{width} \cdot \text{height} \cdot g) \cdot \mathbf{\hat{j}}
+   $$
+
    - Wooden crates ($\rho = 0.45$) float stably on water and oil.
    - Metal barrels ($\rho = 2.4$) sink in water and float only in dense lava.
    - Crates bob and equalize realistically in U-tube channels.
