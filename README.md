@@ -3,12 +3,47 @@
 `simlib` is an easy-to-use, feature-packed Allegro4-style 2D game framework and rendering engine built on
 SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines nostalgic, immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, SQLite database persistence (`rdb`), and sandboxed Lua scripting via [sol2](https://github.com/ThePhD/sol2).
 
-### `excafluid` sandbox demo
-
-Cellular Automata fluid, granular falling sand, fire/smoke dynamics, interactive Box2D rigid bodies with Archimedes buoyancy, and dynamic spotlight illumination:
-
 
 https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
+
+## Quick start
+
+A minimal application only needs `sl.h`, which pulls in the whole public API:
+
+```cpp
+#include "sl.h"
+
+int main()
+{
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
+    {
+        return -1;
+    }
+    sl::Event event;
+    bool running = true;
+    while (running)
+    {
+        while (sl::poll_event(&event))
+        {
+            if (event.type() == sl::Event::Type::quit)
+                running = false;
+            sl::display_handle_event(event);
+        }
+
+        sl::clear_to_colour(sl::screen, sl::Colour{146, 200, 62});
+        // ... draw your frame ...
+        sl::show_video_bitmap();
+        sl::end_frame();
+    }
+}
+```
+
+Link your CMake target against the `simlib` library target:
+
+```cmake
+add_executable(my_app src/my_app.cpp)
+target_link_libraries(my_app PRIVATE simlib)
+```
 
 
 This repository contains:
@@ -26,32 +61,6 @@ Create the archive used by `exresources` from the repository root with:
 ./slpack resource_demo.zip assets
 ./exresources resource_demo.zip
 ```
-
-### Example programs
-
-- **`exhello`** — window setup, frame presentation, clearing, and basic text via `set_gfx_mode()`, `clear_to_colour()`, and `gprintf_center()`.
-- **`exfont`** — TrueType loading, font selection, measurement, and text rendering.
-- **`extriangle`** — immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
-- **`exrotatesprite`** — bitmap loading, sprite rotation, scaling, and frame timing.
-- **`exbitmap`** — bitmap creation, pixel access, blitting, and image loading.
-- **`exlighting`** — render targets, radial lights, shadow casters, and `LightingPass`.
-- **`exphysics`** — Box2D world/body/fixture creation, stepping, and contact polling.
-- **`exvulkan`** — backend selection, textured sprites, render targets, and Bloom.
-- **`exlua`** — Lua runtime setup and execution through the sol2 bindings.
-- **`exluaconsole`** — interactive Lua command input, output, and console integration.
-- **`exdb`** — SQLite transactions, prepared statements, bound parameters, queries, and display through `rdb::Database`.
-- **`exshader`** — file-based GLSL loading, runtime compilation, texture upload, and `Shader::draw_textured_quad()`.
-- **`exrendertarget`** — off-screen rendering, render-target lifetime, and compositing.
-- **`exaudio`** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
-- **`exinput`** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
-- **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
-- **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
-- **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`exatlas`** — texture atlas slicing, tile index mapping, sub-rectangle calculation, and interactive sprite grid rendering.
-- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
-- **`excafluid`** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
-- **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
-- **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
 ## Graphics effects
 
@@ -313,6 +322,7 @@ To run the test suite:
 ```bash
 ctest --test-dir build
 ```
+### Example programs
 
 ## Running the examples
 
@@ -344,44 +354,33 @@ In `sltest`, press `4` from the menu to open the embedded Lua console —
 type `quit()` to exit, `os.clock()` / `os.time()` for the sandboxed clock,
 or press `ESC` to return to the menu.
 
-## Quick start
 
-A minimal application only needs `sl.h`, which pulls in the whole public API:
+- **`exhello`** — window setup, frame presentation, clearing, and basic text via `set_gfx_mode()`, `clear_to_colour()`, and `gprintf_center()`.
+- **`exfont`** — TrueType loading, font selection, measurement, and text rendering.
+- **`extriangle`** — immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
+- **`exrotatesprite`** — bitmap loading, sprite rotation, scaling, and frame timing.
+- **`exbitmap`** — bitmap creation, pixel access, blitting, and image loading.
+- **`exlighting`** — render targets, radial lights, shadow casters, and `LightingPass`.
+- **`exphysics`** — Box2D world/body/fixture creation, stepping, and contact polling.
+- **`exvulkan`** — backend selection, textured sprites, render targets, and Bloom.
+- **`exlua`** — Lua runtime setup and execution through the sol2 bindings.
+- **`exluaconsole`** — interactive Lua command input, output, and console integration.
+- **`exdb`** — SQLite transactions, prepared statements, bound parameters, queries, and display through `rdb::Database`.
+- **`exshader`** — file-based GLSL loading, runtime compilation, texture upload, and `Shader::draw_textured_quad()`.
+- **`exrendertarget`** — off-screen rendering, render-target lifetime, and compositing.
+- **`exaudio`** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
+- **`exinput`** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
+- **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
+- **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
+- **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
+- **`exatlas`** — texture atlas slicing, tile index mapping, sub-rectangle calculation, and interactive sprite grid rendering.
+- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
+- **`excafluid`** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
+- **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
+- **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
-```cpp
-#include "sl.h"
 
-int main()
-{
-    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
-    {
-        return -1;
-    }
-    sl::Event event;
-    bool running = true;
-    while (running)
-    {
-        while (sl::poll_event(&event))
-        {
-            if (event.type() == sl::Event::Type::quit)
-                running = false;
-            sl::display_handle_event(event);
-        }
 
-        sl::clear_to_colour(sl::screen, sl::Colour{146, 200, 62});
-        // ... draw your frame ...
-        sl::show_video_bitmap();
-        sl::end_frame();
-    }
-}
-```
-
-Link your CMake target against the `simlib` library target:
-
-```cmake
-add_executable(my_app src/my_app.cpp)
-target_link_libraries(my_app PRIVATE simlib)
-```
 
 ## Core API reference
 
