@@ -313,12 +313,11 @@ To run the test suite:
 ```bash
 ctest --test-dir build
 ```
-### Example programs
 
 ## Running the examples
-[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)
+
 ```bash
-`./exhello`(src/examples/exhello/exhello.cpp) # every graphical example also accepts --gl or --vulkan
+./exhello # every graphical example also accepts --gl or --vulkan
 ./exfont  # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
@@ -345,30 +344,31 @@ In `sltest`, press `4` from the menu to open the embedded Lua console —
 type `quit()` to exit, `os.clock()` / `os.time()` for the sandboxed clock,
 or press `ESC` to return to the menu.
 
+### Example programs
 
-- **`exhello`** — window setup, frame presentation, clearing, and basic text via `set_gfx_mode()`, `clear_to_colour()`, and `gprintf_center()`.
-- **`exfont`** — TrueType loading, font selection, measurement, and text rendering.
-- **`extriangle`** — immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
-- **`exrotatesprite`** — bitmap loading, sprite rotation, scaling, and frame timing.
-- **`exbitmap`** — bitmap creation, pixel access, blitting, and image loading.
-- **`exlighting`** — render targets, radial lights, shadow casters, and `LightingPass`.
-- **`exphysics`** — Box2D world/body/fixture creation, stepping, and contact polling.
-- **`exvulkan`** — backend selection, textured sprites, render targets, and Bloom.
-- **`exlua`** — Lua runtime setup and execution through the sol2 bindings.
-- **`exluaconsole`** — interactive Lua command input, output, and console integration.
-- **`exdb`** — SQLite transactions, prepared statements, bound parameters, queries, and display through `rdb::Database`.
-- **`exshader`** — file-based GLSL loading, runtime compilation, texture upload, and `Shader::draw_textured_quad()`.
-- **`exrendertarget`** — off-screen rendering, render-target lifetime, and compositing.
-- **`exaudio`** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
-- **`exinput`** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
-- **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
-- **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
-- **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
-- **`exatlas`** — texture atlas slicing, tile index mapping, sub-rectangle calculation, and interactive sprite grid rendering.
-- **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
-- **`excafluid`** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
-- **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
-- **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
+- **[`exhello`](src/examples/exhello/exhello.cpp)** — window setup, frame presentation, clearing, and basic text via `set_gfx_mode()`, `clear_to_colour()`, and `gprintf_center()`.
+- **[`exfont`](src/examples/exfont/exfont.cpp)** — TrueType loading, font selection, measurement, and text rendering.
+- **[`extriangle`](src/examples/extriangle/extriangle.cpp)** — immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
+- **[`exrotatesprite`](src/examples/exrotatesprite/exrotatesprite.cpp)** — bitmap loading, sprite rotation, scaling, and frame timing.
+- **[`exbitmap`](src/examples/exbitmap/exbitmap.cpp)** — bitmap creation, pixel access, blitting, and image loading.
+- **[`exlighting`](src/examples/exlighting/exlighting.cpp)** — render targets, radial lights, shadow casters, and `LightingPass`.
+- **[`exphysics`](src/examples/exphysics/exphysics.cpp)** — Box2D world/body/fixture creation, stepping, and contact polling.
+- **[`exvulkan`](src/examples/exvulkan/exvulkan.cpp)** — backend selection, textured sprites, render targets, and Bloom.
+- **[`exlua`](src/examples/exlua/exlua.cpp)** — Lua runtime setup and execution through the sol2 bindings.
+- **[`exluaconsole`](src/examples/exluaconsole/exluaconsole.cpp)** — interactive Lua command input, output, and console integration.
+- **[`exdb`](src/examples/exdb/exdb.cpp)** — SQLite transactions, prepared statements, bound parameters, queries, and display through `rdb::Database`.
+- **[`exshader`](src/examples/exshader/exshader.cpp)** — file-based GLSL loading, runtime compilation, texture upload, and `Shader::draw_textured_quad()`.
+- **[`exrendertarget`](src/examples/exrendertarget/exrendertarget.cpp)** — off-screen rendering, render-target lifetime, and compositing.
+- **[`exaudio`](src/examples/exaudio/exaudio.cpp)** — SDL_mixer sound effects, streamed music, pause/resume, and volume control.
+- **[`exinput`](src/examples/exinput/exinput.cpp)** — held keyboard state, mouse state, normalized gamepad axes/buttons, and hotplug events.
+- **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
+- **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
+- **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
+- **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — texture atlas slicing, tile index mapping, sub-rectangle calculation, and interactive sprite grid rendering.
+- **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
+- **[`excafluid`](src/examples/excafluid/excafluid.cpp)** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
+- **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
+- **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
 
 
