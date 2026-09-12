@@ -104,12 +104,23 @@ namespace
         SimulationGrid()
         {
             cells_.resize(GRID_W * GRID_H);
+            simulation_ = sl::create_fluid_simulation(GRID_W, GRID_H);
             rng_.seed(1337);
             init_bounds();
         }
 
+        ~SimulationGrid()
+        {
+            if (simulation_)
+            {
+                sl::destroy_fluid_simulation(simulation_);
+                simulation_ = nullptr;
+            }
+        }
+
         void clear()
         {
+            if (!simulation_) return;
             for (int y = 0; y < GRID_H; ++y)
             {
                 for (int x = 0; x < GRID_W; ++x)
@@ -123,11 +134,13 @@ namespace
                     c.turn = 0;
                 }
             }
+            sl::fluid_clear(simulation_);
             init_bounds();
         }
 
         void init_bounds()
         {
+            if (!simulation_) return;
             // Outer bounding walls
             for (int x = 0; x < GRID_W; ++x)
             {
@@ -442,6 +455,12 @@ namespace
             c.life = life > 0 ? life : (type == ElementType::Fire ? 50 : (type == ElementType::Smoke || type == ElementType::Steam ? 60 : 0));
             c.variation = static_cast<std::int8_t>((rng_() % 21) - 10);
             c.turn = current_turn_;
+
+            // Sync to engine
+            if (simulation_)
+            {
+                sl::fluid_set_cell(simulation_, x, y, static_cast<sl::FluidElement>(type), c.mass, c.temp, c.life, c.variation);
+            }
         }
 
         void paint(int cx, int cy, ElementType type, int radius)
@@ -548,59 +567,32 @@ namespace
 
         void update(sl::PhysicsWorld *physics)
         {
-            ++current_turn_;
+            if (!simulation_) return;
 
-            const bool scan_left_to_right = (current_turn_ % 2 == 0);
+            // Run the core CA simulation from the engine
+            sl::fluid_step(simulation_);
 
-            for (int y = GRID_H - 2; y >= 1; --y)
+            // Sync engine state to local buffer for rendering only
+            sync_from_engine();
+
+            current_turn_ = sl::fluid_turn(simulation_);
+        }
+
+        void sync_from_engine()
+        {
+            if (!simulation_) return;
+            for (int y = 0; y < GRID_H; ++y)
             {
-                const int x_start = scan_left_to_right ? 1 : GRID_W - 2;
-                const int x_end = scan_left_to_right ? GRID_W - 1 : 0;
-                const int x_step = scan_left_to_right ? 1 : -1;
-
-                for (int x = x_start; x != x_end; x += x_step)
+                for (int x = 0; x < GRID_W; ++x)
                 {
-                    Cell &cell = at(x, y);
-                    if (cell.type == ElementType::Empty || cell.type == ElementType::Solid || cell.turn == current_turn_)
-                    {
-                        continue;
-                    }
-
-                    // 1. Thermal conduction & convection simulation
-                    update_heat(x, y);
-
-                    // 2. Element specific physical movement and chemical reaction
-                    switch (cell.type)
-                    {
-                    case ElementType::Sand:
-                    case ElementType::Gunpowder:
-                        update_powder(x, y);
-                        break;
-                    case ElementType::Water:
-                    case ElementType::Oil:
-                    case ElementType::Acid:
-                    case ElementType::Lava:
-                        update_liquid(x, y);
-                        break;
-                    case ElementType::Plant:
-                        update_plant(x, y);
-                        break;
-                    case ElementType::Pump:
-                        update_pump(x, y);
-                        break;
-                    case ElementType::Fire:
-                        update_fire(x, y, physics);
-                        break;
-                    case ElementType::Smoke:
-                    case ElementType::Steam:
-                        update_gas(x, y);
-                        break;
-                    case ElementType::Wood:
-                        update_wood(x, y);
-                        break;
-                    default:
-                        break;
-                    }
+                    const sl::FluidCell &fc = sl::fluid_get_cell(simulation_, x, y);
+                    Cell &c = at(x, y);
+                    c.type = static_cast<ElementType>(fc.type);
+                    c.mass = fc.mass;
+                    c.temp = fc.temp;
+                    c.life = fc.life;
+                    c.variation = fc.variation;
+                    c.turn = fc.turn;
                 }
             }
         }
@@ -694,401 +686,8 @@ namespace
         std::uint32_t current_turn() const { return current_turn_; }
 
     private:
-        void update_heat(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            if (cell.temp <= 20.0f && cell.type != ElementType::Fire && cell.type != ElementType::Lava) return;
-
-            const int dxs[] = {0, -1, 1, 0};
-            const int dys[] = {-1, 0, 0, 1}; // -1 is UP
-            const float weights[] = {0.40f, 0.15f, 0.15f, 0.05f}; // Upward convection bias
-
-            for (int i = 0; i < 4; ++i)
-            {
-                const int nx = x + dxs[i];
-                const int ny = y + dys[i];
-                if (nx <= 0 || nx >= GRID_W - 1 || ny <= 0 || ny >= GRID_H - 1) continue;
-
-                Cell &neigh = at(nx, ny);
-                if (neigh.type == ElementType::Solid) continue;
-
-                const float diff = cell.temp - neigh.temp;
-                if (diff > 0.0f)
-                {
-                    const float transfer = diff * weights[i] * 0.5f;
-                    cell.temp -= transfer;
-                    neigh.temp += transfer;
-
-                    if (ELEMENT_PROPERTIES[static_cast<std::size_t>(neigh.type)].flammable &&
-                        neigh.temp >= ELEMENT_PROPERTIES[static_cast<std::size_t>(neigh.type)].flashpoint)
-                    {
-                        if (neigh.type == ElementType::Gunpowder)
-                        {
-                            trigger_explosion(nx, ny, 14, nullptr);
-                        }
-                        else
-                        {
-                            neigh.type = ElementType::Fire;
-                            neigh.life = 60;
-                            neigh.temp = std::max(neigh.temp, 500.0f);
-                        }
-                    }
-                }
-            }
-
-            if (cell.type != ElementType::Fire && cell.type != ElementType::Lava)
-            {
-                cell.temp += (20.0f - cell.temp) * 0.02f;
-            }
-        }
-
-        void update_powder(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-
-            const int down_y = y + 1;
-            if (down_y >= GRID_H - 1) return;
-
-            Cell &below = at(x, down_y);
-            if (can_powder_displace(below.type))
-            {
-                swap_cells(x, y, x, down_y);
-                return;
-            }
-
-            const bool try_left_first = (rng_() % 2 == 0);
-            const int dx1 = try_left_first ? -1 : 1;
-            const int dx2 = -dx1;
-
-            if (can_powder_displace(get(x + dx1, down_y).type) && can_powder_pass_through(get(x + dx1, y).type))
-            {
-                swap_cells(x, y, x + dx1, down_y);
-                return;
-            }
-            if (can_powder_displace(get(x + dx2, down_y).type) && can_powder_pass_through(get(x + dx2, y).type))
-            {
-                swap_cells(x, y, x + dx2, down_y);
-                return;
-            }
-        }
-
-        bool can_powder_displace(ElementType target) const
-        {
-            return target == ElementType::Empty || target == ElementType::Water ||
-                   target == ElementType::Oil || target == ElementType::Acid ||
-                   target == ElementType::Smoke || target == ElementType::Steam ||
-                   target == ElementType::Fire;
-        }
-
-        bool can_powder_pass_through(ElementType target) const
-        {
-            return target == ElementType::Empty || target == ElementType::Water ||
-                   target == ElementType::Oil || target == ElementType::Acid ||
-                   target == ElementType::Smoke || target == ElementType::Steam ||
-                   target == ElementType::Fire;
-        }
-
-        void update_liquid(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-
-            // 1. Lava Reactions (Molten rock melts organics, vaporizes water into stone)
-            if (cell.type == ElementType::Lava)
-            {
-                const int ncoords[4][2] = {{x, y + 1}, {x - 1, y}, {x + 1, y}, {x, y - 1}};
-                for (const auto &coord : ncoords)
-                {
-                    Cell &n = at(coord[0], coord[1]);
-                    if (n.type == ElementType::Water)
-                    {
-                        cell.type = ElementType::Solid;
-                        cell.temp = 300.0f;
-                        n.type = ElementType::Steam;
-                        n.life = 60;
-                        return;
-                    }
-                    else if (n.type == ElementType::Wood || n.type == ElementType::Plant || n.type == ElementType::Oil)
-                    {
-                        n.type = ElementType::Fire;
-                        n.life = 70;
-                        n.temp = 800.0f;
-                    }
-                    else if (n.type == ElementType::Gunpowder)
-                    {
-                        trigger_explosion(coord[0], coord[1], 15, nullptr);
-                        return;
-                    }
-                }
-            }
-
-            // 2. Acid Chemistry (Corrodes wood/plants/sand/stone)
-            if (cell.type == ElementType::Acid)
-            {
-                const int ncoords[4][2] = {{x, y + 1}, {x - 1, y}, {x + 1, y}, {x, y - 1}};
-                for (const auto &coord : ncoords)
-                {
-                    Cell &n = at(coord[0], coord[1]);
-                    if (n.type == ElementType::Wood || n.type == ElementType::Plant || n.type == ElementType::Sand ||
-                        (n.type == ElementType::Solid && coord[0] > 1 && coord[0] < GRID_W - 2 && coord[1] > 1 && coord[1] < GRID_H - 2))
-                    {
-                        if (rng_() % 3 == 0)
-                        {
-                            n.type = ElementType::Smoke;
-                            n.life = 35;
-                            cell.type = ElementType::Empty;
-                            cell.mass = 0.0f;
-                            return;
-                        }
-                    }
-                }
-            }
-
-            // 3. Tom Forsyth Compressible Liquid Model
-            const int down_y = y + 1;
-            if (down_y >= GRID_H - 1) return;
-
-            Cell &below = at(x, down_y);
-            if (below.type == ElementType::Empty)
-            {
-                swap_cells(x, y, x, down_y);
-                return;
-            }
-            if (below.type == ElementType::Fire)
-            {
-                below.type = ElementType::Steam;
-                below.life = 40;
-                cell.type = ElementType::Empty;
-                cell.mass = 0.0f;
-                return;
-            }
-            if (ELEMENT_PROPERTIES[static_cast<std::size_t>(below.type)].is_liquid &&
-                ELEMENT_PROPERTIES[static_cast<std::size_t>(below.type)].density < ELEMENT_PROPERTIES[static_cast<std::size_t>(cell.type)].density)
-            {
-                swap_cells(x, y, x, down_y);
-                return;
-            }
-
-            const bool try_left_first = ((x + y + current_turn_) % 2 == 0);
-            const int dx1 = try_left_first ? -1 : 1;
-            const int dx2 = -dx1;
-
-            if (at(x + dx1, down_y).type == ElementType::Empty && at(x + dx1, y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, x + dx1, down_y);
-                return;
-            }
-            if (at(x + dx2, down_y).type == ElementType::Empty && at(x + dx2, y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, x + dx2, down_y);
-                return;
-            }
-
-            const int flow_chance = (cell.type == ElementType::Lava) ? 2 : 1;
-            if (current_turn_ % flow_chance == 0)
-            {
-                if (at(x + dx1, y).type == ElementType::Empty)
-                {
-                    swap_cells(x, y, x + dx1, y);
-                    return;
-                }
-                if (at(x + dx2, y).type == ElementType::Empty)
-                {
-                    swap_cells(x, y, x + dx2, y);
-                    return;
-                }
-            }
-
-            if (cell.type == ElementType::Water && cell.mass > 0.8f)
-            {
-                for (int dir : {dx1, dx2})
-                {
-                    Cell &side = at(x + dir, y);
-                    if (side.type == ElementType::Water && side.mass < cell.mass - 0.05f)
-                    {
-                        const float flow = (cell.mass - side.mass) * 0.25f;
-                        cell.mass -= flow;
-                        side.mass += flow;
-                        return;
-                    }
-                }
-            }
-        }
-
-        void update_plant(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-
-            const int ncoords[4][2] = {{x, y - 1}, {x - 1, y}, {x + 1, y}, {x, y + 1}};
-            for (const auto &coord : ncoords)
-            {
-                Cell &n = at(coord[0], coord[1]);
-                if (n.type == ElementType::Water)
-                {
-                    n.type = ElementType::Empty;
-                    n.mass = 0.0f;
-
-                    const int offset_x = static_cast<int>(rng_() % 3) - 1;
-                    const int gx = std::clamp(x + offset_x, 1, GRID_W - 2);
-                    const int gy = std::max(1, y - 1);
-                    if (at(gx, gy).type == ElementType::Empty)
-                    {
-                        set(gx, gy, ElementType::Plant);
-                    }
-                    return;
-                }
-            }
-        }
-
-        void update_pump(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-
-            const int below_y = y + 1;
-            const int above_y = y - 1;
-            if (below_y < GRID_H - 1 && above_y > 0)
-            {
-                Cell &source_cell = at(x, below_y);
-                Cell &dest_cell = at(x, above_y);
-
-                if (dest_cell.type == ElementType::Empty &&
-                    (source_cell.type == ElementType::Water || source_cell.type == ElementType::Oil ||
-                     source_cell.type == ElementType::Acid || source_cell.type == ElementType::Sand ||
-                     source_cell.type == ElementType::Gunpowder || source_cell.type == ElementType::Smoke))
-                {
-                    dest_cell = source_cell;
-                    dest_cell.turn = current_turn_;
-                    source_cell.type = ElementType::Empty;
-                    source_cell.mass = 0.0f;
-                }
-            }
-        }
-
-        void update_fire(int x, int y, sl::PhysicsWorld *physics)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-            cell.temp = std::max(cell.temp, 650.0f);
-
-            if (cell.life == 0)
-            {
-                if (rng_() % 3 == 0)
-                {
-                    cell.type = ElementType::Smoke;
-                    cell.life = 40;
-                }
-                else
-                {
-                    cell.type = ElementType::Empty;
-                    cell.mass = 0.0f;
-                }
-                return;
-            }
-            --cell.life;
-
-            const int ncoords[4][2] = {{x, y - 1}, {x - 1, y}, {x + 1, y}, {x, y + 1}};
-            for (const auto &coord : ncoords)
-            {
-                Cell &n = at(coord[0], coord[1]);
-                if (n.type == ElementType::Oil || n.type == ElementType::Plant)
-                {
-                    n.type = ElementType::Fire;
-                    n.life = 70;
-                    n.temp = 800.0f;
-                }
-                else if (n.type == ElementType::Gunpowder)
-                {
-                    trigger_explosion(coord[0], coord[1], 15, physics);
-                    return;
-                }
-                else if (n.type == ElementType::Wood)
-                {
-                    if (rng_() % 5 == 0)
-                    {
-                        n.type = ElementType::Fire;
-                        n.life = 90;
-                        n.temp = 500.0f;
-                    }
-                }
-                else if (n.type == ElementType::Water)
-                {
-                    cell.type = ElementType::Steam;
-                    cell.life = 50;
-                    return;
-                }
-            }
-
-            const int up_y = y - 1;
-            if (up_y > 0 && rng_() % 3 == 0)
-            {
-                const int drift_x = x + (static_cast<int>(rng_() % 3) - 1);
-                if (drift_x > 0 && drift_x < GRID_W - 1 && at(drift_x, up_y).type == ElementType::Empty)
-                {
-                    swap_cells(x, y, drift_x, up_y);
-                }
-            }
-        }
-
-        void update_gas(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            cell.turn = current_turn_;
-
-            if (cell.life == 0)
-            {
-                cell.type = ElementType::Empty;
-                cell.mass = 0.0f;
-                return;
-            }
-            --cell.life;
-
-            const int up_y = y - 1;
-            if (up_y <= 0)
-            {
-                cell.type = ElementType::Empty;
-                return;
-            }
-
-            const int dx = static_cast<int>(rng_() % 3) - 1;
-            const int target_x = std::clamp(x + dx, 1, GRID_W - 2);
-
-            if (at(target_x, up_y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, target_x, up_y);
-            }
-            else if (at(x, up_y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, x, up_y);
-            }
-            else if (at(target_x, y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, target_x, y);
-            }
-        }
-
-        void update_wood(int x, int y)
-        {
-            Cell &cell = at(x, y);
-            if (cell.temp > 220.0f && (rng_() % 6 == 0))
-            {
-                cell.type = ElementType::Fire;
-                cell.life = 80;
-            }
-        }
-
-        void swap_cells(int x1, int y1, int x2, int y2)
-        {
-            Cell temp = at(x1, y1);
-            at(x1, y1) = at(x2, y2);
-            at(x2, y2) = temp;
-            at(x1, y1).turn = current_turn_;
-            at(x2, y2).turn = current_turn_;
-        }
-
         std::vector<Cell> cells_;
+        sl::FluidSimulation *simulation_ = nullptr;
         std::uint32_t current_turn_ = 0;
         std::mt19937 rng_;
         std::vector<sl::PhysicsBody *> static_bodies_;

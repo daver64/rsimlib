@@ -240,6 +240,7 @@ add_library(simlib STATIC
     src/engine/resource.cpp
     src/engine/config.cpp
     src/engine/noise.cpp
+    src/engine/fluid.cpp
     src/engine/gui.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
