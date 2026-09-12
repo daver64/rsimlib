@@ -163,6 +163,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 
 ---
 
+
 ## Documentation Generation
 
 If Doxygen is installed, generate complete HTML API documentation with:
