@@ -43,7 +43,7 @@ flowchart TD
 | **Rectangle (`Tool::Rectangle`)** | Outline (`sl::rect` with thickness) or filled (`sl::rectfill`) rectangle. |
 | **Ellipse (`Tool::Ellipse`)** | Outline (`sl::ellipse` with thickness) or filled (`sl::ellipsefill`) ellipse. |
 | **Flood Fill (`Tool::Fill`)** | Fast 4-way queue-based flood fill (`sl::flood_fill`) starting from the clicked pixel coordinate. |
-| **Color Picker (`Tool::Picker`)** | Reads pixel colour (`sl::getpixel`) under cursor and assigns it to foreground (LMB) or background (RMB). |
+| **Colour Picker (`Tool::Picker`)** | Reads pixel colour (`sl::getpixel`) under cursor and assigns it to foreground (LMB) or background (RMB). |
 | **Selection (`Tool::Select`)** | Rectangular marquee selection, floating cut/copy buffer manipulation, and interactive repositioning. |
 
 ### 3. Undo / Redo History Stack
@@ -53,14 +53,14 @@ flowchart TD
 
 ### 4. Floating Selection & Clipboard
 - **Marquee Drag**: Dragging with `Tool::Select` defines a bounding box (`selection_rect`).
-- **Floating Buffer (`selection`)**: Sub-bitmap extracted via `sl::create_sub_bitmap()`. The canvas region beneath the selection is cleared to the background color.
+- **Floating Buffer (`selection`)**: Sub-bitmap extracted via `sl::create_sub_bitmap()`. The canvas region beneath the selection is cleared to the background colour.
 - **Moving Selection**: Dragging inside the selection marquee updates `selection_rect` coordinates dynamically without modifying the underlying canvas until committed.
 - **Commit / Cancel**: Clicking outside or switching tools commits the floating selection into the canvas (`sl::blit`). Pressing `Escape` cancels and restores the canvas from `selection_before`.
 - **Clipboard Operations**: `Ctrl+C` (Copy to clipboard), `Ctrl+X` (Cut to clipboard), and `Ctrl+V` (Paste as new floating selection).
 
 ### 5. Toolbar & User Interface
 - **Left Control Panel**: Tool selection buttons, size selector (`1px`, `2px`, `4px`, `8px`, `16px`), shape fill/outline toggle, and file actions (New, Save, Load).
-- **Classic 32-Color Palette**: 16 primary + 16 secondary colours arranged in a dual-row palette. LMB selects foreground; RMB selects background.
+- **Classic 32-Colour Palette**: 16 primary + 16 secondary colours arranged in a dual-row palette. LMB selects foreground; RMB selects background.
 - **Bottom Status Bar**: Displays current active tool, tool status messages, coordinates, and hotkey hints.
 - **Live Preview Overlay**: `draw_preview()` renders semi-transparent vector previews of lines, rectangles, and ellipses over the screen during drag gestures before committing to pixels.
 
