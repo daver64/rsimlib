@@ -318,7 +318,7 @@ ctest --test-dir build
 ## Running the examples
 
 ```bash
-./exhello # every graphical example also accepts --gl or --vulkan
+.[`./exhello`](src/examples/exhello/exhello.cpp) # every graphical example also accepts --gl or --vulkan
 ./exfont  # proportional and monospace TrueType font demo
 ./exrotatesprite # rotating sprite demo
 ./exlighting # radial lights and polygon shadows demo
