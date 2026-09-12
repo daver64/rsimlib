@@ -46,15 +46,6 @@ target_link_libraries(my_app PRIVATE simlib)
 ```
 
 
-This repository contains:
-
-- **`simlib`** — the static engine library (`src/engine/`).
-- **`sltest`** — a sample game/test application built on `simlib`, with a
-    menu, simple physics/entity system, and Lua REPL console (`src/examples/sltest/`).
-- **`slpack`** — a CLI tool for packing assets into ZIP archives (`src/examples/slpack/`).
-
-The standalone `ex*` programs are listed below with the primary API each one illustrates.
-
 Create the archive used by `exresources` from the repository root with:
 
 ```bash
