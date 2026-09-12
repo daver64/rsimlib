@@ -28,7 +28,9 @@ imgui.ini
 /ex3d
 /ex3d_vulkan
 /exatlas
+/excafluid
 /lib/
 applications
 exdb.sqlite
 /assets/textures/dungeonsoup
+

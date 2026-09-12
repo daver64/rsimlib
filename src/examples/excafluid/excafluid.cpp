@@ -25,15 +25,19 @@ namespace
     enum class ElementType : std::uint8_t
     {
         Empty = 0,
-        Solid,       // Indestructible wall/bedrock
+        Solid,       // Indestructible bedrock / wall
         Wood,        // Flammable building material
         Sand,        // Granular falling powder
         Water,       // Incompressible / slightly compressible liquid (density ~1.0)
-        Oil,         // Flammable lighter liquid (density ~0.6, floats on water)
-        Acid,        // Corrosive liquid, dissolves organic matter
+        Oil,         // Flammable lighter liquid (density ~0.65, floats on water)
+        Acid,        // Corrosive liquid, dissolves organic matter & metal
+        Lava,        // Molten rock at 1000C, solidifies with water into stone
+        Gunpowder,   // Explosive granular powder, detonates with fire/heat
+        Plant,       // Organic plant, grows with water, burns quickly
+        Pump,        // Active mechanical fan/pump that propels fluids upward
         Fire,        // Active flame emitting heat, ignites fuel
         Smoke,       // Rising gas, dissipates
-        Steam        // Evaporated water from fire
+        Steam        // Evaporated water from fire/lava
     };
 
     struct ElementProps
@@ -49,16 +53,20 @@ namespace
     };
 
     const ElementProps ELEMENT_PROPERTIES[] = {
-        {"Empty", 0.0f, false, false, false, false, 9999.0f, {16, 20, 28, 255}},
-        {"Solid", 999.0f, false, false, true, false, 9999.0f, {120, 128, 142, 255}},
-        {"Wood", 0.7f, false, false, true, true, 220.0f, {142, 92, 54, 255}},
-        {"Sand", 1.8f, false, false, false, false, 9999.0f, {235, 195, 95, 255}},
-        {"Water", 1.0f, true, false, false, false, 9999.0f, {45, 130, 240, 235}},
-        {"Oil", 0.65f, true, false, false, true, 75.0f, {130, 95, 35, 245}},
-        {"Acid", 1.25f, true, false, false, false, 9999.0f, {80, 240, 65, 240}},
-        {"Fire", -0.2f, false, true, false, false, 0.0f, {255, 120, 30, 255}},
-        {"Smoke", -0.1f, false, true, false, false, 9999.0f, {90, 95, 105, 180}},
-        {"Steam", -0.15f, false, true, false, false, 9999.0f, {190, 210, 235, 170}}
+        {"Empty",     0.0f,  false, false, false, false, 9999.0f, {16, 20, 28, 255}},
+        {"Solid",     999.0f,false, false, true,  false, 9999.0f, {120, 128, 142, 255}},
+        {"Wood",      0.7f,  false, false, true,  true,  220.0f,  {142, 92, 54, 255}},
+        {"Sand",      1.8f,  false, false, false, false, 9999.0f, {235, 195, 95, 255}},
+        {"Water",     1.0f,  true,  false, false, false, 9999.0f, {45, 130, 240, 235}},
+        {"Oil",       0.65f, true,  false, false, true,  75.0f,   {130, 95, 35, 245}},
+        {"Acid",      1.25f, true,  false, false, false, 9999.0f, {80, 240, 65, 240}},
+        {"Lava",      2.4f,  true,  false, false, false, 9999.0f, {255, 80, 20, 255}},
+        {"Gunpowder", 1.6f,  false, false, false, true,  240.0f,  {70, 75, 82, 255}},
+        {"Plant",     0.5f,  false, false, true,  true,  160.0f,  {45, 175, 60, 255}},
+        {"Pump",      999.0f,false, false, true,  false, 9999.0f, {185, 195, 215, 255}},
+        {"Fire",     -0.2f,  false, true,  false, false, 0.0f,    {255, 120, 30, 255}},
+        {"Smoke",    -0.1f,  false, true,  false, false, 9999.0f, {90, 95, 105, 180}},
+        {"Steam",    -0.15f, false, true,  false, false, 9999.0f, {190, 210, 235, 170}}
     };
 
     struct Cell
@@ -66,9 +74,17 @@ namespace
         ElementType type = ElementType::Empty;
         float mass = 0.0f;       // Fluid mass/pressure: 0.0 - 1.5 (Tom Forsyth liquid model)
         float temp = 20.0f;      // Temperature in Celsius (ambient = 20C)
-        std::uint8_t life = 0;   // Lifetime timer for dynamic particles (fire, smoke, steam, burning wood)
+        std::uint8_t life = 0;   // Lifetime timer for dynamic particles (fire, smoke, steam, plant growth)
         std::int8_t variation = 0; // Visual noise/shade variation (-15 .. +15)
         std::uint32_t turn = 0;  // Update turn tracking to avoid updating twice per tick
+    };
+
+    enum class BoxKind
+    {
+        Wood,
+        Metal,
+        TNT,
+        Seesaw
     };
 
     struct DynamicBox
@@ -76,8 +92,9 @@ namespace
         sl::PhysicsBody *body = nullptr;
         float width = 32.0f;
         float height = 32.0f;
-        float density = 0.5f;    // Wood crate floats (< 1.0), Metal barrel sinks (> 1.0)
-        bool is_wood = true;
+        float density = 0.5f;
+        BoxKind kind = BoxKind::Wood;
+        bool exploded = false;
         sl::Colour colour{185, 125, 75};
     };
 
@@ -124,136 +141,276 @@ namespace
             }
         }
 
-        void load_scenario(int index)
+        void load_scenario(int index, std::vector<DynamicBox> &boxes, sl::PhysicsWorld *physics)
         {
             clear();
-            switch (index % 4)
+            // Clear existing Box2D dynamic objects and static scenario bodies
+            if (physics)
             {
-            case 0: // Preset 0: U-Tube / Hydraulic Equalization Tank (Forsyth compressible water demo)
+                for (DynamicBox &b : boxes)
+                {
+                    if (b.body) sl::destroy_physics_body(b.body);
+                }
+                boxes.clear();
+
+                for (sl::PhysicsBody *sb : static_bodies_)
+                {
+                    if (sb) sl::destroy_physics_body(sb);
+                }
+                static_bodies_.clear();
+            }
+
+            auto add_static_box = [&](float cx, float cy, float w, float h) {
+                if (!physics) return;
+                sl::PhysicsBody *body = sl::create_physics_body(physics, sl::BodyType::static_body, {cx, cy});
+                if (body)
+                {
+                    sl::add_box_fixture(body, w, h, 0.0f, 0.5f, 0.1f);
+                    static_bodies_.push_back(body);
+                }
+            };
+
+            // Outer boundary collision walls
+            add_static_box(400.0f, 596.0f, 800.0f, 16.0f); // Floor
+            add_static_box(4.0f, 300.0f, 16.0f, 600.0f);   // Left wall
+            add_static_box(796.0f, 300.0f, 16.0f, 600.0f); // Right wall
+            add_static_box(400.0f, 4.0f, 800.0f, 16.0f);   // Ceiling
+
+            auto spawn_box = [&](float sx, float sy, BoxKind kind) {
+                if (!physics) return;
+                DynamicBox box;
+                box.kind = kind;
+                if (kind == BoxKind::Wood)
+                {
+                    box.width = 36.0f;
+                    box.height = 36.0f;
+                    box.density = 0.45f;
+                    box.colour = {195, 135, 75};
+                }
+                else if (kind == BoxKind::Metal)
+                {
+                    box.width = 28.0f;
+                    box.height = 28.0f;
+                    box.density = 2.4f;
+                    box.colour = {110, 135, 165};
+                }
+                else if (kind == BoxKind::TNT)
+                {
+                    box.width = 32.0f;
+                    box.height = 32.0f;
+                    box.density = 0.8f;
+                    box.colour = {230, 45, 45};
+                }
+                else if (kind == BoxKind::Seesaw)
+                {
+                    box.width = 160.0f;
+                    box.height = 14.0f;
+                    box.density = 1.0f;
+                    box.colour = {200, 165, 110};
+                }
+
+                box.body = sl::create_physics_body(physics, sl::BodyType::dynamic_body, {sx, sy});
+                if (box.body)
+                {
+                    sl::add_box_fixture(box.body, box.width, box.height, box.density, 0.4f, 0.2f);
+                    boxes.push_back(box);
+                }
+            };
+
+            switch (index % 5)
             {
-                // Left & right tanks joined by a bottom pipe
+            case 0: // Preset 0: U-Tube Hydraulic Equalization & Floating Crates (Forsyth compressible water demo)
+            {
                 for (int y = 30; y < 120; ++y)
                 {
                     set(70, y, ElementType::Solid);
                     set(130, y, ElementType::Solid);
                 }
-                // Central divider forming the U-tube
                 for (int y = 30; y < 105; ++y)
                 {
                     set(100, y, ElementType::Solid);
                 }
-                // Fill left side with water to demonstrate hydrostatic pressure flow through the bottom
                 for (int y = 40; y < 118; ++y)
                 {
                     for (int x = 72; x < 98; ++x)
-                    {
                         set(x, y, ElementType::Water, 1.0f);
-                    }
                 }
-                // Floating oil layer on top of left water
                 for (int y = 36; y < 40; ++y)
                 {
                     for (int x = 72; x < 98; ++x)
-                    {
                         set(x, y, ElementType::Oil, 0.8f);
-                    }
                 }
+
+                // Scenario static collision boundaries
+                add_static_box(280.0f, 300.0f, 8.0f, 360.0f);
+                add_static_box(520.0f, 300.0f, 8.0f, 360.0f);
+                add_static_box(400.0f, 270.0f, 8.0f, 300.0f);
+
+                spawn_box(340.0f, 150.0f, BoxKind::Wood);
+                spawn_box(360.0f, 80.0f, BoxKind::Wood);
                 break;
             }
-            case 1: // Preset 1: Sand Funnel & Hourglass
+            case 1: // Preset 1: Volcano & Steam Geysers (Lava meets Water)
             {
-                // Funnel walls
-                for (int i = 0; i < 45; ++i)
+                // Volcanic mountain crater
+                for (int i = 0; i < 50; ++i)
                 {
-                    set(50 + i, 30 + i, ElementType::Solid);
-                    set(150 - i, 30 + i, ElementType::Solid);
+                    set(20 + i, 80 - i / 2, ElementType::Solid);
+                    set(120 - i, 80 - i / 2, ElementType::Solid);
                 }
-                // Sand pool in the top hopper
-                for (int y = 20; y < 65; ++y)
+                // Molten lava pool inside volcano
+                for (int y = 58; y < 75; ++y)
                 {
-                    for (int x = 60; x < 140; ++x)
-                    {
-                        if (get(x, y).type == ElementType::Empty)
-                            set(x, y, ElementType::Sand);
-                    }
+                    for (int x = 40; x < 100; ++x)
+                        set(x, y, ElementType::Lava, 1.0f, 1000.0f);
                 }
+                // Water lake next to the volcano
+                for (int y = 80; y < 140; ++y)
+                {
+                    for (int x = 125; x < 185; ++x)
+                        set(x, y, ElementType::Water, 1.0f);
+                }
+                // Wooden bridge over the lake
+                for (int x = 115; x < 190; ++x)
+                {
+                    set(x, 78, ElementType::Wood);
+                    set(x, 79, ElementType::Wood);
+                }
+                // Growing plants on the slopes
+                for (int x = 122; x < 145; ++x) set(x, 75, ElementType::Plant);
+
+                add_static_box(610.0f, 560.0f, 260.0f, 20.0f);
+                spawn_box(600.0f, 260.0f, BoxKind::Wood);
+                spawn_box(300.0f, 180.0f, BoxKind::Metal);
+                break;
+            }
+            case 2: // Preset 2: Bomb Testing Ground & TNT Demolition
+            {
+                // Wooden fortress / towers
+                for (int y = 60; y < 135; ++y)
+                {
+                    set(50, y, ElementType::Wood);
+                    set(80, y, ElementType::Wood);
+                    set(120, y, ElementType::Wood);
+                    set(150, y, ElementType::Wood);
+                }
+                for (int x = 50; x <= 80; ++x) set(x, 60, ElementType::Wood);
+                for (int x = 120; x <= 150; ++x) set(x, 60, ElementType::Wood);
+                for (int x = 80; x <= 120; ++x) set(x, 95, ElementType::Wood);
+
+                // Gunpowder caches inside the towers
+                for (int y = 100; y < 135; ++y)
+                {
+                    for (int x = 52; x < 78; ++x) set(x, y, ElementType::Gunpowder);
+                    for (int x = 122; x < 148; ++x) set(x, y, ElementType::Gunpowder);
+                }
+
+                // Oil reservoir on middle deck
+                for (int y = 85; y < 95; ++y)
+                {
+                    for (int x = 85; x < 115; ++x) set(x, y, ElementType::Oil, 1.0f);
+                }
+
+                add_static_box(260.0f, 560.0f, 180.0f, 20.0f);
+                add_static_box(540.0f, 560.0f, 180.0f, 20.0f);
+
+                // TNT crates on top of structures
+                spawn_box(260.0f, 180.0f, BoxKind::TNT);
+                spawn_box(540.0f, 180.0f, BoxKind::TNT);
+                spawn_box(400.0f, 320.0f, BoxKind::TNT);
+                break;
+            }
+            case 3: // Preset 3: Hydroelectric Pump & Seesaw Balance
+            {
+                // Funnel hopper
+                for (int i = 0; i < 35; ++i)
+                {
+                    set(65 + i, 30 + i, ElementType::Solid);
+                    set(135 - i, 30 + i, ElementType::Solid);
+                }
+                // Water in upper funnel
+                for (int y = 15; y < 45; ++y)
+                {
+                    for (int x = 75; x < 125; ++x)
+                        set(x, y, ElementType::Water, 1.0f);
+                }
+
+                // Static fulcrum wedge for seesaw
+                for (int i = 0; i < 8; ++i)
+                {
+                    for (int x = 96 - i; x <= 104 + i; ++x)
+                        set(x, 95 + i, ElementType::Solid);
+                }
+
                 // Catch basin below
-                for (int x = 40; x < 160; ++x)
+                for (int x = 30; x < 170; ++x) set(x, 140, ElementType::Solid);
+                for (int y = 115; y < 140; ++y)
                 {
-                    set(x, 130, ElementType::Solid);
+                    set(30, y, ElementType::Solid);
+                    set(170, y, ElementType::Solid);
                 }
-                for (int y = 100; y < 130; ++y)
+
+                // Active Pumps at the bottom basin that spray fluid up pipes to the top
+                for (int x = 32; x < 38; ++x) set(x, 138, ElementType::Pump);
+                for (int x = 162; x < 168; ++x) set(x, 138, ElementType::Pump);
+
+                // Pipes leading from pumps back to top
+                for (int y = 15; y < 138; ++y)
                 {
+                    set(28, y, ElementType::Solid);
                     set(40, y, ElementType::Solid);
                     set(160, y, ElementType::Solid);
+                    set(172, y, ElementType::Solid);
                 }
+
+                // Fulcrum wedge physics fixture
+                if (physics)
+                {
+                    sl::PhysicsBody *fulcrum = sl::create_physics_body(physics, sl::BodyType::static_body, {400.0f, 395.0f});
+                    if (fulcrum)
+                    {
+                        const std::vector<sl::Vec2> wedge_pts = {{-24.0f, 20.0f}, {24.0f, 20.0f}, {0.0f, -20.0f}};
+                        sl::add_polygon_fixture(fulcrum, wedge_pts, 0.0f, 0.6f, 0.0f);
+                        static_bodies_.push_back(fulcrum);
+                    }
+                }
+                add_static_box(400.0f, 560.0f, 560.0f, 16.0f);
+
+                // Dynamic Seesaw plank
+                spawn_box(400.0f, 360.0f, BoxKind::Seesaw);
+                spawn_box(330.0f, 320.0f, BoxKind::Wood);
+                spawn_box(470.0f, 320.0f, BoxKind::Metal);
                 break;
             }
-            case 2: // Preset 2: Oil Refinery & Fire Inferno
+            case 4: // Preset 4: Overgrown Jungle & Corrosive Acid Rain
             {
-                // Multi-tier oil tanks and wooden scaffolding
-                for (int y = 40; y < 70; ++y)
+                // Tiered platforms
+                for (int x = 20; x < 90; ++x) set(x, 70, ElementType::Wood);
+                for (int x = 110; x < 180; ++x) set(x, 90, ElementType::Wood);
+                for (int x = 40; x < 160; ++x) set(x, 125, ElementType::Wood);
+
+                // Lush vegetation everywhere
+                for (int x = 22; x < 88; ++x) set(x, 68, ElementType::Plant);
+                for (int x = 112; x < 178; ++x) set(x, 88, ElementType::Plant);
+                for (int x = 42; x < 158; ++x) set(x, 123, ElementType::Plant);
+
+                // Water reservoirs feeding the plants
+                for (int y = 40; y < 55; ++y)
                 {
-                    set(30, y, ElementType::Wood);
-                    set(85, y, ElementType::Wood);
+                    for (int x = 30; x < 60; ++x) set(x, y, ElementType::Water, 1.0f);
                 }
-                for (int x = 30; x <= 85; ++x)
+
+                // Acid tank high above ready to melt through
+                for (int y = 15; y < 28; ++y)
                 {
-                    set(x, 70, ElementType::Wood);
+                    for (int x = 120; x < 160; ++x) set(x, y, ElementType::Acid, 1.0f);
                 }
-                // Oil inside the top tank
-                for (int y = 45; y < 69; ++y)
-                {
-                    for (int x = 32; x < 84; ++x)
-                    {
-                        set(x, y, ElementType::Oil, 1.0f);
-                    }
-                }
-                // Wooden barrier holding back water
-                for (int y = 80; y < 130; ++y)
-                {
-                    set(130, y, ElementType::Wood);
-                }
-                for (int y = 90; y < 130; ++y)
-                {
-                    for (int x = 132; x < 185; ++x)
-                    {
-                        set(x, y, ElementType::Water, 1.0f);
-                    }
-                }
-                // Spark of fire to start combustion
-                set(35, 38, ElementType::Fire, 0.0f, 600.0f, 180);
-                break;
-            }
-            case 3: // Preset 3: Acid Chamber & Complex Terrain
-            {
-                // Staggered slopes
-                for (int i = 0; i < 40; ++i)
-                {
-                    set(20 + i, 40 + i / 2, ElementType::Solid);
-                    set(180 - i, 70 + i / 2, ElementType::Solid);
-                    set(20 + i, 100 + i / 2, ElementType::Wood);
-                }
-                // Acid reservoir
-                for (int y = 20; y < 38; ++y)
-                {
-                    for (int x = 25; x < 50; ++x)
-                    {
-                        set(x, y, ElementType::Acid, 1.0f);
-                    }
-                }
-                // Water & Sand beds below
-                for (int y = 115; y < 145; ++y)
-                {
-                    for (int x = 60; x < 110; ++x)
-                    {
-                        set(x, y, ElementType::Water, 1.0f);
-                    }
-                    for (int x = 115; x < 170; ++x)
-                    {
-                        set(x, y, ElementType::Sand);
-                    }
-                }
+
+                add_static_box(220.0f, 280.0f, 280.0f, 12.0f);
+                add_static_box(580.0f, 360.0f, 280.0f, 12.0f);
+
+                spawn_box(240.0f, 220.0f, BoxKind::Wood);
+                spawn_box(520.0f, 300.0f, BoxKind::Wood);
                 break;
             }
             }
@@ -281,6 +438,7 @@ namespace
             c.type = type;
             c.mass = (mass > 0.0f) ? mass : (ELEMENT_PROPERTIES[static_cast<std::size_t>(type)].is_liquid ? 1.0f : 0.0f);
             c.temp = temp;
+            if (type == ElementType::Lava) c.temp = 1000.0f;
             c.life = life > 0 ? life : (type == ElementType::Fire ? 50 : (type == ElementType::Smoke || type == ElementType::Steam ? 60 : 0));
             c.variation = static_cast<std::int8_t>((rng_() % 21) - 10);
             c.turn = current_turn_;
@@ -308,12 +466,90 @@ namespace
             }
         }
 
-        void update()
+        void trigger_explosion(int cx, int cy, int blast_radius, sl::PhysicsWorld *physics)
+        {
+            // Tom Forsyth's explosive air pressure model:
+            // High sudden pressure/heat burst, line-of-sight propagation, destroys weak materials,
+            // and applies radial physics impulses to Box2D rigid bodies
+            for (int dy = -blast_radius; dy <= blast_radius; ++dy)
+            {
+                for (int dx = -blast_radius; dx <= blast_radius; ++dx)
+                {
+                    const float dist_sq = static_cast<float>(dx * dx + dy * dy);
+                    if (dist_sq <= static_cast<float>(blast_radius * blast_radius))
+                    {
+                        int x = cx + dx;
+                        int y = cy + dy;
+                        if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1)
+                        {
+                            Cell &c = at(x, y);
+                            if (c.type != ElementType::Solid)
+                            {
+                                if (dist_sq < static_cast<float>(blast_radius * blast_radius * 0.4f))
+                                {
+                                    c.type = ElementType::Fire;
+                                    c.life = 80;
+                                    c.temp = 1200.0f;
+                                }
+                                else if (rng_() % 2 == 0)
+                                {
+                                    c.type = ElementType::Smoke;
+                                    c.life = 60;
+                                    c.temp = 400.0f;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Radial impulse to Box2D rigid bodies
+            if (physics)
+            {
+                const float blast_world_x = static_cast<float>(cx) * CELL_SCALE;
+                const float blast_world_y = static_cast<float>(cy) * CELL_SCALE;
+                const float blast_range_px = static_cast<float>(blast_radius) * CELL_SCALE * 2.0f;
+
+                last_blast_x_ = blast_world_x;
+                last_blast_y_ = blast_world_y;
+                last_blast_force_ = 350.0f;
+                last_blast_range_ = blast_range_px;
+                blast_pending_ = true;
+            }
+        }
+
+        void apply_pending_blast(std::vector<DynamicBox> &boxes)
+        {
+            if (!blast_pending_) return;
+            blast_pending_ = false;
+
+            for (DynamicBox &box : boxes)
+            {
+                if (!box.body) continue;
+                const sl::Vec2 pos = sl::physics_body_position(box.body);
+                const float dx = pos.x - last_blast_x_;
+                const float dy = pos.y - last_blast_y_;
+                const float dist = std::sqrt(dx * dx + dy * dy);
+
+                if (dist > 0.001f && dist < last_blast_range_)
+                {
+                    const float factor = (1.0f - dist / last_blast_range_);
+                    const float mass_px = (box.width * box.height * box.density) / 4096.0f;
+                    const float impulse = last_blast_force_ * factor * mass_px * 600.0f;
+                    sl::apply_physics_force(box.body, {dx / dist * impulse, dy / dist * impulse});
+
+                    if (box.kind == BoxKind::TNT && !box.exploded && dist < last_blast_range_ * 0.6f)
+                    {
+                        box.exploded = true;
+                    }
+                }
+            }
+        }
+
+        void update(sl::PhysicsWorld *physics)
         {
             ++current_turn_;
 
-            // Scan bottom-to-top so falling gravity executes naturally without multi-stepping in a single frame.
-            // Alternating left/right scan direction eliminates directional bias (Tom Forsyth's core principle).
             const bool scan_left_to_right = (current_turn_ % 2 == 0);
 
             for (int y = GRID_H - 2; y >= 1; --y)
@@ -337,15 +573,23 @@ namespace
                     switch (cell.type)
                     {
                     case ElementType::Sand:
-                        update_sand(x, y);
+                    case ElementType::Gunpowder:
+                        update_powder(x, y);
                         break;
                     case ElementType::Water:
                     case ElementType::Oil:
                     case ElementType::Acid:
+                    case ElementType::Lava:
                         update_liquid(x, y);
                         break;
+                    case ElementType::Plant:
+                        update_plant(x, y);
+                        break;
+                    case ElementType::Pump:
+                        update_pump(x, y);
+                        break;
                     case ElementType::Fire:
-                        update_fire(x, y);
+                        update_fire(x, y, physics);
                         break;
                     case ElementType::Smoke:
                     case ElementType::Steam:
@@ -377,29 +621,35 @@ namespace
                     const ElementProps &props = ELEMENT_PROPERTIES[static_cast<std::size_t>(cell.type)];
                     sl::Colour c = props.base_colour;
 
-                    // Apply visual shading based on mass, temperature, and cell variation
                     if (cell.type == ElementType::Water)
                     {
-                        // Pressurized / deeper water is slightly darker/richer blue
                         const int depth_tint = std::clamp(static_cast<int>((cell.mass - 0.5f) * 40.0f), -20, 40);
                         c.red = static_cast<std::uint8_t>(std::clamp(c.red - depth_tint, 10, 255));
                         c.green = static_cast<std::uint8_t>(std::clamp(c.green + depth_tint / 2, 50, 255));
                         c.blue = static_cast<std::uint8_t>(std::clamp(c.blue + cell.variation, 180, 255));
                     }
-                    else if (cell.type == ElementType::Sand || cell.type == ElementType::Wood || cell.type == ElementType::Solid)
+                    else if (cell.type == ElementType::Lava)
                     {
-                        // Subtle grain texture
-                        c.red = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.red) + cell.variation * 2, 0, 255));
-                        c.green = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.green) + cell.variation * 2, 0, 255));
-                        c.blue = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.blue) + cell.variation, 0, 255));
+                        const float heat_wave = std::sin(static_cast<float>(x + current_turn_) * 0.15f);
+                        c.red = 255;
+                        c.green = static_cast<std::uint8_t>(std::clamp(static_cast<int>(70.0f + heat_wave * 35.0f) + cell.variation * 2, 40, 255));
+                        c.blue = static_cast<std::uint8_t>(std::clamp(static_cast<int>(15.0f + heat_wave * 15.0f), 0, 100));
                     }
                     else if (cell.type == ElementType::Fire)
                     {
-                        // Dynamic flame color: hot yellow center fading to glowing red/orange
                         const float heat_ratio = std::clamp(static_cast<float>(cell.life) / 50.0f, 0.0f, 1.0f);
                         c.red = 255;
                         c.green = static_cast<std::uint8_t>(std::clamp(static_cast<int>(60.0f + heat_ratio * 180.0f) + cell.variation * 3, 40, 255));
                         c.blue = static_cast<std::uint8_t>(std::clamp(static_cast<int>(heat_ratio * 90.0f), 0, 255));
+                    }
+                    else if (cell.type == ElementType::Plant)
+                    {
+                        c.green = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.green) + cell.variation * 3, 100, 255));
+                    }
+                    else if (cell.type == ElementType::Pump)
+                    {
+                        const bool stripe = ((y + current_turn_ / 2) % 6 < 3);
+                        c = stripe ? sl::Colour{220, 230, 250, 255} : sl::Colour{90, 100, 120, 255};
                     }
                     else if (cell.type == ElementType::Smoke)
                     {
@@ -408,14 +658,17 @@ namespace
                         c.green = static_cast<std::uint8_t>(c.green * alpha_fade);
                         c.blue = static_cast<std::uint8_t>(c.blue * alpha_fade);
                     }
-
-                    // Background ambient color for empty cells
-                    if (cell.type == ElementType::Empty)
+                    else if (cell.type == ElementType::Empty)
                     {
-                        // Faint gradient background
                         c.red = 16 + y / 18;
                         c.green = 20 + y / 16;
                         c.blue = 30 + y / 12;
+                    }
+                    else
+                    {
+                        c.red = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.red) + cell.variation * 2, 0, 255));
+                        c.green = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.green) + cell.variation * 2, 0, 255));
+                        c.blue = static_cast<std::uint8_t>(std::clamp(static_cast<int>(c.blue) + cell.variation, 0, 255));
                     }
 
                     const std::size_t offset = (static_cast<std::size_t>(y) * GRID_W + x) * 4;
@@ -444,13 +697,11 @@ namespace
         void update_heat(int x, int y)
         {
             Cell &cell = at(x, y);
-            if (cell.temp <= 20.0f && cell.type != ElementType::Fire) return;
+            if (cell.temp <= 20.0f && cell.type != ElementType::Fire && cell.type != ElementType::Lava) return;
 
-            // Tom Forsyth heat conduction & upward convection hack:
-            // Conduction transfers heat energy to 4 neighbors with a 3x upward bias
             const int dxs[] = {0, -1, 1, 0};
             const int dys[] = {-1, 0, 0, 1}; // -1 is UP
-            const float weights[] = {0.40f, 0.15f, 0.15f, 0.05f}; // Convection hack: up gets higher weight!
+            const float weights[] = {0.40f, 0.15f, 0.15f, 0.05f}; // Upward convection bias
 
             for (int i = 0; i < 4; ++i)
             {
@@ -468,25 +719,30 @@ namespace
                     cell.temp -= transfer;
                     neigh.temp += transfer;
 
-                    // Flammable check (e.g. wood or oil catching fire from hot air/neighbors)
                     if (ELEMENT_PROPERTIES[static_cast<std::size_t>(neigh.type)].flammable &&
                         neigh.temp >= ELEMENT_PROPERTIES[static_cast<std::size_t>(neigh.type)].flashpoint)
                     {
-                        neigh.type = ElementType::Fire;
-                        neigh.life = 60;
-                        neigh.temp = std::max(neigh.temp, 500.0f);
+                        if (neigh.type == ElementType::Gunpowder)
+                        {
+                            trigger_explosion(nx, ny, 14, nullptr);
+                        }
+                        else
+                        {
+                            neigh.type = ElementType::Fire;
+                            neigh.life = 60;
+                            neigh.temp = std::max(neigh.temp, 500.0f);
+                        }
                     }
                 }
             }
 
-            // Ambient heat dissipation
-            if (cell.type != ElementType::Fire)
+            if (cell.type != ElementType::Fire && cell.type != ElementType::Lava)
             {
                 cell.temp += (20.0f - cell.temp) * 0.02f;
             }
         }
 
-        void update_sand(int x, int y)
+        void update_powder(int x, int y)
         {
             Cell &cell = at(x, y);
             cell.turn = current_turn_;
@@ -494,43 +750,43 @@ namespace
             const int down_y = y + 1;
             if (down_y >= GRID_H - 1) return;
 
-            // 1. Direct fall straight down (displacing empty air or lighter liquids)
             Cell &below = at(x, down_y);
-            if (can_sand_displace(below.type))
+            if (can_powder_displace(below.type))
             {
                 swap_cells(x, y, x, down_y);
                 return;
             }
 
-            // 2. Roll diagonally (angle of repose)
             const bool try_left_first = (rng_() % 2 == 0);
             const int dx1 = try_left_first ? -1 : 1;
             const int dx2 = -dx1;
 
-            if (can_sand_displace(get(x + dx1, down_y).type) && can_sand_pass_through(get(x + dx1, y).type))
+            if (can_powder_displace(get(x + dx1, down_y).type) && can_powder_pass_through(get(x + dx1, y).type))
             {
                 swap_cells(x, y, x + dx1, down_y);
                 return;
             }
-            if (can_sand_displace(get(x + dx2, down_y).type) && can_sand_pass_through(get(x + dx2, y).type))
+            if (can_powder_displace(get(x + dx2, down_y).type) && can_powder_pass_through(get(x + dx2, y).type))
             {
                 swap_cells(x, y, x + dx2, down_y);
                 return;
             }
         }
 
-        bool can_sand_displace(ElementType target) const
+        bool can_powder_displace(ElementType target) const
         {
             return target == ElementType::Empty || target == ElementType::Water ||
-                   target == ElementType::Oil || target == ElementType::Smoke ||
-                   target == ElementType::Steam || target == ElementType::Fire;
+                   target == ElementType::Oil || target == ElementType::Acid ||
+                   target == ElementType::Smoke || target == ElementType::Steam ||
+                   target == ElementType::Fire;
         }
 
-        bool can_sand_pass_through(ElementType target) const
+        bool can_powder_pass_through(ElementType target) const
         {
             return target == ElementType::Empty || target == ElementType::Water ||
-                   target == ElementType::Oil || target == ElementType::Smoke ||
-                   target == ElementType::Steam || target == ElementType::Fire;
+                   target == ElementType::Oil || target == ElementType::Acid ||
+                   target == ElementType::Smoke || target == ElementType::Steam ||
+                   target == ElementType::Fire;
         }
 
         void update_liquid(int x, int y)
@@ -538,17 +794,46 @@ namespace
             Cell &cell = at(x, y);
             cell.turn = current_turn_;
 
-            // Special chemistry: Acid dissolves solids/wood/sand
+            // 1. Lava Reactions (Molten rock melts organics, vaporizes water into stone)
+            if (cell.type == ElementType::Lava)
+            {
+                const int ncoords[4][2] = {{x, y + 1}, {x - 1, y}, {x + 1, y}, {x, y - 1}};
+                for (const auto &coord : ncoords)
+                {
+                    Cell &n = at(coord[0], coord[1]);
+                    if (n.type == ElementType::Water)
+                    {
+                        cell.type = ElementType::Solid;
+                        cell.temp = 300.0f;
+                        n.type = ElementType::Steam;
+                        n.life = 60;
+                        return;
+                    }
+                    else if (n.type == ElementType::Wood || n.type == ElementType::Plant || n.type == ElementType::Oil)
+                    {
+                        n.type = ElementType::Fire;
+                        n.life = 70;
+                        n.temp = 800.0f;
+                    }
+                    else if (n.type == ElementType::Gunpowder)
+                    {
+                        trigger_explosion(coord[0], coord[1], 15, nullptr);
+                        return;
+                    }
+                }
+            }
+
+            // 2. Acid Chemistry (Corrodes wood/plants/sand/stone)
             if (cell.type == ElementType::Acid)
             {
                 const int ncoords[4][2] = {{x, y + 1}, {x - 1, y}, {x + 1, y}, {x, y - 1}};
                 for (const auto &coord : ncoords)
                 {
                     Cell &n = at(coord[0], coord[1]);
-                    if (n.type == ElementType::Wood || n.type == ElementType::Sand ||
+                    if (n.type == ElementType::Wood || n.type == ElementType::Plant || n.type == ElementType::Sand ||
                         (n.type == ElementType::Solid && coord[0] > 1 && coord[0] < GRID_W - 2 && coord[1] > 1 && coord[1] < GRID_H - 2))
                     {
-                        if (rng_() % 4 == 0)
+                        if (rng_() % 3 == 0)
                         {
                             n.type = ElementType::Smoke;
                             n.life = 35;
@@ -560,12 +845,10 @@ namespace
                 }
             }
 
-            // Tom Forsyth Compressible Liquid Model:
-            // Downward flow -> Diagonal roll -> Hydrostatic horizontal & upward pressure equalization
+            // 3. Tom Forsyth Compressible Liquid Model
             const int down_y = y + 1;
             if (down_y >= GRID_H - 1) return;
 
-            // Step A: Fall down into empty air or displace lighter liquid (e.g. water sinks under oil)
             Cell &below = at(x, down_y);
             if (below.type == ElementType::Empty)
             {
@@ -574,7 +857,6 @@ namespace
             }
             if (below.type == ElementType::Fire)
             {
-                // Water/Acid extinguishes fire creating steam
                 below.type = ElementType::Steam;
                 below.life = 40;
                 cell.type = ElementType::Empty;
@@ -584,12 +866,10 @@ namespace
             if (ELEMENT_PROPERTIES[static_cast<std::size_t>(below.type)].is_liquid &&
                 ELEMENT_PROPERTIES[static_cast<std::size_t>(below.type)].density < ELEMENT_PROPERTIES[static_cast<std::size_t>(cell.type)].density)
             {
-                // Heavy liquid sinks below lighter liquid (e.g. Water sinks below Oil)
                 swap_cells(x, y, x, down_y);
                 return;
             }
 
-            // Step B: Diagonal flow
             const bool try_left_first = ((x + y + current_turn_) % 2 == 0);
             const int dx1 = try_left_first ? -1 : 1;
             const int dx2 = -dx1;
@@ -605,20 +885,21 @@ namespace
                 return;
             }
 
-            // Step C: Horizontal spread / equalization (Liquid leveling out)
-            if (at(x + dx1, y).type == ElementType::Empty)
+            const int flow_chance = (cell.type == ElementType::Lava) ? 2 : 1;
+            if (current_turn_ % flow_chance == 0)
             {
-                swap_cells(x, y, x + dx1, y);
-                return;
-            }
-            if (at(x + dx2, y).type == ElementType::Empty)
-            {
-                swap_cells(x, y, x + dx2, y);
-                return;
+                if (at(x + dx1, y).type == ElementType::Empty)
+                {
+                    swap_cells(x, y, x + dx1, y);
+                    return;
+                }
+                if (at(x + dx2, y).type == ElementType::Empty)
+                {
+                    swap_cells(x, y, x + dx2, y);
+                    return;
+                }
             }
 
-            // Step D: Hydrostatic pressure push through submerged pipes / U-tubes (Forsyth compression rule)
-            // If liquid is boxed in and under pressure, push liquid sideways or up if neighbor has less pressure
             if (cell.type == ElementType::Water && cell.mass > 0.8f)
             {
                 for (int dir : {dx1, dx2})
@@ -635,7 +916,58 @@ namespace
             }
         }
 
-        void update_fire(int x, int y)
+        void update_plant(int x, int y)
+        {
+            Cell &cell = at(x, y);
+            cell.turn = current_turn_;
+
+            const int ncoords[4][2] = {{x, y - 1}, {x - 1, y}, {x + 1, y}, {x, y + 1}};
+            for (const auto &coord : ncoords)
+            {
+                Cell &n = at(coord[0], coord[1]);
+                if (n.type == ElementType::Water)
+                {
+                    n.type = ElementType::Empty;
+                    n.mass = 0.0f;
+
+                    const int offset_x = static_cast<int>(rng_() % 3) - 1;
+                    const int gx = std::clamp(x + offset_x, 1, GRID_W - 2);
+                    const int gy = std::max(1, y - 1);
+                    if (at(gx, gy).type == ElementType::Empty)
+                    {
+                        set(gx, gy, ElementType::Plant);
+                    }
+                    return;
+                }
+            }
+        }
+
+        void update_pump(int x, int y)
+        {
+            Cell &cell = at(x, y);
+            cell.turn = current_turn_;
+
+            const int below_y = y + 1;
+            const int above_y = y - 1;
+            if (below_y < GRID_H - 1 && above_y > 0)
+            {
+                Cell &source_cell = at(x, below_y);
+                Cell &dest_cell = at(x, above_y);
+
+                if (dest_cell.type == ElementType::Empty &&
+                    (source_cell.type == ElementType::Water || source_cell.type == ElementType::Oil ||
+                     source_cell.type == ElementType::Acid || source_cell.type == ElementType::Sand ||
+                     source_cell.type == ElementType::Gunpowder || source_cell.type == ElementType::Smoke))
+                {
+                    dest_cell = source_cell;
+                    dest_cell.turn = current_turn_;
+                    source_cell.type = ElementType::Empty;
+                    source_cell.mass = 0.0f;
+                }
+            }
+        }
+
+        void update_fire(int x, int y, sl::PhysicsWorld *physics)
         {
             Cell &cell = at(x, y);
             cell.turn = current_turn_;
@@ -643,7 +975,6 @@ namespace
 
             if (cell.life == 0)
             {
-                // Turn to smoke when burning out
                 if (rng_() % 3 == 0)
                 {
                     cell.type = ElementType::Smoke;
@@ -658,20 +989,24 @@ namespace
             }
             --cell.life;
 
-            // Ignite neighbors
             const int ncoords[4][2] = {{x, y - 1}, {x - 1, y}, {x + 1, y}, {x, y + 1}};
             for (const auto &coord : ncoords)
             {
                 Cell &n = at(coord[0], coord[1]);
-                if (n.type == ElementType::Oil)
+                if (n.type == ElementType::Oil || n.type == ElementType::Plant)
                 {
                     n.type = ElementType::Fire;
                     n.life = 70;
                     n.temp = 800.0f;
                 }
+                else if (n.type == ElementType::Gunpowder)
+                {
+                    trigger_explosion(coord[0], coord[1], 15, physics);
+                    return;
+                }
                 else if (n.type == ElementType::Wood)
                 {
-                    if (rng_() % 6 == 0)
+                    if (rng_() % 5 == 0)
                     {
                         n.type = ElementType::Fire;
                         n.life = 90;
@@ -686,11 +1021,10 @@ namespace
                 }
             }
 
-            // Fire drifts slightly upward and flickers
             const int up_y = y - 1;
             if (up_y > 0 && rng_() % 3 == 0)
             {
-                const int drift_x = x + ((rng_() % 3) - 1);
+                const int drift_x = x + (static_cast<int>(rng_() % 3) - 1);
                 if (drift_x > 0 && drift_x < GRID_W - 1 && at(drift_x, up_y).type == ElementType::Empty)
                 {
                     swap_cells(x, y, drift_x, up_y);
@@ -718,8 +1052,7 @@ namespace
                 return;
             }
 
-            // Rise upward
-            const int dx = (rng_() % 3) - 1;
+            const int dx = static_cast<int>(rng_() % 3) - 1;
             const int target_x = std::clamp(x + dx, 1, GRID_W - 2);
 
             if (at(target_x, up_y).type == ElementType::Empty)
@@ -739,7 +1072,7 @@ namespace
         void update_wood(int x, int y)
         {
             Cell &cell = at(x, y);
-            if (cell.temp > 220.0f && (rng_() % 8 == 0))
+            if (cell.temp > 220.0f && (rng_() % 6 == 0))
             {
                 cell.type = ElementType::Fire;
                 cell.life = 80;
@@ -758,6 +1091,14 @@ namespace
         std::vector<Cell> cells_;
         std::uint32_t current_turn_ = 0;
         std::mt19937 rng_;
+        std::vector<sl::PhysicsBody *> static_bodies_;
+
+        // Physics explosion impulse feedback
+        bool blast_pending_ = false;
+        float last_blast_x_ = 0.0f;
+        float last_blast_y_ = 0.0f;
+        float last_blast_force_ = 0.0f;
+        float last_blast_range_ = 0.0f;
     };
 } // namespace
 
@@ -769,24 +1110,48 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // 1. Initialize Simulation Grid
-    SimulationGrid grid;
-    grid.load_scenario(0);
-
-    // 2. Initialize Box2D Physics World for interacting rigid bodies
+    // 1. Initialize Box2D Physics World
     sl::PhysicsWorld *physics = sl::create_physics_world({0.0f, 600.0f});
     std::vector<DynamicBox> boxes;
 
-    auto spawn_box = [&](float sx, float sy, bool is_wood) {
+    // 2. Initialize Simulation Grid & load first scenario
+    SimulationGrid grid;
+    grid.load_scenario(0, boxes, physics);
+
+    auto spawn_box = [&](float sx, float sy, BoxKind kind) {
         if (!physics) return;
         DynamicBox box;
-        box.body = sl::create_physics_body(physics, sl::BodyType::dynamic_body, {sx, sy});
-        box.width = is_wood ? 36.0f : 28.0f;
-        box.height = is_wood ? 36.0f : 28.0f;
-        box.density = is_wood ? 0.45f : 2.2f; // Wood floats on water & oil; metal sinks!
-        box.is_wood = is_wood;
-        box.colour = is_wood ? sl::Colour{195, 135, 75} : sl::Colour{110, 135, 165};
+        box.kind = kind;
+        if (kind == BoxKind::Wood)
+        {
+            box.width = 36.0f;
+            box.height = 36.0f;
+            box.density = 0.45f;
+            box.colour = {195, 135, 75};
+        }
+        else if (kind == BoxKind::Metal)
+        {
+            box.width = 28.0f;
+            box.height = 28.0f;
+            box.density = 2.4f;
+            box.colour = {110, 135, 165};
+        }
+        else if (kind == BoxKind::TNT)
+        {
+            box.width = 32.0f;
+            box.height = 32.0f;
+            box.density = 0.8f;
+            box.colour = {230, 45, 45};
+        }
+        else if (kind == BoxKind::Seesaw)
+        {
+            box.width = 160.0f;
+            box.height = 14.0f;
+            box.density = 1.0f;
+            box.colour = {200, 165, 110};
+        }
 
+        box.body = sl::create_physics_body(physics, sl::BodyType::dynamic_body, {sx, sy});
         if (box.body)
         {
             sl::add_box_fixture(box.body, box.width, box.height, box.density, 0.4f, 0.2f);
@@ -794,19 +1159,21 @@ int main(int argc, char *argv[])
         }
     };
 
-    // Spawn 2 initial wooden crates into the U-tube tank
-    spawn_box(340.0f, 150.0f, true);
-    spawn_box(360.0f, 80.0f, true);
-
-    // 3. Optional Bloom Post-processing for glowing fire & sparks
+    // 3. Post-processing: Bloom for glowing fire/lava/acid
     sl::Bloom bloom;
     const bool bloom_ready = bloom.initialise();
-    bloom.set_threshold(0.45f);
-    bloom.set_intensity(0.85f);
-    bloom.set_radius(1.5f);
+    bloom.set_threshold(0.40f);
+    bloom.set_intensity(0.95f);
+    bloom.set_radius(1.8f);
     bool use_bloom = bloom_ready;
 
-    // 4. Create simulation display bitmap
+    // 4. Dynamic 2D Lighting pass: Spotlight Torch & glowing fire point lights!
+    sl::LightingPass lighting;
+    const bool lighting_ready = lighting.initialise();
+    lighting.set_ambient(0.18f);
+    bool use_lighting = false;
+
+    // 5. Create display bitmaps
     sl::Bitmap *sim_bitmap = sl::create_bitmap(GRID_W, GRID_H);
     sl::Bitmap *scene_target = sl::create_render_target(SCREEN_W, SCREEN_H);
 
@@ -838,21 +1205,30 @@ int main(int argc, char *argv[])
                 case sl::Event::Key::digit_5: selected_element = ElementType::Wood; break;
                 case sl::Event::Key::digit_6: selected_element = ElementType::Solid; break;
                 case sl::Event::Key::digit_7: selected_element = ElementType::Acid; break;
-                case sl::Event::Key::digit_8: selected_element = ElementType::Smoke; break;
+                case sl::Event::Key::digit_8: selected_element = ElementType::Lava; break;
+                case sl::Event::Key::digit_9: selected_element = ElementType::Gunpowder; break;
+                case sl::Event::Key::digit_0: selected_element = ElementType::Plant; break;
+                case sl::Event::Key::minus:   selected_element = ElementType::Pump; break;
                 case sl::Event::Key::space: paused = !paused; break;
                 case sl::Event::Key::letter_r: grid.clear(); break;
                 case sl::Event::Key::letter_p:
                     ++current_scenario;
-                    grid.load_scenario(current_scenario);
+                    grid.load_scenario(current_scenario, boxes, physics);
                     break;
                 case sl::Event::Key::letter_c:
-                    spawn_box(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()), true);
+                    spawn_box(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()), BoxKind::Wood);
                     break;
                 case sl::Event::Key::letter_v:
-                    spawn_box(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()), false);
+                    spawn_box(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()), BoxKind::Metal);
+                    break;
+                case sl::Event::Key::letter_t:
+                    spawn_box(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()), BoxKind::TNT);
                     break;
                 case sl::Event::Key::letter_b:
                     if (bloom_ready) use_bloom = !use_bloom;
+                    break;
+                case sl::Event::Key::letter_l:
+                    if (lighting_ready) use_lighting = !use_lighting;
                     break;
                 case sl::Event::Key::left_bracket:
                     brush_radius = std::max(1, brush_radius - 1);
@@ -888,16 +1264,27 @@ int main(int argc, char *argv[])
         if (!paused)
         {
             // 1. Advance Cellular Automata
-            grid.update();
+            grid.update(physics);
 
             // 2. Advance Box2D rigid bodies with fluid buoyancy & drag
             if (physics)
             {
-                for (DynamicBox &box : boxes)
+                for (std::size_t bi = 0; bi < boxes.size(); ++bi)
                 {
+                    DynamicBox &box = boxes[bi];
                     if (!box.body) continue;
                     const sl::Vec2 pos = sl::physics_body_position(box.body);
                     const sl::Vec2 vel = sl::physics_body_velocity(box.body);
+
+                    // Check for TNT detonation
+                    if (box.kind == BoxKind::TNT && box.exploded)
+                    {
+                        grid.trigger_explosion(static_cast<int>(pos.x / CELL_SCALE),
+                                               static_cast<int>(pos.y / CELL_SCALE), 20, physics);
+                        sl::destroy_physics_body(box.body);
+                        box.body = nullptr;
+                        continue;
+                    }
 
                     // Sample fluid cells overlapping the box to compute buoyancy
                     const int min_gx = std::clamp(static_cast<int>((pos.x - box.width * 0.5f) / CELL_SCALE), 1, GRID_W - 2);
@@ -909,6 +1296,7 @@ int main(int argc, char *argv[])
                     int total_cells = 0;
                     float fluid_density_sum = 0.0f;
                     bool in_fire = false;
+                    bool in_lava = false;
 
                     for (int cy = min_gy; cy <= max_gy; ++cy)
                     {
@@ -916,12 +1304,12 @@ int main(int argc, char *argv[])
                         {
                             ++total_cells;
                             const Cell &c = grid.get(cx, cy);
-                            if (c.type == ElementType::Water || c.type == ElementType::Oil || c.type == ElementType::Acid)
+                            if (c.type == ElementType::Water || c.type == ElementType::Oil ||
+                                c.type == ElementType::Acid || c.type == ElementType::Lava)
                             {
                                 ++submerged_cells;
                                 fluid_density_sum += ELEMENT_PROPERTIES[static_cast<std::size_t>(c.type)].density;
 
-                                // Fluid displacement: moving box pushes water sideways
                                 if (std::abs(vel.x) > 20.0f && (grid.current_turn() % 3 == 0))
                                 {
                                     const int push_dir = vel.x > 0.0f ? 1 : -1;
@@ -930,6 +1318,8 @@ int main(int argc, char *argv[])
                                         grid.set(cx + push_dir, cy, c.type, c.mass);
                                     }
                                 }
+
+                                if (c.type == ElementType::Lava) in_lava = true;
                             }
                             else if (c.type == ElementType::Fire)
                             {
@@ -943,29 +1333,38 @@ int main(int argc, char *argv[])
                         const float submerged_ratio = static_cast<float>(submerged_cells) / static_cast<float>(total_cells);
                         const float avg_fluid_density = fluid_density_sum / static_cast<float>(submerged_cells);
 
-                        // Archimedes Buoyancy Force: F = fluid_density * submerged_volume * gravity
-                        const float mass_approx = box.width * box.height * box.density;
-                        const float buoyancy = (avg_fluid_density / box.density) * mass_approx * 750.0f * submerged_ratio;
+                        // Archimedes Buoyancy Force in pixel force units:
+                        // Accurately balanced with Box2D gravity (600.0 px/s^2)
+                        const float buoyancy = submerged_ratio * avg_fluid_density * (box.width * box.height * 600.0f) / 4096.0f;
                         sl::apply_physics_force(box.body, {0.0f, -buoyancy});
 
-                        // Fluid Drag / Damping
-                        const float drag_x = -vel.x * 0.08f * submerged_ratio * mass_approx;
-                        const float drag_y = -vel.y * 0.12f * submerged_ratio * mass_approx;
+                        // Fluid Drag / Damping:
+                        const float mass_px = (box.width * box.height * box.density) / 4096.0f;
+                        const float drag_x = -vel.x * 2.5f * submerged_ratio * mass_px;
+                        const float drag_y = -vel.y * 3.5f * submerged_ratio * mass_px;
                         sl::apply_physics_force(box.body, {drag_x, drag_y});
                     }
 
-                    // Flammable box catch fire
-                    if (in_fire && box.is_wood)
+                    // Ignitions
+                    if (in_fire || in_lava)
                     {
-                        box.colour = {230, 90, 40}; // Burning orange
-                        if (std::rand() % 4 == 0)
+                        if (box.kind == BoxKind::TNT)
                         {
-                            grid.set(min_gx + std::rand() % std::max(1, max_gx - min_gx),
-                                     std::max(1, min_gy - 1), ElementType::Fire, 0.0f, 600.0f, 40);
+                            box.exploded = true;
+                        }
+                        else if (box.kind == BoxKind::Wood)
+                        {
+                            box.colour = {230, 90, 40};
+                            if (std::rand() % 4 == 0)
+                            {
+                                grid.set(min_gx + std::rand() % std::max(1, max_gx - min_gx),
+                                         std::max(1, min_gy - 1), ElementType::Fire, 0.0f, 600.0f, 40);
+                            }
                         }
                     }
                 }
 
+                grid.apply_pending_blast(boxes);
                 sl::step_physics_world(physics, dt);
             }
         }
@@ -1005,6 +1404,11 @@ int main(int argc, char *argv[])
             sl::line(sl::screen, p2.x, p2.y, p3.x, p3.y, {240, 245, 255});
             sl::line(sl::screen, p3.x, p3.y, p4.x, p4.y, {240, 245, 255});
             sl::line(sl::screen, p4.x, p4.y, p1.x, p1.y, {240, 245, 255});
+
+            if (box.kind == BoxKind::TNT)
+            {
+                sl::gprintf(static_cast<int>(pos.x - 14.0f), static_cast<int>(pos.y - 6.0f), {255, 255, 255}, "TNT");
+            }
         }
 
         // 3. Draw Brush Cursor
@@ -1018,7 +1422,33 @@ int main(int argc, char *argv[])
 
         // 4. Output / Post-processing pass
         sl::clear_to_colour(sl::screen, {16, 20, 28});
-        if (use_bloom && scene_target)
+
+        if (use_lighting && lighting_ready && scene_target)
+        {
+            // Torch spotlight following the mouse
+            sl::Light torch;
+            torch.x = static_cast<float>(mx);
+            torch.y = static_cast<float>(my);
+            torch.radius = 320.0f;
+            torch.intensity = 1.3f;
+            torch.direction_x = 0.0f;
+            torch.direction_y = 1.0f;
+            torch.inner_angle = 20.0f;
+            torch.outer_angle = 45.0f;
+            torch.colour = {255, 240, 200};
+
+            // Ambient warmth light in center of room
+            sl::Light ambient_glow;
+            ambient_glow.x = 400.0f;
+            ambient_glow.y = 300.0f;
+            ambient_glow.radius = 450.0f;
+            ambient_glow.intensity = 0.45f;
+            ambient_glow.colour = {120, 160, 220};
+
+            const std::vector<sl::Light> scene_lights = {torch, ambient_glow};
+            lighting.apply(scene_target, scene_lights, 0, 0, SCREEN_W, SCREEN_H);
+        }
+        else if (use_bloom && bloom_ready && scene_target)
         {
             bloom.apply(scene_target, 0, 0, SCREEN_W, SCREEN_H);
         }
@@ -1028,19 +1458,21 @@ int main(int argc, char *argv[])
         }
 
         // 5. Draw HUD Overlay directly on screen for razor-sharp typography
-        sl::gprintf(16, 16, {255, 235, 140}, "CA Fluid & Falling Sand (Tom Forsyth CA Model)");
+        sl::gprintf(16, 16, {255, 235, 140}, "CA Fluid & Falling Sand Sandbox (Tom Forsyth CA Model)");
         sl::gprintf(16, 38, {170, 190, 215},
-                    "Selected: [ %s ] (Keys 1-8)   Brush Radius: %d ([ / ])   Bloom: %s (B)",
+                    "Selected: [ %s ] (Keys 1-9, 0, -)   Radius: %d ([ / ])   Bloom: %s (B)   Light: %s (L)",
                     ELEMENT_PROPERTIES[static_cast<std::size_t>(selected_element)].name,
-                    brush_radius, use_bloom ? "ON" : "OFF");
+                    brush_radius, use_bloom ? "ON" : "OFF", use_lighting ? "ON" : "OFF");
         sl::gprintf(16, 58, {150, 175, 200},
-                    "Left Click: Draw | Right Click: Erase | C: Drop Wood Crate | V: Metal Barrel | P: Scenario (%d)",
-                    current_scenario % 4 + 1);
+                    "Left Click: Draw | Right Click: Erase | C: Crate | V: Barrel | T: TNT | P: Scenario (%d/5)",
+                    current_scenario % 5 + 1);
         sl::gprintf(16, 78, {130, 155, 180},
-                    "Sand: %d  Water: %d  Oil: %d  Fire: %d | Space: %s | R: Reset",
+                    "Sand:%d Water:%d Oil:%d Lava:%d Powder:%d Fire:%d | Space: %s | R: Clear",
                     grid.count_elements(ElementType::Sand),
                     grid.count_elements(ElementType::Water),
                     grid.count_elements(ElementType::Oil),
+                    grid.count_elements(ElementType::Lava),
+                    grid.count_elements(ElementType::Gunpowder),
                     grid.count_elements(ElementType::Fire),
                     paused ? "PAUSED" : "RUNNING");
 
@@ -1051,6 +1483,7 @@ int main(int argc, char *argv[])
     // Cleanup
     sl::wait_for_graphics();
     bloom.shutdown();
+    lighting.shutdown();
     if (physics)
     {
         for (DynamicBox &box : boxes)
