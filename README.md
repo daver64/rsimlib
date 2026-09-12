@@ -7,6 +7,14 @@ render targets and lighting effects, ZIP resource archives, Perlin/simplex
 noise, Box2D physics, and a sandboxed Lua console through
 [sol2](https://github.com/ThePhD/sol2).
 
+### `excafluid` sandbox demo
+
+Cellular Automata fluid, granular falling sand, fire/smoke dynamics, interactive Box2D rigid bodies with Archimedes buoyancy, and dynamic spotlight illumination:
+
+
+https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
+
+
 This repository contains:
 
 - **`simlib`** — the static engine library (`src/engine/`).
@@ -134,13 +142,8 @@ the most convenient representation. The current implementation projects
 polygon edges away from each light and supports soft shadow filtering through
 `shadow_softness`.
 
-### `excafluid` sandbox demo
-
-Cellular Automata fluid, granular falling sand, fire/smoke dynamics, interactive Box2D rigid bodies with Archimedes buoyancy, and dynamic spotlight illumination:
 
 
-
-https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
 
 
 ## Prerequisites
