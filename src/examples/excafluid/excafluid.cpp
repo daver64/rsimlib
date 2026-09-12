@@ -501,20 +501,20 @@ namespace
                         int y = cy + dy;
                         if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1)
                         {
-                            Cell &c = at(x, y);
+                            const Cell &c = get(x, y);
                             if (c.type != ElementType::Solid)
                             {
                                 if (dist_sq < static_cast<float>(blast_radius * blast_radius * 0.4f))
                                 {
-                                    c.type = ElementType::Fire;
-                                    c.life = 80;
-                                    c.temp = 1200.0f;
+                                    set(x, y, ElementType::Fire, 0.0f, 1200.0f, 80);
                                 }
                                 else if (rng_() % 2 == 0)
                                 {
-                                    c.type = ElementType::Smoke;
-                                    c.life = 60;
-                                    c.temp = 400.0f;
+                                    set(x, y, ElementType::Smoke, 0.0f, 400.0f, 60);
+                                }
+                                else
+                                {
+                                    set(x, y, ElementType::Empty, 0.0f, 20.0f, 0);
                                 }
                             }
                         }

@@ -724,6 +724,7 @@ namespace sl
                 switch (cell.type)
                 {
                 case FluidElement::sand:
+                case FluidElement::gunpowder:
                     update_sand(simulation, x, y);
                     break;
                 case FluidElement::water:
