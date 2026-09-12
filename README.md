@@ -43,7 +43,9 @@ Create the archive used by `exresources` from the repository root with:
 - **`exgui`** — Dear ImGui initialization, event forwarding, widgets, rendering, and shutdown.
 - **`exparticles`** — particle emission, movement, lifetime/colour fades, gravity, and batching through `ParticleEmitter`.
 - **`exresources`** — ZIP archive opening, entry enumeration, byte reads, and packaged image loading.
+- **`exatlas`** — texture atlas slicing, tile index mapping, sub-rectangle calculation, and interactive sprite grid rendering.
 - **`expostprocess`** — render-target composition with Bloom, ColourAdjust, Blur, ChromaticAberration, Pixelate, RadialBlur, HeatHaze, Shockwave, CRT, Dither, Film Grain, and Vignette effect passes.
+- **`excafluid`** — Cellular Automata fluid, falling sand, chemical reactions, Box2D rigid bodies, buoyancy, and dynamic spotlight illumination.
 - **`ex3d`** — direct OpenGL 3D rendering with depth testing, VAO/VBO ownership, custom shaders, and GLM camera matrices.
 - **`ex3d_vulkan`** — direct Vulkan 3D rendering with shared device/frame lifecycle, depth attachments, custom pipelines, buffers, and MVP push constants.
 
@@ -120,6 +122,8 @@ sl::draw_sprite(result, 0.0f, 0.0f);
 | `radius` | Maximum illumination distance in pixels. |
 | `intensity` | Brightness multiplier for this light. |
 | `shadow_softness` | Shadow-mask filter radius in pixels; `0` produces hard shadows. |
+| `direction_x`, `direction_y` | Direction vector in screen space; used when spotlight cone angles are non-zero. |
+| `inner_angle`, `outer_angle` | Inner and outer spotlight cone angles in degrees; `0` disables cone falloff (omni-directional point light). |
 | `colour` | RGB light colour. |
 
 `ShadowCaster` describes a polygon that blocks light. Its `vertices` are
@@ -130,12 +134,11 @@ the most convenient representation. The current implementation projects
 polygon edges away from each light and supports soft shadow filtering through
 `shadow_softness`.
 
-### `sltest` screenshot
+### `excafluid` sandbox demo
 
-The sample game's physics playground, including its balloon controls, terrain,
-particles, and vignette effect:
+Cellular Automata fluid, granular falling sand, fire/smoke dynamics, interactive Box2D rigid bodies with Archimedes buoyancy, and dynamic spotlight illumination:
 
-![sltest gameplay screenshot](sltest1.png)
+<video src="excafluid.mp4" controls autoplay loop muted width="100%"></video>
 
 ## Prerequisites
 
@@ -326,7 +329,9 @@ ctest --test-dir build
 ./exgui # Dear ImGui integration example
 ./exparticles # particle emitter example
 ./exresources # packaged asset archive example
+./exatlas # texture atlas slicing and sprite grid navigation
 ./expostprocess # full post-processing effects example
+./excafluid # Cellular Automata fluid, falling sand, chemical reactions, and Box2D physics
 ./ex3d # direct OpenGL 3D example
 ./ex3d_vulkan # direct Vulkan 3D example
 ./sltest # sample game: menu, physics playground, Lua console
@@ -441,6 +446,8 @@ when using a windowed application.
 | `draw_sprite_h_flip(bitmap, x, y)` / `draw_sprite_v_flip(bitmap, x, y)` | Draw a horizontally or vertically flipped bitmap. |
 | `blit(source, destination, ...)` / `stretch_blit(...)` | Copy bitmap regions with or without scaling. |
 | `create_sub_bitmap(parent, x, y, width, height)` | Create a bitmap view containing a copied rectangular region. |
+| `create_atlas(bitmap, tile_w, tile_h, spacing, margin)` | Slices a bitmap into a uniform grid atlas (`Atlas`). |
+| `atlas_blit(atlas, dest, tile_index, x, y)` / `atlas_stretch_blit(...)` | Blit or stretch-blit a tile from an atlas to a destination bitmap. |
 
 Shape primitives include `line`, `rect`, `rectfill`, `circle`, `circlefill`,
 `ellipse`, `ellipsefill`, `triangle`, and `trianglefill`. Each accepts a

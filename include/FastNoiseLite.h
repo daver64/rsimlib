@@ -51,6 +51,7 @@
 #define FASTNOISELITE_H
 
 #include <cmath>
+#include <cstdint>
 
 class FastNoiseLite
 {
@@ -484,25 +485,25 @@ private:
     }
 
     // Hashing
-    static const int PrimeX = 501125321;
-    static const int PrimeY = 1136930381;
-    static const int PrimeZ = 1720413743;
+    static const std::uint32_t PrimeX = 501125321u;
+    static const std::uint32_t PrimeY = 1136930381u;
+    static const std::uint32_t PrimeZ = 1720413743u;
 
-    static int Hash(int seed, int xPrimed, int yPrimed)
+    static int Hash(int seed, std::uint32_t xPrimed, std::uint32_t yPrimed)
     {
-        int hash = seed ^ xPrimed ^ yPrimed;
+        std::uint32_t hash = static_cast<std::uint32_t>(seed) ^ xPrimed ^ yPrimed;
 
         hash *= 0x27d4eb2d;
-        return hash;
+        return static_cast<int>(hash);
     }
 
 
-    static int Hash(int seed, int xPrimed, int yPrimed, int zPrimed)
+    static int Hash(int seed, std::uint32_t xPrimed, std::uint32_t yPrimed, std::uint32_t zPrimed)
     {
-        int hash = seed ^ xPrimed ^ yPrimed ^ zPrimed;
+        std::uint32_t hash = static_cast<std::uint32_t>(seed) ^ xPrimed ^ yPrimed ^ zPrimed;
 
         hash *= 0x27d4eb2d;
-        return hash;
+        return static_cast<int>(hash);
     }
 
 
@@ -1491,8 +1492,8 @@ private:
 
         float cellularJitter = 0.43701595f * mCellularJitterModifier;
 
-        int xPrimed = (xr - 1) * PrimeX;
-        int yPrimedBase = (yr - 1) * PrimeY;
+        std::uint32_t xPrimed = static_cast<std::uint32_t>(xr - 1) * PrimeX;
+        std::uint32_t yPrimedBase = static_cast<std::uint32_t>(yr - 1) * PrimeY;
 
         switch (mCellularDistanceFunction)
         {
@@ -1501,7 +1502,7 @@ private:
         case CellularDistanceFunction_EuclideanSq:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
@@ -1527,7 +1528,7 @@ private:
         case CellularDistanceFunction_Manhattan:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
@@ -1553,7 +1554,7 @@ private:
         case CellularDistanceFunction_Hybrid:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
@@ -1622,9 +1623,9 @@ private:
 
         float cellularJitter = 0.39614353f * mCellularJitterModifier;
 
-        int xPrimed = (xr - 1) * PrimeX;
-        int yPrimedBase = (yr - 1) * PrimeY;
-        int zPrimedBase = (zr - 1) * PrimeZ;
+        std::uint32_t xPrimed = static_cast<std::uint32_t>(xr - 1) * PrimeX;
+        std::uint32_t yPrimedBase = static_cast<std::uint32_t>(yr - 1) * PrimeY;
+        std::uint32_t zPrimedBase = static_cast<std::uint32_t>(zr - 1) * PrimeZ;
 
         switch (mCellularDistanceFunction)
         {
@@ -1632,11 +1633,11 @@ private:
         case CellularDistanceFunction_EuclideanSq:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
-                    int zPrimed = zPrimedBase;
+                    std::uint32_t zPrimed = zPrimedBase;
 
                     for (int zi = zr - 1; zi <= zr + 1; zi++)
                     {
@@ -1665,11 +1666,11 @@ private:
         case CellularDistanceFunction_Manhattan:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
-                    int zPrimed = zPrimedBase;
+                    std::uint32_t zPrimed = zPrimedBase;
 
                     for (int zi = zr - 1; zi <= zr + 1; zi++)
                     {
@@ -1698,11 +1699,11 @@ private:
         case CellularDistanceFunction_Hybrid:
             for (int xi = xr - 1; xi <= xr + 1; xi++)
             {
-                int yPrimed = yPrimedBase;
+                std::uint32_t yPrimed = yPrimedBase;
 
                 for (int yi = yr - 1; yi <= yr + 1; yi++)
                 {
-                    int zPrimed = zPrimedBase;
+                    std::uint32_t zPrimed = zPrimedBase;
 
                     for (int zi = zr - 1; zi <= zr + 1; zi++)
                     {
