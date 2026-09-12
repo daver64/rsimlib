@@ -389,6 +389,12 @@ set_target_properties(exbitmap PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
+add_executable(exatlas src/examples/exatlas/exatlas.cpp)
+target_link_libraries(exatlas PRIVATE simlib)
+set_target_properties(exatlas PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 add_executable(exdb src/examples/exdb/exdb.cpp)
 target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
 set_target_properties(exdb PROPERTIES

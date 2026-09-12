@@ -27,6 +27,7 @@ imgui.ini
 /expostprocess
 /ex3d
 /ex3d_vulkan
+/exatlas
 /lib/
 applications
 exdb.sqlite
