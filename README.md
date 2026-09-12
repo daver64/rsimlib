@@ -138,7 +138,10 @@ polygon edges away from each light and supports soft shadow filtering through
 
 Cellular Automata fluid, granular falling sand, fire/smoke dynamics, interactive Box2D rigid bodies with Archimedes buoyancy, and dynamic spotlight illumination:
 
-<video src="excafluid.mp4" controls autoplay loop muted width="100%"></video>
+
+
+https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
+
 
 ## Prerequisites
 
