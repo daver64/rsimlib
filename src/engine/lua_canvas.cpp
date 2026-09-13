@@ -5,7 +5,11 @@
 #include "lua_canvas.h"
 
 #include "audio.h"
+#include "display.h"
+#include "graphics_fx.h"
 #include "physics.h"
+#include "rdb.h"
+#include "system.h"
 
 #include <sol/sol.hpp>
 
@@ -70,8 +74,18 @@ namespace sl
         std::vector<DrawingCommand> commands;
         std::filesystem::path asset_root{"assets"};
         std::unordered_map<std::string, Bitmap *> sprites;
+        std::unordered_map<std::string, Bitmap *> render_targets;
         std::unordered_map<std::string, Sample *> sounds;
         std::unordered_map<std::string, Stream *> music;
+        std::unordered_map<std::string, Shader *> shaders;
+        std::unordered_map<std::string, StorageBuffer *> storage_buffers;
+        std::unordered_map<std::string, std::shared_ptr<rdb::Database>> databases;
+
+        ScreenShake screen_shake;
+        Bloom bloom;
+        Vignette vignette;
+        ColourAdjust colour_adjust;
+
         std::uint64_t next_physics_handle = 1;
         std::unordered_map<std::uint64_t, PhysicsWorld *> physics_worlds;
         std::unordered_map<std::uint64_t, PhysicsBody *> physics_bodies;
@@ -186,7 +200,7 @@ namespace sl
 
         bool add_sprite(const std::string &id, float x, float y, float width = 0.0f, float height = 0.0f)
         {
-            if (sprites.find(id) == sprites.end())
+            if (sprites.find(id) == sprites.end() && render_targets.find(id) == render_targets.end())
             {
                 return false;
             }
@@ -204,7 +218,7 @@ namespace sl
 
         bool add_rotated_sprite(const std::string &id, float center_x, float center_y, float angle_degrees, float width = 0.0f, float height = 0.0f)
         {
-            if (sprites.find(id) == sprites.end())
+            if (sprites.find(id) == sprites.end() && render_targets.find(id) == render_targets.end())
             {
                 return false;
             }
@@ -218,6 +232,58 @@ namespace sl
                                 {},
                                 id});
             return true;
+        }
+
+        bool create_render_target_handle(const std::string &id, int width, int height)
+        {
+            if (id.empty() || width <= 0 || height <= 0 || render_targets.find(id) != render_targets.end())
+            {
+                return false;
+            }
+            Bitmap *target = sl::create_render_target(width, height);
+            if (!target) return false;
+            render_targets.emplace(id, target);
+            return true;
+        }
+
+        bool destroy_render_target_handle(const std::string &id)
+        {
+            const auto iterator = render_targets.find(id);
+            if (iterator == render_targets.end()) return false;
+            sl::destroy_bitmap(iterator->second);
+            render_targets.erase(iterator);
+            return true;
+        }
+
+        Bitmap *find_bitmap(const std::string &id) const
+        {
+            auto sp = sprites.find(id);
+            if (sp != sprites.end()) return sp->second;
+            auto rt = render_targets.find(id);
+            if (rt != render_targets.end()) return rt->second;
+            return nullptr;
+        }
+
+        void clear_render_targets()
+        {
+            for (const auto &[id, target] : render_targets)
+            {
+                sl::destroy_bitmap(target);
+            }
+            render_targets.clear();
+        }
+
+        void clear_compute()
+        {
+            for (const auto &[id, shader] : shaders) delete shader;
+            shaders.clear();
+            for (const auto &[id, buffer] : storage_buffers) delete buffer;
+            storage_buffers.clear();
+        }
+
+        void clear_databases()
+        {
+            databases.clear();
         }
 
         bool unload_sprite(const std::string &id)
@@ -328,6 +394,20 @@ namespace sl
         }
     };
 
+    void LuaCanvas::reset()
+    {
+        if (implementation_)
+        {
+            implementation_->clear_sprites();
+            implementation_->clear_render_targets();
+            implementation_->clear_audio();
+            implementation_->clear_physics();
+            implementation_->clear_compute();
+            implementation_->clear_databases();
+            implementation_->commands.clear();
+        }
+    }
+
     LuaCanvas::LuaCanvas()
         : implementation_(new Implementation)
     {
@@ -397,6 +477,240 @@ namespace sl
                          { sl::music_set_volume(volume); });
         app.set_function("unload_music", [this](const std::string &id)
                          { return implementation_->unload_music(id); });
+        app.set_function("create_render_target", [this](const std::string &id, int width, int height)
+                         { return implementation_->create_render_target_handle(id, width, height); });
+        app.set_function("destroy_render_target", [this](const std::string &id)
+                         { return implementation_->destroy_render_target_handle(id); });
+
+        sol::table display = implementation_->runtime.state().create_named_table("display");
+        display.set_function("width", []() { return sl::screen_width(); });
+        display.set_function("height", []() { return sl::screen_height(); });
+        display.set_function("virtual_width", []() { return sl::virtual_screen_width(); });
+        display.set_function("virtual_height", []() { return sl::virtual_screen_height(); });
+        display.set_function("set_title", [](const std::string &title) { sl::set_window_title(title.c_str()); });
+
+        sol::table system = implementation_->runtime.state().create_named_table("system");
+        system.set_function("time_ms", []() { return sl::time_ms(); });
+        system.set_function("get_fps", []() { return sl::get_fps(); });
+        system.set_function("set_fps", [](int fps) { sl::set_fps(fps); });
+        system.set_function("get_frame_time", []() { return sl::get_frame_time(); });
+
+        sol::table fx = implementation_->runtime.state().create_named_table("fx");
+        fx.set_function("shake", [this](float amplitude, float duration)
+                        { implementation_->screen_shake.trigger(amplitude, duration); });
+        fx.set_function("update_shake", [this](float delta)
+                        { implementation_->screen_shake.update(delta); });
+        fx.set_function("shake_active", [this]()
+                        { return implementation_->screen_shake.active(); });
+        fx.set_function("clear_shake", [this]()
+                        { implementation_->screen_shake.clear(); });
+
+        fx.set_function("bloom_init", [this]() { return implementation_->bloom.initialise(); });
+        fx.set_function("bloom_config", [this](sol::optional<float> threshold, sol::optional<float> intensity, sol::optional<float> radius)
+                        {
+                            if (threshold) implementation_->bloom.set_threshold(*threshold);
+                            if (intensity) implementation_->bloom.set_intensity(*intensity);
+                            if (radius) implementation_->bloom.set_radius(*radius);
+                        });
+        fx.set_function("apply_bloom", [this](const std::string &target_id)
+                        {
+                            Bitmap *bmp = implementation_->find_bitmap(target_id);
+                            if (bmp && implementation_->bloom.is_valid())
+                            {
+                                implementation_->bloom.apply(bmp);
+                                return true;
+                            }
+                            return false;
+                        });
+
+        fx.set_function("vignette_init", [this]() { return implementation_->vignette.initialise(); });
+        fx.set_function("vignette_config", [this](sol::optional<float> radius, sol::optional<float> softness, sol::optional<float> intensity)
+                        {
+                            if (radius) implementation_->vignette.set_radius(*radius);
+                            if (softness) implementation_->vignette.set_softness(*softness);
+                            if (intensity) implementation_->vignette.set_intensity(*intensity);
+                        });
+        fx.set_function("apply_vignette", [this](const std::string &target_id)
+                        {
+                            Bitmap *bmp = implementation_->find_bitmap(target_id);
+                            if (bmp && implementation_->vignette.is_valid())
+                            {
+                                implementation_->vignette.apply(bmp);
+                                return true;
+                            }
+                            return false;
+                        });
+
+        sol::table compute = implementation_->runtime.state().create_named_table("compute");
+        compute.set_function("load_shader", [this](const std::string &id, const std::string &source)
+                             {
+                                 if (id.empty() || implementation_->shaders.find(id) != implementation_->shaders.end())
+                                     return false;
+                                 auto *shader = new Shader();
+                                 if (!shader->load_compute(source))
+                                 {
+                                     delete shader;
+                                     return false;
+                                 }
+                                 implementation_->shaders.emplace(id, shader);
+                                 return true;
+                             });
+        compute.set_function("destroy_shader", [this](const std::string &id)
+                             {
+                                 auto it = implementation_->shaders.find(id);
+                                 if (it == implementation_->shaders.end()) return false;
+                                 delete it->second;
+                                 implementation_->shaders.erase(it);
+                                 return true;
+                             });
+        compute.set_function("create_buffer", [this](const std::string &id, std::size_t size_bytes)
+                             {
+                                 if (id.empty() || implementation_->storage_buffers.find(id) != implementation_->storage_buffers.end())
+                                     return false;
+                                 auto *buffer = new StorageBuffer(size_bytes);
+                                 if (!buffer->is_valid())
+                                 {
+                                     delete buffer;
+                                     return false;
+                                 }
+                                 implementation_->storage_buffers.emplace(id, buffer);
+                                 return true;
+                             });
+        compute.set_function("destroy_buffer", [this](const std::string &id)
+                             {
+                                 auto it = implementation_->storage_buffers.find(id);
+                                 if (it == implementation_->storage_buffers.end()) return false;
+                                 delete it->second;
+                                 implementation_->storage_buffers.erase(it);
+                                 return true;
+                             });
+        compute.set_function("upload_floats", [this](const std::string &buffer_id, sol::table float_table)
+                             {
+                                 auto it = implementation_->storage_buffers.find(buffer_id);
+                                 if (it == implementation_->storage_buffers.end()) return false;
+                                 std::vector<float> values;
+                                 for (const auto &kv : float_table)
+                                 {
+                                     values.push_back(kv.second.as<float>());
+                                 }
+                                 return it->second->upload(values);
+                             });
+        compute.set_function("readback_floats", [this](sol::this_state state, const std::string &buffer_id, std::size_t count)
+                             {
+                                 sol::state_view lua(state);
+                                 sol::table result = lua.create_table();
+                                 auto it = implementation_->storage_buffers.find(buffer_id);
+                                 if (it == implementation_->storage_buffers.end() || count == 0) return result;
+                                 std::vector<float> values(count, 0.0f);
+                                 if (it->second->readback(values))
+                                 {
+                                     for (std::size_t i = 0; i < count; ++i)
+                                     {
+                                         result[i + 1] = values[i];
+                                     }
+                                 }
+                                 return result;
+                             });
+        compute.set_function("bind_buffer", [this](const std::string &buffer_id, unsigned int binding_slot)
+                             {
+                                 auto it = implementation_->storage_buffers.find(buffer_id);
+                                 return it != implementation_->storage_buffers.end() && it->second->bind(binding_slot);
+                             });
+        compute.set_function("set_uniform_float", [this](const std::string &shader_id, const std::string &name, float value)
+                             {
+                                 auto it = implementation_->shaders.find(shader_id);
+                                 return it != implementation_->shaders.end() && it->second->set_uniform(name.c_str(), value);
+                             });
+        compute.set_function("dispatch_for", [this](const std::string &shader_id, unsigned int totalX,
+                                                     sol::optional<unsigned int> totalY, sol::optional<unsigned int> totalZ,
+                                                     sol::optional<unsigned int> localX, sol::optional<unsigned int> localY, sol::optional<unsigned int> localZ)
+                             {
+                                 auto it = implementation_->shaders.find(shader_id);
+                                 return it != implementation_->shaders.end() &&
+                                     sl::dispatch_compute_for(*it->second, totalX, totalY.value_or(1), totalZ.value_or(1),
+                                                              localX.value_or(16), localY.value_or(16), localZ.value_or(1));
+                             });
+        compute.set_function("barrier", []() { sl::compute_barrier(); });
+
+        sol::table rdb_tbl = implementation_->runtime.state().create_named_table("rdb");
+        rdb_tbl.set_function("connect", [this](const std::string &id, const std::string &driver_str, const std::string &conn_str)
+                             {
+                                 if (id.empty() || implementation_->databases.find(id) != implementation_->databases.end())
+                                     return false;
+                                 try
+                                 {
+                                     auto db = std::make_shared<rdb::Database>(conn_str);
+                                     implementation_->databases.emplace(id, db);
+                                     return true;
+                                 }
+                                 catch (...)
+                                 {
+                                     return false;
+                                 }
+                             });
+        rdb_tbl.set_function("disconnect", [this](const std::string &id)
+                             {
+                                 auto it = implementation_->databases.find(id);
+                                 if (it == implementation_->databases.end()) return false;
+                                 implementation_->databases.erase(it);
+                                 return true;
+                             });
+        rdb_tbl.set_function("execute", [this](const std::string &id, const std::string &sql)
+                             {
+                                 auto it = implementation_->databases.find(id);
+                                 if (it == implementation_->databases.end()) return false;
+                                 try
+                                 {
+                                     it->second->execute(sql);
+                                     return true;
+                                 }
+                                 catch (...)
+                                 {
+                                     return false;
+                                 }
+                             });
+        rdb_tbl.set_function("query", [this](sol::this_state state, const std::string &id, const std::string &sql)
+                             {
+                                 sol::state_view lua(state);
+                                 sol::table rows = lua.create_table();
+                                 auto it = implementation_->databases.find(id);
+                                 if (it == implementation_->databases.end()) return rows;
+                                 try
+                                 {
+                                     auto stmt = it->second->prepare(sql);
+                                     if (!stmt) return rows;
+                                     int row_idx = 1;
+                                     while (stmt->step())
+                                     {
+                                         sol::table row = lua.create_table();
+                                         int col_count = sqlite3_column_count(stmt->get());
+                                         for (int col = 0; col < col_count; ++col)
+                                         {
+                                             const char *name_str = sqlite3_column_name(stmt->get(), col);
+                                             std::string col_name = name_str ? name_str : "";
+                                             if (sqlite3_column_type(stmt->get(), col) == SQLITE_NULL)
+                                             {
+                                                 row[col_name] = sol::nil;
+                                             }
+                                             else if (sqlite3_column_type(stmt->get(), col) == SQLITE_INTEGER)
+                                             {
+                                                 row[col_name] = stmt->getInt(col);
+                                             }
+                                             else if (sqlite3_column_type(stmt->get(), col) == SQLITE_FLOAT)
+                                             {
+                                                 row[col_name] = stmt->getDouble(col);
+                                             }
+                                             else
+                                             {
+                                                 row[col_name] = stmt->getText(col);
+                                             }
+                                         }
+                                         rows[row_idx++] = row;
+                                     }
+                                 }
+                                 catch (...) {}
+                                 return rows;
+                             });
 
         sol::table physics = implementation_->runtime.state().create_named_table("physics");
         physics.set_function("create_world", [this](float gravity_x, float gravity_y)
@@ -688,30 +1002,26 @@ namespace sl
                 break;
             case DrawingType::sprite:
             {
-                const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end())
-                    draw_sprite(sprite->second, command.x1, command.y1);
+                Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
+                if (sprite) draw_sprite(sprite, command.x1, command.y1);
                 break;
             }
             case DrawingType::sprite_stretched:
             {
-                const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end())
-                    draw_sprite_stretched(sprite->second, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
+                if (sprite) draw_sprite_stretched(sprite, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             case DrawingType::sprite_rotated:
             {
-                const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end())
-                    draw_sprite_rotated(sprite->second, command.x1, command.y1, command.x3);
+                Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
+                if (sprite) draw_sprite_rotated(sprite, command.x1, command.y1, command.x3);
                 break;
             }
             case DrawingType::sprite_rotated_stretched:
             {
-                const auto sprite = implementation_->sprites.find(command.sprite_id);
-                if (sprite != implementation_->sprites.end())
-                    draw_sprite_rotated_stretched(sprite->second, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
+                if (sprite) draw_sprite_rotated_stretched(sprite, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             }
@@ -722,14 +1032,5 @@ namespace sl
     {
         implementation_->background = {0, 0, 0};
         implementation_->commands.clear();
-    }
-
-    void LuaCanvas::reset()
-    {
-        clear();
-        implementation_->clear_sprites();
-        implementation_->clear_audio();
-        implementation_->clear_physics();
-        implementation_->runtime.reset();
     }
 }

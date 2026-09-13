@@ -189,6 +189,8 @@ namespace rdb
             return *this;
         }
 
+        sqlite3_stmt *get() { return stmt_; }
+
         /**
          * @brief Binds an integer parameter by positional index.
          * @param index 1-based parameter index.
