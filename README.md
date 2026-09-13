@@ -55,7 +55,8 @@ Create the archive used by `exresources` from the repository root with:
 For in-depth guides and detailed API tables, see the documentation topics:
 
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
-- 🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
+- � **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
+- �🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, and dynamic polygon soft shadows.
