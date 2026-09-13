@@ -123,7 +123,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/exresources     # Encrypted/compressed ZIP asset archive loading
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
-- 🧪 **[ Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
+./build/excafluid       # Cellular automata fluid mechanics, thermodynamics, phase changes etc
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
 ./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
