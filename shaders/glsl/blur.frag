@@ -28,7 +28,7 @@ void main()
         result += vec4(premultipliedSource != 0 ? texelSample.rgb : texelSample.rgb * texelSample.a, texelSample.a) * weights[i];
     }
 
-    float alpha = sqrt(result.a) * opacity;
-    vec3 colour = result.a > 0.001 ? result.rgb / result.a : vec3(0.0);
-    fragColor = vec4(colour * alpha, alpha);
+    fragColor = premultipliedOutput != 0
+        ? vec4(result.rgb * opacity, result.a * opacity)
+        : vec4(result.a > 0.001 ? result.rgb / result.a : vec3(0.0), result.a * opacity);
 }

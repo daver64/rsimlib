@@ -14,8 +14,7 @@ void main() {
         texelSample = texture(source, uv - offset);
         result += vec4(blur.premultipliedSource != 0 ? texelSample.rgb : texelSample.rgb * texelSample.a, texelSample.a) * weights[i];
     }
-    float alpha = sqrt(result.a) * blur.opacity;
     fragColor = blur.premultipliedOutput != 0
-        ? vec4(result.rgb * blur.opacity, alpha)
-        : vec4(result.a > 0.001 ? result.rgb / result.a : vec3(0.0), alpha);
+        ? vec4(result.rgb * blur.opacity, result.a * blur.opacity)
+        : vec4(result.a > 0.001 ? result.rgb / result.a : vec3(0.0), result.a * blur.opacity);
 }
