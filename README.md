@@ -46,8 +46,8 @@ target_link_libraries(my_app PRIVATE simlib)
 Create the archive used by `exresources` from the repository root with:
 
 ```bash
-./slpack resource_demo.zip assets
-./exresources resource_demo.zip
+./build/slpack resource_demo.zip assets
+./build/exresources resource_demo.zip
 ```
 
 ## Documentation Guides
@@ -103,31 +103,31 @@ ctest --test-dir build --output-on-failure
 Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulkan` (on Windows, `--d3d11` and `--d3d12` are also available).
 
 ```bash
-./exhello         # Minimal hello-world window and text
-./exfont          # Proportional & monospace TrueType font rendering with glyph atlas
-./extriangle      # Immediate-mode 2D primitives and thickness
-./exrotatesprite  # Rotating and scaling sprites with timing
-./exbitmap        # Bitmap creation, pixel access, blitting, PNG loading
-./exlighting      # 2D radial dynamic lights and polygon shadow casters
-./exphysics       # Box2D rigid bodies and contact polling
-./exvulkan        # Vulkan backend textured sprites and render targets
-./exdb            # Embedded SQLite transactions and prepared statements (rdb)
-./exshader        # Custom GLSL shader with runtime SPIR-V compilation
-./exrendertarget  # Off-screen render-target composition
-./exaudio         # Sound effect mixer and streamed music
-./exinput         # Keyboard, mouse, gamepad axes/buttons, and hotplugging
-./exgui           # Dear ImGui widgets and integration
-./exparticles     # Particle emitters, fades, and gravity
-./exresources     # Encrypted/compressed ZIP asset archive loading
-./exatlas         # Texture atlas slicing and sprite grid navigation
-./expostprocess   # Full post-processing effects and ping-pong chaining
-./excafluid       # Cellular Automata fluid, falling sand, chemistry, and Box2D
-./ex3d            # Direct OpenGL 3D escape hatch
-./ex3d_vulkan     # Direct Vulkan 3D escape hatch
-./slpaint         # Retro paint app with brush/shapes, palette, undo/redo
-./sltest          # Sample game: menu, physics playground, Lua console
-./slpack          # CLI asset-packing tool
-./slunpack        # CLI asset-unpacking tool
+./build/exhello         # Minimal hello-world window and text
+./build/exfont          # Proportional & monospace TrueType font rendering with glyph atlas
+./build/extriangle      # Immediate-mode 2D primitives and thickness
+./build/exrotatesprite  # Rotating and scaling sprites with timing
+./build/exbitmap        # Bitmap creation, pixel access, blitting, PNG loading
+./build/exlighting      # 2D radial dynamic lights and polygon shadow casters
+./build/exphysics       # Box2D rigid bodies and contact polling
+./build/exvulkan        # Vulkan backend textured sprites and render targets
+./build/exdb            # Embedded SQLite transactions and prepared statements (rdb)
+./build/exshader        # Custom GLSL shader with runtime SPIR-V compilation
+./build/exrendertarget  # Off-screen render-target composition
+./build/exaudio         # Sound effect mixer and streamed music
+./build/exinput         # Keyboard, mouse, gamepad axes/buttons, and hotplugging
+./build/exgui           # Dear ImGui widgets and integration
+./build/exparticles     # Particle emitters, fades, and gravity
+./build/exresources     # Encrypted/compressed ZIP asset archive loading
+./build/exatlas         # Texture atlas slicing and sprite grid navigation
+./build/expostprocess   # Full post-processing effects and ping-pong chaining
+./build/excafluid       # Cellular Automata fluid, falling sand, chemistry, and Box2D
+./build/ex3d            # Direct OpenGL 3D escape hatch
+./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
+./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
+./build/sltest          # Sample game: menu, physics playground, Lua console
+./build/slpack          # CLI asset-packing tool
+./build/slunpack        # CLI asset-unpacking tool
 ```
 
 ### Example Walkthrough Source Links

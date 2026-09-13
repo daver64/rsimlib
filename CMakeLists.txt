@@ -331,136 +331,69 @@ target_link_libraries(sltest PRIVATE simlib lua sol2)
 
 add_executable(exhello src/examples/exhello/exhello.cpp)
 target_link_libraries(exhello PRIVATE simlib)
-set_target_properties(exhello PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exfont src/examples/exfont/exfont.cpp)
 target_link_libraries(exfont PRIVATE simlib)
-set_target_properties(exfont PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
-
 
 add_executable(extriangle src/examples/extriangle/extriangle.cpp)
 target_link_libraries(extriangle PRIVATE simlib)
-set_target_properties(extriangle PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exrotatesprite src/examples/exrotatesprite/exrotatesprite.cpp)
 target_link_libraries(exrotatesprite PRIVATE simlib)
-set_target_properties(exrotatesprite PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exlighting src/examples/exlighting/exlighting.cpp)
 target_link_libraries(exlighting PRIVATE simlib)
-set_target_properties(exlighting PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exphysics src/examples/exphysics/exphysics.cpp)
 target_link_libraries(exphysics PRIVATE simlib)
-set_target_properties(exphysics PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exvulkan src/examples/exvulkan/exvulkan.cpp)
 target_link_libraries(exvulkan PRIVATE simlib)
-set_target_properties(exvulkan PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exlua src/examples/exlua/exlua.cpp)
 target_link_libraries(exlua PRIVATE simlib lua sol2)
-set_target_properties(exlua PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exluaconsole src/examples/exluaconsole/exluaconsole.cpp)
 target_link_libraries(exluaconsole PRIVATE simlib lua sol2)
-set_target_properties(exluaconsole PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exbitmap src/examples/exbitmap/exbitmap.cpp)
 target_link_libraries(exbitmap PRIVATE simlib)
-set_target_properties(exbitmap PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exatlas src/examples/exatlas/exatlas.cpp)
 target_link_libraries(exatlas PRIVATE simlib)
-set_target_properties(exatlas PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(excafluid src/examples/excafluid/excafluid.cpp)
 target_link_libraries(excafluid PRIVATE simlib)
-set_target_properties(excafluid PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exdb src/examples/exdb/exdb.cpp)
 target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
-set_target_properties(exdb PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exshader src/examples/exshader/exshader.cpp)
 target_link_libraries(exshader PRIVATE simlib)
-set_target_properties(exshader PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exrendertarget src/examples/exrendertarget/exrendertarget.cpp)
 target_link_libraries(exrendertarget PRIVATE simlib)
-set_target_properties(exrendertarget PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exaudio src/examples/exaudio/exaudio.cpp)
 target_link_libraries(exaudio PRIVATE simlib)
-set_target_properties(exaudio PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exinput src/examples/exinput/exinput.cpp)
 target_link_libraries(exinput PRIVATE simlib)
-set_target_properties(exinput PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exgui src/examples/exgui/exgui.cpp)
 target_link_libraries(exgui PRIVATE simlib imgui)
-set_target_properties(exgui PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exparticles src/examples/exparticles/exparticles.cpp)
 target_link_libraries(exparticles PRIVATE simlib)
-set_target_properties(exparticles PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(exresources src/examples/exresources/exresources.cpp)
 target_link_libraries(exresources PRIVATE simlib)
-set_target_properties(exresources PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(expostprocess src/examples/expostprocess/expostprocess.cpp)
 target_link_libraries(expostprocess PRIVATE simlib)
-set_target_properties(expostprocess PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(ex3d src/examples/ex3d/ex3d.cpp)
 target_link_libraries(ex3d PRIVATE simlib)
-set_target_properties(ex3d PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
 target_include_directories(ex3d_vulkan PRIVATE src/engine)
@@ -468,34 +401,18 @@ target_compile_definitions(ex3d_vulkan PRIVATE
     SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
 )
 target_link_libraries(ex3d_vulkan PRIVATE simlib)
-set_target_properties(ex3d_vulkan PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
-
 
 add_executable(client_template src/examples/client_template/client_template.cpp)
 target_link_libraries(client_template PRIVATE simlib)
-set_target_properties(client_template PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(slpaint src/examples/slpaint/slpaint.cpp)
 target_link_libraries(slpaint PRIVATE simlib)
-set_target_properties(slpaint PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
-set_target_properties(slpack PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 add_executable(slunpack src/examples/slunpack/slunpack.cpp)
 target_link_libraries(slunpack PRIVATE simlib)
-set_target_properties(slunpack PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
 
 if(BUILD_TESTING)
     add_executable(rdb_test tests/rdb_test.cpp)
@@ -557,7 +474,3 @@ if(Doxygen_FOUND)
         VERBATIM
     )
 endif()
-
-set_target_properties(sltest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
-)
