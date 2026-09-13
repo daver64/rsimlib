@@ -343,9 +343,15 @@ struct Monster
     MonsterType type = MonsterType::Rat;
 };
 
-struct PlayerTag {};
-struct MonsterTag {};
-struct BlocksMovement {};
+struct PlayerTag
+{
+};
+struct MonsterTag
+{
+};
+struct BlocksMovement
+{
+};
 
 struct LightSource
 {

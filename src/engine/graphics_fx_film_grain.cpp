@@ -18,7 +18,8 @@ namespace sl
 
     bool FilmGrain::initialise()
     {
-        if (is_valid()) return true;
+        if (is_valid())
+            return true;
         return shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("film_grain.frag"),
                             "film-grain");
     }
@@ -31,10 +32,14 @@ namespace sl
     void FilmGrain::apply(Bitmap *source, int x, int y, int width, int height) const
     {
         const bool flip_vertical = graphics_backend() == GraphicsBackend::opengl;
-        if (!source || !is_valid() || !upload_bitmap(source)) return;
-        if (width <= 0) width = screen_width();
-        if (height <= 0) height = screen_height();
-        if (width <= 0 || height <= 0) return;
+        if (!source || !is_valid() || !upload_bitmap(source))
+            return;
+        if (width <= 0)
+            width = screen_width();
+        if (height <= 0)
+            height = screen_height();
+        if (width <= 0 || height <= 0)
+            return;
         shader_.set_uniform("source", 0);
         shader_.set_uniform("strength", strength_);
         shader_.set_uniform("time", time_);

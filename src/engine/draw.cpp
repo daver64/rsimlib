@@ -191,7 +191,8 @@ namespace sl
 				std::uint32_t glTexture = 0;
 				if (texture)
 				{
-					if (is_screen(texture) || !upload_bitmap(texture)) return;
+					if (is_screen(texture) || !upload_bitmap(texture))
+						return;
 					glTexture = texture->gpu_texture;
 				}
 				else
@@ -227,7 +228,8 @@ namespace sl
 			std::uint32_t glTexture = 0;
 			if (texture)
 			{
-				if (is_screen(texture) || !upload_bitmap(texture)) return;
+				if (is_screen(texture) || !upload_bitmap(texture))
+					return;
 				glTexture = texture->gpu_texture;
 			}
 			else
@@ -375,8 +377,10 @@ namespace sl
 		/** Render a plain or textured rectangle directly to the screen. */
 		void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap *texture, Colour colour, float thickness)
 		{
-			if (left > right) std::swap(left, right);
-			if (top > bottom) std::swap(top, bottom);
+			if (left > right)
+				std::swap(left, right);
+			if (top > bottom)
+				std::swap(top, bottom);
 
 			if (filled || thickness <= 1.0f)
 			{
@@ -425,7 +429,8 @@ namespace sl
 		/** Rasterize a line into a bitmap using integer coordinates and optional thickness. */
 		void draw_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, Colour colour, float thickness = 1.0f)
 		{
-			if (!bitmap) return;
+			if (!bitmap)
+				return;
 			if (thickness <= 1.0f)
 			{
 				const int deltaX = std::abs(x2 - x1);
@@ -553,7 +558,8 @@ namespace sl
 		std::string error;
 		if (!renderer || !renderer->begin_render_target(target->fbo, target->width, target->height, error))
 		{
-			if (!error.empty()) sl::detail::set_error(error);
+			if (!error.empty())
+				sl::detail::set_error(error);
 			return false;
 		}
 		detail::set_render_target_size(target->width, target->height);
@@ -567,7 +573,8 @@ namespace sl
 		{
 			std::string error;
 			renderer->end_render_target(error);
-			if (!error.empty()) sl::detail::set_error(error);
+			if (!error.empty())
+				sl::detail::set_error(error);
 		}
 		detail::set_render_target_size(0, 0);
 	}
@@ -1027,7 +1034,8 @@ namespace sl
 
 	int calc_spline(const int points[8], int npts, int *xout, int *yout)
 	{
-		if (!points || npts <= 0 || !xout || !yout) return 0;
+		if (!points || npts <= 0 || !xout || !yout)
+			return 0;
 		const float x0 = static_cast<float>(points[0]);
 		const float y0 = static_cast<float>(points[1]);
 		const float x1 = static_cast<float>(points[2]);
@@ -1057,7 +1065,8 @@ namespace sl
 
 	int calc_spline(const float points[8], int npts, float *xout, float *yout)
 	{
-		if (!points || npts <= 0 || !xout || !yout) return 0;
+		if (!points || npts <= 0 || !xout || !yout)
+			return 0;
 		const float x0 = points[0];
 		const float y0 = points[1];
 		const float x1 = points[2];
@@ -1084,13 +1093,15 @@ namespace sl
 
 	void arc(Bitmap *bitmap, float x, float y, float startAngle, float endAngle, float radius, Colour colour, float thickness)
 	{
-		if (!bitmap || radius < 0.0f) return;
+		if (!bitmap || radius < 0.0f)
+			return;
 
 		// Convert angles to radians (0 degrees = right, 90 degrees = bottom in screen coords)
 		constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
 		float a1 = startAngle * deg_to_rad;
 		float a2 = endAngle * deg_to_rad;
-		while (a2 < a1) a2 += 3.14159265358979323846f * 2.0f;
+		while (a2 < a1)
+			a2 += 3.14159265358979323846f * 2.0f;
 
 		const float angleRange = a2 - a1;
 		const int segments = std::max(8, static_cast<int>(std::ceil(angleRange * radius / 4.0f)));
@@ -1111,15 +1122,18 @@ namespace sl
 
 	void spline(Bitmap *bitmap, const int points[8], Colour colour, float thickness)
 	{
-		if (!bitmap || !points) return;
+		if (!bitmap || !points)
+			return;
 		float fpts[8];
-		for (int i = 0; i < 8; ++i) fpts[i] = static_cast<float>(points[i]);
+		for (int i = 0; i < 8; ++i)
+			fpts[i] = static_cast<float>(points[i]);
 		spline(bitmap, fpts, colour, thickness);
 	}
 
 	void spline(Bitmap *bitmap, const float points[8], Colour colour, float thickness)
 	{
-		if (!bitmap || !points) return;
+		if (!bitmap || !points)
+			return;
 		constexpr int segments = 32;
 		float xout[segments + 1];
 		float yout[segments + 1];
@@ -1133,7 +1147,8 @@ namespace sl
 
 	void do_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, int d, const PixelProc &proc)
 	{
-		if (!proc) return;
+		if (!proc)
+			return;
 		const int deltaX = std::abs(x2 - x1);
 		const int stepX = x1 < x2 ? 1 : -1;
 		const int deltaY = -std::abs(y2 - y1);
@@ -1162,7 +1177,8 @@ namespace sl
 
 	void do_circle(Bitmap *bitmap, int x, int y, int radius, int d, const PixelProc &proc)
 	{
-		if (!proc || radius < 0) return;
+		if (!proc || radius < 0)
+			return;
 		int cx = 0;
 		int cy = radius;
 		int p = 1 - radius;
@@ -1170,15 +1186,21 @@ namespace sl
 		auto plot = [&](int px, int py)
 		{
 			proc(bitmap, x + px, y + py, d);
-			if (px != 0) proc(bitmap, x - px, y + py, d);
-			if (py != 0) proc(bitmap, x + px, y - py, d);
-			if (px != 0 && py != 0) proc(bitmap, x - px, y - py, d);
+			if (px != 0)
+				proc(bitmap, x - px, y + py, d);
+			if (py != 0)
+				proc(bitmap, x + px, y - py, d);
+			if (px != 0 && py != 0)
+				proc(bitmap, x - px, y - py, d);
 			if (px != py)
 			{
 				proc(bitmap, x + py, y + px, d);
-				if (px != 0) proc(bitmap, x + py, y - px, d);
-				if (py != 0) proc(bitmap, x - py, y + px, d);
-				if (px != 0 && py != 0) proc(bitmap, x - py, y - px, d);
+				if (px != 0)
+					proc(bitmap, x + py, y - px, d);
+				if (py != 0)
+					proc(bitmap, x - py, y + px, d);
+				if (px != 0 && py != 0)
+					proc(bitmap, x - py, y - px, d);
 			}
 		};
 
@@ -1201,7 +1223,8 @@ namespace sl
 
 	void do_ellipse(Bitmap *bitmap, int x, int y, int radiusX, int radiusY, int d, const PixelProc &proc)
 	{
-		if (!proc || radiusX < 0 || radiusY < 0) return;
+		if (!proc || radiusX < 0 || radiusY < 0)
+			return;
 		long rx2 = static_cast<long>(radiusX) * radiusX;
 		long ry2 = static_cast<long>(radiusY) * radiusY;
 		long two_rx2 = 2 * rx2;
@@ -1212,9 +1235,12 @@ namespace sl
 		auto plot = [&](int ex, int ey)
 		{
 			proc(bitmap, x + ex, y + ey, d);
-			if (ex != 0) proc(bitmap, x - ex, y + ey, d);
-			if (ey != 0) proc(bitmap, x + ex, y - ey, d);
-			if (ex != 0 && ey != 0) proc(bitmap, x - ex, y - ey, d);
+			if (ex != 0)
+				proc(bitmap, x - ex, y + ey, d);
+			if (ey != 0)
+				proc(bitmap, x + ex, y - ey, d);
+			if (ex != 0 && ey != 0)
+				proc(bitmap, x - ex, y - ey, d);
 		};
 
 		// Region 1
@@ -1262,11 +1288,13 @@ namespace sl
 
 	void do_arc(Bitmap *bitmap, int x, int y, float startAngle, float endAngle, float radius, int d, const PixelProc &proc)
 	{
-		if (!proc || radius < 0.0f) return;
+		if (!proc || radius < 0.0f)
+			return;
 		constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
 		float a1 = startAngle * deg_to_rad;
 		float a2 = endAngle * deg_to_rad;
-		while (a2 < a1) a2 += 3.14159265358979323846f * 2.0f;
+		while (a2 < a1)
+			a2 += 3.14159265358979323846f * 2.0f;
 
 		const float angleRange = a2 - a1;
 		const int segments = std::max(8, static_cast<int>(std::ceil(angleRange * radius / 4.0f)));
@@ -1288,7 +1316,8 @@ namespace sl
 
 	void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc)
 	{
-		if (!proc || !points) return;
+		if (!proc || !points)
+			return;
 		constexpr int segments = 32;
 		int xout[segments + 1];
 		int yout[segments + 1];
@@ -1314,8 +1343,7 @@ namespace sl
 			bitmap->pixels[start_offset + 0],
 			bitmap->pixels[start_offset + 1],
 			bitmap->pixels[start_offset + 2],
-			bitmap->pixels[start_offset + 3]
-		};
+			bitmap->pixels[start_offset + 3]};
 
 		if (target.red == colour.red && target.green == colour.green &&
 			target.blue == colour.blue && target.alpha == colour.alpha)

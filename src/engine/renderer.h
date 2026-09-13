@@ -87,18 +87,26 @@ namespace sl::detail
 
     inline int get_decomposed_vertex_count(PrimitiveType input_primitive, int count)
     {
-        if (count <= 0) return 0;
+        if (count <= 0)
+            return 0;
         if (input_primitive == PrimitiveType::triangle_fan)
         {
-            if (count == 4) return 6;
-            if (count == 3) return 3;
-            if (count > 4) return (count - 2) * 3;
+            if (count == 4)
+                return 6;
+            if (count == 3)
+                return 3;
+            if (count > 4)
+                return (count - 2) * 3;
             return 0;
         }
-        if (input_primitive == PrimitiveType::triangles) return count;
-        if (input_primitive == PrimitiveType::line_loop) return count > 1 ? count * 2 : 0;
-        if (input_primitive == PrimitiveType::lines) return count;
-        if (input_primitive == PrimitiveType::points) return count;
+        if (input_primitive == PrimitiveType::triangles)
+            return count;
+        if (input_primitive == PrimitiveType::line_loop)
+            return count > 1 ? count * 2 : 0;
+        if (input_primitive == PrimitiveType::lines)
+            return count;
+        if (input_primitive == PrimitiveType::points)
+            return count;
         return count;
     }
 
@@ -114,7 +122,8 @@ namespace sl::detail
     inline void append_decomposed_vertices(PrimitiveType input_primitive, const Vertex2D *vertices, int count,
                                            PrimitiveType &out_batch_primitive, std::vector<Vertex2D> &out_batch_vertices)
     {
-        if (!vertices || count <= 0) return;
+        if (!vertices || count <= 0)
+            return;
 
         if (input_primitive == PrimitiveType::triangle_fan)
         {
@@ -123,8 +132,7 @@ namespace sl::detail
             {
                 const Vertex2D quad[6] = {
                     vertices[0], vertices[1], vertices[2],
-                    vertices[0], vertices[2], vertices[3]
-                };
+                    vertices[0], vertices[2], vertices[3]};
                 out_batch_vertices.insert(out_batch_vertices.end(), quad, quad + 6);
             }
             else if (count == 3)
@@ -206,32 +214,32 @@ namespace sl::detail
         virtual bool create_texture(const TextureDesc &description, std::uint32_t &texture) = 0;
         /** Upload RGBA8 pixels into a texture. */
         virtual bool upload_texture(std::uint32_t texture, int width, int height,
-                        const std::uint8_t *pixels) = 0;
+                                    const std::uint8_t *pixels) = 0;
         /** Download RGBA8 pixels from a texture into host memory. */
         virtual bool download_texture(std::uint32_t texture, int width, int height,
-                          std::uint8_t *out_pixels) = 0;
+                                      std::uint8_t *out_pixels) = 0;
         /** Destroy a texture handle. */
         virtual void destroy_texture(std::uint32_t texture) = 0;
         /** Create a color render target and return its texture and framebuffer handles. */
         virtual bool create_render_target(int width, int height, std::uint32_t &texture,
-                          std::uint32_t &framebuffer) = 0;
+                                          std::uint32_t &framebuffer) = 0;
         /** Destroy a render target's framebuffer and texture handles. */
         virtual void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) = 0;
         virtual bool begin_render_target(std::uint32_t framebuffer, int width, int height,
-                          std::string &error) = 0;
+                                         std::string &error) = 0;
         virtual bool end_render_target(std::string &error) = 0;
         /** Read back RGBA8 pixels from a render target (or framebuffer 0 for default display) into host memory. */
         virtual bool download_render_target(std::uint32_t framebuffer, int width, int height,
                                             std::uint8_t *out_pixels) = 0;
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
-                       std::uint32_t &program, std::string &error) = 0;
+                                   std::uint32_t &program, std::string &error) = 0;
         /** Compile and link a compute shader program. */
         virtual bool create_compute_shader(const ShaderSource &source, std::uint32_t &program,
-                           std::string &error) = 0;
+                                           std::string &error) = 0;
         /** Create a backend shader module from a SPIR-V artifact. */
         virtual bool create_shader_module(ShaderStage stage, const ShaderSource &source,
-                          std::uint32_t &module, std::string &error) = 0;
+                                          std::uint32_t &module, std::string &error) = 0;
         /** Destroy a shader program. */
         virtual void destroy_shader(std::uint32_t program) = 0;
         /** Bind or unbind a shader program. */
@@ -256,16 +264,16 @@ namespace sl::detail
         virtual bool clear_frame(float red, float green, float blue, float alpha) = 0;
         /** Submit colored textured vertices using the backend's 2D pipeline. */
         virtual void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices,
-                       int count, std::uint32_t texture) = 0;
+                               int count, std::uint32_t texture) = 0;
         /** Flush any batched 2D vertices to the GPU. */
         virtual void flush_2d() {}
         /** Backend-neutral storage-buffer operations used by compute effects. */
         virtual bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) = 0;
         virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;
         virtual bool upload_storage_buffer(std::uint32_t buffer, std::size_t size,
-                           const void *data, bool preserve_storage) = 0;
+                                           const void *data, bool preserve_storage) = 0;
         virtual bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset,
-                             std::size_t size, void *out_data) = 0;
+                                             std::size_t size, void *out_data) = 0;
         virtual void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) = 0;
         virtual void bind_texture_unit(unsigned int unit, std::uint32_t texture) = 0;
         virtual void bind_storage_texture(unsigned int binding, std::uint32_t texture) = 0;

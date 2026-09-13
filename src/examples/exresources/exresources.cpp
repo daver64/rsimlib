@@ -39,7 +39,7 @@ namespace
             sl::gprintf(24, 134 + index * 22, text, "%s", entries[static_cast<std::size_t>(index)].c_str());
         if (entries.size() > static_cast<std::size_t>(visible_entries))
             sl::gprintf(24, 134 + visible_entries * 22, muted, "... and %d more",
-                static_cast<int>(entries.size()) - visible_entries);
+                        static_cast<int>(entries.size()) - visible_entries);
 
         if (texture)
         {
@@ -67,15 +67,18 @@ int main(int argc, char *argv[])
     }
 
     const std::string texture_entry = archive.contains("assets/textures/balloon_red.png")
-        ? "assets/textures/balloon_red.png" : "textures/balloon_red.png";
+                                          ? "assets/textures/balloon_red.png"
+                                          : "textures/balloon_red.png";
     const std::string script_entry = archive.contains("assets/scripts/scene.lua")
-        ? "assets/scripts/scene.lua" : "scripts/scene.lua";
+                                         ? "assets/scripts/scene.lua"
+                                         : "scripts/scene.lua";
     sl::Bitmap *texture = sl::load_bitmap(archive, texture_entry);
     const std::vector<std::uint8_t> script_bytes = archive.read(script_entry);
     std::string script_preview(script_bytes.begin(), script_bytes.begin() +
-        std::min<std::size_t>(script_bytes.size(), 70));
+                                                         std::min<std::size_t>(script_bytes.size(), 70));
     std::replace(script_preview.begin(), script_preview.end(), '\n', ' ');
-    if (script_preview.empty()) script_preview = "not found";
+    if (script_preview.empty())
+        script_preview = "not found";
 
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))

@@ -43,15 +43,18 @@ int main(int argc, char *argv[])
         }
 
         const bool has_scene = scene && sl::begin_render_target(scene);
-        if (has_scene) sl::clear_render_target({24, 30, 42});
-        else sl::clear_to_colour(sl::screen, {24, 30, 42});
+        if (has_scene)
+            sl::clear_render_target({24, 30, 42});
+        else
+            sl::clear_to_colour(sl::screen, {24, 30, 42});
         sl::gprintf_center(32, {220, 230, 240}, "Vulkan textured quad smoke test - Escape to exit");
         sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, static_cast<float>(sl::time_ms() % 3600) * 0.1f);
         sl::line(sl::screen, 80.0f, 500.0f, 220.0f, 500.0f, {255, 180, 80});
         sl::rect(sl::screen, 250.0f, 450.0f, 330.0f, 530.0f, {100, 210, 255});
         sl::trianglefill(sl::screen, 380.0f, 520.0f, 430.0f, 440.0f, 480.0f, 520.0f, {120, 230, 140});
         sl::circlefill(sl::screen, 600.0f, 480.0f, 42.0f, {220, 100, 150});
-        if (has_scene) sl::end_render_target();
+        if (has_scene)
+            sl::end_render_target();
 
         if (has_scene && bloom.is_valid())
         {

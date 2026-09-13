@@ -308,11 +308,11 @@ namespace sl
 			gpuLight.shadowSoftness[1] = spotlight ? light.direction_x / directionLength : 0.0f;
 			gpuLight.shadowSoftness[2] = spotlight ? light.direction_y / directionLength : 0.0f;
 			gpuLight.shadowSoftness[3] = spotlight
-				? std::cos(std::clamp(light.outer_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
-				: -1.0f;
+											 ? std::cos(std::clamp(light.outer_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
+											 : -1.0f;
 			gpuLight.positionRadius[3] = spotlight
-				? std::cos(std::clamp(light.inner_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
-				: 0.0f;
+											 ? std::cos(std::clamp(light.inner_angle, 0.0f, 179.0f) * 3.14159265358979323846f / 180.0f)
+											 : 0.0f;
 		}
 		detail::Renderer *renderer = detail::active_renderer();
 		renderer->upload_storage_buffer(lightBuffer_, gpuLights.size() * sizeof(GpuLight), gpuLights.data(), false);

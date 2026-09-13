@@ -5,27 +5,48 @@ const char *terrain_name(Terrain terrain)
 {
     switch (terrain)
     {
-    case Terrain::DeepWater: return "Deep Water";
-    case Terrain::Water: return "Water";
-    case Terrain::Beach: return "Beach";
-    case Terrain::Plains: return "Plains";
-    case Terrain::Grass: return "Grassland";
-    case Terrain::Forest: return "Forest";
-    case Terrain::Hills: return "Hills";
-    case Terrain::Mountain: return "Mountain";
-    case Terrain::Swamp: return "Swamp";
-    case Terrain::Snow: return "Snow/Tundra";
-    case Terrain::Ruins: return "Ruins";
-    case Terrain::DungeonEntrance: return "Dungeon Entrance";
-    case Terrain::DungeonFloor: return "Dungeon Floor";
-    case Terrain::DungeonWall: return "Dungeon Wall";
-    case Terrain::Door: return "Door";
-    case Terrain::StairsUp: return "Stairs Up";
-    case Terrain::StairsDown: return "Stairs Down";
-    case Terrain::Torch: return "Torch";
-    case Terrain::Brazier: return "Brazier";
-    case Terrain::Crystal: return "Crystal";
-    default: return "Unknown";
+    case Terrain::DeepWater:
+        return "Deep Water";
+    case Terrain::Water:
+        return "Water";
+    case Terrain::Beach:
+        return "Beach";
+    case Terrain::Plains:
+        return "Plains";
+    case Terrain::Grass:
+        return "Grassland";
+    case Terrain::Forest:
+        return "Forest";
+    case Terrain::Hills:
+        return "Hills";
+    case Terrain::Mountain:
+        return "Mountain";
+    case Terrain::Swamp:
+        return "Swamp";
+    case Terrain::Snow:
+        return "Snow/Tundra";
+    case Terrain::Ruins:
+        return "Ruins";
+    case Terrain::DungeonEntrance:
+        return "Dungeon Entrance";
+    case Terrain::DungeonFloor:
+        return "Dungeon Floor";
+    case Terrain::DungeonWall:
+        return "Dungeon Wall";
+    case Terrain::Door:
+        return "Door";
+    case Terrain::StairsUp:
+        return "Stairs Up";
+    case Terrain::StairsDown:
+        return "Stairs Down";
+    case Terrain::Torch:
+        return "Torch";
+    case Terrain::Brazier:
+        return "Brazier";
+    case Terrain::Crystal:
+        return "Crystal";
+    default:
+        return "Unknown";
     }
 }
 
@@ -33,27 +54,48 @@ char terrain_glyph(Terrain terrain)
 {
     switch (terrain)
     {
-    case Terrain::DeepWater: return '~';
-    case Terrain::Water: return '~';
-    case Terrain::Beach: return ',';
-    case Terrain::Plains: return '.';
-    case Terrain::Grass: return '"';
-    case Terrain::Forest: return 'T';
-    case Terrain::Hills: return '^';
-    case Terrain::Mountain: return '^';
-    case Terrain::Swamp: return ';';
-    case Terrain::Snow: return '*';
-    case Terrain::Ruins: return '&';
-    case Terrain::DungeonEntrance: return '>';
-    case Terrain::DungeonFloor: return '.';
-    case Terrain::DungeonWall: return '#';
-    case Terrain::Door: return '+';
-    case Terrain::StairsUp: return '<';
-    case Terrain::StairsDown: return '>';
-    case Terrain::Torch: return 't';
-    case Terrain::Brazier: return 'B';
-    case Terrain::Crystal: return '*';
-    default: return ' ';
+    case Terrain::DeepWater:
+        return '~';
+    case Terrain::Water:
+        return '~';
+    case Terrain::Beach:
+        return ',';
+    case Terrain::Plains:
+        return '.';
+    case Terrain::Grass:
+        return '"';
+    case Terrain::Forest:
+        return 'T';
+    case Terrain::Hills:
+        return '^';
+    case Terrain::Mountain:
+        return '^';
+    case Terrain::Swamp:
+        return ';';
+    case Terrain::Snow:
+        return '*';
+    case Terrain::Ruins:
+        return '&';
+    case Terrain::DungeonEntrance:
+        return '>';
+    case Terrain::DungeonFloor:
+        return '.';
+    case Terrain::DungeonWall:
+        return '#';
+    case Terrain::Door:
+        return '+';
+    case Terrain::StairsUp:
+        return '<';
+    case Terrain::StairsDown:
+        return '>';
+    case Terrain::Torch:
+        return 't';
+    case Terrain::Brazier:
+        return 'B';
+    case Terrain::Crystal:
+        return '*';
+    default:
+        return ' ';
     }
 }
 
@@ -63,12 +105,18 @@ sl::Colour get_torch_colour(int x, int y)
     int variant = hash % 10;
     switch (variant)
     {
-    case 0: return sl::Colour{240, 60, 50, 255};   // Red torch
-    case 1: return sl::Colour{60, 180, 255, 255};  // Blue torch
-    case 2: return sl::Colour{80, 230, 90, 255};   // Green torch
-    case 3: return sl::Colour{255, 240, 200, 255}; // Bright Warm White torch
-    case 4: return sl::Colour{255, 220, 100, 255}; // Yellowish torch
-    default: return Colours::TorchLight;          // Classic Torch (amber)
+    case 0:
+        return sl::Colour{240, 60, 50, 255}; // Red torch
+    case 1:
+        return sl::Colour{60, 180, 255, 255}; // Blue torch
+    case 2:
+        return sl::Colour{80, 230, 90, 255}; // Green torch
+    case 3:
+        return sl::Colour{255, 240, 200, 255}; // Bright Warm White torch
+    case 4:
+        return sl::Colour{255, 220, 100, 255}; // Yellowish torch
+    default:
+        return Colours::TorchLight; // Classic Torch (amber)
     }
 }
 
@@ -81,27 +129,48 @@ sl::Colour terrain_colour(Terrain terrain, int x, int y)
 
     switch (terrain)
     {
-    case Terrain::DeepWater: return Colours::DarkBlue;
-    case Terrain::Water: return Colours::Blue;
-    case Terrain::Beach: return Colours::Yellow;
-    case Terrain::Plains: return Colours::LightGreen;
-    case Terrain::Grass: return Colours::Green;
-    case Terrain::Forest: return Colours::DarkGreen;
-    case Terrain::Hills: return Colours::Brown;
-    case Terrain::Mountain: return Colours::Grey;
-    case Terrain::Swamp: return Colours::DarkGreen;
-    case Terrain::Snow: return Colours::White;
-    case Terrain::Ruins: return Colours::Grey;
-    case Terrain::DungeonEntrance: return Colours::Gold;
-    case Terrain::DungeonFloor: return Colours::Floor;
-    case Terrain::DungeonWall: return Colours::Wall;
-    case Terrain::Door: return Colours::Brown;
-    case Terrain::StairsUp: return Colours::Cyan;
-    case Terrain::StairsDown: return Colours::Gold;
-    case Terrain::Torch: return Colours::Yellow;
-    case Terrain::Brazier: return Colours::Orange;
-    case Terrain::Crystal: return Colours::Magenta;
-    default: return Colours::White;
+    case Terrain::DeepWater:
+        return Colours::DarkBlue;
+    case Terrain::Water:
+        return Colours::Blue;
+    case Terrain::Beach:
+        return Colours::Yellow;
+    case Terrain::Plains:
+        return Colours::LightGreen;
+    case Terrain::Grass:
+        return Colours::Green;
+    case Terrain::Forest:
+        return Colours::DarkGreen;
+    case Terrain::Hills:
+        return Colours::Brown;
+    case Terrain::Mountain:
+        return Colours::Grey;
+    case Terrain::Swamp:
+        return Colours::DarkGreen;
+    case Terrain::Snow:
+        return Colours::White;
+    case Terrain::Ruins:
+        return Colours::Grey;
+    case Terrain::DungeonEntrance:
+        return Colours::Gold;
+    case Terrain::DungeonFloor:
+        return Colours::Floor;
+    case Terrain::DungeonWall:
+        return Colours::Wall;
+    case Terrain::Door:
+        return Colours::Brown;
+    case Terrain::StairsUp:
+        return Colours::Cyan;
+    case Terrain::StairsDown:
+        return Colours::Gold;
+    case Terrain::Torch:
+        return Colours::Yellow;
+    case Terrain::Brazier:
+        return Colours::Orange;
+    case Terrain::Crystal:
+        return Colours::Magenta;
+    default:
+        return Colours::White;
     }
 }
 
@@ -180,7 +249,8 @@ void enter_dungeon(Game &game)
 
 void descend_dungeon(Game &game)
 {
-    if (game.current_dungeon < 0) return;
+    if (game.current_dungeon < 0)
+        return;
 
     Dungeon &dungeon = *game.dungeons[game.current_dungeon];
     const int next_depth = game.current_depth + 1;
@@ -229,12 +299,15 @@ Tile *current_tile(Game &game, int x, int y)
 {
     if (game.area_type == AreaType::Overworld)
     {
-        if (!game.overworld.inside(x, y)) return nullptr;
+        if (!game.overworld.inside(x, y))
+            return nullptr;
         return &game.overworld.at(x, y);
     }
 
-    if (!game.current_level) return nullptr;
-    if (!game.current_level->inside(x, y)) return nullptr;
+    if (!game.current_level)
+        return nullptr;
+    if (!game.current_level->inside(x, y))
+        return nullptr;
 
     return &game.current_level->at(x, y);
 }
@@ -281,13 +354,15 @@ void attack(Game &game, Actor &attacker, Actor &defender)
 
 bool try_player_move(Game &game, int dx, int dy)
 {
-    if (game.state != GameState::Playing) return false;
+    if (game.state != GameState::Playing)
+        return false;
 
     const int x = game.player.position.x + dx;
     const int y = game.player.position.y + dy;
 
     Tile *tile = current_tile(game, x, y);
-    if (!tile) return false;
+    if (!tile)
+        return false;
 
     Actor *actor = actor_at(game, x, y);
     if (actor)
@@ -296,7 +371,8 @@ bool try_player_move(Game &game, int dx, int dy)
         return true;
     }
 
-    if (tile->blocks_movement) return false;
+    if (tile->blocks_movement)
+        return false;
 
     game.player.position = {x, y};
     game.player_position = game.player.position;
@@ -317,12 +393,14 @@ bool line_of_sight(Game &game, int x0, int y0, int x1, int y1)
 
     while (true)
     {
-        if (x == x1 && y == y1) return true;
+        if (x == x1 && y == y1)
+            return true;
 
         if (x != x0 || y != y0)
         {
             Tile *tile = current_tile(game, x, y);
-            if (!tile || tile->blocks_sight) return false;
+            if (!tile || tile->blocks_sight)
+                return false;
         }
 
         const int error2 = error * 2;
@@ -369,10 +447,12 @@ void update_fov(Game &game)
             const int dx = x - origin.x;
             const int dy = y - origin.y;
 
-            if (dx * dx + dy * dy > PLAYER_FOV_RADIUS * PLAYER_FOV_RADIUS) continue;
+            if (dx * dx + dy * dy > PLAYER_FOV_RADIUS * PLAYER_FOV_RADIUS)
+                continue;
 
             Tile *tile = current_tile(game, x, y);
-            if (!tile) continue;
+            if (!tile)
+                continue;
 
             if (line_of_sight(game, origin.x, origin.y, x, y))
             {
@@ -385,11 +465,13 @@ void update_fov(Game &game)
 
 void monster_turns(Game &game)
 {
-    if (game.area_type != AreaType::Dungeon) return;
+    if (game.area_type != AreaType::Dungeon)
+        return;
 
     for (Actor &monster : game.actors)
     {
-        if (!monster.alive) continue;
+        if (!monster.alive)
+            continue;
 
         const int dx = game.player.position.x - monster.position.x;
         const int dy = game.player.position.y - monster.position.y;
@@ -443,7 +525,8 @@ void advance_turn(Game &game)
 bool use_stairs(Game &game)
 {
     Tile *tile = current_tile(game, game.player.position.x, game.player.position.y);
-    if (!tile) return false;
+    if (!tile)
+        return false;
 
     if (game.area_type == AreaType::Overworld)
     {
@@ -553,9 +636,11 @@ std::vector<sl::Light> build_simlib_lights(Game &game)
 
     for (int slot : game.lighting.shadow_slots)
     {
-        if (slot < 0 || slot >= static_cast<int>(game.lighting.lights.size())) continue;
+        if (slot < 0 || slot >= static_cast<int>(game.lighting.lights.size()))
+            continue;
         const GameLight &light = game.lighting.lights[slot];
-        if (!light.active) continue;
+        if (!light.active)
+            continue;
 
         sl::Light sl_light;
         sl_light.x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH;
@@ -579,9 +664,11 @@ std::vector<sl::Light> build_simlib_lights(Game &game)
 
     for (std::size_t i = 0; i < game.lighting.lights.size(); ++i)
     {
-        if (added[i]) continue;
+        if (added[i])
+            continue;
         const GameLight &light = game.lighting.lights[i];
-        if (!light.active) continue;
+        if (!light.active)
+            continue;
 
         float screen_x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH;
         float screen_y = static_cast<float>(MAP_Y) + (light.y - static_cast<float>(game.camera.y)) * CELL_HEIGHT;
@@ -636,9 +723,11 @@ std::vector<sl::ShadowCaster> build_simlib_shadow_casters(Game &game)
                 bool near_light = false;
                 for (int slot : game.lighting.shadow_slots)
                 {
-                    if (slot < 0 || slot >= static_cast<int>(game.lighting.lights.size())) continue;
+                    if (slot < 0 || slot >= static_cast<int>(game.lighting.lights.size()))
+                        continue;
                     const GameLight &l = game.lighting.lights[slot];
-                    if (!l.active) continue;
+                    if (!l.active)
+                        continue;
                     float dx = (world_x + 0.5f) - l.x;
                     float dy = (world_y + 0.5f) - l.y;
                     if (dx * dx + dy * dy <= (l.radius + 1.0f) * (l.radius + 1.0f))

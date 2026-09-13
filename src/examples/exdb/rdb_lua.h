@@ -22,7 +22,7 @@ namespace rdb
 
         sol::table rdb_tbl = lua.create_named_table("rdb");
         rdb_tbl.set_function("connect", [db_map](const std::string &id, const std::string &driver_str, const std::string &conn_str)
-        {
+                             {
             if (id.empty() || db_map->find(id) != db_map->end())
                 return false;
             try
@@ -35,19 +35,17 @@ namespace rdb
             {
                 std::cerr << "rdb.connect exception: " << e.what() << "\n";
                 return false;
-            }
-        });
+            } });
 
         rdb_tbl.set_function("disconnect", [db_map](const std::string &id)
-        {
+                             {
             auto it = db_map->find(id);
             if (it == db_map->end()) return false;
             db_map->erase(it);
-            return true;
-        });
+            return true; });
 
         rdb_tbl.set_function("execute", [db_map](const std::string &id, const std::string &sql)
-        {
+                             {
             auto it = db_map->find(id);
             if (it == db_map->end()) return false;
             try
@@ -58,11 +56,10 @@ namespace rdb
             catch (...)
             {
                 return false;
-            }
-        });
+            } });
 
         rdb_tbl.set_function("query", [db_map](sol::this_state state, const std::string &id, const std::string &sql)
-        {
+                             {
             sol::state_view lua_state(state);
             sol::table rows = lua_state.create_table();
             auto it = db_map->find(id);
@@ -104,7 +101,6 @@ namespace rdb
             catch (...)
             {
                 return rows;
-            }
-        });
+            } });
     }
 } // namespace rdb

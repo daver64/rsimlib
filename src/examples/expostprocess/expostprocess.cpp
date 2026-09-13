@@ -138,19 +138,20 @@ int main(int argc, char *argv[])
         const float time = static_cast<float>(sl::time_ms()) * 0.001f;
         const float elapsed = std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f);
         screen_shake.update(elapsed);
-        if (shockwave_elapsed >= 0.0f) shockwave_elapsed += elapsed;
+        if (shockwave_elapsed >= 0.0f)
+            shockwave_elapsed += elapsed;
         sl::begin_render_target(scene);
         sl::clear_render_target({18, 23, 34});
         sl::gprintf_center(30, {232, 236, 244}, "Post-processing example");
         sl::gprintf_center(56, {170, 185, 205}, "B: Bloom %s  V: Vignette %s  C: Colour %s  L: Blur %s",
-            use_bloom ? "on" : "off", use_vignette ? "on" : "off",
-            use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
+                           use_bloom ? "on" : "off", use_vignette ? "on" : "off",
+                           use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
         sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  T: CRT %s",
-            use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
+                           use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
         sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  F: Grain %s  X: Shockwave",
-            use_dither ? "on" : "off", use_film_grain ? "on" : "off");
+                           use_dither ? "on" : "off", use_film_grain ? "on" : "off");
         sl::circlefill(sl::screen, 400.0f + std::cos(time) * 180.0f,
-            280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
+                       280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
         sl::circlefill(sl::screen, 180.0f, 420.0f, 34.0f, {80, 190, 255});
         sl::circlefill(sl::screen, 625.0f, 405.0f, 42.0f, {255, 90, 125});
         sl::draw_sprite_rotated(balloon, 400.0f, 310.0f, time * 35.0f);

@@ -1,6 +1,6 @@
 #include "sl.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
@@ -8,8 +8,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    sl::Font* sans_font = sl::open_sans_font(28);
-    sl::Font* monospace_font = sl::get_default_monospace_font();
+    sl::Font *sans_font = sl::open_sans_font(28);
+    sl::Font *monospace_font = sl::get_default_monospace_font();
     sl::clear_to_colour(sl::screen, {45, 48, 56});
 
     if (sans_font)

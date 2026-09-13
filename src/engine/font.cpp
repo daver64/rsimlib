@@ -57,7 +57,7 @@ namespace sl
         std::array<GlyphInfo, 128> glyphs{};
     };
 
-    static std::unordered_map<Font*, std::unique_ptr<FontAtlas>> g_font_atlases;
+    static std::unordered_map<Font *, std::unique_ptr<FontAtlas>> g_font_atlases;
 
     static void destroy_font_atlas(Font *font)
     {
@@ -75,7 +75,8 @@ namespace sl
 
     static FontAtlas *get_or_create_font_atlas(Font *font)
     {
-        if (!font) return nullptr;
+        if (!font)
+            return nullptr;
         auto it = g_font_atlases.find(font);
         if (it != g_font_atlases.end())
         {
@@ -83,7 +84,8 @@ namespace sl
         }
 
         detail::Renderer *renderer = detail::active_renderer();
-        if (!renderer) return nullptr;
+        if (!renderer)
+            return nullptr;
 
         auto atlas = std::make_unique<FontAtlas>();
         atlas->font = font;
@@ -122,11 +124,13 @@ namespace sl
             }
 
             SDL_Surface *glyph_surf = TTF_RenderGlyph_Blended(font, static_cast<Uint16>(ch), white);
-            if (!glyph_surf) continue;
+            if (!glyph_surf)
+                continue;
 
             SDL_Surface *rgba = SDL_ConvertSurfaceFormat(glyph_surf, SDL_PIXELFORMAT_RGBA32, 0);
             SDL_FreeSurface(glyph_surf);
-            if (!rgba) continue;
+            if (!rgba)
+                continue;
 
             rendered_glyphs[ch].surface = rgba;
 
@@ -145,7 +149,8 @@ namespace sl
         }
 
         int atlas_h = 64;
-        while (atlas_h < max_needed_h) atlas_h *= 2;
+        while (atlas_h < max_needed_h)
+            atlas_h *= 2;
 
         atlas->atlas_width = atlas_w;
         atlas->atlas_height = atlas_h;
@@ -200,7 +205,8 @@ namespace sl
         if (!renderer->create_texture({atlas_w, atlas_h, detail::TextureFilter::linear}, atlas->texture_id) ||
             !renderer->upload_texture(atlas->texture_id, atlas_w, atlas_h, atlas_pixels.data()))
         {
-            if (atlas->texture_id != 0) renderer->destroy_texture(atlas->texture_id);
+            if (atlas->texture_id != 0)
+                renderer->destroy_texture(atlas->texture_id);
             return nullptr;
         }
 
@@ -233,12 +239,12 @@ namespace sl
         texture.height = rgba->h;
 
         detail::Renderer *renderer = detail::active_renderer();
-        if (!renderer || !renderer->create_texture(
-            {texture.width, texture.height, detail::TextureFilter::linear}, texture.id) ||
+        if (!renderer || !renderer->create_texture({texture.width, texture.height, detail::TextureFilter::linear}, texture.id) ||
             !renderer->upload_texture(texture.id, texture.width, texture.height,
                                       static_cast<const std::uint8_t *>(rgba->pixels)))
         {
-            if (renderer) renderer->destroy_texture(texture.id);
+            if (renderer)
+                renderer->destroy_texture(texture.id);
             SDL_FreeSurface(rgba);
             return std::nullopt;
         }
@@ -284,7 +290,8 @@ namespace sl
 
     void draw_text_atlas(Font *font, int x, int y, const Colour &colour, const std::string &text, int windowWidth, int windowHeight)
     {
-        if (!font || text.empty()) return;
+        if (!font || text.empty())
+            return;
 
         bool is_all_ascii = true;
         for (unsigned char c : text)
@@ -336,17 +343,20 @@ namespace sl
         for (std::size_t i = 0; i < text.size(); ++i)
         {
             unsigned char c = static_cast<unsigned char>(text[i]);
-            if (c == '\r') continue;
+            if (c == '\r')
+                continue;
             if (c == '\n')
             {
                 pen_x = static_cast<float>(x);
                 pen_y += static_cast<float>(atlas->line_skip);
                 continue;
             }
-            if (c < 32 || c > 126) continue;
+            if (c < 32 || c > 126)
+                continue;
 
             const GlyphInfo &info = atlas->glyphs[c];
-            if (!info.exists) continue;
+            if (!info.exists)
+                continue;
 
             if (info.width > 0 && info.height > 0)
             {

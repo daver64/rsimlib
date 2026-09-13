@@ -21,7 +21,7 @@ namespace sl::detail
         std::string hresult_error(const char *message, HRESULT result)
         {
             return std::string(message) + " (HRESULT 0x" +
-                std::to_string(static_cast<unsigned long>(result)) + ").";
+                   std::to_string(static_cast<unsigned long>(result)) + ").";
         }
     }
 
@@ -57,7 +57,7 @@ namespace sl::detail
         height_ = window_height;
 
         HRESULT result = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0,
-            IID_PPV_ARGS(&device_));
+                                           IID_PPV_ARGS(&device_));
         if (FAILED(result))
         {
             error = hresult_error("Unable to create the D3D12 device", result);
@@ -75,7 +75,7 @@ namespace sl::detail
             return false;
         }
         result = device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-            IID_PPV_ARGS(&command_allocator_));
+                                                 IID_PPV_ARGS(&command_allocator_));
         if (FAILED(result))
         {
             error = hresult_error("Unable to create the D3D12 command allocator", result);
@@ -83,7 +83,7 @@ namespace sl::detail
             return false;
         }
         result = device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
-            command_allocator_, nullptr, IID_PPV_ARGS(&command_list_));
+                                            command_allocator_, nullptr, IID_PPV_ARGS(&command_list_));
         if (FAILED(result))
         {
             error = hresult_error("Unable to create the D3D12 command list", result);
@@ -121,7 +121,7 @@ namespace sl::detail
             swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
             IDXGISwapChain1 *swap_chain = nullptr;
             result = factory->CreateSwapChainForHwnd(command_queue_, info.info.win.window,
-                &swap_chain_desc, nullptr, nullptr, &swap_chain);
+                                                     &swap_chain_desc, nullptr, nullptr, &swap_chain);
             if (SUCCEEDED(result))
             {
                 result = swap_chain->QueryInterface(IID_PPV_ARGS(&swap_chain_));
@@ -176,7 +176,8 @@ namespace sl::detail
     {
         for (auto *&buffer : back_buffers_)
         {
-            if (buffer) buffer->Release();
+            if (buffer)
+                buffer->Release();
             buffer = nullptr;
         }
         if (rtv_heap_)
@@ -188,12 +189,15 @@ namespace sl::detail
 
     bool D3D12Context::wait_for_gpu()
     {
-        if (!command_queue_ || !fence_ || !fence_event_) return false;
+        if (!command_queue_ || !fence_ || !fence_event_)
+            return false;
         const std::uint64_t value = ++fence_value_;
-        if (FAILED(command_queue_->Signal(fence_, value))) return false;
+        if (FAILED(command_queue_->Signal(fence_, value)))
+            return false;
         if (fence_->GetCompletedValue() < value)
         {
-            if (FAILED(fence_->SetEventOnCompletion(value, static_cast<HANDLE>(fence_event_)))) return false;
+            if (FAILED(fence_->SetEventOnCompletion(value, static_cast<HANDLE>(fence_event_))))
+                return false;
             WaitForSingleObject(static_cast<HANDLE>(fence_event_), INFINITE);
         }
         return true;
@@ -201,8 +205,10 @@ namespace sl::detail
 
     bool D3D12Context::begin_frame()
     {
-        if (!is_valid() || frame_open_) return false;
-        if (FAILED(command_allocator_->Reset()) || FAILED(command_list_->Reset(command_allocator_, nullptr))) return false;
+        if (!is_valid() || frame_open_)
+            return false;
+        if (FAILED(command_allocator_->Reset()) || FAILED(command_list_->Reset(command_allocator_, nullptr)))
+            return false;
         D3D12_RESOURCE_BARRIER barrier{};
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Transition.pResource = back_buffers_[frame_index_];
@@ -219,7 +225,8 @@ namespace sl::detail
 
     void D3D12Context::present(bool vsync)
     {
-        if (!swap_chain_ || !frame_open_) return;
+        if (!swap_chain_ || !frame_open_)
+            return;
         D3D12_RESOURCE_BARRIER barrier{};
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Transition.pResource = back_buffers_[frame_index_];
@@ -240,7 +247,8 @@ namespace sl::detail
 
     void D3D12Context::clear(float red, float green, float blue, float alpha)
     {
-        if (!frame_open_ || !rtv_heap_) return;
+        if (!frame_open_ || !rtv_heap_)
+            return;
         D3D12_CPU_DESCRIPTOR_HANDLE handle = rtv_heap_->GetCPUDescriptorHandleForHeapStart();
         handle.ptr += static_cast<SIZE_T>(frame_index_) * rtv_descriptor_size_;
         const float color[4] = {red, green, blue, alpha};
@@ -249,8 +257,10 @@ namespace sl::detail
 
     bool D3D12Context::resize(int width, int height, std::string &error)
     {
-        if (!swap_chain_ || width <= 0 || height <= 0) return false;
-        if (frame_open_) present(true);
+        if (!swap_chain_ || width <= 0 || height <= 0)
+            return false;
+        if (frame_open_)
+            present(true);
         if (!wait_for_gpu())
         {
             error = "Unable to wait for the D3D12 GPU before resizing.";
@@ -258,7 +268,7 @@ namespace sl::detail
         }
         release_backbuffers();
         const HRESULT result = swap_chain_->ResizeBuffers(frame_count, static_cast<UINT>(width),
-            static_cast<UINT>(height), DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+                                                          static_cast<UINT>(height), DXGI_FORMAT_R8G8B8A8_UNORM, 0);
         if (FAILED(result))
         {
             error = hresult_error("Unable to resize the D3D12 swap chain", result);
@@ -276,19 +286,44 @@ namespace sl::detail
 
     void D3D12Context::shutdown()
     {
-        if (command_queue_ && fence_ && fence_event_) wait_for_gpu();
+        if (command_queue_ && fence_ && fence_event_)
+            wait_for_gpu();
         release_backbuffers();
         if (fence_event_)
         {
             CloseHandle(static_cast<HANDLE>(fence_event_));
             fence_event_ = nullptr;
         }
-        if (fence_) { fence_->Release(); fence_ = nullptr; }
-        if (command_list_) { command_list_->Release(); command_list_ = nullptr; }
-        if (command_allocator_) { command_allocator_->Release(); command_allocator_ = nullptr; }
-        if (command_queue_) { command_queue_->Release(); command_queue_ = nullptr; }
-        if (swap_chain_) { swap_chain_->Release(); swap_chain_ = nullptr; }
-        if (device_) { device_->Release(); device_ = nullptr; }
+        if (fence_)
+        {
+            fence_->Release();
+            fence_ = nullptr;
+        }
+        if (command_list_)
+        {
+            command_list_->Release();
+            command_list_ = nullptr;
+        }
+        if (command_allocator_)
+        {
+            command_allocator_->Release();
+            command_allocator_ = nullptr;
+        }
+        if (command_queue_)
+        {
+            command_queue_->Release();
+            command_queue_ = nullptr;
+        }
+        if (swap_chain_)
+        {
+            swap_chain_->Release();
+            swap_chain_ = nullptr;
+        }
+        if (device_)
+        {
+            device_->Release();
+            device_ = nullptr;
+        }
         window_ = nullptr;
         fence_value_ = 0;
         frame_index_ = 0;

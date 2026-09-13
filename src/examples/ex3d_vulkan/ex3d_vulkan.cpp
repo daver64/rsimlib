@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     if (!sl::set_graphics_backend(sl::GraphicsBackend::vulkan) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
-        std::fprintf(stderr, "Failed to set Vulkan graphics backend or graphics mode.\n");  
+        std::fprintf(stderr, "Failed to set Vulkan graphics backend or graphics mode.\n");
         return -1;
     }
 
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
         !context->load_shader_module(shader_dir / "vulkan/vulkan_ex3d.frag.spv", fragment_module, error) ||
         !context->create_dynamic_descriptor_layout({}, descriptor_layout, error) ||
         !context->create_graphics_pipeline(vertex_module, fragment_module, descriptor_layout,
-            sl::detail::PrimitiveType::triangles, pipeline, error, nullptr, 0, true))
+                                           sl::detail::PrimitiveType::triangles, pipeline, error, nullptr, 0, true))
     {
         std::fprintf(stderr, "Vulkan 3D setup failed: %s\n", error.c_str());
         context->destroy_graphics_pipeline(pipeline);
@@ -69,11 +69,9 @@ int main(int argc, char *argv[])
     }
 
     const float corners[8][3] = {
-        {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
-        {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}};
+        {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1}, {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}};
     const float colours[6][3] = {
-        {0.95f, 0.25f, 0.25f}, {0.25f, 0.75f, 1.0f}, {0.35f, 0.95f, 0.45f},
-        {1.0f, 0.75f, 0.2f}, {0.75f, 0.35f, 1.0f}, {0.2f, 0.9f, 0.85f}};
+        {0.95f, 0.25f, 0.25f}, {0.25f, 0.75f, 1.0f}, {0.35f, 0.95f, 0.45f}, {1.0f, 0.75f, 0.2f}, {0.75f, 0.35f, 1.0f}, {0.2f, 0.9f, 0.85f}};
     std::array<Vertex, 36> vertices{};
     int offset = 0;
     append_face(vertices, offset, corners, 0, 1, 2, 3, colours[0]);
@@ -83,7 +81,7 @@ int main(int argc, char *argv[])
     append_face(vertices, offset, corners, 3, 2, 6, 7, colours[4]);
     append_face(vertices, offset, corners, 4, 5, 1, 0, colours[5]);
     if (!context->create_buffer(sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertex_buffer, error) ||
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertex_buffer, error) ||
         !context->upload_buffer(vertex_buffer, vertices.data(), sizeof(vertices), error))
     {
         std::fprintf(stderr, "Vulkan 3D buffer setup failed: %s\n", error.c_str());
@@ -119,7 +117,7 @@ int main(int argc, char *argv[])
         {
             context->clear_active_frame(0.035f, 0.05f, 0.08f, 1.0f, frame_error);
             context->record_3d_draw(pipeline.pipeline, pipeline.layout, vertex_buffer.buffer,
-                36, glm::value_ptr(mvp), frame_error);
+                                    36, glm::value_ptr(mvp), frame_error);
             sl::gprintf_center(32, {232, 236, 244}, "Vulkan 3D example - Escape to exit");
             context->end_frame(frame_error);
         }

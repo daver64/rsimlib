@@ -89,56 +89,56 @@ namespace sl::detail
         bool end_frame(std::string &error);
         bool frame_active() const { return frame_active_; }
         bool begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
-                         int width, int height,
-                         std::string &error);
+                                         int width, int height,
+                                         std::string &error);
         bool end_offscreen_render_pass(std::string &error);
         bool prepare_image_for_sampling(VulkanImage &image, std::string &error);
         bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
-                    VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
-                    std::uint32_t vertex_count, PrimitiveType topology,
-                    const float *projection, std::string &error);
-                bool record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
-                        VkBuffer vertex_buffer, std::uint32_t vertex_count,
-                        const float *mvp, std::string &error);
+                                VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
+                                std::uint32_t vertex_count, PrimitiveType topology,
+                                const float *projection, std::string &error);
+        bool record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                            VkBuffer vertex_buffer, std::uint32_t vertex_count,
+                            const float *mvp, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
-                VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
-                VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
-                const float *projection, const void *lighting_constants,
-                std::uint32_t lighting_constant_size, std::string &error);
+                                  VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
+                                  VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
+                                  const float *projection, const void *lighting_constants,
+                                  std::uint32_t lighting_constant_size, std::string &error);
         bool record_postprocess_draw(VkPipeline pipeline, VkPipelineLayout layout,
-                VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
-                std::uint32_t vertex_count, const float *projection,
-                const void *constants, std::uint32_t constant_size, std::string &error);
+                                     VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
+                                     std::uint32_t vertex_count, const float *projection,
+                                     const void *constants, std::uint32_t constant_size, std::string &error);
         bool clear_active_frame(float red, float green, float blue, float alpha,
                                 std::string &error);
         bool record_compute_dispatch(VkPipeline pipeline, VkPipelineLayout layout,
-                         VkDescriptorSet descriptor_set, const void *push_constants,
-                         std::uint32_t push_constant_size,
-                         std::uint32_t groups_x, std::uint32_t groups_y,
-                         std::uint32_t groups_z, std::string &error);
+                                     VkDescriptorSet descriptor_set, const void *push_constants,
+                                     std::uint32_t push_constant_size,
+                                     std::uint32_t groups_x, std::uint32_t groups_y,
+                                     std::uint32_t groups_z, std::string &error);
         bool create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
-                   VkMemoryPropertyFlags properties, VulkanBuffer &result,
-                   std::string &error);
+                           VkMemoryPropertyFlags properties, VulkanBuffer &result,
+                           std::string &error);
         void destroy_buffer(VulkanBuffer &buffer);
         bool upload_buffer(const VulkanBuffer &buffer, const void *data, std::size_t size,
-                   std::string &error);
+                           std::string &error);
         bool upload_image_rgba(VulkanImage &image, int width, int height,
-                       const std::uint8_t *pixels, std::string &error);
+                               const std::uint8_t *pixels, std::string &error);
         bool download_image_rgba(VulkanImage &image, int width, int height,
-                         std::uint8_t *out_pixels, std::string &error);
+                                 std::uint8_t *out_pixels, std::string &error);
         bool download_swapchain_rgba(int width, int height,
-                            std::uint8_t *out_pixels, std::string &error);
+                                     std::uint8_t *out_pixels, std::string &error);
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
-                  VulkanImage &result, std::string &error);
+                          VulkanImage &result, std::string &error);
         void destroy_image(VulkanImage &image);
         bool create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
-                      int width, int height,
-                              VkFramebuffer &framebuffer, std::string &error);
+                                              int width, int height,
+                                              VkFramebuffer &framebuffer, std::string &error);
         void destroy_framebuffer(VkFramebuffer &framebuffer);
         bool load_shader_module(const std::filesystem::path &path, VulkanShaderModule &result,
-                    std::string &error);
+                                std::string &error);
         bool create_shader_module(const std::vector<std::uint32_t> &code,
-                      VulkanShaderModule &result, std::string &error);
+                                  VulkanShaderModule &result, std::string &error);
         void destroy_shader_module(VulkanShaderModule &module);
         bool create_texture_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
         bool create_lighting_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
@@ -148,31 +148,31 @@ namespace sl::detail
         bool create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error);
         void destroy_sampler(VulkanSampler &sampler);
         bool allocate_texture_descriptor(const VulkanDescriptorPool &pool,
-                         const VulkanDescriptorSetLayout &layout,
-                         const VulkanImage &image, const VulkanSampler &sampler,
-                         VkDescriptorSet &set, std::string &error);
-                bool update_texture_descriptor(VkDescriptorSet set, const VulkanImage &image,
-                                   const VulkanSampler &sampler, std::string &error);
+                                         const VulkanDescriptorSetLayout &layout,
+                                         const VulkanImage &image, const VulkanSampler &sampler,
+                                         VkDescriptorSet &set, std::string &error);
+        bool update_texture_descriptor(VkDescriptorSet set, const VulkanImage &image,
+                                       const VulkanSampler &sampler, std::string &error);
         void free_descriptor_set(const VulkanDescriptorPool &pool, VkDescriptorSet &set);
         bool allocate_lighting_descriptor(const VulkanDescriptorPool &pool,
-                 const VulkanDescriptorSetLayout &layout,
-                 const VulkanImage *images, const VulkanSampler *samplers,
-                 VkDescriptorSet &set, std::string &error);
+                                          const VulkanDescriptorSetLayout &layout,
+                                          const VulkanImage *images, const VulkanSampler *samplers,
+                                          VkDescriptorSet &set, std::string &error);
         bool update_lighting_descriptor(VkDescriptorSet set, const VulkanImage *images,
-                 const VulkanSampler *samplers, std::string &error);
+                                        const VulkanSampler *samplers, std::string &error);
         bool create_composite_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
         bool allocate_composite_descriptor(const VulkanDescriptorPool &pool,
-                 const VulkanDescriptorSetLayout &layout,
-                 const VulkanImage *images, const VulkanSampler *samplers,
-                 VkDescriptorSet &set, std::string &error);
+                                           const VulkanDescriptorSetLayout &layout,
+                                           const VulkanImage *images, const VulkanSampler *samplers,
+                                           VkDescriptorSet &set, std::string &error);
         bool update_composite_descriptor(VkDescriptorSet set, const VulkanImage *images,
-                 const VulkanSampler *samplers, std::string &error);
+                                         const VulkanSampler *samplers, std::string &error);
         bool create_dynamic_descriptor_layout(const std::vector<VkDescriptorSetLayoutBinding> &bindings,
-                 VulkanDescriptorSetLayout &result, std::string &error);
+                                              VulkanDescriptorSetLayout &result, std::string &error);
         bool allocate_descriptor_set(const VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
-                 VkDescriptorSet &set, std::string &error);
+                                     VkDescriptorSet &set, std::string &error);
         bool update_dynamic_descriptor_set(VkDescriptorSet set, const std::vector<VulkanImage> &images,
-                 const std::vector<VulkanSampler> &samplers, std::string &error);
+                                           const std::vector<VulkanSampler> &samplers, std::string &error);
         bool create_storage_descriptor_layout(VulkanStorageDescriptorLayout &result, std::string &error);
         void destroy_storage_descriptor_layout(VulkanStorageDescriptorLayout &layout);
         bool create_compute_descriptor_layout_flexible(std::uint32_t storage_buffer_count,
@@ -181,39 +181,39 @@ namespace sl::detail
                                                        VulkanStorageDescriptorLayout &result,
                                                        std::string &error);
         bool allocate_storage_descriptor(const VulkanDescriptorPool &pool,
-                         const VulkanStorageDescriptorLayout &layout,
-                         const VulkanBuffer *buffers, std::size_t count,
-                         VkDescriptorSet &set, std::string &error);
+                                         const VulkanStorageDescriptorLayout &layout,
+                                         const VulkanBuffer *buffers, std::size_t count,
+                                         VkDescriptorSet &set, std::string &error);
         bool allocate_compute_descriptor_set(const VulkanDescriptorPool &pool,
                                              const VulkanStorageDescriptorLayout &layout,
                                              VkDescriptorSet &set, std::string &error);
         bool update_storage_descriptor(VkDescriptorSet set, const VulkanBuffer *buffers,
-                 std::size_t count, std::string &error);
+                                       std::size_t count, std::string &error);
         bool download_buffer(const VulkanBuffer &buffer, void *out_data, std::size_t size,
                              std::size_t offset, std::string &error);
         bool create_imgui_descriptor_pool(VkDescriptorPool &pool, std::string &error);
         void destroy_imgui_descriptor_pool(VkDescriptorPool &pool);
         void bind_storage_descriptor(VkCommandBuffer command_buffer, VkPipelineLayout layout,
-                         VkDescriptorSet descriptor_set, VkPipelineBindPoint bind_point);
+                                     VkDescriptorSet descriptor_set, VkPipelineBindPoint bind_point);
         void storage_barrier(VkCommandBuffer command_buffer);
         bool create_pipeline_layout(const VulkanDescriptorSetLayout *descriptor_layout,
-                        VkPipelineLayout &layout, std::string &error);
+                                    VkPipelineLayout &layout, std::string &error);
         void destroy_pipeline_layout(VkPipelineLayout &layout);
         bool create_graphics_pipeline(const VulkanShaderModule &vertex,
-                          const VulkanShaderModule &fragment,
-                          const VulkanDescriptorSetLayout &descriptor_layout,
-                          PrimitiveType topology,
-                          VulkanGraphicsPipeline &result, std::string &error,
-                          const VulkanStorageDescriptorLayout *storage_layout = nullptr,
-                          std::uint32_t fragment_push_constant_size = 0,
-                          bool three_dimensional = false,
-                          bool premultiplied_alpha = false);
+                                      const VulkanShaderModule &fragment,
+                                      const VulkanDescriptorSetLayout &descriptor_layout,
+                                      PrimitiveType topology,
+                                      VulkanGraphicsPipeline &result, std::string &error,
+                                      const VulkanStorageDescriptorLayout *storage_layout = nullptr,
+                                      std::uint32_t fragment_push_constant_size = 0,
+                                      bool three_dimensional = false,
+                                      bool premultiplied_alpha = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
-            bool create_compute_pipeline(const VulkanShaderModule &compute,
-                                         const VulkanStorageDescriptorLayout &descriptor_layout,
-                             std::uint32_t push_constant_size,
-                             VulkanComputePipeline &result, std::string &error);
-            void destroy_compute_pipeline(VulkanComputePipeline &pipeline);
+        bool create_compute_pipeline(const VulkanShaderModule &compute,
+                                     const VulkanStorageDescriptorLayout &descriptor_layout,
+                                     std::uint32_t push_constant_size,
+                                     VulkanComputePipeline &result, std::string &error);
+        void destroy_compute_pipeline(VulkanComputePipeline &pipeline);
         void shutdown();
         bool is_valid() const;
         VkInstance instance() const { return instance_; }
@@ -277,6 +277,6 @@ namespace sl::detail
         bool vsync_enabled_ = true;
 
         std::uint32_t find_memory_type(std::uint32_t type_filter,
-                           VkMemoryPropertyFlags properties) const;
+                                       VkMemoryPropertyFlags properties) const;
     };
 }

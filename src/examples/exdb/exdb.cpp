@@ -15,7 +15,7 @@ namespace
 		if (!std::filesystem::remove(filename, error) && error)
 		{
 			std::fprintf(stderr, "Unable to remove temporary database '%s': %s\n",
-				filename.c_str(), error.message().c_str());
+						 filename.c_str(), error.message().c_str());
 		}
 	}
 
@@ -68,10 +68,8 @@ namespace
 		auto select = database.prepare(
 			"SELECT id, name, category, price, stock FROM products ORDER BY id;");
 		select->forEachRow([&rows](rdb::Statement &row)
-		{
-			rows.push_back({row.getInt(0), row.getText(1), row.getText(2),
-				row.getDouble(3), row.getInt(4)});
-		});
+						   { rows.push_back({row.getInt(0), row.getText(1), row.getText(2),
+											 row.getDouble(3), row.getInt(4)}); });
 		return rows;
 	}
 
@@ -107,8 +105,8 @@ namespace
 		for (const Product &product : products)
 		{
 			sl::gprintf(32, y, text, "%-4d %-21s %-14s £%7.2f %5d",
-				product.id, product.name.c_str(), product.category.c_str(),
-				product.price, product.stock);
+						product.id, product.name.c_str(), product.category.c_str(),
+						product.price, product.stock);
 			y += 24;
 		}
 
@@ -147,8 +145,7 @@ int main(int argc, char *argv[])
 	}
 
 	sl::wait_for_graphics();
-    sl::shutdown();
+	sl::shutdown();
 	remove_database(database_filename);
 	return 0;
 }
-

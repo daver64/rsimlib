@@ -185,9 +185,22 @@ namespace sl::detail
     void D3D11Context::shutdown()
     {
         release_backbuffer_view();
-        if (context_) { context_->ClearState(); context_->Release(); context_ = nullptr; }
-        if (swap_chain_) { swap_chain_->Release(); swap_chain_ = nullptr; }
-        if (device_) { device_->Release(); device_ = nullptr; }
+        if (context_)
+        {
+            context_->ClearState();
+            context_->Release();
+            context_ = nullptr;
+        }
+        if (swap_chain_)
+        {
+            swap_chain_->Release();
+            swap_chain_ = nullptr;
+        }
+        if (device_)
+        {
+            device_->Release();
+            device_ = nullptr;
+        }
         width_ = 0;
         height_ = 0;
     }

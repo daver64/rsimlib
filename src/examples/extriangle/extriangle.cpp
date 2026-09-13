@@ -2,7 +2,7 @@
 
 void process_input()
 {
-    bool running=true;
+    bool running = true;
     while (running)
     {
         sl::Event event;
@@ -11,7 +11,7 @@ void process_input()
             if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
-            }   // Handle input here
+            } // Handle input here
         }
     }
 }

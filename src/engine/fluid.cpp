@@ -251,11 +251,16 @@ namespace sl
         {
             switch (type)
             {
-            case FluidElement::water: return 1.0f;
-            case FluidElement::oil: return 0.65f;
-            case FluidElement::acid: return 1.25f;
-            case FluidElement::lava: return 2.4f;
-            default: return 0.0f;
+            case FluidElement::water:
+                return 1.0f;
+            case FluidElement::oil:
+                return 0.65f;
+            case FluidElement::acid:
+                return 1.25f;
+            case FluidElement::lava:
+                return 2.4f;
+            default:
+                return 0.0f;
             }
         }
 
@@ -306,7 +311,7 @@ namespace sl
                     if (nx <= 0 || nx >= simulation->width - 1 || ny <= 0 || ny >= simulation->height - 1)
                         continue;
                     FluidCell &n = simulation->cells[cell_index(simulation, nx, ny)];
-                    if (n.type == FluidElement::wood || n.type == FluidElement::plant || n.type == FluidElement::sand || 
+                    if (n.type == FluidElement::wood || n.type == FluidElement::plant || n.type == FluidElement::sand ||
                         (n.type == FluidElement::solid && nx > 1 && nx < simulation->width - 2 && ny > 1 && ny < simulation->height - 2))
                     {
                         if ((prng_next() % 3) == 0)
@@ -323,7 +328,8 @@ namespace sl
 
             // Tom Forsyth compressible liquid model with density-based buoyancy
             const int down_y = y + 1;
-            if (down_y >= simulation->height - 1) return;
+            if (down_y >= simulation->height - 1)
+                return;
 
             FluidCell &below = simulation->cells[cell_index(simulation, x, down_y)];
             if (below.type == FluidElement::empty)

@@ -2,17 +2,17 @@
 
 void process_input()
 {
-    bool running=true;
+    bool running = true;
     while (running)
     {
         sl::Event event;
-        
+
         while (sl::poll_event(&event))
         {
             if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
-            }   // Handle input here
+            } // Handle input here
         }
     }
 }
@@ -26,7 +26,6 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    
     sl::LuaCanvas canvas;
 
     const sl::LuaScriptResult result = canvas.run_file("assets/scripts/scene.lua");
@@ -34,7 +33,6 @@ int main(int argc, char *argv[])
     {
         // Handle result.error
     }
-
 
     canvas.render(sl::screen);
     sl::show_video_bitmap();

@@ -107,7 +107,7 @@ namespace sl
 		}
 
 		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture,
-			bool flipVertical, bool premultipliedAlpha)
+									bool flipVertical, bool premultipliedAlpha)
 		{
 			const float left = static_cast<float>(x);
 			const float top = static_cast<float>(y);
@@ -446,7 +446,8 @@ namespace sl
 	bool StorageBuffer::create(std::size_t sizeBytes)
 	{
 		destroy();
-		if (sizeBytes == 0) return false;
+		if (sizeBytes == 0)
+			return false;
 		if (detail::Renderer *renderer = detail::active_renderer())
 		{
 			if (renderer->create_storage_buffer(sizeBytes, handle_))
@@ -488,8 +489,10 @@ namespace sl
 
 	bool StorageBuffer::upload(const void *data, std::size_t sizeBytes, std::size_t offsetBytes)
 	{
-		if (!is_valid() || sizeBytes == 0) return false;
-		if (offsetBytes + sizeBytes > sizeBytes_) return false;
+		if (!is_valid() || sizeBytes == 0)
+			return false;
+		if (offsetBytes + sizeBytes > sizeBytes_)
+			return false;
 		if (detail::Renderer *renderer = detail::active_renderer())
 		{
 			return renderer->upload_storage_buffer(handle_, sizeBytes, data, offsetBytes > 0);
@@ -499,8 +502,10 @@ namespace sl
 
 	bool StorageBuffer::readback(void *outData, std::size_t sizeBytes, std::size_t offsetBytes) const
 	{
-		if (!is_valid() || sizeBytes == 0 || !outData) return false;
-		if (offsetBytes + sizeBytes > sizeBytes_) return false;
+		if (!is_valid() || sizeBytes == 0 || !outData)
+			return false;
+		if (offsetBytes + sizeBytes > sizeBytes_)
+			return false;
 		if (detail::Renderer *renderer = detail::active_renderer())
 		{
 			return renderer->readback_storage_buffer(handle_, offsetBytes, sizeBytes, outData);
@@ -510,7 +515,8 @@ namespace sl
 
 	bool StorageBuffer::bind(unsigned int bindingIndex) const
 	{
-		if (!is_valid()) return false;
+		if (!is_valid())
+			return false;
 		if (detail::Renderer *renderer = detail::active_renderer())
 		{
 			renderer->bind_storage_buffer(bindingIndex, handle_);
@@ -528,10 +534,11 @@ namespace sl
 	}
 
 	bool dispatch_compute_for(const Shader &shader,
-                             unsigned int totalItemsX, unsigned int totalItemsY, unsigned int totalItemsZ,
-                             unsigned int localSizeX, unsigned int localSizeY, unsigned int localSizeZ)
+							  unsigned int totalItemsX, unsigned int totalItemsY, unsigned int totalItemsZ,
+							  unsigned int localSizeX, unsigned int localSizeY, unsigned int localSizeZ)
 	{
-		if (localSizeX == 0 || localSizeY == 0 || localSizeZ == 0) return false;
+		if (localSizeX == 0 || localSizeY == 0 || localSizeZ == 0)
+			return false;
 		unsigned int groupsX = (totalItemsX + localSizeX - 1) / localSizeX;
 		unsigned int groupsY = (totalItemsY + localSizeY - 1) / localSizeY;
 		unsigned int groupsZ = (totalItemsZ + localSizeZ - 1) / localSizeZ;

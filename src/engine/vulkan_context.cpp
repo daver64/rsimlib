@@ -17,9 +17,7 @@ namespace sl::detail
         bool has_extension(const std::vector<VkExtensionProperties> &extensions, const char *name)
         {
             return std::any_of(extensions.begin(), extensions.end(), [name](const auto &extension)
-            {
-                return std::strcmp(extension.extensionName, name) == 0;
-            });
+                               { return std::strcmp(extension.extensionName, name) == 0; });
         }
     }
 
@@ -114,7 +112,8 @@ namespace sl::detail
                     break;
                 }
             }
-            if (physical_device_ != VK_NULL_HANDLE) break;
+            if (physical_device_ != VK_NULL_HANDLE)
+                break;
         }
         if (physical_device_ == VK_NULL_HANDLE)
         {
@@ -259,7 +258,7 @@ namespace sl::detail
         }
         if (depth_format_ == VK_FORMAT_UNDEFINED ||
             !create_image(static_cast<int>(extent.width), static_cast<int>(extent.height), depth_format_,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depth_image_, error))
+                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depth_image_, error))
         {
             error = "Unable to create the Vulkan depth buffer.";
             destroy_swapchain();
@@ -441,14 +440,16 @@ namespace sl::detail
             error = "Vulkan frame cannot begin in the current state.";
             return false;
         }
-        if (frame_active_) return true;
+        if (frame_active_)
+            return true;
         if (vkWaitForFences(device_, 1, &in_flight_, VK_TRUE, UINT64_MAX) != VK_SUCCESS ||
             vkResetFences(device_, 1, &in_flight_) != VK_SUCCESS)
         {
             error = "Unable to synchronize Vulkan frame fence.";
             return false;
         }
-        for (VulkanBuffer &buffer : upload_staging_buffers_) destroy_buffer(buffer);
+        for (VulkanBuffer &buffer : upload_staging_buffers_)
+            destroy_buffer(buffer);
         upload_staging_buffers_.clear();
         VkResult acquire = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_, VK_NULL_HANDLE, &current_image_);
         if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
@@ -491,7 +492,8 @@ namespace sl::detail
             error = "Vulkan frame is not active.";
             return false;
         }
-        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_)
+            vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
         if (vkEndCommandBuffer(command_buffer_) != VK_SUCCESS)
         {
@@ -541,9 +543,10 @@ namespace sl::detail
             error = "Invalid Vulkan offscreen render-pass state.";
             return false;
         }
-        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_)
+            vkCmdEndRenderPass(command_buffer_);
         render_pass_stack_.push_back({active_extent_, active_render_pass_, active_resume_render_pass_,
-            active_framebuffer_, offscreen_active_, active_offscreen_image_});
+                                      active_framebuffer_, offscreen_active_, active_offscreen_image_});
         VkClearValue clears[2]{};
         clears[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
         clears[1].depthStencil = {1.0f, 0};
@@ -572,7 +575,8 @@ namespace sl::detail
             error = "Vulkan offscreen render pass is not active.";
             return false;
         }
-        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_)
+            vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
         const RenderPassState previous = render_pass_stack_.back();
         render_pass_stack_.pop_back();
@@ -612,19 +616,22 @@ namespace sl::detail
         }
         VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.oldLayout = image.layout == VK_IMAGE_LAYOUT_UNDEFINED
-            ? VK_IMAGE_LAYOUT_UNDEFINED : image.layout;
+                                ? VK_IMAGE_LAYOUT_UNDEFINED
+                                : image.layout;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = image.layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
+                                    ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                                    : 0;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         barrier.image = image.image;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.levelCount = 1;
         barrier.subresourceRange.layerCount = 1;
         const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                                                      ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                                      : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         vkCmdPipelineBarrier(command_buffer_, source_stage, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            0, 0, nullptr, 0, nullptr, 1, &barrier);
+                             0, 0, nullptr, 0, nullptr, 1, &barrier);
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkClearValue clear_values[2]{};
         clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -690,13 +697,13 @@ namespace sl::detail
             return false;
         }
         VkViewport viewport{0.0f, 0.0f, static_cast<float>(active_extent_.width),
-            static_cast<float>(active_extent_.height), 0.0f, 1.0f};
+                            static_cast<float>(active_extent_.height), 0.0f, 1.0f};
         VkRect2D scissor{{0, 0}, active_extent_};
         vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-            sizeof(float) * 16, mvp);
+                           sizeof(float) * 16, mvp);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
         vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
@@ -802,7 +809,8 @@ namespace sl::detail
             error = "Invalid Vulkan compute dispatch state.";
             return false;
         }
-        if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command_buffer_);
+        if (command_buffer_recording_ && render_pass_active_)
+            vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -936,7 +944,8 @@ namespace sl::detail
         }
         if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                           staging, error) || !upload_buffer(staging, upload_pixels.data(), byte_count, error))
+                           staging, error) ||
+            !upload_buffer(staging, upload_pixels.data(), byte_count, error))
         {
             destroy_buffer(staging);
             return false;
@@ -961,21 +970,24 @@ namespace sl::detail
         }
         else
         {
-            if (command_buffer_recording_ && render_pass_active_) vkCmdEndRenderPass(command);
+            if (command_buffer_recording_ && render_pass_active_)
+                vkCmdEndRenderPass(command);
             render_pass_active_ = false;
         }
         VkImageMemoryBarrier to_transfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         to_transfer.oldLayout = image.layout;
         to_transfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         to_transfer.srcAccessMask = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-            ? VK_ACCESS_SHADER_READ_BIT : 0;
+                                        ? VK_ACCESS_SHADER_READ_BIT
+                                        : 0;
         to_transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         to_transfer.image = image.image;
         to_transfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         to_transfer.subresourceRange.levelCount = 1;
         to_transfer.subresourceRange.layerCount = 1;
         const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-            ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                                                      ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+                                                      : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         vkCmdPipelineBarrier(command, source_stage,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_transfer);
         VkBufferImageCopy copy{};
@@ -1071,13 +1083,15 @@ namespace sl::detail
         }
 
         const VkImageLayout original_layout = image.layout != VK_IMAGE_LAYOUT_UNDEFINED
-            ? image.layout : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                                                  ? image.layout
+                                                  : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         VkImageMemoryBarrier to_src{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         to_src.oldLayout = original_layout;
         to_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         to_src.srcAccessMask = (original_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-            ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+                                   ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                                   : VK_ACCESS_SHADER_READ_BIT;
         to_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         to_src.image = image.image;
         to_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1210,7 +1224,8 @@ namespace sl::detail
         view_info.format = format;
         view_info.subresourceRange.aspectMask =
             (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0
-                ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+                ? VK_IMAGE_ASPECT_DEPTH_BIT
+                : VK_IMAGE_ASPECT_COLOR_BIT;
         view_info.subresourceRange.levelCount = 1;
         view_info.subresourceRange.layerCount = 1;
         if (vkCreateImageView(device_, &view_info, nullptr, &result.view) != VK_SUCCESS)
@@ -1411,7 +1426,8 @@ namespace sl::detail
         sampler_info.magFilter = vulkan_filter;
         sampler_info.minFilter = vulkan_filter;
         sampler_info.mipmapMode = filter == TextureFilter::linear
-            ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST;
+                                      ? VK_SAMPLER_MIPMAP_MODE_LINEAR
+                                      : VK_SAMPLER_MIPMAP_MODE_NEAREST;
         sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -1449,7 +1465,8 @@ namespace sl::detail
         VkDescriptorImageInfo image_info{};
         image_info.imageView = image.view;
         image_info.imageLayout = image.layout == VK_IMAGE_LAYOUT_UNDEFINED
-            ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : image.layout;
+                                     ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                     : image.layout;
         image_info.sampler = sampler.sampler;
         VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
         write.dstSet = set;
@@ -1520,7 +1537,8 @@ namespace sl::detail
             }
             image_infos[index].imageView = images[index].view;
             image_infos[index].imageLayout = images[index].layout == VK_IMAGE_LAYOUT_UNDEFINED
-                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : images[index].layout;
+                                                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                 : images[index].layout;
             image_infos[index].sampler = samplers[index].sampler;
         }
         VkWriteDescriptorSet writes[2]{};
@@ -1541,7 +1559,7 @@ namespace sl::detail
     }
 
     bool VulkanContext::update_lighting_descriptor(VkDescriptorSet set, const VulkanImage *images,
-                                                    const VulkanSampler *samplers, std::string &error)
+                                                   const VulkanSampler *samplers, std::string &error)
     {
         if (set == VK_NULL_HANDLE || !images || !samplers)
         {
@@ -1558,7 +1576,8 @@ namespace sl::detail
             }
             image_infos[index].imageView = images[index].view;
             image_infos[index].imageLayout = images[index].layout == VK_IMAGE_LAYOUT_UNDEFINED
-                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : images[index].layout;
+                                                 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                 : images[index].layout;
             image_infos[index].sampler = samplers[index].sampler;
         }
         VkWriteDescriptorSet writes[2]{};
@@ -1596,9 +1615,9 @@ namespace sl::detail
     }
 
     bool VulkanContext::allocate_composite_descriptor(const VulkanDescriptorPool &pool,
-                                                       const VulkanDescriptorSetLayout &layout,
-                                                       const VulkanImage *images, const VulkanSampler *samplers,
-                                                       VkDescriptorSet &set, std::string &error)
+                                                      const VulkanDescriptorSetLayout &layout,
+                                                      const VulkanImage *images, const VulkanSampler *samplers,
+                                                      VkDescriptorSet &set, std::string &error)
     {
         set = VK_NULL_HANDLE;
         if (!images || !samplers)
@@ -1619,7 +1638,7 @@ namespace sl::detail
     }
 
     bool VulkanContext::update_composite_descriptor(VkDescriptorSet set, const VulkanImage *images,
-                                                     const VulkanSampler *samplers, std::string &error)
+                                                    const VulkanSampler *samplers, std::string &error)
     {
         if (set == VK_NULL_HANDLE || !images || !samplers)
         {
@@ -1691,7 +1710,8 @@ namespace sl::detail
             error = "Invalid Vulkan dynamic descriptor update.";
             return false;
         }
-        if (images.empty()) return true;
+        if (images.empty())
+            return true;
         std::vector<VkDescriptorImageInfo> image_infos(images.size());
         std::vector<VkWriteDescriptorSet> writes(images.size());
         for (std::size_t index = 0; index < images.size(); ++index)
@@ -2013,7 +2033,8 @@ namespace sl::detail
         else if (storage_layout || fragment_push_constant_size > 0)
         {
             VkDescriptorSetLayout layouts[2] = {descriptor_layout.layout, VK_NULL_HANDLE};
-            if (storage_layout) layouts[1] = storage_layout->layout;
+            if (storage_layout)
+                layouts[1] = storage_layout->layout;
             const VkPushConstantRange ranges[] = {
                 {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16},
                 {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16, fragment_push_constant_size}};
@@ -2028,7 +2049,8 @@ namespace sl::detail
                 return false;
             }
         }
-        else if (!create_pipeline_layout(&descriptor_layout, result.layout, error)) return false;
+        else if (!create_pipeline_layout(&descriptor_layout, result.layout, error))
+            return false;
 
         VkPipelineShaderStageCreateInfo stages[2] = {
             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vertex.module, "main", nullptr},
@@ -2056,11 +2078,21 @@ namespace sl::detail
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)
         {
-        case PrimitiveType::points: input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST; break;
-        case PrimitiveType::lines: input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
-        case PrimitiveType::line_loop: input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP; break;
-        case PrimitiveType::triangles: input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; break;
-        case PrimitiveType::triangle_fan: input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN; break;
+        case PrimitiveType::points:
+            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            break;
+        case PrimitiveType::lines:
+            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            break;
+        case PrimitiveType::line_loop:
+            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+            break;
+        case PrimitiveType::triangles:
+            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            break;
+        case PrimitiveType::triangle_fan:
+            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+            break;
         }
         VkPipelineViewportStateCreateInfo viewport{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
         viewport.viewportCount = 1;
@@ -2081,7 +2113,7 @@ namespace sl::detail
         blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
         blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         VkPipelineColorBlendStateCreateInfo blending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
         blending.attachmentCount = 1;
         blending.pAttachments = &blend_attachment;
@@ -2186,17 +2218,24 @@ namespace sl::detail
             framebuffers_.clear();
             render_pass_stack_.clear();
             destroy_image(depth_image_);
-            if (render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, render_pass_, nullptr);
-            if (resume_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_render_pass_, nullptr);
-            if (offscreen_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, offscreen_render_pass_, nullptr);
-            if (resume_offscreen_render_pass_ != VK_NULL_HANDLE) vkDestroyRenderPass(device_, resume_offscreen_render_pass_, nullptr);
+            if (render_pass_ != VK_NULL_HANDLE)
+                vkDestroyRenderPass(device_, render_pass_, nullptr);
+            if (resume_render_pass_ != VK_NULL_HANDLE)
+                vkDestroyRenderPass(device_, resume_render_pass_, nullptr);
+            if (offscreen_render_pass_ != VK_NULL_HANDLE)
+                vkDestroyRenderPass(device_, offscreen_render_pass_, nullptr);
+            if (resume_offscreen_render_pass_ != VK_NULL_HANDLE)
+                vkDestroyRenderPass(device_, resume_offscreen_render_pass_, nullptr);
             render_pass_ = VK_NULL_HANDLE;
             resume_render_pass_ = VK_NULL_HANDLE;
             offscreen_render_pass_ = VK_NULL_HANDLE;
             resume_offscreen_render_pass_ = VK_NULL_HANDLE;
-            if (image_available_ != VK_NULL_HANDLE) vkDestroySemaphore(device_, image_available_, nullptr);
-            if (render_finished_ != VK_NULL_HANDLE) vkDestroySemaphore(device_, render_finished_, nullptr);
-            if (in_flight_ != VK_NULL_HANDLE) vkDestroyFence(device_, in_flight_, nullptr);
+            if (image_available_ != VK_NULL_HANDLE)
+                vkDestroySemaphore(device_, image_available_, nullptr);
+            if (render_finished_ != VK_NULL_HANDLE)
+                vkDestroySemaphore(device_, render_finished_, nullptr);
+            if (in_flight_ != VK_NULL_HANDLE)
+                vkDestroyFence(device_, in_flight_, nullptr);
             image_available_ = VK_NULL_HANDLE;
             render_finished_ = VK_NULL_HANDLE;
             in_flight_ = VK_NULL_HANDLE;
@@ -2250,6 +2289,6 @@ namespace sl::detail
     bool VulkanContext::is_valid() const
     {
         return instance_ != VK_NULL_HANDLE && physical_device_ != VK_NULL_HANDLE &&
-            device_ != VK_NULL_HANDLE && graphics_queue_ != VK_NULL_HANDLE;
+               device_ != VK_NULL_HANDLE && graphics_queue_ != VK_NULL_HANDLE;
     }
 }

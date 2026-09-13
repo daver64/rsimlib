@@ -55,10 +55,12 @@ void render_actors(sl::Bitmap *target, Game &game)
 {
     for (const Actor &actor : game.actors)
     {
-        if (!actor.alive) continue;
+        if (!actor.alive)
+            continue;
 
         Tile *tile = current_tile(game, actor.position.x, actor.position.y);
-        if (!tile || !tile->visible) continue;
+        if (!tile || !tile->visible)
+            continue;
 
         const int screen_x = actor.position.x - game.camera.x;
         const int screen_y = actor.position.y - game.camera.y;
@@ -178,9 +180,12 @@ void render_environment_panel(sl::Bitmap *target, Game &game)
         y += 20;
 
         const char *pt_str = "None";
-        if (precip_type == rworld::PrecipitationType::RAIN) pt_str = "Rain";
-        else if (precip_type == rworld::PrecipitationType::SNOW) pt_str = "Snow";
-        else if (precip_type == rworld::PrecipitationType::SLEET) pt_str = "Sleet";
+        if (precip_type == rworld::PrecipitationType::RAIN)
+            pt_str = "Rain";
+        else if (precip_type == rworld::PrecipitationType::SNOW)
+            pt_str = "Snow";
+        else if (precip_type == rworld::PrecipitationType::SLEET)
+            pt_str = "Sleet";
 
         ss.str("");
         ss << "Weather: " << pt_str;

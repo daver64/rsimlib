@@ -87,7 +87,8 @@ void LightingSystem::update(float player_x, float player_y, float time)
     for (int i = 0; i < static_cast<int>(lights.size()); ++i)
     {
         GameLight &light = lights[i];
-        if (!light.active) continue;
+        if (!light.active)
+            continue;
 
         if (light.flicker)
         {
@@ -95,7 +96,8 @@ void LightingSystem::update(float player_x, float player_y, float time)
             light.intensity = 1.0f + flicker;
         }
 
-        if (!light.cast_shadows) continue;
+        if (!light.cast_shadows)
+            continue;
 
         const float dx = light.x - player_x;
         const float dy = light.y - player_y;
@@ -105,9 +107,8 @@ void LightingSystem::update(float player_x, float player_y, float time)
         candidates.emplace_back(score, i);
     }
 
-    std::sort(candidates.begin(), candidates.end(), [](const auto &a, const auto &b) {
-        return a.first > b.first;
-    });
+    std::sort(candidates.begin(), candidates.end(), [](const auto &a, const auto &b)
+              { return a.first > b.first; });
 
     shadow_slots.fill(-1);
 
@@ -121,7 +122,8 @@ bool LightingSystem::uses_shadow_slot(int light_index) const
 {
     for (int slot : shadow_slots)
     {
-        if (slot == light_index) return true;
+        if (slot == light_index)
+            return true;
     }
     return false;
 }

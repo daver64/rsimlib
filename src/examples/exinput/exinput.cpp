@@ -32,10 +32,14 @@ namespace
         const float elapsed = std::min(0.05f, static_cast<float>(sl::get_frame_time()) / 1000.0f);
         float horizontal = 0.0f;
         float vertical = 0.0f;
-        if (sl::key_down(SDL_SCANCODE_LEFT) || sl::key_down(SDL_SCANCODE_A)) horizontal -= 1.0f;
-        if (sl::key_down(SDL_SCANCODE_RIGHT) || sl::key_down(SDL_SCANCODE_D)) horizontal += 1.0f;
-        if (sl::key_down(SDL_SCANCODE_UP) || sl::key_down(SDL_SCANCODE_W)) vertical -= 1.0f;
-        if (sl::key_down(SDL_SCANCODE_DOWN) || sl::key_down(SDL_SCANCODE_S)) vertical += 1.0f;
+        if (sl::key_down(SDL_SCANCODE_LEFT) || sl::key_down(SDL_SCANCODE_A))
+            horizontal -= 1.0f;
+        if (sl::key_down(SDL_SCANCODE_RIGHT) || sl::key_down(SDL_SCANCODE_D))
+            horizontal += 1.0f;
+        if (sl::key_down(SDL_SCANCODE_UP) || sl::key_down(SDL_SCANCODE_W))
+            vertical -= 1.0f;
+        if (sl::key_down(SDL_SCANCODE_DOWN) || sl::key_down(SDL_SCANCODE_S))
+            vertical += 1.0f;
 
         if (sl::gamepad_count() > 0)
         {
@@ -67,13 +71,14 @@ namespace
             sl::gprintf(24, 120, {170, 185, 205}, "Controller: %s", sl::gamepad_name(0).c_str());
 
         sl::rectfill(sl::screen, state.player_x - 24.0f, state.player_y - 24.0f,
-            state.player_x + 24.0f, state.player_y + 24.0f,
-            sl::gamepad_count() > 0 && sl::gamepad_button(0, sl::GamepadButton::south)
-                ? sl::Colour{235, 126, 96} : sl::Colour{92, 180, 226});
+                     state.player_x + 24.0f, state.player_y + 24.0f,
+                     sl::gamepad_count() > 0 && sl::gamepad_button(0, sl::GamepadButton::south)
+                         ? sl::Colour{235, 126, 96}
+                         : sl::Colour{92, 180, 226});
         sl::line(sl::screen, static_cast<float>(mouse_x) - 12.0f, static_cast<float>(mouse_y),
-            static_cast<float>(mouse_x) + 12.0f, static_cast<float>(mouse_y), {235, 220, 155});
+                 static_cast<float>(mouse_x) + 12.0f, static_cast<float>(mouse_y), {235, 220, 155});
         sl::line(sl::screen, static_cast<float>(mouse_x), static_cast<float>(mouse_y) - 12.0f,
-            static_cast<float>(mouse_x), static_cast<float>(mouse_y) + 12.0f, {235, 220, 155});
+                 static_cast<float>(mouse_x), static_cast<float>(mouse_y) + 12.0f, {235, 220, 155});
 
         sl::show_video_bitmap();
         sl::end_frame();

@@ -10,10 +10,14 @@ namespace
     {
         switch (backend)
         {
-        case sl::GraphicsBackend::opengl: return "OpenGL";
-        case sl::GraphicsBackend::vulkan: return "Vulkan";
-        case sl::GraphicsBackend::d3d11: return "D3D11";
-        case sl::GraphicsBackend::d3d12: return "D3D12";
+        case sl::GraphicsBackend::opengl:
+            return "OpenGL";
+        case sl::GraphicsBackend::vulkan:
+            return "Vulkan";
+        case sl::GraphicsBackend::d3d11:
+            return "D3D11";
+        case sl::GraphicsBackend::d3d12:
+            return "D3D12";
         }
         return "Unknown";
     }
@@ -60,15 +64,18 @@ int main(int argc, char *argv[])
         ImGui::Text("Window: %d x %d", sl::screen_width(), sl::screen_height());
         ImGui::SliderFloat("Panel alpha", &panel_alpha, 0.25f, 1.0f);
         ImGui::ColorEdit4("Accent", swatch);
-        if (ImGui::Button("Increment counter")) ++counter;
+        if (ImGui::Button("Increment counter"))
+            ++counter;
         ImGui::SameLine();
         ImGui::Text("%d", counter);
         ImGui::Checkbox("Show demo window", &show_demo);
         ImGui::Checkbox("Show metrics", &show_metrics);
         ImGui::Text("Press Escape to exit");
         ImGui::End();
-        if (show_demo) sl::show_demo_window();
-        if (show_metrics) ImGui::ShowMetricsWindow(&show_metrics);
+        if (show_demo)
+            sl::show_demo_window();
+        if (show_metrics)
+            ImGui::ShowMetricsWindow(&show_metrics);
         sl::render();
         sl::show_video_bitmap();
         sl::end_frame();

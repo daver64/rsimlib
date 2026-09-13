@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
 
     sl::Shader shader;
     const char *vertex_shader = sl::graphics_backend() == sl::GraphicsBackend::vulkan
-        ? "shaders/vulkan/vulkan_2d.vert"
-        : "shaders/glsl/default_2d.vert";
+                                    ? "shaders/vulkan/vulkan_2d.vert"
+                                    : "shaders/glsl/default_2d.vert";
     const bool loaded = shader.load_files(
         vertex_shader,
         "shaders/glsl/tint.frag",
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
         }
         sl::gprintf_center(120, {232, 236, 244}, "Shader file loading example");
         sl::gprintf_center(160, ready ? sl::Colour{130, 220, 150} : sl::Colour{240, 130, 120},
-            ready ? "Tint shader is drawing the balloon" : "shader or texture loading failed");
+                           ready ? "Tint shader is drawing the balloon" : "shader or texture loading failed");
         sl::gprintf_center(200, {160, 175, 195}, "Press Escape to exit");
         sl::show_video_bitmap();
         sl::end_frame();

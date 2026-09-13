@@ -32,12 +32,12 @@ int main(int argc, char *argv[])
     sl::Blur glow;
     const bool blur_ready = blur.initialise();
     const bool glow_ready = glow.initialise();
-        blur.set_radius(9.0f);
-        blur.set_iterations(3);
-        blur.set_opacity(1.0f);
-        glow.set_radius(10.0f);
-        glow.set_iterations(3);
-        glow.set_opacity(0.9f);
+    blur.set_radius(9.0f);
+    blur.set_iterations(3);
+    blur.set_opacity(1.0f);
+    glow.set_radius(10.0f);
+    glow.set_iterations(3);
+    glow.set_opacity(0.9f);
     if (!scene || !particles || !composite || !blur_ready || !glow_ready)
     {
         sl::destroy_bitmap(scene);
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
         sl::clear_render_target({0, 0, 0, 0});
         emitter.render();
         sl::circlefill(sl::screen, emitter.x(), emitter.y(), 5.0f,
-            emitter.is_active() ? sl::Colour{255, 240, 150} : sl::Colour{130, 145, 165});
+                       emitter.is_active() ? sl::Colour{255, 240, 150} : sl::Colour{130, 145, 165});
         sl::end_render_target();
 
         sl::begin_render_target(composite);
@@ -119,8 +119,8 @@ int main(int argc, char *argv[])
         sl::gprintf_center(28, {235, 220, 155}, "Particle emitter example");
         sl::gprintf_center(56, {175, 190, 210}, "Move the mouse to place the emitter");
         sl::gprintf_center(80, {175, 190, 210}, "Space: emit %s    G: gravity %s    B: blur %s    O: glow %s",
-            emitter.is_active() ? "on" : "off", gravity_enabled ? "on" : "off",
-            use_blur ? "on" : "off", use_glow ? "on" : "off");
+                           emitter.is_active() ? "on" : "off", gravity_enabled ? "on" : "off",
+                           use_blur ? "on" : "off", use_glow ? "on" : "off");
         sl::gprintf_center(104, {175, 190, 210}, "Escape: exit");
         sl::gprintf(16, 570, {145, 160, 178}, "Live particles: %d", static_cast<int>(emitter.particle_count()));
         sl::show_video_bitmap();

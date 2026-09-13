@@ -55,7 +55,8 @@ int main(int argc, char *argv[])
         const float triangle_angle = sl::physics_body_angle(triangle);
         const float cosine = std::cos(triangle_angle);
         const float sine = std::sin(triangle_angle);
-        auto transformed_triangle_point = [&](sl::Vec2 point) {
+        auto transformed_triangle_point = [&](sl::Vec2 point)
+        {
             return sl::Vec2{
                 triangle_position.x + point.x * cosine - point.y * sine,
                 triangle_position.y + point.x * sine + point.y * cosine};
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
                      box_position.x + 32.0f, box_position.y + 32.0f, {232, 110, 84});
         sl::circlefill(sl::screen, ball_position.x, ball_position.y, 24.0f, {92, 180, 240});
         sl::trianglefill(sl::screen, triangle_a.x, triangle_a.y, triangle_b.x, triangle_b.y,
-                 triangle_c.x, triangle_c.y, {210, 150, 72});
+                         triangle_c.x, triangle_c.y, {210, 150, 72});
         sl::show_video_bitmap();
         sl::end_frame();
     }

@@ -150,8 +150,8 @@ namespace sl
     /**
      * Create an offscreen render target: a GPU texture with a framebuffer attached,
      * usable as a draw destination for sprites/particles/text (see begin_render_target()).
-    * Note: draw_sprite() automatically accounts for backend-specific framebuffer
-    * texture orientation when compositing a render target.
+     * Note: draw_sprite() automatically accounts for backend-specific framebuffer
+     * texture orientation when compositing a render target.
      */
     Bitmap *create_render_target(int width, int height);
     /** Redirect subsequent sprite/particle/text drawing to a render target created with create_render_target(). */

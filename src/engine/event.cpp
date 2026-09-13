@@ -429,8 +429,8 @@ namespace sl
     std::uint8_t Event::mouse_button() const
     {
         return implementation_->type == Type::mouse_button_down || implementation_->type == Type::mouse_button_up
-            ? implementation_->native.button.button
-            : 0;
+                   ? implementation_->native.button.button
+                   : 0;
     }
     int Event::gamepad_device_index() const { return implementation_->gamepad_device_index; }
     int Event::gamepad_instance_id() const { return implementation_->gamepad_instance_id; }
@@ -447,10 +447,10 @@ namespace sl
         event->implementation_->text = native.type == SDL_TEXTINPUT ? native.text.text : "";
         event->implementation_->width = native.type == SDL_WINDOWEVENT ? native.window.data1 : 0;
         event->implementation_->height = native.type == SDL_WINDOWEVENT ? native.window.data2 : 0;
-            event->implementation_->gamepad_device_index = native.type == SDL_CONTROLLERDEVICEADDED ? native.cdevice.which :
-                native.type == SDL_JOYDEVICEADDED ? native.jdevice.which : -1;
-            event->implementation_->gamepad_instance_id = native.type == SDL_CONTROLLERDEVICEREMOVED ? native.cdevice.which :
-                native.type == SDL_JOYDEVICEREMOVED ? native.jdevice.which : -1;
+        event->implementation_->gamepad_device_index = native.type == SDL_CONTROLLERDEVICEADDED ? native.cdevice.which : native.type == SDL_JOYDEVICEADDED ? native.jdevice.which
+                                                                                                                                                           : -1;
+        event->implementation_->gamepad_instance_id = native.type == SDL_CONTROLLERDEVICEREMOVED ? native.cdevice.which : native.type == SDL_JOYDEVICEREMOVED ? native.jdevice.which
+                                                                                                                                                              : -1;
         return true;
     }
 

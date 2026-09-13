@@ -239,8 +239,10 @@ namespace sl
                 return false;
             }
             Bitmap *target = sl::create_render_target(width, height);
-            if (!target) target = sl::create_bitmap(width, height);
-            if (!target) return false;
+            if (!target)
+                target = sl::create_bitmap(width, height);
+            if (!target)
+                return false;
             render_targets.emplace(id, target);
             return true;
         }
@@ -248,7 +250,8 @@ namespace sl
         bool destroy_render_target_handle(const std::string &id)
         {
             const auto iterator = render_targets.find(id);
-            if (iterator == render_targets.end()) return false;
+            if (iterator == render_targets.end())
+                return false;
             sl::destroy_bitmap(iterator->second);
             render_targets.erase(iterator);
             return true;
@@ -257,9 +260,11 @@ namespace sl
         Bitmap *find_bitmap(const std::string &id) const
         {
             auto sp = sprites.find(id);
-            if (sp != sprites.end()) return sp->second;
+            if (sp != sprites.end())
+                return sp->second;
             auto rt = render_targets.find(id);
-            if (rt != render_targets.end()) return rt->second;
+            if (rt != render_targets.end())
+                return rt->second;
             return nullptr;
         }
 
@@ -274,9 +279,11 @@ namespace sl
 
         void clear_compute()
         {
-            for (const auto &[id, shader] : shaders) delete shader;
+            for (const auto &[id, shader] : shaders)
+                delete shader;
             shaders.clear();
-            for (const auto &[id, buffer] : storage_buffers) delete buffer;
+            for (const auto &[id, buffer] : storage_buffers)
+                delete buffer;
             storage_buffers.clear();
         }
 
@@ -446,12 +453,10 @@ namespace sl
         app.set_function("load_sound", [this](const std::string &id, const std::string &path)
                          { return implementation_->load_sound(id, path); });
         app.set_function("play_sound", [this](const std::string &id, sol::optional<int> volume,
-                                               sol::optional<int> pan, sol::optional<int> frequency,
-                                               sol::optional<int> loops)
-                         {
-                             return implementation_->play_sound(id, volume.value_or(255), pan.value_or(128),
-                                                                frequency.value_or(1000), loops.value_or(0));
-                         });
+                                              sol::optional<int> pan, sol::optional<int> frequency,
+                                              sol::optional<int> loops)
+                         { return implementation_->play_sound(id, volume.value_or(255), pan.value_or(128),
+                                                              frequency.value_or(1000), loops.value_or(0)); });
         app.set_function("stop_sound", [](std::uint64_t voice)
                          { sl::stop_voice(voice); });
         app.set_function("unload_sound", [this](const std::string &id)
@@ -476,17 +481,26 @@ namespace sl
                          { return implementation_->destroy_render_target_handle(id); });
 
         sol::table display = implementation_->runtime.state().create_named_table("display");
-        display.set_function("width", []() { return sl::screen_width(); });
-        display.set_function("height", []() { return sl::screen_height(); });
-        display.set_function("virtual_width", []() { return sl::virtual_screen_width(); });
-        display.set_function("virtual_height", []() { return sl::virtual_screen_height(); });
-        display.set_function("set_title", [](const std::string &title) { sl::set_window_title(title.c_str()); });
+        display.set_function("width", []()
+                             { return sl::screen_width(); });
+        display.set_function("height", []()
+                             { return sl::screen_height(); });
+        display.set_function("virtual_width", []()
+                             { return sl::virtual_screen_width(); });
+        display.set_function("virtual_height", []()
+                             { return sl::virtual_screen_height(); });
+        display.set_function("set_title", [](const std::string &title)
+                             { sl::set_window_title(title.c_str()); });
 
         sol::table system = implementation_->runtime.state().create_named_table("system");
-        system.set_function("time_ms", []() { return sl::time_ms(); });
-        system.set_function("get_fps", []() { return sl::get_fps(); });
-        system.set_function("set_fps", [](int fps) { sl::set_fps(fps); });
-        system.set_function("get_frame_time", []() { return sl::get_frame_time(); });
+        system.set_function("time_ms", []()
+                            { return sl::time_ms(); });
+        system.set_function("get_fps", []()
+                            { return sl::get_fps(); });
+        system.set_function("set_fps", [](int fps)
+                            { sl::set_fps(fps); });
+        system.set_function("get_frame_time", []()
+                            { return sl::get_frame_time(); });
 
         sol::table fx = implementation_->runtime.state().create_named_table("fx");
         fx.set_function("shake", [this](float amplitude, float duration)
@@ -498,13 +512,13 @@ namespace sl
         fx.set_function("clear_shake", [this]()
                         { implementation_->screen_shake.clear(); });
 
-        fx.set_function("bloom_init", [this]() { return implementation_->bloom.initialise(); });
+        fx.set_function("bloom_init", [this]()
+                        { return implementation_->bloom.initialise(); });
         fx.set_function("bloom_config", [this](sol::optional<float> threshold, sol::optional<float> intensity, sol::optional<float> radius)
                         {
                             if (threshold) implementation_->bloom.set_threshold(*threshold);
                             if (intensity) implementation_->bloom.set_intensity(*intensity);
-                            if (radius) implementation_->bloom.set_radius(*radius);
-                        });
+                            if (radius) implementation_->bloom.set_radius(*radius); });
         fx.set_function("apply_bloom", [this](const std::string &target_id)
                         {
                             Bitmap *bmp = implementation_->find_bitmap(target_id);
@@ -513,16 +527,15 @@ namespace sl
                                 implementation_->bloom.apply(bmp);
                                 return true;
                             }
-                            return false;
-                        });
+                            return false; });
 
-        fx.set_function("vignette_init", [this]() { return implementation_->vignette.initialise(); });
+        fx.set_function("vignette_init", [this]()
+                        { return implementation_->vignette.initialise(); });
         fx.set_function("vignette_config", [this](sol::optional<float> radius, sol::optional<float> softness, sol::optional<float> intensity)
                         {
                             if (radius) implementation_->vignette.set_radius(*radius);
                             if (softness) implementation_->vignette.set_softness(*softness);
-                            if (intensity) implementation_->vignette.set_intensity(*intensity);
-                        });
+                            if (intensity) implementation_->vignette.set_intensity(*intensity); });
         fx.set_function("apply_vignette", [this](const std::string &target_id)
                         {
                             Bitmap *bmp = implementation_->find_bitmap(target_id);
@@ -531,8 +544,7 @@ namespace sl
                                 implementation_->vignette.apply(bmp);
                                 return true;
                             }
-                            return false;
-                        });
+                            return false; });
 
         sol::table compute = implementation_->runtime.state().create_named_table("compute");
         compute.set_function("load_shader", [this](const std::string &id, const std::string &source)
@@ -546,16 +558,14 @@ namespace sl
                                      return false;
                                  }
                                  implementation_->shaders.emplace(id, shader);
-                                 return true;
-                             });
+                                 return true; });
         compute.set_function("destroy_shader", [this](const std::string &id)
                              {
                                  auto it = implementation_->shaders.find(id);
                                  if (it == implementation_->shaders.end()) return false;
                                  delete it->second;
                                  implementation_->shaders.erase(it);
-                                 return true;
-                             });
+                                 return true; });
         compute.set_function("create_buffer", [this](const std::string &id, std::size_t size_bytes)
                              {
                                  if (id.empty() || implementation_->storage_buffers.find(id) != implementation_->storage_buffers.end())
@@ -567,16 +577,14 @@ namespace sl
                                      return false;
                                  }
                                  implementation_->storage_buffers.emplace(id, buffer);
-                                 return true;
-                             });
+                                 return true; });
         compute.set_function("destroy_buffer", [this](const std::string &id)
                              {
                                  auto it = implementation_->storage_buffers.find(id);
                                  if (it == implementation_->storage_buffers.end()) return false;
                                  delete it->second;
                                  implementation_->storage_buffers.erase(it);
-                                 return true;
-                             });
+                                 return true; });
         compute.set_function("upload_floats", [this](const std::string &buffer_id, sol::table float_table)
                              {
                                  auto it = implementation_->storage_buffers.find(buffer_id);
@@ -586,8 +594,7 @@ namespace sl
                                  {
                                      values.push_back(kv.second.as<float>());
                                  }
-                                 return it->second->upload(values);
-                             });
+                                 return it->second->upload(values); });
         compute.set_function("readback_floats", [this](sol::this_state state, const std::string &buffer_id, std::size_t count)
                              {
                                  sol::state_view lua(state);
@@ -602,28 +609,25 @@ namespace sl
                                          result[i + 1] = values[i];
                                      }
                                  }
-                                 return result;
-                             });
+                                 return result; });
         compute.set_function("bind_buffer", [this](const std::string &buffer_id, unsigned int binding_slot)
                              {
                                  auto it = implementation_->storage_buffers.find(buffer_id);
-                                 return it != implementation_->storage_buffers.end() && it->second->bind(binding_slot);
-                             });
+                                 return it != implementation_->storage_buffers.end() && it->second->bind(binding_slot); });
         compute.set_function("set_uniform_float", [this](const std::string &shader_id, const std::string &name, float value)
                              {
                                  auto it = implementation_->shaders.find(shader_id);
-                                 return it != implementation_->shaders.end() && it->second->set_uniform(name.c_str(), value);
-                             });
+                                 return it != implementation_->shaders.end() && it->second->set_uniform(name.c_str(), value); });
         compute.set_function("dispatch_for", [this](const std::string &shader_id, unsigned int totalX,
-                                                     sol::optional<unsigned int> totalY, sol::optional<unsigned int> totalZ,
-                                                     sol::optional<unsigned int> localX, sol::optional<unsigned int> localY, sol::optional<unsigned int> localZ)
+                                                    sol::optional<unsigned int> totalY, sol::optional<unsigned int> totalZ,
+                                                    sol::optional<unsigned int> localX, sol::optional<unsigned int> localY, sol::optional<unsigned int> localZ)
                              {
                                  auto it = implementation_->shaders.find(shader_id);
                                  return it != implementation_->shaders.end() &&
                                      sl::dispatch_compute_for(*it->second, totalX, totalY.value_or(1), totalZ.value_or(1),
-                                                              localX.value_or(16), localY.value_or(16), localZ.value_or(1));
-                             });
-        compute.set_function("barrier", []() { sl::compute_barrier(); });
+                                                              localX.value_or(16), localY.value_or(16), localZ.value_or(1)); });
+        compute.set_function("barrier", []()
+                             { sl::compute_barrier(); });
 
         sol::table physics = implementation_->runtime.state().create_named_table("physics");
         physics.set_function("create_world", [this](float gravity_x, float gravity_y)
@@ -635,12 +639,9 @@ namespace sl
                                  }
                                  const std::uint64_t handle = implementation_->new_physics_handle();
                                  implementation_->physics_worlds.emplace(handle, world);
-                                 return handle;
-                             });
+                                 return handle; });
         physics.set_function("destroy_world", [this](std::uint64_t handle)
-                             {
-                                 implementation_->destroy_physics_world_handle(handle);
-                             });
+                             { implementation_->destroy_physics_world_handle(handle); });
         physics.set_function("create_body", [this](std::uint64_t world_handle, const std::string &type, float x, float y)
                              {
                                  PhysicsWorld *world = implementation_->physics_world(world_handle);
@@ -661,35 +662,31 @@ namespace sl
                                  const std::uint64_t handle = implementation_->new_physics_handle();
                                  implementation_->physics_bodies.emplace(handle, body);
                                  implementation_->physics_body_worlds.emplace(handle, world_handle);
-                                 return handle;
-                             });
+                                 return handle; });
         physics.set_function("destroy_body", [this](std::uint64_t handle)
                              {
                                  const auto body = implementation_->physics_bodies.find(handle);
                                  if (body == implementation_->physics_bodies.end()) return;
                                  destroy_physics_body(body->second);
                                  implementation_->physics_bodies.erase(body);
-                                 implementation_->physics_body_worlds.erase(handle);
-                             });
+                                 implementation_->physics_body_worlds.erase(handle); });
         physics.set_function("add_box", [this](std::uint64_t handle, float width, float height,
-                                                sol::optional<float> density, sol::optional<float> friction,
-                                                sol::optional<float> restitution)
+                                               sol::optional<float> density, sol::optional<float> friction,
+                                               sol::optional<float> restitution)
                              {
                                  PhysicsBody *body = implementation_->physics_body(handle);
                                  return body && add_box_fixture(body, width, height, density.value_or(1.0f),
-                                                                friction.value_or(0.3f), restitution.value_or(0.0f));
-                             });
+                                                                friction.value_or(0.3f), restitution.value_or(0.0f)); });
         physics.set_function("add_circle", [this](std::uint64_t handle, float radius,
-                                                   sol::optional<float> density, sol::optional<float> friction,
-                                                   sol::optional<float> restitution)
+                                                  sol::optional<float> density, sol::optional<float> friction,
+                                                  sol::optional<float> restitution)
                              {
                                  PhysicsBody *body = implementation_->physics_body(handle);
                                  return body && add_circle_fixture(body, radius, density.value_or(1.0f),
-                                                                   friction.value_or(0.3f), restitution.value_or(0.0f));
-                             });
+                                                                   friction.value_or(0.3f), restitution.value_or(0.0f)); });
         physics.set_function("add_polygon", [this](std::uint64_t handle, sol::table vertices,
-                                                    sol::optional<float> density, sol::optional<float> friction,
-                                                    sol::optional<float> restitution)
+                                                   sol::optional<float> density, sol::optional<float> friction,
+                                                   sol::optional<float> restitution)
                              {
                                  PhysicsBody *body = implementation_->physics_body(handle);
                                  if (!body) return false;
@@ -700,18 +697,16 @@ namespace sl
                                      points.push_back({point["x"].get_or(0.0f), point["y"].get_or(0.0f)});
                                  }
                                  return add_polygon_fixture(body, points, density.value_or(1.0f),
-                                                            friction.value_or(0.3f), restitution.value_or(0.0f));
-                             });
+                                                            friction.value_or(0.3f), restitution.value_or(0.0f)); });
         physics.set_function("step", [this](std::uint64_t handle, float time_step,
-                                              sol::optional<int> velocity_iterations,
-                                              sol::optional<int> position_iterations)
+                                            sol::optional<int> velocity_iterations,
+                                            sol::optional<int> position_iterations)
                              {
                                  PhysicsWorld *world = implementation_->physics_world(handle);
                                  if (!world) return false;
                                  step_physics_world(world, time_step, velocity_iterations.value_or(8),
                                                     position_iterations.value_or(3));
-                                 return true;
-                             });
+                                 return true; });
         physics.set_function("position", [this](sol::this_state state, std::uint64_t handle)
                              {
                                  sol::state_view lua(state);
@@ -719,8 +714,7 @@ namespace sl
                                  const Vec2 position = physics_body_position(implementation_->physics_body(handle));
                                  result["x"] = position.x;
                                  result["y"] = position.y;
-                                 return result;
-                             });
+                                 return result; });
         physics.set_function("velocity", [this](sol::this_state state, std::uint64_t handle)
                              {
                                  sol::state_view lua(state);
@@ -728,15 +722,13 @@ namespace sl
                                  const Vec2 velocity = physics_body_velocity(implementation_->physics_body(handle));
                                  result["x"] = velocity.x;
                                  result["y"] = velocity.y;
-                                 return result;
-                             });
+                                 return result; });
         physics.set_function("set_velocity", [this](std::uint64_t handle, float x, float y)
                              {
                                  PhysicsBody *body = implementation_->physics_body(handle);
                                  if (!body) return false;
                                  set_physics_body_velocity(body, {x, y});
-                                 return true;
-                             });
+                                 return true; });
         physics.set_function("contacts", [this](sol::this_state state, std::uint64_t handle)
                              {
                                  sol::state_view lua(state);
@@ -759,8 +751,7 @@ namespace sl
                                      }
                                      result[index++] = event;
                                  }
-                                 return result;
-                             });
+                                 return result; });
         app.set_function(
             "pixel",
             [this](float x, float y, int red, int green, int blue, sol::optional<int> alpha)
@@ -916,25 +907,29 @@ namespace sl
             case DrawingType::sprite:
             {
                 Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
-                if (sprite) draw_sprite(sprite, command.x1, command.y1);
+                if (sprite)
+                    draw_sprite(sprite, command.x1, command.y1);
                 break;
             }
             case DrawingType::sprite_stretched:
             {
                 Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
-                if (sprite) draw_sprite_stretched(sprite, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                if (sprite)
+                    draw_sprite_stretched(sprite, command.x1, command.y1, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             case DrawingType::sprite_rotated:
             {
                 Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
-                if (sprite) draw_sprite_rotated(sprite, command.x1, command.y1, command.x3);
+                if (sprite)
+                    draw_sprite_rotated(sprite, command.x1, command.y1, command.x3);
                 break;
             }
             case DrawingType::sprite_rotated_stretched:
             {
                 Bitmap *sprite = implementation_->find_bitmap(command.sprite_id);
-                if (sprite) draw_sprite_rotated_stretched(sprite, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
+                if (sprite)
+                    draw_sprite_rotated_stretched(sprite, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
             }

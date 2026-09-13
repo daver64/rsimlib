@@ -65,15 +65,24 @@ namespace
     {
         switch (tool)
         {
-        case Tool::Pencil:    return "Pencil";
-        case Tool::Brush:     return "Brush";
-        case Tool::Eraser:    return "Eraser";
-        case Tool::Line:      return "Line";
-        case Tool::Rectangle: return "Rectangle";
-        case Tool::Ellipse:   return "Ellipse";
-        case Tool::Fill:      return "Fill";
-        case Tool::Picker:    return "Picker";
-        case Tool::Select:    return "Select";
+        case Tool::Pencil:
+            return "Pencil";
+        case Tool::Brush:
+            return "Brush";
+        case Tool::Eraser:
+            return "Eraser";
+        case Tool::Line:
+            return "Line";
+        case Tool::Rectangle:
+            return "Rectangle";
+        case Tool::Ellipse:
+            return "Ellipse";
+        case Tool::Fill:
+            return "Fill";
+        case Tool::Picker:
+            return "Picker";
+        case Tool::Select:
+            return "Select";
         }
         return "";
     }
@@ -143,9 +152,7 @@ namespace
         {128, 0, 128},
         {255, 0, 255},
         {255, 128, 255},
-        {160, 64, 160}
-    };
-
+        {160, 64, 160}};
 
     class PaintApp
     {
@@ -366,7 +373,6 @@ namespace
             status = "Loaded: painting.png";
         }
 
-
         // ------------------------------------------------------------
         // Canvas coordinate conversion
         // ------------------------------------------------------------
@@ -388,7 +394,6 @@ namespace
             y = clamp_canvas_y(sy - CANVAS_Y);
             return true;
         }
-
 
         // ------------------------------------------------------------
         // Brush implementation
@@ -445,7 +450,6 @@ namespace
                 brush_stamp(x, y, colour);
             }
         }
-
 
         // ------------------------------------------------------------
         // Flood fill
@@ -694,7 +698,6 @@ namespace
             status = "Pasted";
         }
 
-
         // ------------------------------------------------------------
         // Tools
         // ------------------------------------------------------------
@@ -702,8 +705,8 @@ namespace
         sl::Colour colour_for_button(int button)
         {
             return button == SDL_BUTTON_RIGHT
-                ? background
-                : foreground;
+                       ? background
+                       : foreground;
         }
 
         void begin_drawing(int x, int y, int button)
@@ -768,7 +771,7 @@ namespace
                 break;
             }
         }
-        
+
         void update_freehand(int x, int y)
         {
             if (!operation_active)
@@ -929,7 +932,6 @@ namespace
             sl::upload_bitmap(canvas);
         }
 
-
         // ------------------------------------------------------------
         // Toolbar
         // ------------------------------------------------------------
@@ -940,15 +942,33 @@ namespace
 
             switch (t)
             {
-            case Tool::Pencil:    index = 0; break;
-            case Tool::Brush:     index = 1; break;
-            case Tool::Eraser:    index = 2; break;
-            case Tool::Line:      index = 3; break;
-            case Tool::Rectangle: index = 4; break;
-            case Tool::Ellipse:   index = 5; break;
-            case Tool::Fill:      index = 6; break;
-            case Tool::Picker:    index = 7; break;
-            case Tool::Select:    index = 8; break;
+            case Tool::Pencil:
+                index = 0;
+                break;
+            case Tool::Brush:
+                index = 1;
+                break;
+            case Tool::Eraser:
+                index = 2;
+                break;
+            case Tool::Line:
+                index = 3;
+                break;
+            case Tool::Rectangle:
+                index = 4;
+                break;
+            case Tool::Ellipse:
+                index = 5;
+                break;
+            case Tool::Fill:
+                index = 6;
+                break;
+            case Tool::Picker:
+                index = 7;
+                break;
+            case Tool::Select:
+                index = 8;
+                break;
             }
 
             return 50 + index * (BUTTON_H + BUTTON_GAP);
@@ -976,8 +996,7 @@ namespace
                 Tool::Ellipse,
                 Tool::Fill,
                 Tool::Picker,
-                Tool::Select
-            };
+                Tool::Select};
 
             for (int i = 0; i < 9; ++i)
             {
@@ -1000,7 +1019,6 @@ namespace
             hit = false;
             return tool;
         }
-
 
         // ------------------------------------------------------------
         // Mouse events
@@ -1181,7 +1199,6 @@ namespace
                 finish_drawing(x, y);
         }
 
-
         // ------------------------------------------------------------
         // Keyboard
         // ------------------------------------------------------------
@@ -1328,7 +1345,6 @@ namespace
             }
         }
 
-
         // ------------------------------------------------------------
         // Rendering
         // ------------------------------------------------------------
@@ -1468,8 +1484,7 @@ namespace
                     colour.red,
                     colour.green,
                     colour.blue,
-                    100
-                };
+                    100};
 
                 if (filled_shapes)
                 {
@@ -1611,8 +1626,7 @@ namespace
                 Tool::Ellipse,
                 Tool::Fill,
                 Tool::Picker,
-                Tool::Select
-            };
+                Tool::Select};
 
             for (Tool t : tools)
             {
@@ -1658,8 +1672,8 @@ namespace
                 false);
 
             // File controls.
-            draw_button(PANEL_X,       485, 48, 28, "New", false);
-            draw_button(PANEL_X + 54,  485, 48, 28, "Save", false);
+            draw_button(PANEL_X, 485, 48, 28, "New", false);
+            draw_button(PANEL_X + 54, 485, 48, 28, "Save", false);
             draw_button(PANEL_X + 108, 485, 48, 28, "Load", false);
 
             // Palette.
@@ -1785,7 +1799,6 @@ namespace
             draw_preview();
         }
 
-
         void update()
         {
             if (!operation_active &&
@@ -1830,7 +1843,6 @@ namespace
             }
         }
 
-
         void handle_event(sl::Event &event)
         {
             sl::display_handle_event(event);
@@ -1860,7 +1872,6 @@ namespace
         }
     };
 }
-
 
 int main(int argc, char **argv)
 {

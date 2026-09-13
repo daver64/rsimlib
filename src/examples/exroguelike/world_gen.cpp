@@ -20,7 +20,8 @@ void ensure_overworld_connectivity(
     std::vector<Position> queue;
     queue.reserve(WORLD_WIDTH * WORLD_HEIGHT);
 
-    auto index = [](int x, int y) { return static_cast<std::size_t>(y) * WORLD_WIDTH + static_cast<std::size_t>(x); };
+    auto index = [](int x, int y)
+    { return static_cast<std::size_t>(y) * WORLD_WIDTH + static_cast<std::size_t>(x); };
 
     const int start_x = game.player.position.x;
     const int start_y = game.player.position.y;
@@ -35,7 +36,8 @@ void ensure_overworld_connectivity(
     const int dx[4] = {1, -1, 0, 0};
     const int dy[4] = {0, 0, 1, -1};
 
-    auto flood_fill = [&]() {
+    auto flood_fill = [&]()
+    {
         while (head < queue.size())
         {
             Position curr = queue[head++];
@@ -68,7 +70,8 @@ void ensure_overworld_connectivity(
         int cx = entrance.x;
         int cy = entrance.y;
 
-        auto carve_tile = [&](int x, int y) {
+        auto carve_tile = [&](int x, int y)
+        {
             Tile &tile = game.overworld.at(x, y);
             if (tile.blocks_movement)
             {
@@ -100,8 +103,10 @@ void ensure_overworld_connectivity(
                 break;
             }
             carve_tile(cx, cy);
-            if (cx != start_x) cx += (start_x > cx) ? 1 : -1;
-            else if (cy != start_y) cy += (start_y > cy) ? 1 : -1;
+            if (cx != start_x)
+                cx += (start_x > cx) ? 1 : -1;
+            else if (cy != start_y)
+                cy += (start_y > cy) ? 1 : -1;
         }
 
         flood_fill();
@@ -176,9 +181,12 @@ void generate_overworld(Game &game)
                     terrain = Terrain::Mountain;
                     break;
                 default:
-                    if (height > 3000.0f) terrain = Terrain::Mountain;
-                    else if (height > 1500.0f) terrain = Terrain::Hills;
-                    else terrain = Terrain::Plains;
+                    if (height > 3000.0f)
+                        terrain = Terrain::Mountain;
+                    else if (height > 1500.0f)
+                        terrain = Terrain::Hills;
+                    else
+                        terrain = Terrain::Plains;
                     break;
                 }
             }
@@ -242,7 +250,8 @@ void initialise_dungeon(DungeonLevel &level)
 
 void carve_floor(DungeonLevel &level, int x, int y)
 {
-    if (!level.inside(x, y)) return;
+    if (!level.inside(x, y))
+        return;
     set_tile(level.at(x, y), Terrain::DungeonFloor);
 }
 
@@ -259,7 +268,8 @@ void carve_room(DungeonLevel &level, const Room &room)
 
 void carve_horizontal(DungeonLevel &level, int x1, int x2, int y)
 {
-    if (x1 > x2) std::swap(x1, x2);
+    if (x1 > x2)
+        std::swap(x1, x2);
     for (int x = x1; x <= x2; ++x)
     {
         carve_floor(level, x, y);
@@ -268,7 +278,8 @@ void carve_horizontal(DungeonLevel &level, int x1, int x2, int y)
 
 void carve_vertical(DungeonLevel &level, int y1, int y2, int x)
 {
-    if (y1 > y2) std::swap(y1, y2);
+    if (y1 > y2)
+        std::swap(y1, y2);
     for (int y = y1; y <= y2; ++y)
     {
         carve_floor(level, x, y);
@@ -311,10 +322,14 @@ Room make_room_in_sector(int sector_x, int sector_y)
     room.y = sy + random_int(padding, std::max(padding, sector_height - room.height - padding));
 
     const int type = random_int(0, 9);
-    if (type == 0) room.type = RoomType::Crypt;
-    else if (type == 1) room.type = RoomType::Temple;
-    else if (type == 2) room.type = RoomType::Large;
-    else room.type = RoomType::Normal;
+    if (type == 0)
+        room.type = RoomType::Crypt;
+    else if (type == 1)
+        room.type = RoomType::Temple;
+    else if (type == 2)
+        room.type = RoomType::Large;
+    else
+        room.type = RoomType::Normal;
 
     return room;
 }
@@ -380,7 +395,8 @@ std::unique_ptr<DungeonLevel> generate_dungeon_level(int depth)
         std::vector<Position> d_queue;
         d_queue.reserve(static_cast<std::size_t>(d_width) * static_cast<std::size_t>(d_height));
 
-        auto d_index = [d_width](int x, int y) {
+        auto d_index = [d_width](int x, int y)
+        {
             return static_cast<std::size_t>(y) * static_cast<std::size_t>(d_width) + static_cast<std::size_t>(x);
         };
 
@@ -490,7 +506,8 @@ Actor make_monster(Game &game, MonsterType type, int x, int y)
 
 void populate_dungeon(Game &game)
 {
-    if (!game.current_level) return;
+    if (!game.current_level)
+        return;
 
     game.actors.clear();
     const int depth = game.current_depth + 1;

@@ -37,8 +37,9 @@ namespace sl::detail
             namespace fs = std::filesystem;
             static std::uint64_t counter = 0;
             const std::string unique = std::to_string(++counter);
-            const char *stage_extension = stage == ShaderStage::vertex ? "vert"
-                : stage == ShaderStage::fragment ? "frag" : "comp";
+            const char *stage_extension = stage == ShaderStage::vertex     ? "vert"
+                                          : stage == ShaderStage::fragment ? "frag"
+                                                                           : "comp";
             const fs::path directory = fs::temp_directory_path();
             const fs::path input = directory / ("simlib_shader_" + unique + "." + stage_extension);
             const fs::path output = directory / ("simlib_shader_" + unique + "." + stage_extension + ".spv");
@@ -53,7 +54,7 @@ namespace sl::detail
                 file << source;
             }
             const std::string command = std::string("\"") + validator + "\" -V --auto-map-locations --auto-map-bindings -S " +
-                stage_extension + " \"" + input.string() + "\" -o \"" + output.string() + "\" > \"" + log.string() + "\" 2>&1";
+                                        stage_extension + " \"" + input.string() + "\" -o \"" + output.string() + "\" > \"" + log.string() + "\" 2>&1";
             const int result = std::system(command.c_str());
             std::error_code remove_error;
             fs::remove(input, remove_error);
@@ -64,7 +65,8 @@ namespace sl::detail
                 const std::string diagnostics((std::istreambuf_iterator<char>(log_file)), {});
                 fs::remove(log, remove_error);
                 error = "glslangValidator failed to compile the supplied Vulkan shader";
-                if (!diagnostics.empty()) error += ":\n" + diagnostics;
+                if (!diagnostics.empty())
+                    error += ":\n" + diagnostics;
                 return false;
             }
             fs::remove(log, remove_error);
@@ -100,23 +102,28 @@ namespace sl::detail
             bool initialise(SDL_Window *window, std::string &error) override
             {
                 window_ = window;
-                if (!context_.initialise(window, error)) return false;
+                if (!context_.initialise(window, error))
+                    return false;
                 if (!context_.create_texture_descriptor_layout(descriptor_layout_, error) ||
                     !context_.create_lighting_descriptor_layout(lighting_descriptor_layout_, error) ||
                     !context_.create_storage_descriptor_layout(storage_layout_, error) ||
-                    !context_.create_descriptor_pool(descriptor_pool_, error)) return false;
+                    !context_.create_descriptor_pool(descriptor_pool_, error))
+                    return false;
                 const std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.vert.spv", vertex_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.frag.spv", fragment_module_, error) ||
-                    !create_pipelines(error)) return false;
+                    !create_pipelines(error))
+                    return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_light_cull.comp.spv", cull_module_, error) ||
                     !context_.create_compute_pipeline(cull_module_, storage_layout_, sizeof(int) * 5,
-                                                      cull_pipeline_, error)) return false;
+                                                      cull_pipeline_, error))
+                    return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_fullscreen.vert.spv", lighting_vertex_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_lighting.frag.spv", lighting_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
-                        lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, error,
-                        &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int))) return false;
+                                                       lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, error,
+                                                       &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)))
+                    return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_vignette.frag.spv", vignette_fragment_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_colour_adjust.frag.spv", colour_adjust_fragment_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_pixelate.frag.spv", pixelate_fragment_module_, error) ||
@@ -131,7 +138,8 @@ namespace sl::detail
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_blur.frag.spv", blur_fragment_module_, error) ||
                     !context_.create_composite_descriptor_layout(composite_descriptor_layout_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_composite.frag.spv", composite_fragment_module_, error) ||
-                    !create_effect_pipelines(error)) return false;
+                    !create_effect_pipelines(error))
+                    return false;
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
                 if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
                     !upload_texture(white_texture_, 1, 1, white_pixel))
@@ -143,8 +151,10 @@ namespace sl::detail
             }
             void shutdown() override
             {
-                if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
-                for (VulkanBuffer &buffer : vertex_buffers_) context_.destroy_buffer(buffer);
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
+                for (VulkanBuffer &buffer : vertex_buffers_)
+                    context_.destroy_buffer(buffer);
                 vertex_buffers_.clear();
                 for (auto &[handle, texture] : textures_)
                 {
@@ -166,39 +176,39 @@ namespace sl::detail
                 render_targets_.clear();
                 for (VulkanGraphicsPipeline &pipeline : pipelines_)
                     context_.destroy_graphics_pipeline(pipeline);
-                    context_.destroy_graphics_pipeline(bright_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(blur_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(composite_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(lighting_pipeline_);
-                    context_.destroy_graphics_pipeline(vignette_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(colour_adjust_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(pixelate_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(radial_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(heat_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(shockwave_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(chromatic_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(crt_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(dither_effect_.pipeline);
-                    context_.destroy_graphics_pipeline(film_grain_effect_.pipeline);
                 context_.destroy_graphics_pipeline(bright_effect_.pipeline);
                 context_.destroy_graphics_pipeline(blur_effect_.pipeline);
                 context_.destroy_graphics_pipeline(composite_effect_.pipeline);
-                    context_.destroy_compute_pipeline(cull_pipeline_);
+                context_.destroy_graphics_pipeline(lighting_pipeline_);
+                context_.destroy_graphics_pipeline(vignette_effect_.pipeline);
+                context_.destroy_graphics_pipeline(colour_adjust_effect_.pipeline);
+                context_.destroy_graphics_pipeline(pixelate_effect_.pipeline);
+                context_.destroy_graphics_pipeline(radial_effect_.pipeline);
+                context_.destroy_graphics_pipeline(heat_effect_.pipeline);
+                context_.destroy_graphics_pipeline(shockwave_effect_.pipeline);
+                context_.destroy_graphics_pipeline(chromatic_effect_.pipeline);
+                context_.destroy_graphics_pipeline(crt_effect_.pipeline);
+                context_.destroy_graphics_pipeline(dither_effect_.pipeline);
+                context_.destroy_graphics_pipeline(film_grain_effect_.pipeline);
+                context_.destroy_graphics_pipeline(bright_effect_.pipeline);
+                context_.destroy_graphics_pipeline(blur_effect_.pipeline);
+                context_.destroy_graphics_pipeline(composite_effect_.pipeline);
+                context_.destroy_compute_pipeline(cull_pipeline_);
                 context_.destroy_shader_module(vertex_module_);
                 context_.destroy_shader_module(fragment_module_);
-                    context_.destroy_shader_module(cull_module_);
+                context_.destroy_shader_module(cull_module_);
                 context_.destroy_shader_module(lighting_vertex_module_);
                 context_.destroy_shader_module(lighting_fragment_module_);
                 context_.destroy_shader_module(vignette_fragment_module_);
-                    context_.destroy_shader_module(colour_adjust_fragment_module_);
-                    context_.destroy_shader_module(pixelate_fragment_module_);
-                    context_.destroy_shader_module(radial_fragment_module_);
-                    context_.destroy_shader_module(heat_fragment_module_);
-                    context_.destroy_shader_module(shockwave_fragment_module_);
-                    context_.destroy_shader_module(chromatic_fragment_module_);
-                    context_.destroy_shader_module(crt_fragment_module_);
-                    context_.destroy_shader_module(dither_fragment_module_);
-                    context_.destroy_shader_module(film_grain_fragment_module_);
+                context_.destroy_shader_module(colour_adjust_fragment_module_);
+                context_.destroy_shader_module(pixelate_fragment_module_);
+                context_.destroy_shader_module(radial_fragment_module_);
+                context_.destroy_shader_module(heat_fragment_module_);
+                context_.destroy_shader_module(shockwave_fragment_module_);
+                context_.destroy_shader_module(chromatic_fragment_module_);
+                context_.destroy_shader_module(crt_fragment_module_);
+                context_.destroy_shader_module(dither_fragment_module_);
+                context_.destroy_shader_module(film_grain_fragment_module_);
                 context_.destroy_shader_module(bright_fragment_module_);
                 context_.destroy_shader_module(blur_fragment_module_);
                 context_.destroy_shader_module(composite_fragment_module_);
@@ -207,8 +217,10 @@ namespace sl::detail
                 shader_modules_.clear();
                 for (auto &[handle, dynamic] : dynamic_programs_)
                 {
-                    for (auto &pipeline : dynamic.pipelines) context_.destroy_graphics_pipeline(pipeline);
-                    if (dynamic.descriptor_set != VK_NULL_HANDLE) context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
+                    for (auto &pipeline : dynamic.pipelines)
+                        context_.destroy_graphics_pipeline(pipeline);
+                    if (dynamic.descriptor_set != VK_NULL_HANDLE)
+                        context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
                     context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
                     context_.destroy_shader_module(dynamic.vertex_module);
                     context_.destroy_shader_module(dynamic.fragment_module);
@@ -218,7 +230,7 @@ namespace sl::detail
                 context_.destroy_descriptor_set_layout(descriptor_layout_);
                 context_.destroy_descriptor_set_layout(lighting_descriptor_layout_);
                 context_.destroy_descriptor_set_layout(composite_descriptor_layout_);
-                    context_.destroy_storage_descriptor_layout(storage_layout_);
+                context_.destroy_storage_descriptor_layout(storage_layout_);
                 context_.shutdown();
                 window_ = nullptr;
             }
@@ -240,12 +252,13 @@ namespace sl::detail
             }
             bool set_vsync(bool enabled) override
             {
-                if (frame_active_ || (enabled == vsync_enabled_)) return !frame_active_;
+                if (frame_active_ || (enabled == vsync_enabled_))
+                    return !frame_active_;
                 vsync_enabled_ = enabled;
                 context_.set_vsync_enabled(enabled);
                 std::string error;
                 return resize(drawable_width_, drawable_height_, error) &&
-                    context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
+                       context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
             }
             bool vsync_active() const override { return vsync_enabled_; }
             void present() override
@@ -260,12 +273,15 @@ namespace sl::detail
             void wait_idle() override
             {
                 flush_2d();
-                if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
             }
             bool begin_frame(std::string &error) override
             {
-                if (frame_active_ && !context_.frame_active()) frame_active_ = false;
-                if (frame_active_) return true;
+                if (frame_active_ && !context_.frame_active())
+                    frame_active_ = false;
+                if (frame_active_)
+                    return true;
                 frame_active_ = context_.begin_frame(error);
                 if (frame_active_)
                 {
@@ -282,7 +298,8 @@ namespace sl::detail
             }
             bool end_frame(std::string &error) override
             {
-                if (!frame_active_) return true;
+                if (!frame_active_)
+                    return true;
                 flush_2d();
                 frame_active_ = false;
                 return context_.end_frame(error);
@@ -345,7 +362,8 @@ namespace sl::detail
                     flush_2d();
                 }
                 const auto iterator = textures_.find(texture);
-                if (iterator == textures_.end()) return;
+                if (iterator == textures_.end())
+                    return;
                 if (frame_active_)
                 {
                     retired_textures_.push_back(std::move(iterator->second));
@@ -395,7 +413,8 @@ namespace sl::detail
             {
                 flush_2d();
                 const auto iterator = render_targets_.find(framebuffer);
-                if (iterator == render_targets_.end()) return;
+                if (iterator == render_targets_.end())
+                    return;
                 context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_framebuffer(iterator->second.framebuffer);
                 context_.destroy_image(iterator->second.image);
@@ -408,7 +427,7 @@ namespace sl::detail
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end() || !begin_frame(error) ||
                     !context_.begin_offscreen_render_pass(iterator->second.framebuffer, iterator->second.image,
-                        width, height, error))
+                                                          width, height, error))
                     return false;
                 active_render_targets_.push_back(framebuffer);
                 iterator->second.image.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -417,7 +436,8 @@ namespace sl::detail
             bool end_render_target(std::string &error) override
             {
                 flush_2d();
-                if (!context_.end_offscreen_render_pass(error)) return false;
+                if (!context_.end_offscreen_render_pass(error))
+                    return false;
                 if (!active_render_targets_.empty())
                 {
                     const std::uint32_t framebuffer = active_render_targets_.back();
@@ -427,7 +447,7 @@ namespace sl::detail
                     {
                         iterator->second.image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                         if (!context_.update_texture_descriptor(iterator->second.descriptor,
-                            iterator->second.image, iterator->second.sampler, last_error_))
+                                                                iterator->second.image, iterator->second.sampler, last_error_))
                         {
                             return false;
                         }
@@ -443,7 +463,8 @@ namespace sl::detail
                     return context_.download_swapchain_rgba(width, height, out_pixels, last_error_);
                 }
                 auto iterator = render_targets_.find(framebuffer);
-                if (iterator == render_targets_.end()) return false;
+                if (iterator == render_targets_.end())
+                    return false;
                 return context_.download_image_rgba(iterator->second.image, width, height, out_pixels, last_error_);
             }
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
@@ -554,10 +575,12 @@ namespace sl::detail
                 }
 
                 std::vector<std::uint32_t> compute_spirv;
-                if (!compile_glsl_to_spirv(ShaderStage::compute, source.text, compute_spirv, error)) return false;
+                if (!compile_glsl_to_spirv(ShaderStage::compute, source.text, compute_spirv, error))
+                    return false;
 
                 DynamicVulkanComputeProgram dynamic;
-                if (!context_.create_shader_module(compute_spirv, dynamic.compute_module, error)) return false;
+                if (!context_.create_shader_module(compute_spirv, dynamic.compute_module, error))
+                    return false;
 
                 if (!context_.create_compute_descriptor_layout_flexible(8, 8, 0, dynamic.descriptor_layout, error))
                 {
@@ -573,7 +596,7 @@ namespace sl::detail
                 dynamic.push_constant_size = push_constant_size;
 
                 if (!context_.create_compute_pipeline(dynamic.compute_module, dynamic.descriptor_layout,
-                                                     push_constant_size, dynamic.pipeline, error))
+                                                      push_constant_size, dynamic.pipeline, error))
                 {
                     context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
                     context_.destroy_shader_module(dynamic.compute_module);
@@ -581,7 +604,7 @@ namespace sl::detail
                 }
 
                 if (!context_.allocate_compute_descriptor_set(descriptor_pool_, dynamic.descriptor_layout,
-                                                               dynamic.descriptor_set, error))
+                                                              dynamic.descriptor_set, error))
                 {
                     context_.destroy_compute_pipeline(dynamic.pipeline);
                     context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
@@ -601,19 +624,22 @@ namespace sl::detail
                     return false;
                 }
                 VulkanShaderModule shader;
-                if (!context_.create_shader_module(source.spirv, shader, error)) return false;
+                if (!context_.create_shader_module(source.spirv, shader, error))
+                    return false;
                 module = next_shader_module_++;
                 shader_modules_.emplace(module, std::move(shader));
                 return true;
             }
             void destroy_shader(std::uint32_t module) override
             {
-                if (module == cull_program_) return;
+                if (module == cull_program_)
+                    return;
                 flush_2d();
                 const auto compute_iterator = dynamic_compute_programs_.find(module);
                 if (compute_iterator != dynamic_compute_programs_.end())
                 {
-                    if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
+                    if (context_.device() != VK_NULL_HANDLE)
+                        vkDeviceWaitIdle(context_.device());
                     DynamicVulkanComputeProgram &dynamic = compute_iterator->second;
                     context_.destroy_compute_pipeline(dynamic.pipeline);
                     context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
@@ -624,10 +650,13 @@ namespace sl::detail
                 const auto dynamic_iterator = dynamic_programs_.find(module);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
-                    if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
+                    if (context_.device() != VK_NULL_HANDLE)
+                        vkDeviceWaitIdle(context_.device());
                     DynamicVulkanProgram &dynamic = dynamic_iterator->second;
-                    for (auto &pipeline : dynamic.pipelines) context_.destroy_graphics_pipeline(pipeline);
-                    if (dynamic.descriptor_set != VK_NULL_HANDLE) context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
+                    for (auto &pipeline : dynamic.pipelines)
+                        context_.destroy_graphics_pipeline(pipeline);
+                    if (dynamic.descriptor_set != VK_NULL_HANDLE)
+                        context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
                     context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
                     context_.destroy_shader_module(dynamic.vertex_module);
                     context_.destroy_shader_module(dynamic.fragment_module);
@@ -635,7 +664,8 @@ namespace sl::detail
                     return;
                 }
                 const auto iterator = shader_modules_.find(module);
-                if (iterator == shader_modules_.end()) return;
+                if (iterator == shader_modules_.end())
+                    return;
                 context_.destroy_shader_module(iterator->second);
                 shader_modules_.erase(iterator);
             }
@@ -650,7 +680,8 @@ namespace sl::detail
                     }
                     return true;
                 }
-                if (program_kind(program) == BuiltinProgram::unknown && program != cull_program_) return false;
+                if (program_kind(program) == BuiltinProgram::unknown && program != cull_program_)
+                    return false;
                 if (active_program_ != program)
                 {
                     flush_2d();
@@ -671,13 +702,15 @@ namespace sl::detail
                 flush_2d();
                 if (program == cull_program_)
                 {
-                    if (storage_descriptor_ == VK_NULL_HANDLE) return unsupported();
+                    if (storage_descriptor_ == VK_NULL_HANDLE)
+                        return unsupported();
                     return context_.record_compute_dispatch(cull_pipeline_.pipeline, cull_pipeline_.layout,
-                        storage_descriptor_, cull_constants_.data(), sizeof(cull_constants_),
-                        groups_x, groups_y, groups_z, last_error_);
+                                                            storage_descriptor_, cull_constants_.data(), sizeof(cull_constants_),
+                                                            groups_x, groups_y, groups_z, last_error_);
                 }
                 const auto iterator = dynamic_compute_programs_.find(program);
-                if (iterator == dynamic_compute_programs_.end()) return unsupported();
+                if (iterator == dynamic_compute_programs_.end())
+                    return unsupported();
                 DynamicVulkanComputeProgram &dynamic = iterator->second;
 
                 std::vector<VkDescriptorBufferInfo> buffer_infos;
@@ -709,11 +742,13 @@ namespace sl::detail
                 {
                     VulkanImage img{};
                     auto tex_it = textures_.find(texture_handle);
-                    if (tex_it != textures_.end()) img = tex_it->second.image;
+                    if (tex_it != textures_.end())
+                        img = tex_it->second.image;
                     else
                     {
                         auto rt_it = render_targets_.find(texture_handle);
-                        if (rt_it != render_targets_.end()) img = rt_it->second.image;
+                        if (rt_it != render_targets_.end())
+                            img = rt_it->second.image;
                     }
                     if (img.view != VK_NULL_HANDLE)
                     {
@@ -738,12 +773,13 @@ namespace sl::detail
                 }
 
                 return context_.record_compute_dispatch(dynamic.pipeline.pipeline, dynamic.pipeline.layout,
-                                                       dynamic.descriptor_set, dynamic.push_constants.data(),
-                                                       dynamic.push_constant_size, groups_x, groups_y, groups_z, last_error_);
+                                                        dynamic.descriptor_set, dynamic.push_constants.data(),
+                                                        dynamic.push_constant_size, groups_x, groups_y, groups_z, last_error_);
             }
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
-                if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
+                if (dynamic_programs_.count(program))
+                    return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program == colour_adjust_effect_.program && name && std::strcmp(name, "source") == 0)
                 {
                     active_program_ = program;
@@ -768,17 +804,22 @@ namespace sl::detail
                 if (program_kind(program) == BuiltinProgram::lighting && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "lightCount") == 0) lighting_constants_.light_count = value;
-                    else if (std::strcmp(name, "shadowLightCount") == 0) lighting_constants_.shadow_light_count = value;
-                    else if (std::strcmp(name, "flipVertical") == 0) lighting_constants_.flip_vertical = value;
-                    else return true;
+                    if (std::strcmp(name, "lightCount") == 0)
+                        lighting_constants_.light_count = value;
+                    else if (std::strcmp(name, "shadowLightCount") == 0)
+                        lighting_constants_.shadow_light_count = value;
+                    else if (std::strcmp(name, "flipVertical") == 0)
+                        lighting_constants_.flip_vertical = value;
+                    else
+                        return true;
                     return true;
                 }
                 return unsupported();
             }
             bool set_shader_float(std::uint32_t program, const char *name, float value) override
             {
-                if (dynamic_programs_.count(program)) return set_dynamic_uniform(program, name, &value, sizeof(value));
+                if (dynamic_programs_.count(program))
+                    return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program_kind(program) == BuiltinProgram::lighting && name && std::strcmp(name, "ambient") == 0)
                 {
                     active_program_ = program;
@@ -788,20 +829,29 @@ namespace sl::detail
                 if (program == vignette_effect_.program && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "radius") == 0) vignette_effect_.constants.radius = value;
-                    else if (std::strcmp(name, "softness") == 0) vignette_effect_.constants.softness = value;
-                    else if (std::strcmp(name, "intensity") == 0) vignette_effect_.constants.intensity = value;
-                    else return true;
+                    if (std::strcmp(name, "radius") == 0)
+                        vignette_effect_.constants.radius = value;
+                    else if (std::strcmp(name, "softness") == 0)
+                        vignette_effect_.constants.softness = value;
+                    else if (std::strcmp(name, "intensity") == 0)
+                        vignette_effect_.constants.intensity = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program == colour_adjust_effect_.program && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "brightness") == 0) colour_adjust_constants_.values[0] = value;
-                    else if (std::strcmp(name, "contrast") == 0) colour_adjust_constants_.values[1] = value;
-                    else if (std::strcmp(name, "saturation") == 0) colour_adjust_constants_.values[2] = value;
-                    else if (std::strcmp(name, "exposure") == 0) colour_adjust_constants_.values[3] = value;
-                    else return true;
+                    if (std::strcmp(name, "brightness") == 0)
+                        colour_adjust_constants_.values[0] = value;
+                    else if (std::strcmp(name, "contrast") == 0)
+                        colour_adjust_constants_.values[1] = value;
+                    else if (std::strcmp(name, "saturation") == 0)
+                        colour_adjust_constants_.values[2] = value;
+                    else if (std::strcmp(name, "exposure") == 0)
+                        colour_adjust_constants_.values[3] = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program == chromatic_effect_.program && name && std::strcmp(name, "strength") == 0)
@@ -820,49 +870,82 @@ namespace sl::detail
                 if (program_kind(program) == BuiltinProgram::crt && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "pixelSize") == 0) { crt_constants_.pixel_size = value; return true; }
-                    if (std::strcmp(name, "scanlineStrength") == 0) { crt_constants_.scanline_strength = value; return true; }
-                    if (std::strcmp(name, "curvature") == 0) { crt_constants_.curvature = value; return true; }
+                    if (std::strcmp(name, "pixelSize") == 0)
+                    {
+                        crt_constants_.pixel_size = value;
+                        return true;
+                    }
+                    if (std::strcmp(name, "scanlineStrength") == 0)
+                    {
+                        crt_constants_.scanline_strength = value;
+                        return true;
+                    }
+                    if (std::strcmp(name, "curvature") == 0)
+                    {
+                        crt_constants_.curvature = value;
+                        return true;
+                    }
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::dither && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "pixelSize") == 0) { dither_constants_.pixel_size = value; return true; }
-                    if (std::strcmp(name, "levels") == 0) { dither_constants_.levels = value; return true; }
+                    if (std::strcmp(name, "pixelSize") == 0)
+                    {
+                        dither_constants_.pixel_size = value;
+                        return true;
+                    }
+                    if (std::strcmp(name, "levels") == 0)
+                    {
+                        dither_constants_.levels = value;
+                        return true;
+                    }
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::film_grain && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "strength") == 0) film_grain_constants_.strength = value;
-                    else if (std::strcmp(name, "time") == 0) film_grain_constants_.time = value;
-                    else return true;
+                    if (std::strcmp(name, "strength") == 0)
+                        film_grain_constants_.strength = value;
+                    else if (std::strcmp(name, "time") == 0)
+                        film_grain_constants_.time = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::radial && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "strength") == 0) radial_constants_.strength = value;
-                    else return true;
+                    if (std::strcmp(name, "strength") == 0)
+                        radial_constants_.strength = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::heat && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "strength") == 0) heat_constants_.strength = value;
-                    else if (std::strcmp(name, "frequency") == 0) heat_constants_.frequency = value;
-                    else if (std::strcmp(name, "time") == 0) heat_constants_.time = value;
-                    else return true;
+                    if (std::strcmp(name, "strength") == 0)
+                        heat_constants_.strength = value;
+                    else if (std::strcmp(name, "frequency") == 0)
+                        heat_constants_.frequency = value;
+                    else if (std::strcmp(name, "time") == 0)
+                        heat_constants_.time = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::shockwave && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "radius") == 0) shockwave_constants_.radius = value;
-                    else if (std::strcmp(name, "width") == 0) shockwave_constants_.width = value;
-                    else if (std::strcmp(name, "strength") == 0) shockwave_constants_.strength = value;
-                    else return true;
+                    if (std::strcmp(name, "radius") == 0)
+                        shockwave_constants_.radius = value;
+                    else if (std::strcmp(name, "width") == 0)
+                        shockwave_constants_.width = value;
+                    else if (std::strcmp(name, "strength") == 0)
+                        shockwave_constants_.strength = value;
+                    else
+                        return true;
                     return true;
                 }
                 if (program_kind(program) == BuiltinProgram::bright && name && std::strcmp(name, "threshold") == 0)
@@ -894,8 +977,18 @@ namespace sl::detail
                 if (program_kind(program) == BuiltinProgram::blur && name)
                 {
                     active_program_ = program;
-                    if (std::strcmp(name, "texel") == 0) { blur_constants_.texel[0] = x; blur_constants_.texel[1] = y; return true; }
-                    if (std::strcmp(name, "direction") == 0) { blur_constants_.direction[0] = x; blur_constants_.direction[1] = y; return true; }
+                    if (std::strcmp(name, "texel") == 0)
+                    {
+                        blur_constants_.texel[0] = x;
+                        blur_constants_.texel[1] = y;
+                        return true;
+                    }
+                    if (std::strcmp(name, "direction") == 0)
+                    {
+                        blur_constants_.direction[0] = x;
+                        blur_constants_.direction[1] = y;
+                        return true;
+                    }
                 }
                 if (program_kind(program) == BuiltinProgram::pixelate && name && std::strcmp(name, "resolution") == 0)
                 {
@@ -941,7 +1034,8 @@ namespace sl::detail
                     const int values[2] = {x, y};
                     return set_dynamic_uniform(program, name, values, sizeof(values));
                 }
-                if (!name) return unsupported();
+                if (!name)
+                    return unsupported();
                 if (program_kind(program) == BuiltinProgram::lighting && std::strcmp(name, "tileCount") == 0)
                 {
                     active_program_ = program;
@@ -949,7 +1043,8 @@ namespace sl::detail
                     lighting_constants_.tile_count_y = y;
                     return true;
                 }
-                if (program != cull_program_) return unsupported();
+                if (program != cull_program_)
+                    return unsupported();
                 if (std::strcmp(name, "screenSize") == 0)
                 {
                     cull_constants_[0] = x;
@@ -992,7 +1087,7 @@ namespace sl::detail
                     return true;
                 }
                 if ((program_kind(program) == BuiltinProgram::bright || program_kind(program) == BuiltinProgram::blur ||
-                    program_kind(program) == BuiltinProgram::composite) &&
+                     program_kind(program) == BuiltinProgram::composite) &&
                     name && matrix && std::strcmp(name, "uProjection") == 0)
                 {
                     active_program_ = program;
@@ -1058,7 +1153,8 @@ namespace sl::detail
             }
             bool begin_2d(int width, int height) override
             {
-                if (!begin_frame(last_error_)) return false;
+                if (!begin_frame(last_error_))
+                    return false;
                 std::array<float, 16> new_proj{};
                 new_proj[0] = width > 0 ? 2.0f / width : 0.0f;
                 new_proj[5] = height > 0 ? -2.0f / height : 0.0f;
@@ -1077,7 +1173,8 @@ namespace sl::detail
             bool begin_shader_2d(std::uint32_t program, int width, int height) override
             {
                 flush_2d();
-                if (!begin_frame(last_error_) || width <= 0 || height <= 0 || !use_shader(program)) return false;
+                if (!begin_frame(last_error_) || width <= 0 || height <= 0 || !use_shader(program))
+                    return false;
                 float projection[16] = {};
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
@@ -1091,12 +1188,14 @@ namespace sl::detail
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 flush_2d();
-                if (!frame_active_ && !begin_frame(last_error_)) return false;
+                if (!frame_active_ && !begin_frame(last_error_))
+                    return false;
                 return context_.clear_active_frame(red, green, blue, alpha, last_error_);
             }
             void flush_2d() override
             {
-                if (batch_vertices_.empty() || !frame_active_) return;
+                if (batch_vertices_.empty() || !frame_active_)
+                    return;
 
                 const Vertex2D *upload_vertices = batch_vertices_.data();
                 const int upload_count = static_cast<int>(batch_vertices_.size());
@@ -1104,15 +1203,17 @@ namespace sl::detail
                 const std::uint32_t texture = batch_texture_;
 
                 const VkDeviceSize required_size = sizeof(Vertex2D) * static_cast<VkDeviceSize>(upload_count);
-                if (vertex_buffer_cursor_ == vertex_buffers_.size()) vertex_buffers_.emplace_back();
+                if (vertex_buffer_cursor_ == vertex_buffers_.size())
+                    vertex_buffers_.emplace_back();
                 VulkanBuffer &buffer = vertex_buffers_[vertex_buffer_cursor_++];
                 if (buffer.size < required_size)
                 {
                     VkDeviceSize new_size = std::max<VkDeviceSize>(buffer.size, sizeof(Vertex2D) * 64);
-                    while (new_size < required_size) new_size *= 2;
+                    while (new_size < required_size)
+                        new_size *= 2;
                     context_.destroy_buffer(buffer);
                     if (!context_.create_buffer(new_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, last_error_))
+                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, last_error_))
                     {
                         batch_vertices_.clear();
                         return;
@@ -1129,7 +1230,7 @@ namespace sl::detail
                     return context_.prepare_image_for_sampling(image, last_error_);
                 };
                 auto resolve_registered_texture = [this, &prepare_texture](std::uint32_t handle,
-                    VulkanImage &image, VulkanSampler &sampler)
+                                                                           VulkanImage &image, VulkanSampler &sampler)
                 {
                     const auto texture_iterator = textures_.find(handle);
                     if (texture_iterator != textures_.end())
@@ -1163,8 +1264,8 @@ namespace sl::detail
                     for (std::size_t index = 0; index < images.size(); ++index)
                     {
                         const std::uint32_t handle = index < dynamic.bound_textures.size() && dynamic.bound_textures[index] != 0
-                            ? dynamic.bound_textures[index]
-                            : (index == 0 ? texture_handle : white_texture_);
+                                                         ? dynamic.bound_textures[index]
+                                                         : (index == 0 ? texture_handle : white_texture_);
                         if (!resolve_registered_texture(handle, images[index], samplers[index]) &&
                             !resolve_registered_texture(white_texture_, images[index], samplers[index]))
                         {
@@ -1175,7 +1276,7 @@ namespace sl::detail
                     if (dynamic.descriptor_set == VK_NULL_HANDLE)
                     {
                         if (!context_.allocate_descriptor_set(descriptor_pool_, dynamic.descriptor_layout,
-                            dynamic.descriptor_set, last_error_))
+                                                              dynamic.descriptor_set, last_error_))
                         {
                             batch_vertices_.clear();
                             return;
@@ -1195,18 +1296,18 @@ namespace sl::detail
                     if (dynamic.pipelines[pipeline_index].pipeline == VK_NULL_HANDLE)
                     {
                         if (!context_.create_graphics_pipeline(dynamic.vertex_module, dynamic.fragment_module,
-                            dynamic.descriptor_layout, primitive, dynamic.pipelines[pipeline_index], last_error_,
-                            nullptr, dynamic.push_constant_size))
+                                                               dynamic.descriptor_layout, primitive, dynamic.pipelines[pipeline_index], last_error_,
+                                                               nullptr, dynamic.push_constant_size))
                         {
                             batch_vertices_.clear();
                             return;
                         }
                     }
                     context_.record_postprocess_draw(dynamic.pipelines[pipeline_index].pipeline,
-                        dynamic.pipelines[pipeline_index].layout, buffer.buffer, dynamic.descriptor_set,
-                        static_cast<std::uint32_t>(upload_count), dynamic.projection.data(),
-                        dynamic.push_constants.empty() ? nullptr : dynamic.push_constants.data(),
-                        static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
+                                                     dynamic.pipelines[pipeline_index].layout, buffer.buffer, dynamic.descriptor_set,
+                                                     static_cast<std::uint32_t>(upload_count), dynamic.projection.data(),
+                                                     dynamic.push_constants.empty() ? nullptr : dynamic.push_constants.data(),
+                                                     static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
@@ -1225,17 +1326,17 @@ namespace sl::detail
                         }
                     }
                     const bool descriptor_ready = lighting_descriptor_ == VK_NULL_HANDLE
-                        ? context_.allocate_lighting_descriptor(descriptor_pool_, lighting_descriptor_layout_,
-                            images.data(), samplers.data(), lighting_descriptor_, last_error_)
-                        : context_.update_lighting_descriptor(lighting_descriptor_, images.data(), samplers.data(), last_error_);
+                                                      ? context_.allocate_lighting_descriptor(descriptor_pool_, lighting_descriptor_layout_,
+                                                                                              images.data(), samplers.data(), lighting_descriptor_, last_error_)
+                                                      : context_.update_lighting_descriptor(lighting_descriptor_, images.data(), samplers.data(), last_error_);
                     if (!descriptor_ready || storage_descriptor_ == VK_NULL_HANDLE)
                     {
                         batch_vertices_.clear();
                         return;
                     }
                     context_.record_lighting_draw(lighting_pipeline_.pipeline, lighting_pipeline_.layout,
-                        buffer.buffer, lighting_descriptor_, storage_descriptor_, static_cast<std::uint32_t>(upload_count),
-                        lighting_projection_.data(), &lighting_constants_, sizeof(lighting_constants_), last_error_);
+                                                  buffer.buffer, lighting_descriptor_, storage_descriptor_, static_cast<std::uint32_t>(upload_count),
+                                                  lighting_projection_.data(), &lighting_constants_, sizeof(lighting_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
@@ -1251,17 +1352,17 @@ namespace sl::detail
                         return;
                     }
                     const bool descriptor_ready = composite_descriptor_ == VK_NULL_HANDLE
-                        ? context_.allocate_composite_descriptor(descriptor_pool_, composite_descriptor_layout_,
-                            images, samplers, composite_descriptor_, last_error_)
-                        : context_.update_composite_descriptor(composite_descriptor_, images, samplers, last_error_);
+                                                      ? context_.allocate_composite_descriptor(descriptor_pool_, composite_descriptor_layout_,
+                                                                                               images, samplers, composite_descriptor_, last_error_)
+                                                      : context_.update_composite_descriptor(composite_descriptor_, images, samplers, last_error_);
                     if (!descriptor_ready)
                     {
                         batch_vertices_.clear();
                         return;
                     }
                     context_.record_postprocess_draw(composite_effect_.pipeline.pipeline, composite_effect_.pipeline.layout,
-                        buffer.buffer, composite_descriptor_, static_cast<std::uint32_t>(upload_count),
-                        postprocess_projection_.data(), &composite_constants_, sizeof(composite_constants_), last_error_);
+                                                     buffer.buffer, composite_descriptor_, static_cast<std::uint32_t>(upload_count),
+                                                     postprocess_projection_.data(), &composite_constants_, sizeof(composite_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
@@ -1299,96 +1400,96 @@ namespace sl::detail
                 if (batch_program_ == vignette_effect_.program)
                 {
                     context_.record_postprocess_draw(vignette_effect_.pipeline.pipeline, vignette_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), vignette_projection_.data(),
-                        &vignette_effect_.constants, sizeof(vignette_effect_.constants), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), vignette_projection_.data(),
+                                                     &vignette_effect_.constants, sizeof(vignette_effect_.constants), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (batch_program_ == colour_adjust_effect_.program)
                 {
                     context_.record_postprocess_draw(colour_adjust_effect_.pipeline.pipeline, colour_adjust_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &colour_adjust_constants_, sizeof(colour_adjust_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (batch_program_ == chromatic_effect_.program)
                 {
                     context_.record_postprocess_draw(chromatic_effect_.pipeline.pipeline, chromatic_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &chromatic_constants_, sizeof(chromatic_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &chromatic_constants_, sizeof(chromatic_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::pixelate)
                 {
                     context_.record_postprocess_draw(pixelate_effect_.pipeline.pipeline, pixelate_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &pixelate_constants_, sizeof(pixelate_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &pixelate_constants_, sizeof(pixelate_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::radial)
                 {
                     context_.record_postprocess_draw(radial_effect_.pipeline.pipeline, radial_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &radial_constants_, sizeof(radial_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &radial_constants_, sizeof(radial_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::heat)
                 {
                     context_.record_postprocess_draw(heat_effect_.pipeline.pipeline, heat_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &heat_constants_, sizeof(heat_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &heat_constants_, sizeof(heat_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::shockwave)
                 {
                     context_.record_postprocess_draw(shockwave_effect_.pipeline.pipeline, shockwave_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &shockwave_constants_, sizeof(shockwave_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &shockwave_constants_, sizeof(shockwave_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::crt)
                 {
                     context_.record_postprocess_draw(crt_effect_.pipeline.pipeline, crt_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &crt_constants_, sizeof(crt_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &crt_constants_, sizeof(crt_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::dither)
                 {
                     context_.record_postprocess_draw(dither_effect_.pipeline.pipeline, dither_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &dither_constants_, sizeof(dither_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &dither_constants_, sizeof(dither_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::film_grain)
                 {
                     context_.record_postprocess_draw(film_grain_effect_.pipeline.pipeline, film_grain_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &film_grain_constants_, sizeof(film_grain_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &film_grain_constants_, sizeof(film_grain_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::bright)
                 {
                     context_.record_postprocess_draw(bright_effect_.pipeline.pipeline, bright_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &bright_constants_, sizeof(bright_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &bright_constants_, sizeof(bright_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::blur)
                 {
                     context_.record_postprocess_draw(blur_effect_.pipeline.pipeline, blur_effect_.pipeline.layout,
-                        buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
-                        &blur_constants_, sizeof(blur_constants_), last_error_);
+                                                     buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
+                                                     &blur_constants_, sizeof(blur_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
@@ -1399,16 +1500,18 @@ namespace sl::detail
                     return;
                 }
                 context_.record_vertex_draw(pipelines_[pipeline_index].pipeline, pipelines_[pipeline_index].layout, buffer.buffer, descriptor,
-                    static_cast<std::uint32_t>(upload_count), primitive, projection_.data(), last_error_);
+                                            static_cast<std::uint32_t>(upload_count), primitive, projection_.data(), last_error_);
                 batch_vertices_.clear();
             }
             void submit_2d(PrimitiveType primitive, const Vertex2D *vertices, int count, std::uint32_t texture) override
             {
-                if (!vertices || count <= 0 || !frame_active_) return;
+                if (!vertices || count <= 0 || !frame_active_)
+                    return;
                 const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
                 const PrimitiveType target_primitive = get_target_batch_primitive(primitive);
                 const int new_vertex_count = get_decomposed_vertex_count(primitive, count);
-                if (new_vertex_count <= 0) return;
+                if (new_vertex_count <= 0)
+                    return;
 
                 if (!batch_vertices_.empty())
                 {
@@ -1435,8 +1538,9 @@ namespace sl::detail
             {
                 VulkanStorageBuffer resource;
                 if (!context_.create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    resource.buffer, last_error_)) return false;
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                            resource.buffer, last_error_))
+                    return false;
                 buffer = next_storage_buffer_++;
                 storage_buffers_.emplace(buffer, std::move(resource));
                 return true;
@@ -1444,7 +1548,8 @@ namespace sl::detail
             void destroy_storage_buffer(std::uint32_t buffer) override
             {
                 const auto iterator = storage_buffers_.find(buffer);
-                if (iterator == storage_buffers_.end()) return;
+                if (iterator == storage_buffers_.end())
+                    return;
                 context_.destroy_buffer(iterator->second.buffer);
                 storage_buffers_.erase(iterator);
             }
@@ -1452,13 +1557,15 @@ namespace sl::detail
             {
                 flush_2d();
                 auto iterator = storage_buffers_.find(buffer);
-                if (iterator == storage_buffers_.end()) return false;
+                if (iterator == storage_buffers_.end())
+                    return false;
                 if (size > iterator->second.buffer.size)
                 {
                     context_.destroy_buffer(iterator->second.buffer);
                     if (!context_.create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                        iterator->second.buffer, last_error_)) return false;
+                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                iterator->second.buffer, last_error_))
+                        return false;
                 }
                 return data ? context_.upload_buffer(iterator->second.buffer, data, size, last_error_) : true;
             }
@@ -1466,7 +1573,8 @@ namespace sl::detail
             {
                 flush_2d();
                 const auto iterator = storage_buffers_.find(buffer);
-                if (iterator == storage_buffers_.end()) return false;
+                if (iterator == storage_buffers_.end())
+                    return false;
                 return context_.download_buffer(iterator->second.buffer, out_data, size, offset, last_error_);
             }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
@@ -1498,7 +1606,8 @@ namespace sl::detail
                     composite_bloom_texture_ = texture;
                     return;
                 }
-                if (unit < lighting_textures_.size()) lighting_textures_[unit] = texture;
+                if (unit < lighting_textures_.size())
+                    lighting_textures_[unit] = texture;
             }
             void bind_storage_texture(unsigned int binding, std::uint32_t texture) override
             {
@@ -1537,20 +1646,34 @@ namespace sl::detail
 
             static BuiltinProgram program_kind(std::uint32_t program)
             {
-                if (program == lighting_program_) return BuiltinProgram::lighting;
-                if (program == vignette_program_) return BuiltinProgram::vignette;
-                if (program == colour_adjust_program_) return BuiltinProgram::colour_adjust;
-                if (program == chromatic_program_) return BuiltinProgram::chromatic;
-                if (program == pixelate_program_) return BuiltinProgram::pixelate;
-                if (program == radial_program_) return BuiltinProgram::radial;
-                if (program == heat_program_) return BuiltinProgram::heat;
-                if (program == shockwave_program_) return BuiltinProgram::shockwave;
-                if (program == crt_program_) return BuiltinProgram::crt;
-                if (program == dither_program_) return BuiltinProgram::dither;
-                if (program == film_grain_program_) return BuiltinProgram::film_grain;
-                if (program == bright_program_) return BuiltinProgram::bright;
-                if (program == blur_program_) return BuiltinProgram::blur;
-                if (program == composite_program_) return BuiltinProgram::composite;
+                if (program == lighting_program_)
+                    return BuiltinProgram::lighting;
+                if (program == vignette_program_)
+                    return BuiltinProgram::vignette;
+                if (program == colour_adjust_program_)
+                    return BuiltinProgram::colour_adjust;
+                if (program == chromatic_program_)
+                    return BuiltinProgram::chromatic;
+                if (program == pixelate_program_)
+                    return BuiltinProgram::pixelate;
+                if (program == radial_program_)
+                    return BuiltinProgram::radial;
+                if (program == heat_program_)
+                    return BuiltinProgram::heat;
+                if (program == shockwave_program_)
+                    return BuiltinProgram::shockwave;
+                if (program == crt_program_)
+                    return BuiltinProgram::crt;
+                if (program == dither_program_)
+                    return BuiltinProgram::dither;
+                if (program == film_grain_program_)
+                    return BuiltinProgram::film_grain;
+                if (program == bright_program_)
+                    return BuiltinProgram::bright;
+                if (program == blur_program_)
+                    return BuiltinProgram::blur;
+                if (program == composite_program_)
+                    return BuiltinProgram::composite;
                 return BuiltinProgram::unknown;
             }
 
@@ -1559,7 +1682,11 @@ namespace sl::detail
                 struct Field
                 {
                     const char *name;
-                    enum class Kind { radius, opacity } kind;
+                    enum class Kind
+                    {
+                        radius,
+                        opacity
+                    } kind;
                 };
                 static constexpr Field fields[] = {
                     {"radius", Field::Kind::radius},
@@ -1567,9 +1694,12 @@ namespace sl::detail
                 };
                 for (const Field &field : fields)
                 {
-                    if (std::strcmp(name, field.name) != 0) continue;
-                    if (field.kind == Field::Kind::radius) blur_constants_.radius = value;
-                    else blur_constants_.opacity = value;
+                    if (std::strcmp(name, field.name) != 0)
+                        continue;
+                    if (field.kind == Field::Kind::radius)
+                        blur_constants_.radius = value;
+                    else
+                        blur_constants_.opacity = value;
                     return true;
                 }
                 return unsupported();
@@ -1580,7 +1710,11 @@ namespace sl::detail
                 struct Field
                 {
                     const char *name;
-                    enum class Kind { premultiplied_source, premultiplied_output } kind;
+                    enum class Kind
+                    {
+                        premultiplied_source,
+                        premultiplied_output
+                    } kind;
                 };
                 static constexpr Field fields[] = {
                     {"premultipliedSource", Field::Kind::premultiplied_source},
@@ -1588,7 +1722,8 @@ namespace sl::detail
                 };
                 for (const Field &field : fields)
                 {
-                    if (std::strcmp(name, field.name) != 0) continue;
+                    if (std::strcmp(name, field.name) != 0)
+                        continue;
                     if (field.kind == Field::Kind::premultiplied_source)
                         blur_constants_.premultiplied_source = value;
                     else
@@ -1604,22 +1739,23 @@ namespace sl::detail
                 for (std::size_t index = 0; index < storage_handles_.size(); ++index)
                 {
                     const auto iterator = storage_buffers_.find(storage_handles_[index]);
-                    if (iterator == storage_buffers_.end()) return false;
+                    if (iterator == storage_buffers_.end())
+                        return false;
                     buffers[index] = iterator->second.buffer;
                 }
                 if (storage_descriptor_ == VK_NULL_HANDLE)
                     return context_.allocate_storage_descriptor(descriptor_pool_, storage_layout_, buffers,
-                        std::size(buffers), storage_descriptor_, last_error_);
+                                                                std::size(buffers), storage_descriptor_, last_error_);
                 return context_.update_storage_descriptor(storage_descriptor_, buffers, std::size(buffers), last_error_);
             }
 
             bool create_pipelines(std::string &error)
             {
                 return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points, pipelines_[0], error) &&
-                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::lines, pipelines_[1], error) &&
-                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, pipelines_[2], error) &&
-                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, pipelines_[3], error) &&
-                    context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
+                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::lines, pipelines_[1], error) &&
+                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, pipelines_[2], error) &&
+                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, pipelines_[3], error) &&
+                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
             }
 
             bool create_effect_pipelines(std::string &error)
@@ -1650,8 +1786,8 @@ namespace sl::detail
                 for (const EffectSpec &effect : effects)
                 {
                     if (!context_.create_graphics_pipeline(lighting_vertex_module_, *effect.fragment,
-                        *effect.descriptors, PrimitiveType::triangle_fan, effect.effect->pipeline, error,
-                        nullptr, effect.push_constant_size, false, effect.premultiplied_alpha))
+                                                           *effect.descriptors, PrimitiveType::triangle_fan, effect.effect->pipeline, error,
+                                                           nullptr, effect.push_constant_size, false, effect.premultiplied_alpha))
                         return false;
                 }
                 return true;
@@ -1668,11 +1804,14 @@ namespace sl::detail
             {
                 std::vector<std::uint32_t> vertex_spirv;
                 std::vector<std::uint32_t> fragment_spirv;
-                if (!compile_glsl_to_spirv(ShaderStage::vertex, vertex_source.text, vertex_spirv, error)) return false;
-                if (!compile_glsl_to_spirv(ShaderStage::fragment, fragment_source.text, fragment_spirv, error)) return false;
+                if (!compile_glsl_to_spirv(ShaderStage::vertex, vertex_source.text, vertex_spirv, error))
+                    return false;
+                if (!compile_glsl_to_spirv(ShaderStage::fragment, fragment_source.text, fragment_spirv, error))
+                    return false;
 
                 DynamicVulkanProgram dynamic;
-                if (!context_.create_shader_module(vertex_spirv, dynamic.vertex_module, error)) return false;
+                if (!context_.create_shader_module(vertex_spirv, dynamic.vertex_module, error))
+                    return false;
                 if (!context_.create_shader_module(fragment_spirv, dynamic.fragment_module, error))
                 {
                     context_.destroy_shader_module(dynamic.vertex_module);
@@ -1714,13 +1853,16 @@ namespace sl::detail
 
             bool set_dynamic_uniform(std::uint32_t program, const char *name, const void *data, std::size_t size)
             {
-                if (!name || !data) return unsupported();
+                if (!name || !data)
+                    return unsupported();
                 const auto iterator = dynamic_programs_.find(program);
-                if (iterator == dynamic_programs_.end()) return unsupported();
+                if (iterator == dynamic_programs_.end())
+                    return unsupported();
                 DynamicVulkanProgram &dynamic = iterator->second;
                 if (std::strcmp(name, "uProjection") == 0)
                 {
-                    if (size != sizeof(float) * 16) return unsupported();
+                    if (size != sizeof(float) * 16)
+                        return unsupported();
                     std::memcpy(dynamic.projection.data(), data, size);
                     return true;
                 }
@@ -1728,7 +1870,8 @@ namespace sl::detail
                 {
                     if (uniform.name == name)
                     {
-                        if (uniform.offset + uniform.size > dynamic.push_constants.size()) return unsupported();
+                        if (uniform.offset + uniform.size > dynamic.push_constants.size())
+                            return unsupported();
                         std::memcpy(dynamic.push_constants.data() + uniform.offset, data, std::min<std::size_t>(size, uniform.size));
                         return true;
                     }
@@ -1752,7 +1895,10 @@ namespace sl::detail
             VulkanShaderModule vignette_fragment_module_;
             struct BuiltinEffect
             {
-                struct VignetteConstants { float radius = 0.0f, softness = 0.0f, intensity = 0.0f; };
+                struct VignetteConstants
+                {
+                    float radius = 0.0f, softness = 0.0f, intensity = 0.0f;
+                };
                 std::uint32_t program = 0;
                 VulkanGraphicsPipeline pipeline;
                 VignetteConstants constants;
@@ -1815,7 +1961,10 @@ namespace sl::detail
             bool vsync_enabled_ = true;
             int drawable_width_ = 0;
             int drawable_height_ = 0;
-            struct VulkanStorageBuffer { VulkanBuffer buffer; };
+            struct VulkanStorageBuffer
+            {
+                VulkanBuffer buffer;
+            };
             std::unordered_map<std::uint32_t, VulkanStorageBuffer> storage_buffers_;
             std::uint32_t next_storage_buffer_ = 1;
             std::array<std::uint32_t, 3> storage_handles_{};
@@ -1833,19 +1982,74 @@ namespace sl::detail
             } lighting_constants_;
             std::array<float, 16> lighting_projection_{};
             std::array<std::uint32_t, 9> lighting_textures_{};
-            struct ColourAdjustConstants { float values[4] = {0.0f, 1.0f, 1.0f, 0.0f}; } colour_adjust_constants_;
-            struct ChromaticConstants { float strength = 0.0f; } chromatic_constants_;
-            struct PixelateConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size[2] = {8.0f, 8.0f}; } pixelate_constants_;
-            struct RadialConstants { float centre[2] = {0.5f, 0.5f}; float strength = 0.25f; int samples = 8; } radial_constants_;
-            struct HeatConstants { float strength = 0.008f; float frequency = 24.0f; float time = 0.0f; } heat_constants_;
-            struct ShockwaveConstants { float centre[2] = {0.5f, 0.5f}; float radius = 0.25f; float width = 0.08f; float strength = 0.025f; } shockwave_constants_;
-            struct CRTConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 4.0f; float scanline_strength = 0.35f; float curvature = 0.18f; } crt_constants_;
-            struct DitherConstants { float resolution[2] = {0.0f, 0.0f}; float pixel_size = 1.0f; float levels = 4.0f; } dither_constants_;
-            struct FilmGrainConstants { float strength = 0.08f; float time = 0.0f; } film_grain_constants_;
+            struct ColourAdjustConstants
+            {
+                float values[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+            } colour_adjust_constants_;
+            struct ChromaticConstants
+            {
+                float strength = 0.0f;
+            } chromatic_constants_;
+            struct PixelateConstants
+            {
+                float resolution[2] = {0.0f, 0.0f};
+                float pixel_size[2] = {8.0f, 8.0f};
+            } pixelate_constants_;
+            struct RadialConstants
+            {
+                float centre[2] = {0.5f, 0.5f};
+                float strength = 0.25f;
+                int samples = 8;
+            } radial_constants_;
+            struct HeatConstants
+            {
+                float strength = 0.008f;
+                float frequency = 24.0f;
+                float time = 0.0f;
+            } heat_constants_;
+            struct ShockwaveConstants
+            {
+                float centre[2] = {0.5f, 0.5f};
+                float radius = 0.25f;
+                float width = 0.08f;
+                float strength = 0.025f;
+            } shockwave_constants_;
+            struct CRTConstants
+            {
+                float resolution[2] = {0.0f, 0.0f};
+                float pixel_size = 4.0f;
+                float scanline_strength = 0.35f;
+                float curvature = 0.18f;
+            } crt_constants_;
+            struct DitherConstants
+            {
+                float resolution[2] = {0.0f, 0.0f};
+                float pixel_size = 1.0f;
+                float levels = 4.0f;
+            } dither_constants_;
+            struct FilmGrainConstants
+            {
+                float strength = 0.08f;
+                float time = 0.0f;
+            } film_grain_constants_;
             std::array<float, 16> vignette_projection_{};
-            struct BrightConstants { float threshold = 0.0f; } bright_constants_;
-            struct BlurConstants { float texel[2] = {0.0f, 0.0f}; float direction[2] = {0.0f, 0.0f}; float radius = 0.0f; int premultiplied_source = 0; float opacity = 1.0f; int premultiplied_output = 0; } blur_constants_;
-            struct CompositeConstants { float intensity = 0.0f; } composite_constants_;
+            struct BrightConstants
+            {
+                float threshold = 0.0f;
+            } bright_constants_;
+            struct BlurConstants
+            {
+                float texel[2] = {0.0f, 0.0f};
+                float direction[2] = {0.0f, 0.0f};
+                float radius = 0.0f;
+                int premultiplied_source = 0;
+                float opacity = 1.0f;
+                int premultiplied_output = 0;
+            } blur_constants_;
+            struct CompositeConstants
+            {
+                float intensity = 0.0f;
+            } composite_constants_;
             std::array<float, 16> postprocess_projection_{};
             struct VulkanTexture
             {

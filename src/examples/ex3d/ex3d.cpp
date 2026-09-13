@@ -32,7 +32,8 @@ namespace
         glCompileShader(shader);
         GLint status = GL_FALSE;
         glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-        if (status == GL_TRUE) return shader;
+        if (status == GL_TRUE)
+            return shader;
         glDeleteShader(shader);
         return 0;
     }
@@ -43,8 +44,10 @@ namespace
         const GLuint fragment_shader = compile_shader(GL_FRAGMENT_SHADER, load_file("shaders/glsl/ex3d.frag"));
         if (!vertex_shader || !fragment_shader)
         {
-            if (vertex_shader) glDeleteShader(vertex_shader);
-            if (fragment_shader) glDeleteShader(fragment_shader);
+            if (vertex_shader)
+                glDeleteShader(vertex_shader);
+            if (fragment_shader)
+                glDeleteShader(fragment_shader);
             return 0;
         }
         const GLuint program = glCreateProgram();
@@ -55,7 +58,8 @@ namespace
         glDeleteShader(fragment_shader);
         GLint status = GL_FALSE;
         glGetProgramiv(program, GL_LINK_STATUS, &status);
-        if (status == GL_TRUE) return program;
+        if (status == GL_TRUE)
+            return program;
         glDeleteProgram(program);
         return 0;
     }
@@ -84,7 +88,8 @@ int main(int argc, char *argv[])
         std::fprintf(stderr, "ex3d currently requires the OpenGL backend; use --gl.\n");
         return -1;
     }
-    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600)) return -1;
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
+        return -1;
 
     const GLuint program = create_program();
     if (!program)
@@ -95,11 +100,9 @@ int main(int argc, char *argv[])
     }
 
     const float corners[8][3] = {
-        {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
-        {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}};
+        {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1}, {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}};
     const float colours[6][3] = {
-        {0.95f, 0.25f, 0.25f}, {0.25f, 0.75f, 1.0f}, {0.35f, 0.95f, 0.45f},
-        {1.0f, 0.75f, 0.2f}, {0.75f, 0.35f, 1.0f}, {0.2f, 0.9f, 0.85f}};
+        {0.95f, 0.25f, 0.25f}, {0.25f, 0.75f, 1.0f}, {0.35f, 0.95f, 0.45f}, {1.0f, 0.75f, 0.2f}, {0.75f, 0.35f, 1.0f}, {0.2f, 0.9f, 0.85f}};
     Vertex vertices[36];
     int offset = 0;
     append_face(vertices, offset, corners, 0, 1, 2, 3, colours[0]);
@@ -146,7 +149,7 @@ int main(int argc, char *argv[])
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(program);
         glUniformMatrix4fv(glGetUniformLocation(program, "uMvp"), 1, GL_FALSE,
-            glm::value_ptr(projection * view * model));
+                           glm::value_ptr(projection * view * model));
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         sl::gprintf_center(32, {232, 236, 244}, "OpenGL 3D example - Escape to exit");

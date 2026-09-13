@@ -36,9 +36,12 @@ namespace sl::detail
 
         void release_texture(Texture &texture)
         {
-            if (texture.sampler) texture.sampler->Release();
-            if (texture.view) texture.view->Release();
-            if (texture.resource) texture.resource->Release();
+            if (texture.sampler)
+                texture.sampler->Release();
+            if (texture.view)
+                texture.view->Release();
+            if (texture.resource)
+                texture.resource->Release();
             texture = {};
         }
 
@@ -53,15 +56,16 @@ namespace sl::detail
         {
             ID3DBlob *messages = nullptr;
             const HRESULT result = D3DCompile(source.data(), source.size(), nullptr, nullptr, nullptr,
-                entry, target, D3DCOMPILE_ENABLE_STRICTNESS, 0, blob, &messages);
+                                              entry, target, D3DCOMPILE_ENABLE_STRICTNESS, 0, blob, &messages);
             if (FAILED(result))
             {
-                error = messages ? static_cast<const char *>(messages->GetBufferPointer()) :
-                    "Unable to compile the D3D11 built-in shader.";
-                if (messages) messages->Release();
+                error = messages ? static_cast<const char *>(messages->GetBufferPointer()) : "Unable to compile the D3D11 built-in shader.";
+                if (messages)
+                    messages->Release();
                 return false;
             }
-            if (messages) messages->Release();
+            if (messages)
+                messages->Release();
             return true;
         }
 
@@ -80,10 +84,12 @@ namespace sl::detail
                 shutdown_2d();
                 for (auto &[handle, target] : render_targets_)
                 {
-                    if (target.view) target.view->Release();
+                    if (target.view)
+                        target.view->Release();
                 }
                 render_targets_.clear();
-                for (auto &[handle, texture] : textures_) release_texture(texture);
+                for (auto &[handle, texture] : textures_)
+                    release_texture(texture);
                 textures_.clear();
                 context_.shutdown();
                 window_ = nullptr;
@@ -92,7 +98,11 @@ namespace sl::detail
             {
                 return context_.resize(width, height, error);
             }
-            bool set_vsync(bool enabled) override { vsync_enabled_ = enabled; return true; }
+            bool set_vsync(bool enabled) override
+            {
+                vsync_enabled_ = enabled;
+                return true;
+            }
             bool vsync_active() const override { return vsync_enabled_; }
             void present() override
             {
@@ -100,13 +110,18 @@ namespace sl::detail
                 context_.present(vsync_enabled_);
             }
             bool begin_frame(std::string &) override { return context_.is_valid(); }
-            bool end_frame(std::string &) override { present(); return true; }
+            bool end_frame(std::string &) override
+            {
+                present();
+                return true;
+            }
             SDL_GLContext native_context() const override { return nullptr; }
 
             bool create_texture(const TextureDesc &description, std::uint32_t &texture) override
             {
                 texture = 0;
-                if (description.width <= 0 || description.height <= 0 || !context_.device()) return false;
+                if (description.width <= 0 || description.height <= 0 || !context_.device())
+                    return false;
                 D3D11_TEXTURE2D_DESC desc{};
                 desc.Width = static_cast<UINT>(description.width);
                 desc.Height = static_cast<UINT>(description.height);
@@ -124,8 +139,7 @@ namespace sl::detail
                     return false;
                 }
                 D3D11_SAMPLER_DESC sampler_desc{};
-                sampler_desc.Filter = description.filter == TextureFilter::linear ?
-                    D3D11_FILTER_MIN_MAG_MIP_LINEAR : D3D11_FILTER_MIN_MAG_MIP_POINT;
+                sampler_desc.Filter = description.filter == TextureFilter::linear ? D3D11_FILTER_MIN_MAG_MIP_LINEAR : D3D11_FILTER_MIN_MAG_MIP_POINT;
                 sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
                 sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
                 sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -142,18 +156,21 @@ namespace sl::detail
             bool upload_texture(std::uint32_t texture, int width, int height, const std::uint8_t *pixels) override
             {
                 const auto iterator = textures_.find(texture);
-                if (iterator == textures_.end() || !pixels || width <= 0 || height <= 0) return false;
+                if (iterator == textures_.end() || !pixels || width <= 0 || height <= 0)
+                    return false;
                 D3D11_BOX box{0, 0, 0, static_cast<UINT>(width), static_cast<UINT>(height), 1};
                 context_.context()->UpdateSubresource(iterator->second.resource, 0, &box, pixels,
-                    static_cast<UINT>(width * 4), 0);
+                                                      static_cast<UINT>(width * 4), 0);
                 return true;
             }
             bool download_texture(std::uint32_t texture, int width, int height, std::uint8_t *out_pixels) override
             {
                 flush_2d();
-                if (texture == 0 || !out_pixels || width <= 0 || height <= 0 || !context_.device() || !context_.context()) return false;
+                if (texture == 0 || !out_pixels || width <= 0 || height <= 0 || !context_.device() || !context_.context())
+                    return false;
                 const auto iterator = textures_.find(texture);
-                if (iterator == textures_.end() || !iterator->second.resource) return false;
+                if (iterator == textures_.end() || !iterator->second.resource)
+                    return false;
 
                 D3D11_TEXTURE2D_DESC desc{};
                 iterator->second.resource->GetDesc(&desc);
@@ -163,7 +180,8 @@ namespace sl::detail
                 desc.MiscFlags = 0;
 
                 ID3D11Texture2D *staging = nullptr;
-                if (FAILED(context_.device()->CreateTexture2D(&desc, nullptr, &staging))) return false;
+                if (FAILED(context_.device()->CreateTexture2D(&desc, nullptr, &staging)))
+                    return false;
                 context_.context()->CopyResource(staging, iterator->second.resource);
 
                 D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -199,12 +217,14 @@ namespace sl::detail
             }
             bool create_render_target(int width, int height, std::uint32_t &texture, std::uint32_t &framebuffer) override
             {
-                texture = 0; framebuffer = 0;
-                if (!create_texture({width, height, TextureFilter::linear}, texture)) return false;
+                texture = 0;
+                framebuffer = 0;
+                if (!create_texture({width, height, TextureFilter::linear}, texture))
+                    return false;
                 const auto iterator = textures_.find(texture);
                 ID3D11RenderTargetView *view = nullptr;
                 if (iterator == textures_.end() || FAILED(context_.device()->CreateRenderTargetView(
-                    iterator->second.resource, nullptr, &view)))
+                                                       iterator->second.resource, nullptr, &view)))
                 {
                     destroy_texture(texture);
                     return false;
@@ -219,7 +239,8 @@ namespace sl::detail
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator != render_targets_.end())
                 {
-                    if (iterator->second.view) iterator->second.view->Release();
+                    if (iterator->second.view)
+                        iterator->second.view->Release();
                     render_targets_.erase(iterator);
                 }
                 destroy_texture(texture);
@@ -245,9 +266,11 @@ namespace sl::detail
             bool download_render_target(std::uint32_t framebuffer, int width, int height, std::uint8_t *out_pixels) override
             {
                 flush_2d();
-                if (framebuffer == 0) return false;
+                if (framebuffer == 0)
+                    return false;
                 const auto iterator = render_targets_.find(framebuffer);
-                if (iterator == render_targets_.end()) return false;
+                if (iterator == render_targets_.end())
+                    return false;
                 return download_texture(iterator->second.texture, width, height, out_pixels);
             }
             bool create_shader(const ShaderSource &, const ShaderSource &, std::uint32_t &, std::string &error) override
@@ -277,7 +300,8 @@ namespace sl::detail
             bool set_shader_mat4(std::uint32_t, const char *, const float *) override { return unsupported(); }
             bool initialise_2d() override
             {
-                if (vertex_shader_) return true;
+                if (vertex_shader_)
+                    return true;
                 const std::string vertex_source = load_shader("default_2d.vert.hlsl");
                 const std::string pixel_source = load_shader("default_2d.frag.hlsl");
                 if (vertex_source.empty() || pixel_source.empty())
@@ -290,23 +314,26 @@ namespace sl::detail
                 if (!compile_shader(vertex_source, "main", "vs_4_0", &vertex_blob, last_error_) ||
                     !compile_shader(pixel_source, "main", "ps_4_0", &pixel_blob, last_error_))
                 {
-                    if (vertex_blob) vertex_blob->Release();
-                    if (pixel_blob) pixel_blob->Release();
+                    if (vertex_blob)
+                        vertex_blob->Release();
+                    if (pixel_blob)
+                        pixel_blob->Release();
                     return false;
                 }
                 const HRESULT created = context_.device()->CreateVertexShader(vertex_blob->GetBufferPointer(),
-                    vertex_blob->GetBufferSize(), nullptr, &vertex_shader_);
+                                                                              vertex_blob->GetBufferSize(), nullptr, &vertex_shader_);
                 const HRESULT pixel_created = context_.device()->CreatePixelShader(pixel_blob->GetBufferPointer(),
-                    pixel_blob->GetBufferSize(), nullptr, &pixel_shader_);
+                                                                                   pixel_blob->GetBufferSize(), nullptr, &pixel_shader_);
                 D3D11_INPUT_ELEMENT_DESC elements[] = {
                     {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, static_cast<UINT>(offsetof(Vertex2D, x)), D3D11_INPUT_PER_VERTEX_DATA, 0},
                     {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, static_cast<UINT>(offsetof(Vertex2D, u)), D3D11_INPUT_PER_VERTEX_DATA, 0},
                     {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, static_cast<UINT>(offsetof(Vertex2D, r)), D3D11_INPUT_PER_VERTEX_DATA, 0}};
                 const HRESULT layout_created = context_.device()->CreateInputLayout(elements, 3,
-                    vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize(), &input_layout_);
-                vertex_blob->Release(); pixel_blob->Release();
+                                                                                    vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize(), &input_layout_);
+                vertex_blob->Release();
+                pixel_blob->Release();
                 D3D11_BUFFER_DESC constant_desc{sizeof(float) * 16, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER,
-                    D3D11_CPU_ACCESS_WRITE, 0, 0};
+                                                D3D11_CPU_ACCESS_WRITE, 0, 0};
                 const HRESULT buffer_created = context_.device()->CreateBuffer(&constant_desc, nullptr, &projection_buffer_);
                 if (FAILED(created) || FAILED(pixel_created) || FAILED(layout_created) || FAILED(buffer_created))
                 {
@@ -314,31 +341,41 @@ namespace sl::detail
                 }
                 const std::uint8_t white_pixel[4] = {255, 255, 255, 255};
                 return create_texture({1, 1, TextureFilter::nearest}, white_texture_) &&
-                    upload_texture(white_texture_, 1, 1, white_pixel);
+                       upload_texture(white_texture_, 1, 1, white_pixel);
             }
             void shutdown_2d() override
             {
                 flush_2d();
                 batch_vertices_.clear();
                 batch_vertices_.shrink_to_fit();
-                if (projection_buffer_) projection_buffer_->Release();
-                if (input_layout_) input_layout_->Release();
-                if (pixel_shader_) pixel_shader_->Release();
-                if (vertex_shader_) vertex_shader_->Release();
-                if (vertex_buffer_) vertex_buffer_->Release();
-                projection_buffer_ = nullptr; input_layout_ = nullptr; pixel_shader_ = nullptr;
-                vertex_shader_ = nullptr; vertex_buffer_ = nullptr;
+                if (projection_buffer_)
+                    projection_buffer_->Release();
+                if (input_layout_)
+                    input_layout_->Release();
+                if (pixel_shader_)
+                    pixel_shader_->Release();
+                if (vertex_shader_)
+                    vertex_shader_->Release();
+                if (vertex_buffer_)
+                    vertex_buffer_->Release();
+                projection_buffer_ = nullptr;
+                input_layout_ = nullptr;
+                pixel_shader_ = nullptr;
+                vertex_shader_ = nullptr;
+                vertex_buffer_ = nullptr;
                 destroy_texture(white_texture_);
                 white_texture_ = 0;
             }
             bool begin_2d(int width, int height) override
             {
-                if (!initialise_2d()) return false;
+                if (!initialise_2d())
+                    return false;
                 flush_2d();
                 D3D11_MAPPED_SUBRESOURCE mapped{};
-                if (FAILED(context_.context()->Map(projection_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
+                if (FAILED(context_.context()->Map(projection_buffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+                    return false;
                 float projection[16] = {width > 0 ? 2.0f / width : 0.0f, 0, 0, 0, 0,
-                    height > 0 ? -2.0f / height : 0.0f, 0, 0, 0, 0, -1, 0, -1, 1, 0, 1};
+                                        height > 0 ? -2.0f / height : 0.0f, 0, 0, 0, 0, -1, 0, -1, 1, 0, 1};
                 std::memcpy(mapped.pData, projection, sizeof(projection));
                 context_.context()->Unmap(projection_buffer_, 0);
                 context_.context()->VSSetConstantBuffers(0, 1, &projection_buffer_);
@@ -357,13 +394,15 @@ namespace sl::detail
             }
             void flush_2d() override
             {
-                if (batch_vertices_.empty() || !initialise_2d()) return;
+                if (batch_vertices_.empty() || !initialise_2d())
+                    return;
                 const int count = static_cast<int>(batch_vertices_.size());
                 if (!vertex_buffer_ || vertex_capacity_ < static_cast<std::size_t>(count))
                 {
-                    if (vertex_buffer_) vertex_buffer_->Release();
+                    if (vertex_buffer_)
+                        vertex_buffer_->Release();
                     D3D11_BUFFER_DESC desc{static_cast<UINT>(sizeof(Vertex2D) * count), D3D11_USAGE_DYNAMIC,
-                        D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
+                                           D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0};
                     if (FAILED(context_.device()->CreateBuffer(&desc, nullptr, &vertex_buffer_)))
                     {
                         batch_vertices_.clear();
@@ -387,20 +426,25 @@ namespace sl::detail
                 context_.context()->PSSetShaderResources(0, 1, &view);
                 context_.context()->PSSetSamplers(0, 1, &sampler);
                 D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-                if (batch_primitive_ == PrimitiveType::points) topology = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
-                else if (batch_primitive_ == PrimitiveType::lines) topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
-                else if (batch_primitive_ == PrimitiveType::triangles) topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                if (batch_primitive_ == PrimitiveType::points)
+                    topology = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+                else if (batch_primitive_ == PrimitiveType::lines)
+                    topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
+                else if (batch_primitive_ == PrimitiveType::triangles)
+                    topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
                 context_.context()->IASetPrimitiveTopology(topology);
                 context_.context()->Draw(static_cast<UINT>(count), 0);
                 batch_vertices_.clear();
             }
             void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
             {
-                if (!vertices || count <= 0 || !initialise_2d()) return;
+                if (!vertices || count <= 0 || !initialise_2d())
+                    return;
                 const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
                 const PrimitiveType target_primitive = get_target_batch_primitive(primitive_mode);
                 const int new_vertex_count = get_decomposed_vertex_count(primitive_mode, count);
-                if (new_vertex_count <= 0) return;
+                if (new_vertex_count <= 0)
+                    return;
 
                 if (!batch_vertices_.empty())
                 {

@@ -4,57 +4,63 @@
 
 #include <vector>
 
-namespace game {
+namespace game
+{
 
-enum class ColliderShape { circle, aabb };
+    enum class ColliderShape
+    {
+        circle,
+        aabb
+    };
 
-/** A simple game object bundling transform, physics, collider, and sprite data. */
-struct GameObject {
-    // transform (x, y is the center of the object)
-    float x = 0.0f;
-    float y = 0.0f;
-    float vx = 0.0f;
-    float vy = 0.0f;
+    /** A simple game object bundling transform, physics, collider, and sprite data. */
+    struct GameObject
+    {
+        // transform (x, y is the center of the object)
+        float x = 0.0f;
+        float y = 0.0f;
+        float vx = 0.0f;
+        float vy = 0.0f;
 
-    // physics
-    float mass = 1.0f;
-    float gravity_scale = 1.0f;
-    float drag = 0.0f;
-    float restitution = 0.5f;
-    bool is_static = false;
+        // physics
+        float mass = 1.0f;
+        float gravity_scale = 1.0f;
+        float drag = 0.0f;
+        float restitution = 0.5f;
+        bool is_static = false;
 
-    // balloon gas bag
-    bool is_balloon = false;
-    float gas_bag_volume = 1.0f;
-    float gas_temperature = 293.0f;
-    bool burner_active = false;
+        // balloon gas bag
+        bool is_balloon = false;
+        float gas_bag_volume = 1.0f;
+        float gas_temperature = 293.0f;
+        bool burner_active = false;
 
-    // collider
-    ColliderShape shape = ColliderShape::circle;
-    float radius = 16.0f;
-    float width = 32.0f;
-    float height = 32.0f;
+        // collider
+        ColliderShape shape = ColliderShape::circle;
+        float radius = 16.0f;
+        float width = 32.0f;
+        float height = 32.0f;
 
-    // sprite (drawn stretched to the collider's bounding box)
-    sl::Bitmap* bitmap = nullptr;
-};
+        // sprite (drawn stretched to the collider's bounding box)
+        sl::Bitmap *bitmap = nullptr;
+    };
 
-/** Create a circle-collider object centred at (x, y). */
-GameObject make_circle_object(sl::Bitmap* bitmap, float x, float y, float radius, float mass = 1.0f);
-/** Create an AABB-collider object centred at (x, y). */
-GameObject make_aabb_object(sl::Bitmap* bitmap, float x, float y, float width, float height, float mass = 1.0f);
+    /** Create a circle-collider object centred at (x, y). */
+    GameObject make_circle_object(sl::Bitmap *bitmap, float x, float y, float radius, float mass = 1.0f);
+    /** Create an AABB-collider object centred at (x, y). */
+    GameObject make_aabb_object(sl::Bitmap *bitmap, float x, float y, float width, float height, float mass = 1.0f);
 
-/** Apply balloon forces and advance all objects through the Box2D adapter. */
-void physics_step(std::vector<GameObject>& objects, float dt_seconds, float gravity = 980.0f);
-/** Rebuild Box2D bodies for a restored object snapshot. */
-void reset_physics(std::vector<GameObject>& objects);
-/** Release the Box2D world owned by the gameplay physics adapter. */
-void shutdown_physics();
-/** Adjust a balloon's gas bag volume and its circular collider size. */
-void adjust_balloon_volume(GameObject& object, float volume_delta);
-/** Keep objects inside the screen bounds; balloons wrap horizontally while other objects bounce. */
-void constrain_to_screen(std::vector<GameObject>& objects);
-/** Draw every object's sprite at its current position. */
-void render_objects(const std::vector<GameObject>& objects);
+    /** Apply balloon forces and advance all objects through the Box2D adapter. */
+    void physics_step(std::vector<GameObject> &objects, float dt_seconds, float gravity = 980.0f);
+    /** Rebuild Box2D bodies for a restored object snapshot. */
+    void reset_physics(std::vector<GameObject> &objects);
+    /** Release the Box2D world owned by the gameplay physics adapter. */
+    void shutdown_physics();
+    /** Adjust a balloon's gas bag volume and its circular collider size. */
+    void adjust_balloon_volume(GameObject &object, float volume_delta);
+    /** Keep objects inside the screen bounds; balloons wrap horizontally while other objects bounce. */
+    void constrain_to_screen(std::vector<GameObject> &objects);
+    /** Draw every object's sprite at its current position. */
+    void render_objects(const std::vector<GameObject> &objects);
 
 } // namespace game

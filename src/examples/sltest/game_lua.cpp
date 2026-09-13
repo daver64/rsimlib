@@ -34,7 +34,8 @@ namespace game
                 const std::size_t position = text.find('\n', start);
                 const std::string line = position == std::string::npos ? text.substr(start) : text.substr(start, position - start);
                 console_lines.push_back({line, sl::create_text_cache()});
-                if (position == std::string::npos) break;
+                if (position == std::string::npos)
+                    break;
                 start = position + 1;
             }
             while (console_lines.size() > max_console_lines)
@@ -47,10 +48,12 @@ namespace game
         /** @brief Initialise the engine Lua canvas and attach the console-only quit binding. */
         void console_ensure_lua_initialised()
         {
-            if (lua_canvas.is_initialised()) return;
+            if (lua_canvas.is_initialised())
+                return;
             lua_canvas.initialise(console_append);
             sol::table app = lua_canvas.runtime().state()["app"];
-            app.set_function("quit", []() { running = false; });
+            app.set_function("quit", []()
+                             { running = false; });
             lua_canvas.runtime().state()["quit"] = app["quit"];
             console_append("Lua 5.4 console. Press ESC to return to the menu.");
         }
@@ -62,7 +65,8 @@ namespace game
             if (!input_line.empty())
             {
                 const sl::LuaScriptResult result = lua_canvas.run_text(input_line);
-                if (!result.success) console_append(std::string("Error: ") + result.error);
+                if (!result.success)
+                    console_append(std::string("Error: ") + result.error);
             }
             input_line.clear();
         }
@@ -94,7 +98,8 @@ namespace game
                 console_execute_input();
                 break;
             case sl::Event::Key::backspace:
-                if (!input_line.empty()) input_line.pop_back();
+                if (!input_line.empty())
+                    input_line.pop_back();
                 break;
             }
         }
@@ -112,7 +117,8 @@ namespace game
         {
             console_active = true;
             console_ensure_lua_initialised();
-            if (!input_cache) input_cache = sl::create_text_cache();
+            if (!input_cache)
+                input_cache = sl::create_text_cache();
             SDL_StartTextInput();
         }
 
@@ -125,7 +131,8 @@ namespace game
         const int visible_rows = std::max(1, sl::screen->height / fontheight - 1);
         const std::size_t total_lines = console_lines.size();
         const std::size_t first_line = total_lines > static_cast<std::size_t>(visible_rows)
-            ? total_lines - static_cast<std::size_t>(visible_rows) : 0;
+                                           ? total_lines - static_cast<std::size_t>(visible_rows)
+                                           : 0;
 
         int y = margin;
         for (std::size_t index = first_line; index < total_lines; ++index)
@@ -143,7 +150,8 @@ namespace game
     void shutdown_lua_console()
     {
         lua_canvas.reset();
-        for (ConsoleLine &line : console_lines) sl::destroy_text_cache(line.cache);
+        for (ConsoleLine &line : console_lines)
+            sl::destroy_text_cache(line.cache);
         console_lines.clear();
         sl::destroy_text_cache(input_cache);
         input_cache = nullptr;

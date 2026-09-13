@@ -2,17 +2,17 @@
 
 void process_input()
 {
-    bool running=true;
+    bool running = true;
     while (running)
     {
         sl::Event event;
-        
+
         while (sl::poll_event(&event))
         {
             if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
             {
                 running = false;
-            }   // Handle input here
+            } // Handle input here
         }
     }
 }

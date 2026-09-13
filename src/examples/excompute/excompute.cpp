@@ -114,7 +114,8 @@ int main(int argc, char **argv)
         auto now = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration<float>(now - last_time).count();
         last_time = now;
-        if (delta > 0.1f) delta = 0.1f;
+        if (delta > 0.1f)
+            delta = 0.1f;
 
         particle_buffer.bind(0);
         compute_shader.set_uniform("uDeltaTime", delta);
@@ -133,8 +134,7 @@ int main(int argc, char **argv)
                 static_cast<std::uint8_t>(p.r * 255.0f),
                 static_cast<std::uint8_t>(p.g * 255.0f),
                 static_cast<std::uint8_t>(p.b * 255.0f),
-                255
-            };
+                255};
             sl::circlefill(sl::screen, p.x, p.y, 3.0f, c);
         }
 

@@ -33,7 +33,8 @@ namespace sl::detail
         {
             GLint length = 0;
             glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-            if (length <= 1) return "Shader compilation failed.";
+            if (length <= 1)
+                return "Shader compilation failed.";
             std::vector<GLchar> log(static_cast<std::size_t>(length));
             glGetShaderInfoLog(shader, length, nullptr, log.data());
             return log.data();
@@ -43,7 +44,8 @@ namespace sl::detail
         {
             GLint length = 0;
             glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-            if (length <= 1) return "Shader linking failed.";
+            if (length <= 1)
+                return "Shader linking failed.";
             std::vector<GLchar> log(static_cast<std::size_t>(length));
             glGetProgramInfoLog(program, length, nullptr, log.data());
             return log.data();
@@ -62,7 +64,8 @@ namespace sl::detail
             glCompileShader(shader);
             GLint compiled = GL_FALSE;
             glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-            if (compiled == GL_TRUE) return shader;
+            if (compiled == GL_TRUE)
+                return shader;
             error = shader_log(shader);
             glDeleteShader(shader);
             return 0;
@@ -77,7 +80,8 @@ namespace sl::detail
                 return 0;
             }
             glAttachShader(program, first);
-            if (second != 0) glAttachShader(program, second);
+            if (second != 0)
+                glAttachShader(program, second);
             glLinkProgram(program);
             GLint linked = GL_FALSE;
             glGetProgramiv(program, GL_LINK_STATUS, &linked);
@@ -140,7 +144,11 @@ namespace sl::detail
             }
 
             bool begin_frame(std::string &) override { return true; }
-            bool end_frame(std::string &) override { present(); return true; }
+            bool end_frame(std::string &) override
+            {
+                present();
+                return true;
+            }
 
             SDL_GLContext native_context() const override
             {
@@ -239,7 +247,7 @@ namespace sl::detail
                 {
                     glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
                     glViewport(previous_viewport[0], previous_viewport[1],
-                        previous_viewport[2], previous_viewport[3]);
+                               previous_viewport[2], previous_viewport[3]);
                 };
                 if (width <= 0 || height <= 0)
                 {
@@ -343,7 +351,8 @@ namespace sl::detail
 
             bool initialise_2d() override
             {
-                if (vao_ != 0) return true;
+                if (vao_ != 0)
+                    return true;
                 const std::string vertex = load_glsl_shader("default_2d.vert");
                 const std::string fragment = load_glsl_shader("default_2d.frag");
                 if (vertex.empty() || fragment.empty())
@@ -352,7 +361,8 @@ namespace sl::detail
                     return false;
                 }
                 if (!create_shader({ShaderLanguage::glsl, vertex}, {ShaderLanguage::glsl, fragment},
-                                   default_2d_shader_, shader_error_)) return false;
+                                   default_2d_shader_, shader_error_))
+                    return false;
                 glGenVertexArrays(1, &vao_);
                 glGenBuffers(1, &vbo_);
                 if (vao_ == 0 || vbo_ == 0)
@@ -386,9 +396,12 @@ namespace sl::detail
                 flush_2d();
                 batch_vertices_.clear();
                 batch_vertices_.shrink_to_fit();
-                if (vbo_ != 0) glDeleteBuffers(1, &vbo_);
-                if (vao_ != 0) glDeleteVertexArrays(1, &vao_);
-                vbo_ = 0; vao_ = 0;
+                if (vbo_ != 0)
+                    glDeleteBuffers(1, &vbo_);
+                if (vao_ != 0)
+                    glDeleteVertexArrays(1, &vao_);
+                vbo_ = 0;
+                vao_ = 0;
                 destroy_shader(default_2d_shader_);
                 default_2d_shader_ = 0;
                 destroy_texture(white_texture_);
@@ -403,7 +416,8 @@ namespace sl::detail
 
             bool begin_2d(int width, int height) override
             {
-                if (!initialise_2d()) return false;
+                if (!initialise_2d())
+                    return false;
                 const float off_x = detail::screen_offset_x();
                 const float off_y = detail::screen_offset_y();
                 if (active_2d_shader_ != default_2d_shader_ || last_2d_width_ != width || last_2d_height_ != height ||
@@ -433,9 +447,11 @@ namespace sl::detail
             }
             bool begin_shader_2d(std::uint32_t program, int width, int height) override
             {
-                if (!initialise_2d() || width <= 0 || height <= 0) return false;
+                if (!initialise_2d() || width <= 0 || height <= 0)
+                    return false;
                 flush_2d();
-                if (!use_shader(program)) return false;
+                if (!use_shader(program))
+                    return false;
                 float projection[16] = {};
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
@@ -444,7 +460,8 @@ namespace sl::detail
                 projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
                 projection[15] = 1.0f;
                 if (!set_shader_mat4(program, "uProjection", projection) ||
-                    !set_shader_int(program, "uTexture", 0)) return false;
+                    !set_shader_int(program, "uTexture", 0))
+                    return false;
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 glActiveTexture(GL_TEXTURE0);
@@ -473,7 +490,8 @@ namespace sl::detail
 
             void flush_2d() override
             {
-                if (batch_vertices_.empty() || !initialise_2d()) return;
+                if (batch_vertices_.empty() || !initialise_2d())
+                    return;
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(batch_texture_ != 0 ? batch_texture_ : white_texture_));
                 glBindVertexArray(vao_);
@@ -482,11 +500,21 @@ namespace sl::detail
                 GLenum mode = GL_TRIANGLES;
                 switch (batch_primitive_)
                 {
-                case PrimitiveType::points: mode = GL_POINTS; break;
-                case PrimitiveType::lines: mode = GL_LINES; break;
-                case PrimitiveType::line_loop: mode = GL_LINE_LOOP; break;
-                case PrimitiveType::triangles: mode = GL_TRIANGLES; break;
-                case PrimitiveType::triangle_fan: mode = GL_TRIANGLE_FAN; break;
+                case PrimitiveType::points:
+                    mode = GL_POINTS;
+                    break;
+                case PrimitiveType::lines:
+                    mode = GL_LINES;
+                    break;
+                case PrimitiveType::line_loop:
+                    mode = GL_LINE_LOOP;
+                    break;
+                case PrimitiveType::triangles:
+                    mode = GL_TRIANGLES;
+                    break;
+                case PrimitiveType::triangle_fan:
+                    mode = GL_TRIANGLE_FAN;
+                    break;
                 }
                 glDrawArrays(mode, 0, static_cast<GLsizei>(batch_vertices_.size()));
                 glBindVertexArray(0);
@@ -495,11 +523,13 @@ namespace sl::detail
 
             void submit_2d(PrimitiveType primitive_mode, const Vertex2D *vertices, int count, std::uint32_t texture) override
             {
-                if (!vertices || count <= 0 || !initialise_2d()) return;
+                if (!vertices || count <= 0 || !initialise_2d())
+                    return;
                 const std::uint32_t resolved_texture = (texture != 0 ? texture : white_texture_);
                 const PrimitiveType target_primitive = get_target_batch_primitive(primitive_mode);
                 const int new_vertex_count = get_decomposed_vertex_count(primitive_mode, count);
-                if (new_vertex_count <= 0) return;
+                if (new_vertex_count <= 0)
+                    return;
 
                 if (!batch_vertices_.empty())
                 {
@@ -523,24 +553,37 @@ namespace sl::detail
 
             bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) override
             {
-                GLuint handle = 0; glGenBuffers(1, &handle); buffer = handle;
-                if (handle != 0) { glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle); glBufferData(GL_SHADER_STORAGE_BUFFER, size, nullptr, GL_DYNAMIC_DRAW); }
+                GLuint handle = 0;
+                glGenBuffers(1, &handle);
+                buffer = handle;
+                if (handle != 0)
+                {
+                    glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+                    glBufferData(GL_SHADER_STORAGE_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
+                }
                 return handle != 0;
             }
             void destroy_storage_buffer(std::uint32_t buffer) override
             {
-                if (buffer != 0) { const GLuint handle = static_cast<GLuint>(buffer); glDeleteBuffers(1, &handle); }
+                if (buffer != 0)
+                {
+                    const GLuint handle = static_cast<GLuint>(buffer);
+                    glDeleteBuffers(1, &handle);
+                }
             }
             bool upload_storage_buffer(std::uint32_t buffer, std::size_t size, const void *data, bool preserve_storage) override
             {
-                if (buffer == 0) return false;
+                if (buffer == 0)
+                    return false;
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(buffer));
-                if (!preserve_storage || data) glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(size), data, GL_DYNAMIC_DRAW);
+                if (!preserve_storage || data)
+                    glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(size), data, GL_DYNAMIC_DRAW);
                 return true;
             }
             bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset, std::size_t size, void *out_data) override
             {
-                if (buffer == 0 || !out_data) return false;
+                if (buffer == 0 || !out_data)
+                    return false;
                 flush_2d();
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(buffer));
                 glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size), out_data);
@@ -554,7 +597,8 @@ namespace sl::detail
             void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
             {
                 flush_2d();
-                glActiveTexture(GL_TEXTURE0 + unit); glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+                glActiveTexture(GL_TEXTURE0 + unit);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
             }
             void bind_storage_texture(unsigned int binding, std::uint32_t texture) override
             {
@@ -580,7 +624,8 @@ namespace sl::detail
                     return false;
                 }
                 const GLuint vertex = compile_shader(GL_VERTEX_SHADER, vertex_source.text, error);
-                if (vertex == 0) return false;
+                if (vertex == 0)
+                    return false;
                 const GLuint fragment = compile_shader(GL_FRAGMENT_SHADER, fragment_source.text, error);
                 if (fragment == 0)
                 {
@@ -604,7 +649,8 @@ namespace sl::detail
                     return false;
                 }
                 const GLuint compute = compile_shader(GL_COMPUTE_SHADER, source.text, error);
-                if (compute == 0) return false;
+                if (compute == 0)
+                    return false;
                 const GLuint linked = link_program(compute, 0, error);
                 glDeleteShader(compute);
                 program = linked;
@@ -631,7 +677,8 @@ namespace sl::detail
 
             bool use_shader(std::uint32_t program) override
             {
-                if (program == 0) return false;
+                if (program == 0)
+                    return false;
                 if (active_2d_shader_ != program)
                 {
                     flush_2d();
@@ -652,55 +699,64 @@ namespace sl::detail
                                   unsigned int groups_y, unsigned int groups_z) override
             {
                 flush_2d();
-                if (!use_shader(program)) return false;
+                if (!use_shader(program))
+                    return false;
                 glDispatchCompute(groups_x, groups_y, groups_z);
                 return true;
             }
 
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
-                return set_location(program, name, [value](GLint location) { glUniform1i(location, value); });
+                return set_location(program, name, [value](GLint location)
+                                    { glUniform1i(location, value); });
             }
 
             bool set_shader_float(std::uint32_t program, const char *name, float value) override
             {
-                return set_location(program, name, [value](GLint location) { glUniform1f(location, value); });
+                return set_location(program, name, [value](GLint location)
+                                    { glUniform1f(location, value); });
             }
 
             bool set_shader_float2(std::uint32_t program, const char *name, float x, float y) override
             {
-                return set_location(program, name, [x, y](GLint location) { glUniform2f(location, x, y); });
+                return set_location(program, name, [x, y](GLint location)
+                                    { glUniform2f(location, x, y); });
             }
 
             bool set_shader_int2(std::uint32_t program, const char *name, int x, int y) override
             {
-                return set_location(program, name, [x, y](GLint location) { glUniform2i(location, x, y); });
+                return set_location(program, name, [x, y](GLint location)
+                                    { glUniform2i(location, x, y); });
             }
 
             bool set_shader_float3(std::uint32_t program, const char *name, float x, float y, float z) override
             {
-                return set_location(program, name, [x, y, z](GLint location) { glUniform3f(location, x, y, z); });
+                return set_location(program, name, [x, y, z](GLint location)
+                                    { glUniform3f(location, x, y, z); });
             }
 
             bool set_shader_mat4(std::uint32_t program, const char *name, const float *matrix) override
             {
                 return matrix && set_location(program, name,
-                    [matrix](GLint location) { glUniformMatrix4fv(location, 1, GL_FALSE, matrix); });
+                                              [matrix](GLint location)
+                                              { glUniformMatrix4fv(location, 1, GL_FALSE, matrix); });
             }
 
         private:
-                        struct RenderTargetState
-                        {
-                            GLint framebuffer = 0;
-                            GLint viewport[4] = {};
-                        };
+            struct RenderTargetState
+            {
+                GLint framebuffer = 0;
+                GLint viewport[4] = {};
+            };
 
             template <typename Setter>
             bool set_location(std::uint32_t program, const char *name, Setter setter)
             {
-                if (!use_shader(program)) return false;
+                if (!use_shader(program))
+                    return false;
                 const GLint location = glGetUniformLocation(static_cast<GLuint>(program), name);
-                if (location < 0) return false;
+                if (location < 0)
+                    return false;
                 setter(location);
                 return true;
             }
