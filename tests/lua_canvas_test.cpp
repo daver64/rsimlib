@@ -50,14 +50,7 @@ int main()
         "fx.shake(5.0, 0.2)\n"
         "assert(fx.shake_active())\n"
         "fx.clear_shake()\n"
-        "assert(not fx.shake_active())\n"
-        "assert(rdb.connect('test_db', 'sqlite', ':memory:'))\n"
-        "assert(rdb.execute('test_db', 'CREATE TABLE items (id INT, name TEXT);'))\n"
-        "assert(rdb.execute('test_db', 'INSERT INTO items VALUES (1, \"sword\");'))\n"
-        "local rows = rdb.query('test_db', 'SELECT * FROM items;')\n"
-        "assert(#rows == 1)\n"
-        "assert(rows[1].name == 'sword')\n"
-        "assert(rdb.disconnect('test_db'))\n");
+        "assert(not fx.shake_active())\n");
     if (!result.success)
     {
         std::cerr << result.error << '\n';

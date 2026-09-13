@@ -1,4 +1,5 @@
 #include "rdb.h"
+#include "rdb_lua.h"
 
 #include <cassert>
 #include <filesystem>
@@ -38,6 +39,23 @@ int main()
         });
         assert(rows == 2);
         assert(total == 30);
+    }
+
+    // Test Lua bindings helper
+    {
+        sol::state lua;
+        lua.open_libraries(sol::lib::base, sol::lib::table, sol::lib::string);
+        rdb::register_lua(lua);
+
+        auto result = lua.safe_script(
+            "assert(rdb.connect('test_db', 'sqlite', ':memory:'))\n"
+            "assert(rdb.execute('test_db', 'CREATE TABLE items (id INT, name TEXT);'))\n"
+            "assert(rdb.execute('test_db', 'INSERT INTO items VALUES (1, \"sword\");'))\n"
+            "local rows = rdb.query('test_db', 'SELECT * FROM items;')\n"
+            "assert(#rows == 1)\n"
+            "assert(rows[1].name == 'sword')\n"
+            "assert(rdb.disconnect('test_db'))\n");
+        assert(result.valid());
     }
 
     assert(std::filesystem::remove(database_path, cleanup_error));

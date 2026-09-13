@@ -272,7 +272,7 @@ target_compile_definitions(simlib PRIVATE
     SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
-target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2 SQLite::SQLite3)
+target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
@@ -366,6 +366,7 @@ add_executable(excafluid src/examples/excafluid/excafluid.cpp)
 target_link_libraries(excafluid PRIVATE simlib)
 
 add_executable(exdb src/examples/exdb/exdb.cpp)
+target_include_directories(exdb PRIVATE src/examples/exdb)
 target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
 
 add_executable(exshader src/examples/exshader/exshader.cpp)
@@ -433,7 +434,8 @@ target_link_libraries(exroguelike PRIVATE simlib)
 
 if(BUILD_TESTING)
     add_executable(rdb_test tests/rdb_test.cpp)
-    target_link_libraries(rdb_test PRIVATE simlib SQLite::SQLite3)
+    target_include_directories(rdb_test PRIVATE src/examples/exdb)
+    target_link_libraries(rdb_test PRIVATE simlib lua sol2 SQLite::SQLite3)
     add_test(NAME rdb COMMAND rdb_test)
 
     add_executable(backend_selection_test tests/backend_selection_test.cpp)

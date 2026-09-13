@@ -20,7 +20,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 11. [Cellular Automata Fluid & Granular Simulation](#cellular-automata-fluid--granular-simulation-fluidh)
 12. [Particle Systems & Emitters](#particle-systems--emitters-particlesh)
 13. [Procedural FastNoise Generation](#procedural-fastnoise-generation-noiseh)
-14. [Embedded SQLite Persistence](#embedded-sqlite-persistence-rdbh)
+14. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
 15. [Resource Archives](#resource-archives-resourceh)
 
 ---
@@ -726,9 +726,9 @@ public:
 
 ---
 
-## Embedded SQLite Persistence ([include/rdb.h](include/rdb.h))
+## Embedded SQLite Persistence ([src/examples/exdb/rdb.h](../src/examples/exdb/rdb.h))
 
-Provides RAII-managed C++ wrappers around SQLite for database creation, prepared statements, and transactional safety.
+Provides RAII-managed C++ wrappers around SQLite for database creation, prepared statements, and transactional safety. Located in the `exdb` example module.
 
 ```cpp
 namespace rdb {

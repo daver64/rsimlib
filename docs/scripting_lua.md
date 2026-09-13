@@ -99,7 +99,7 @@ local results = compute.readback_floats("buf1", 4)
 
 ## Database Operations (`rdb`)
 
-Lua scripts can query SQLite, PostgreSQL, or MySQL databases:
+Database operations can be registered into Lua via the `rdb::register_lua(lua)` helper in `src/examples/exdb/rdb_lua.h`:
 
 ```lua
 rdb.connect("db", "sqlite", ":memory:")

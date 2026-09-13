@@ -8,7 +8,6 @@
 #include "display.h"
 #include "graphics_fx.h"
 #include "physics.h"
-#include "rdb.h"
 #include "system.h"
 
 #include <sol/sol.hpp>
@@ -79,7 +78,6 @@ namespace sl
         std::unordered_map<std::string, Stream *> music;
         std::unordered_map<std::string, Shader *> shaders;
         std::unordered_map<std::string, StorageBuffer *> storage_buffers;
-        std::unordered_map<std::string, std::shared_ptr<rdb::Database>> databases;
 
         ScreenShake screen_shake;
         Bloom bloom;
@@ -282,11 +280,6 @@ namespace sl
             storage_buffers.clear();
         }
 
-        void clear_databases()
-        {
-            databases.clear();
-        }
-
         bool unload_sprite(const std::string &id)
         {
             const auto sprite = sprites.find(id);
@@ -404,7 +397,6 @@ namespace sl
             implementation_->clear_audio();
             implementation_->clear_physics();
             implementation_->clear_compute();
-            implementation_->clear_databases();
             implementation_->commands.clear();
         }
     }
@@ -632,87 +624,6 @@ namespace sl
                                                               localX.value_or(16), localY.value_or(16), localZ.value_or(1));
                              });
         compute.set_function("barrier", []() { sl::compute_barrier(); });
-
-        sol::table rdb_tbl = implementation_->runtime.state().create_named_table("rdb");
-        rdb_tbl.set_function("connect", [this](const std::string &id, const std::string &driver_str, const std::string &conn_str)
-                             {
-                                 if (id.empty() || implementation_->databases.find(id) != implementation_->databases.end())
-                                     return false;
-                                 try
-                                 {
-                                     auto db = std::make_shared<rdb::Database>(conn_str);
-                                     implementation_->databases.emplace(id, db);
-                                     return true;
-                                 }
-                                 catch (const std::exception &e)
-                                 {
-                                     std::cerr << "rdb.connect exception: " << e.what() << "\n";
-                                     return false;
-                                 }
-                             });
-        rdb_tbl.set_function("disconnect", [this](const std::string &id)
-                             {
-                                 auto it = implementation_->databases.find(id);
-                                 if (it == implementation_->databases.end()) return false;
-                                 implementation_->databases.erase(it);
-                                 return true;
-                             });
-        rdb_tbl.set_function("execute", [this](const std::string &id, const std::string &sql)
-                             {
-                                 auto it = implementation_->databases.find(id);
-                                 if (it == implementation_->databases.end()) return false;
-                                 try
-                                 {
-                                     it->second->execute(sql);
-                                     return true;
-                                 }
-                                 catch (...)
-                                 {
-                                     return false;
-                                 }
-                             });
-        rdb_tbl.set_function("query", [this](sol::this_state state, const std::string &id, const std::string &sql)
-                             {
-                                 sol::state_view lua(state);
-                                 sol::table rows = lua.create_table();
-                                 auto it = implementation_->databases.find(id);
-                                 if (it == implementation_->databases.end()) return rows;
-                                 try
-                                 {
-                                     auto stmt = it->second->prepare(sql);
-                                     if (!stmt) return rows;
-                                     int row_idx = 1;
-                                     while (stmt->step())
-                                     {
-                                         sol::table row = lua.create_table();
-                                         int col_count = sqlite3_column_count(stmt->get());
-                                         for (int col = 0; col < col_count; ++col)
-                                         {
-                                             const char *name_str = sqlite3_column_name(stmt->get(), col);
-                                             std::string col_name = name_str ? name_str : "";
-                                             if (sqlite3_column_type(stmt->get(), col) == SQLITE_NULL)
-                                             {
-                                                 row[col_name] = sol::nil;
-                                             }
-                                             else if (sqlite3_column_type(stmt->get(), col) == SQLITE_INTEGER)
-                                             {
-                                                 row[col_name] = stmt->getInt(col);
-                                             }
-                                             else if (sqlite3_column_type(stmt->get(), col) == SQLITE_FLOAT)
-                                             {
-                                                 row[col_name] = stmt->getDouble(col);
-                                             }
-                                             else
-                                             {
-                                                 row[col_name] = stmt->getText(col);
-                                             }
-                                         }
-                                         rows[row_idx++] = row;
-                                     }
-                                 }
-                                 catch (...) {}
-                                 return rows;
-                             });
 
         sol::table physics = implementation_->runtime.state().create_named_table("physics");
         physics.set_function("create_world", [this](float gravity_x, float gravity_y)
