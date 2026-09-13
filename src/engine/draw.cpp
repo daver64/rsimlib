@@ -1024,6 +1024,281 @@ namespace sl
 		sync_render_target(bitmap);
 	}
 
+	int calc_spline(const int points[8], int npts, int *xout, int *yout)
+	{
+		if (!points || npts <= 0 || !xout || !yout) return 0;
+		const float x0 = static_cast<float>(points[0]);
+		const float y0 = static_cast<float>(points[1]);
+		const float x1 = static_cast<float>(points[2]);
+		const float y1 = static_cast<float>(points[3]);
+		const float x2 = static_cast<float>(points[4]);
+		const float y2 = static_cast<float>(points[5]);
+		const float x3 = static_cast<float>(points[6]);
+		const float y3 = static_cast<float>(points[7]);
+
+		for (int i = 0; i < npts; ++i)
+		{
+			const float t = npts > 1 ? static_cast<float>(i) / static_cast<float>(npts - 1) : 0.0f;
+			const float omt = 1.0f - t;
+			const float omt2 = omt * omt;
+			const float omt3 = omt2 * omt;
+			const float t2 = t * t;
+			const float t3 = t2 * t;
+
+			const float px = omt3 * x0 + 3.0f * omt2 * t * x1 + 3.0f * omt * t2 * x2 + t3 * x3;
+			const float py = omt3 * y0 + 3.0f * omt2 * t * y1 + 3.0f * omt * t2 * y2 + t3 * y3;
+
+			xout[i] = static_cast<int>(std::lround(px));
+			yout[i] = static_cast<int>(std::lround(py));
+		}
+		return npts;
+	}
+
+	int calc_spline(const float points[8], int npts, float *xout, float *yout)
+	{
+		if (!points || npts <= 0 || !xout || !yout) return 0;
+		const float x0 = points[0];
+		const float y0 = points[1];
+		const float x1 = points[2];
+		const float y1 = points[3];
+		const float x2 = points[4];
+		const float y2 = points[5];
+		const float x3 = points[6];
+		const float y3 = points[7];
+
+		for (int i = 0; i < npts; ++i)
+		{
+			const float t = npts > 1 ? static_cast<float>(i) / static_cast<float>(npts - 1) : 0.0f;
+			const float omt = 1.0f - t;
+			const float omt2 = omt * omt;
+			const float omt3 = omt2 * omt;
+			const float t2 = t * t;
+			const float t3 = t2 * t;
+
+			xout[i] = omt3 * x0 + 3.0f * omt2 * t * x1 + 3.0f * omt * t2 * x2 + t3 * x3;
+			yout[i] = omt3 * y0 + 3.0f * omt2 * t * y1 + 3.0f * omt * t2 * y2 + t3 * y3;
+		}
+		return npts;
+	}
+
+	void arc(Bitmap *bitmap, float x, float y, float startAngle, float endAngle, float radius, Colour colour, float thickness)
+	{
+		if (!bitmap || radius < 0.0f) return;
+
+		// Convert angles to radians (0 degrees = right, 90 degrees = bottom in screen coords)
+		constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
+		float a1 = startAngle * deg_to_rad;
+		float a2 = endAngle * deg_to_rad;
+		while (a2 < a1) a2 += 3.14159265358979323846f * 2.0f;
+
+		const float angleRange = a2 - a1;
+		const int segments = std::max(8, static_cast<int>(std::ceil(angleRange * radius / 4.0f)));
+
+		float prev_x = x + std::cos(a1) * radius;
+		float prev_y = y + std::sin(a1) * radius;
+		const float step = angleRange / static_cast<float>(segments);
+		for (int i = 1; i <= segments; ++i)
+		{
+			const float ang = a1 + step * static_cast<float>(i);
+			const float curr_x = x + std::cos(ang) * radius;
+			const float curr_y = y + std::sin(ang) * radius;
+			line(bitmap, prev_x, prev_y, curr_x, curr_y, colour, thickness);
+			prev_x = curr_x;
+			prev_y = curr_y;
+		}
+	}
+
+	void spline(Bitmap *bitmap, const int points[8], Colour colour, float thickness)
+	{
+		if (!bitmap || !points) return;
+		float fpts[8];
+		for (int i = 0; i < 8; ++i) fpts[i] = static_cast<float>(points[i]);
+		spline(bitmap, fpts, colour, thickness);
+	}
+
+	void spline(Bitmap *bitmap, const float points[8], Colour colour, float thickness)
+	{
+		if (!bitmap || !points) return;
+		constexpr int segments = 32;
+		float xout[segments + 1];
+		float yout[segments + 1];
+		calc_spline(points, segments + 1, xout, yout);
+
+		for (int i = 0; i < segments; ++i)
+		{
+			line(bitmap, xout[i], yout[i], xout[i + 1], yout[i + 1], colour, thickness);
+		}
+	}
+
+	void do_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, int d, const PixelProc &proc)
+	{
+		if (!proc) return;
+		const int deltaX = std::abs(x2 - x1);
+		const int stepX = x1 < x2 ? 1 : -1;
+		const int deltaY = -std::abs(y2 - y1);
+		const int stepY = y1 < y2 ? 1 : -1;
+		int error = deltaX + deltaY;
+		for (;;)
+		{
+			proc(bitmap, x1, y1, d);
+			if (x1 == x2 && y1 == y2)
+			{
+				return;
+			}
+			const int doubledError = error * 2;
+			if (doubledError >= deltaY)
+			{
+				error += deltaY;
+				x1 += stepX;
+			}
+			if (doubledError <= deltaX)
+			{
+				error += deltaX;
+				y1 += stepY;
+			}
+		}
+	}
+
+	void do_circle(Bitmap *bitmap, int x, int y, int radius, int d, const PixelProc &proc)
+	{
+		if (!proc || radius < 0) return;
+		int cx = 0;
+		int cy = radius;
+		int p = 1 - radius;
+
+		auto plot = [&](int px, int py)
+		{
+			proc(bitmap, x + px, y + py, d);
+			if (px != 0) proc(bitmap, x - px, y + py, d);
+			if (py != 0) proc(bitmap, x + px, y - py, d);
+			if (px != 0 && py != 0) proc(bitmap, x - px, y - py, d);
+			if (px != py)
+			{
+				proc(bitmap, x + py, y + px, d);
+				if (px != 0) proc(bitmap, x + py, y - px, d);
+				if (py != 0) proc(bitmap, x - py, y + px, d);
+				if (px != 0 && py != 0) proc(bitmap, x - py, y - px, d);
+			}
+		};
+
+		plot(cx, cy);
+		while (cx < cy)
+		{
+			cx++;
+			if (p < 0)
+			{
+				p += 2 * cx + 1;
+			}
+			else
+			{
+				cy--;
+				p += 2 * (cx - cy) + 1;
+			}
+			plot(cx, cy);
+		}
+	}
+
+	void do_ellipse(Bitmap *bitmap, int x, int y, int radiusX, int radiusY, int d, const PixelProc &proc)
+	{
+		if (!proc || radiusX < 0 || radiusY < 0) return;
+		long rx2 = static_cast<long>(radiusX) * radiusX;
+		long ry2 = static_cast<long>(radiusY) * radiusY;
+		long two_rx2 = 2 * rx2;
+		long two_ry2 = 2 * ry2;
+		long px = 0;
+		long py = two_rx2 * radiusY;
+
+		auto plot = [&](int ex, int ey)
+		{
+			proc(bitmap, x + ex, y + ey, d);
+			if (ex != 0) proc(bitmap, x - ex, y + ey, d);
+			if (ey != 0) proc(bitmap, x + ex, y - ey, d);
+			if (ex != 0 && ey != 0) proc(bitmap, x - ex, y - ey, d);
+		};
+
+		// Region 1
+		int cx = 0;
+		int cy = radiusY;
+		long p = static_cast<long>(std::lround(ry2 - (rx2 * radiusY) + (0.25 * rx2)));
+		plot(cx, cy);
+
+		while (px < py)
+		{
+			cx++;
+			px += two_ry2;
+			if (p < 0)
+			{
+				p += ry2 + px;
+			}
+			else
+			{
+				cy--;
+				py -= two_rx2;
+				p += ry2 + px - py;
+			}
+			plot(cx, cy);
+		}
+
+		// Region 2
+		p = static_cast<long>(std::lround(ry2 * (cx + 0.5) * (cx + 0.5) + rx2 * (cy - 1) * (cy - 1) - rx2 * ry2));
+		while (cy > 0)
+		{
+			cy--;
+			py -= two_rx2;
+			if (p > 0)
+			{
+				p += rx2 - py;
+			}
+			else
+			{
+				cx++;
+				px += two_ry2;
+				p += rx2 - py + px;
+			}
+			plot(cx, cy);
+		}
+	}
+
+	void do_arc(Bitmap *bitmap, int x, int y, float startAngle, float endAngle, float radius, int d, const PixelProc &proc)
+	{
+		if (!proc || radius < 0.0f) return;
+		constexpr float deg_to_rad = 3.14159265358979323846f / 180.0f;
+		float a1 = startAngle * deg_to_rad;
+		float a2 = endAngle * deg_to_rad;
+		while (a2 < a1) a2 += 3.14159265358979323846f * 2.0f;
+
+		const float angleRange = a2 - a1;
+		const int segments = std::max(8, static_cast<int>(std::ceil(angleRange * radius / 4.0f)));
+		const float step = angleRange / static_cast<float>(segments);
+
+		int prev_x = x + static_cast<int>(std::lround(std::cos(a1) * radius));
+		int prev_y = y + static_cast<int>(std::lround(std::sin(a1) * radius));
+
+		for (int i = 1; i <= segments; ++i)
+		{
+			const float ang = a1 + step * static_cast<float>(i);
+			const int curr_x = x + static_cast<int>(std::lround(std::cos(ang) * radius));
+			const int curr_y = y + static_cast<int>(std::lround(std::sin(ang) * radius));
+			do_line(bitmap, prev_x, prev_y, curr_x, curr_y, d, proc);
+			prev_x = curr_x;
+			prev_y = curr_y;
+		}
+	}
+
+	void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc)
+	{
+		if (!proc || !points) return;
+		constexpr int segments = 32;
+		int xout[segments + 1];
+		int yout[segments + 1];
+		calc_spline(points, segments + 1, xout, yout);
+
+		for (int i = 0; i < segments; ++i)
+		{
+			do_line(bitmap, xout[i], yout[i], xout[i + 1], yout[i + 1], d, proc);
+		}
+	}
+
 	/** Flood-fill an enclosed area of a bitmap starting at (x, y) with a replacement colour. */
 	void flood_fill(Bitmap *bitmap, int x, int y, Colour colour)
 	{

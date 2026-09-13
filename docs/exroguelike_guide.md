@@ -42,12 +42,16 @@ flowchart TD
 
 ### Modular Separation of Concerns
 
-| Library | Role | Dependencies |
+| Library / Module | Role | Dependencies |
 | :--- | :--- | :--- |
 | **`simlib`** | Hardware rendering, event polling, 2D tile lighting, font atlases, and frame pacing | SDL2, OpenGL/Vulkan |
 | **`recs`** | Header-only Entity Component System (entities, components, archetype memory, systems) | Standard C++17 only |
 | **`rworld`** | Header-only procedural overworld and biome generation | Standard C++17 only |
-| **`exroguelike`** | Game glue: connects user input to ECS updates, world generation, FOV, and `simlib` render calls | C++17, `simlib`, `recs`, `rworld` |
+| **`game_types.h/.cpp`** | Data structures, tile/grid structs, lighting systems, color palettes, and random helpers | C++17, `simlib`, `recs`, `rworld` |
+| **`world_gen.h/.cpp`** | Procedural regional overworld generation (`rworld`), dungeon sector carving, and connectivity guarantees | C++17, `rworld` |
+| **`game_logic.h/.cpp`** | Turn progression, Bresenham line-of-sight FOV, stair travel, actor combat, and light collection | C++17, `simlib` |
+| **`render.h/.cpp`** | Font atlas ASCII cell drawing, map rendering, UI headers, and real-time environment HUD panel | C++17, `simlib` |
+| **`exroguelike.cpp`** | Main application entry point, event loop, and input dispatcher | C++17, `simlib` |
 
 Neither `recs` nor `rworld` contains any graphics code, and `simlib` contains no entity or world-generation logic. You are free to swap any layer out (e.g. replacing `recs` with EnTT or `rworld` with custom noise) without modifying `simlib`.
 

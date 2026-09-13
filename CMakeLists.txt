@@ -421,7 +421,13 @@ add_executable(execs src/examples/execs/execs.cpp)
 target_include_directories(execs PRIVATE src/examples/execs)
 target_link_libraries(execs PRIVATE simlib)
 
-add_executable(exroguelike src/examples/exroguelike/exroguelike.cpp)
+add_executable(exroguelike
+    src/examples/exroguelike/exroguelike.cpp
+    src/examples/exroguelike/game_types.cpp
+    src/examples/exroguelike/game_logic.cpp
+    src/examples/exroguelike/world_gen.cpp
+    src/examples/exroguelike/render.cpp
+)
 target_include_directories(exroguelike PRIVATE src/examples/exroguelike)
 target_link_libraries(exroguelike PRIVATE simlib)
 

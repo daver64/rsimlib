@@ -352,9 +352,15 @@ void draw_sprite_v_flip(Bitmap *bitmap, float x, float y);
 ```
 - **Description**: Hardware-accelerated sprite rendering with positioning, scaling, center-point rotation (clockwise degrees), and horizontal/vertical flipping. Offscreen render targets are automatically orientation-corrected when drawn as sprites.
 
-#### Shape Primitives
+#### Shape Primitives & Curves
 ```cpp
 void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour, float thickness = 1.0f);
+void arc(Bitmap *bitmap, float x, float y, float startAngle, float endAngle, float radius, Colour colour, float thickness = 1.0f);
+void spline(Bitmap *bitmap, const int points[8], Colour colour, float thickness = 1.0f);
+void spline(Bitmap *bitmap, const float points[8], Colour colour, float thickness = 1.0f);
+int calc_spline(const int points[8], int npts, int *xout, int *yout);
+int calc_spline(const float points[8], int npts, float *xout, float *yout);
+
 void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour, float thickness = 1.0f);
 void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour);
 void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour, float thickness = 1.0f);
@@ -364,7 +370,19 @@ void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY,
 void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour, float thickness = 1.0f);
 void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
 ```
-- **Description**: Immediate-mode 2D outline and filled shape primitives with customizable line thickness. Pass `sl::screen` to render directly to the window.
+- **Description**: Immediate-mode 2D shape, arc, and Bézier spline primitives with customizable line thickness. `calc_spline` computes interpolated $(x, y)$ coordinate arrays along a 4-point cubic Bézier curve.
+
+#### Allegro-style Point-Plotter Callbacks (`do_*`)
+```cpp
+using PixelProc = std::function<void(Bitmap *bitmap, int x, int y, int d)>;
+
+void do_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, int d, const PixelProc &proc);
+void do_circle(Bitmap *bitmap, int x, int y, int radius, int d, const PixelProc &proc);
+void do_ellipse(Bitmap *bitmap, int x, int y, int radiusX, int radiusY, int d, const PixelProc &proc);
+void do_arc(Bitmap *bitmap, int x, int y, float startAngle, float endAngle, float radius, int d, const PixelProc &proc);
+void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc);
+```
+- **Description**: Executes rasterization algorithms (Bresenham line, Midpoint circle/ellipse, Bézier curve) and invokes `proc(bitmap, x, y, d)` for every point along the shape. Enables custom pixel manipulation, collision tracing, and procedural geometry creation.
 
 ---
 

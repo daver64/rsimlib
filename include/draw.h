@@ -3,16 +3,21 @@
 #include <SDL2/SDL_stdinc.h>
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
 namespace sl
 {
     class Archive;
+    struct Bitmap;
 }
 
 namespace sl
 {
+
+    /** Callback signature for point-plotter algorithms (e.g. do_line, do_circle). */
+    using PixelProc = std::function<void(Bitmap *bitmap, int x, int y, int d)>;
 
     /** An RGBA colour with 8-bit channels. */
     struct Colour
@@ -195,6 +200,25 @@ namespace sl
     void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
     /** Draw a line between two points. */
     void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour, float thickness = 1.0f);
+    /** Draw a circular arc outline. Angles startAngle and endAngle are in degrees. */
+    void arc(Bitmap *bitmap, float x, float y, float startAngle, float endAngle, float radius, Colour colour, float thickness = 1.0f);
+    /** Draw a 4-point cubic Bézier spline curve. Points array format: [x0, y0, x1, y1, x2, y2, x3, y3]. */
+    void spline(Bitmap *bitmap, const int points[8], Colour colour, float thickness = 1.0f);
+    /** Draw a 4-point cubic Bézier spline curve with floating-point coordinates. */
+    void spline(Bitmap *bitmap, const float points[8], Colour colour, float thickness = 1.0f);
+
+    /** Calculate points along a 4-point cubic Bézier spline into xout and yout arrays. Returns count calculated. */
+    int calc_spline(const int points[8], int npts, int *xout, int *yout);
+    /** Calculate floating-point coordinates along a 4-point cubic Bézier spline. */
+    int calc_spline(const float points[8], int npts, float *xout, float *yout);
+
+    /** Allegro-style rasterizer callback plotters: invoke proc(bitmap, x, y, d) for each point along the shape. */
+    void do_line(Bitmap *bitmap, int x1, int y1, int x2, int y2, int d, const PixelProc &proc);
+    void do_circle(Bitmap *bitmap, int x, int y, int radius, int d, const PixelProc &proc);
+    void do_ellipse(Bitmap *bitmap, int x, int y, int radiusX, int radiusY, int d, const PixelProc &proc);
+    void do_arc(Bitmap *bitmap, int x, int y, float startAngle, float endAngle, float radius, int d, const PixelProc &proc);
+    void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc);
+
     /** Flood-fill an enclosed area of a bitmap starting at (x, y) with a replacement colour. */
     void flood_fill(Bitmap *bitmap, int x, int y, Colour colour);
 

@@ -178,6 +178,44 @@ void test_backend(sl::GraphicsBackend backend)
     }
     storage_buf.destroy();
 
+    // 9. Test Allegro-style do_* point-plotter callbacks, calc_spline, arc, and spline
+    std::vector<std::pair<int, int>> plotted_points;
+    auto record_proc = [&plotted_points](sl::Bitmap *, int x, int y, int d) {
+        plotted_points.push_back({x, y});
+    };
+
+    sl::do_line(rt, 10, 10, 20, 10, 42, record_proc);
+    assert(!plotted_points.empty());
+    assert(plotted_points.front().first == 10 && plotted_points.front().second == 10);
+    assert(plotted_points.back().first == 20 && plotted_points.back().second == 10);
+
+    plotted_points.clear();
+    sl::do_circle(rt, 30, 30, 10, 0, record_proc);
+    assert(!plotted_points.empty());
+
+    plotted_points.clear();
+    sl::do_ellipse(rt, 50, 50, 15, 10, 0, record_proc);
+    assert(!plotted_points.empty());
+
+    plotted_points.clear();
+    sl::do_arc(rt, 50, 50, 0.0f, 90.0f, 20.0f, 0, record_proc);
+    assert(!plotted_points.empty());
+
+    const int spline_pts[8] = { 10, 10, 20, 40, 40, 40, 50, 10 };
+    int xout[10], yout[10];
+    int count = sl::calc_spline(spline_pts, 10, xout, yout);
+    assert(count == 10);
+    assert(xout[0] == 10 && yout[0] == 10);
+    assert(xout[9] == 50 && yout[9] == 10);
+
+    plotted_points.clear();
+    sl::do_spline(rt, spline_pts, 0, record_proc);
+    assert(!plotted_points.empty());
+
+    // Test arc and spline primitives
+    sl::arc(rt, 60.0f, 60.0f, 0.0f, 180.0f, 15.0f, sl::Colour{255, 255, 0, 255}, 2.0f);
+    sl::spline(rt, spline_pts, sl::Colour{0, 255, 255, 255}, 1.5f);
+
     sl::destroy_bitmap(rt);
 
     sl::display_shutdown();
