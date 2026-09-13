@@ -334,6 +334,28 @@ namespace sl
 		return detail::active_renderer() && detail::active_renderer()->dispatch_compute(program_, groupsX, groupsY, groupsZ);
 	}
 
+	bool Shader::set_texture(unsigned int unit, Bitmap *bitmap) const
+	{
+		if (!use())
+		{
+			return false;
+		}
+		return bind_texture(unit, bitmap);
+	}
+
+	bool Shader::set_texture(const char *samplerName, unsigned int unit, Bitmap *bitmap) const
+	{
+		if (!set_texture(unit, bitmap))
+		{
+			return false;
+		}
+		if (samplerName && *samplerName)
+		{
+			return set_uniform(samplerName, static_cast<int>(unit));
+		}
+		return true;
+	}
+
 	bool Shader::set_uniform(const char *name, int value) const
 	{
 		return detail::active_renderer() && detail::active_renderer()->set_shader_int(program_, name, value);

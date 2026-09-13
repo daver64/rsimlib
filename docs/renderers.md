@@ -59,6 +59,30 @@ tint.load(vertexGlsl, fragmentGlsl,
 
 The orthographic projection uniform `uProjection` (`mat4`) is always automatically bound.
 
+### Multitexturing & Multi-Sampler Shaders
+
+You can bind multiple textures to custom shaders across OpenGL and Vulkan using the `set_texture()` helpers or standalone `sl::bind_texture()`:
+
+```cpp
+sl::Shader multiShader;
+multiShader.load(
+    vertexGlsl,
+    fragmentGlsl,
+    {"uBaseTexture", "uNormalMap", "uLightmap"}, // Vulkan bindings 0, 1, 2
+    {{"uIntensity", 0, sizeof(float)}}           // Push constant uniforms
+);
+
+// Method 1: Bind directly through the shader instance (sets unit + uniform on GL, updates descriptor on Vulkan)
+multiShader.set_texture("uNormalMap", 1, normalBitmap);
+multiShader.set_texture("uLightmap", 2, lightmapBitmap);
+
+// Method 2: Global texture unit binding
+sl::bind_texture(1, normalBitmap);
+
+// Draw the primary quad with texture unit 0
+multiShader.draw_textured_quad(baseBitmap, x, y, width, height);
+```
+
 ### Offline Shader Validation
 When `glslangValidator` and `spirv-val` are installed, CMake provides validation targets:
 

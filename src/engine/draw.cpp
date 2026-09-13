@@ -1324,6 +1324,27 @@ namespace sl
 		return success;
 	}
 
+	/** Bind a bitmap's GPU texture to an active texture unit (0..N-1). Pass nullptr to unbind. */
+	bool bind_texture(unsigned int unit, Bitmap *bitmap)
+	{
+		detail::Renderer *renderer = detail::active_renderer();
+		if (!renderer)
+		{
+			return false;
+		}
+		if (!bitmap)
+		{
+			renderer->bind_texture_unit(unit, 0);
+			return true;
+		}
+		if (!upload_bitmap(bitmap))
+		{
+			return false;
+		}
+		renderer->bind_texture_unit(unit, bitmap->gpu_texture);
+		return true;
+	}
+
 	/** Draw a bitmap at a screen position. */
 	void draw_sprite(Bitmap *bitmap, float x, float y)
 	{

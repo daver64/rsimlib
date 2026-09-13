@@ -84,6 +84,10 @@ namespace sl
         static void stop();
         /** Dispatch this program as a compute shader. */
         bool dispatch_compute(unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const;
+        /** Bind a bitmap to a shader texture unit (0..N-1). Pass nullptr to unbind. */
+        bool set_texture(unsigned int unit, Bitmap *bitmap) const;
+        /** Bind a bitmap to a texture unit and assign that unit index to the named sampler uniform. */
+        bool set_texture(const char *samplerName, unsigned int unit, Bitmap *bitmap) const;
         /** Set an integer shader uniform. */
         bool set_uniform(const char *name, int value) const;
         /** Set a floating-point shader uniform. */

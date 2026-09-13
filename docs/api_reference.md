@@ -54,6 +54,7 @@ Include `sl.h` to access the complete public API, or include an individual heade
 | `save_bitmap(bitmap, path)` | Save a bitmap as an uncompressed PNG. |
 | `destroy_bitmap(bitmap)` | Release a bitmap and its GPU resources. |
 | `upload_bitmap(bitmap)` / `download_bitmap(bitmap)` | Synchronize pixel data between RAM and GPU memory. |
+| `bind_texture(unit, bitmap)` | Bind a bitmap's GPU texture to an active texture unit (`0..N-1`). |
 | `clear_to_colour(bitmap, colour)` | Fill a bitmap with one colour. |
 | `putpixel(bitmap, x, y, colour)` / `getpixel(bitmap, x, y)` | Write or read one pixel. |
 | `flood_fill(bitmap, x, y, colour)` | Flood-fill an enclosed area of a bitmap starting from (x, y) with a replacement colour. |

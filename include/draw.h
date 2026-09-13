@@ -227,6 +227,8 @@ namespace sl
     bool upload_bitmap(Bitmap *bitmap);
     /** Synchronize a bitmap's GPU texture to RAM pixels. */
     bool download_bitmap(Bitmap *bitmap);
+    /** Bind a bitmap's GPU texture to an active texture unit (0..N-1). Pass nullptr to unbind. */
+    bool bind_texture(unsigned int unit, Bitmap *bitmap);
     /** Draw a bitmap at the supplied top-left screen position. Render targets are backend-corrected. */
     void draw_sprite(Bitmap *bitmap, float x, float y);
     /** Draw a stretched sprite */

@@ -87,6 +87,61 @@ void test_backend(sl::GraphicsBackend backend)
 
     sl::destroy_bitmap(downloaded);
     sl::destroy_bitmap(tex_bmp);
+
+    // 7. Test multitexturing shader
+    sl::Shader multi_shader;
+    const std::string vert_source =
+        "#version 430 core\n"
+        "layout(location = 0) in vec2 aPos;\n"
+        "layout(location = 1) in vec2 aTexCoord;\n"
+        "layout(location = 2) in vec4 aColor;\n"
+        "uniform mat4 uProjection;\n"
+        "out vec2 uv;\n"
+        "void main() {\n"
+        "    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);\n"
+        "    uv = aTexCoord;\n"
+        "}\n";
+    const std::string frag_source =
+        "#version 430 core\n"
+        "uniform sampler2D texA;\n"
+        "uniform sampler2D texB;\n"
+        "in vec2 uv;\n"
+        "out vec4 fragColor;\n"
+        "void main() {\n"
+        "    vec4 a = texture(texA, uv);\n"
+        "    vec4 b = texture(texB, uv);\n"
+        "    fragColor = vec4(a.r + b.r, a.g + b.g, a.b + b.b, 1.0);\n"
+        "}\n";
+
+    if (multi_shader.load(vert_source, frag_source, {"texA", "texB"}, {}))
+    {
+        sl::Bitmap *bmpA = sl::create_video_bitmap(32, 32);
+        sl::Bitmap *bmpB = sl::create_video_bitmap(32, 32);
+        sl::clear_to_colour(bmpA, sl::Colour{100, 0, 0, 255});
+        sl::clear_to_colour(bmpB, sl::Colour{50, 120, 0, 255});
+        sl::upload_bitmap(bmpA);
+        sl::upload_bitmap(bmpB);
+
+        sl::Bitmap *multi_rt = sl::create_render_target(64, 64);
+        assert(sl::begin_render_target(multi_rt));
+        sl::clear_render_target(sl::Colour{0, 0, 0, 255});
+
+        assert(multi_shader.set_texture("texB", 1, bmpB));
+        assert(multi_shader.draw_textured_quad(bmpA, 0, 0, 32, 32));
+        sl::end_render_target();
+
+        assert(sl::download_bitmap(multi_rt));
+        sl::Colour combined = sl::getpixel(multi_rt, 16, 16);
+        assert(combined.red >= 148 && combined.red <= 152);
+        assert(combined.green >= 118 && combined.green <= 122);
+        assert(combined.blue == 0);
+
+        sl::destroy_bitmap(bmpA);
+        sl::destroy_bitmap(bmpB);
+        sl::destroy_bitmap(multi_rt);
+        multi_shader.reset();
+    }
+
     sl::destroy_bitmap(rt);
 
     sl::display_shutdown();
