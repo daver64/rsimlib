@@ -55,7 +55,8 @@ Create the archive used by `exresources` from the repository root with:
 For in-depth guides and detailed API tables, see the documentation topics:
 
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
-- � **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
+- 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
+- 🗡️ **[`exroguelike` ASCII Roguelike Guide](docs/exroguelike_guide.md)** — Architectural walkthrough of the turn-based roguelike (512x512 procedural overworld, 3x3 sector dungeons, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`).
 - �🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
@@ -125,6 +126,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/excafluid       # Cellular Automata fluid, falling sand, chemistry, and Box2D
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
 ./build/execs           # Interactive Entity Component System (RECS) integration
+./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
 ./build/ex3d            # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
@@ -134,6 +136,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ```
 
 ### Example Walkthrough Source Links
+- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
 - **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular Automata fluid, falling sand, chemistry, and Box2D buoyancy.
 - **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
@@ -163,6 +166,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
+- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
 - **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.

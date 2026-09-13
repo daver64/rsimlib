@@ -272,7 +272,7 @@ target_compile_definitions(simlib PRIVATE
     SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
-target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
+target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2 SQLite::SQLite3)
 target_link_libraries(simlib PUBLIC box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
@@ -420,6 +420,10 @@ target_link_libraries(excompute PRIVATE simlib)
 add_executable(execs src/examples/execs/execs.cpp)
 target_include_directories(execs PRIVATE src/examples/execs)
 target_link_libraries(execs PRIVATE simlib)
+
+add_executable(exroguelike src/examples/exroguelike/exroguelike.cpp)
+target_include_directories(exroguelike PRIVATE src/examples/exroguelike)
+target_link_libraries(exroguelike PRIVATE simlib)
 
 if(BUILD_TESTING)
     add_executable(rdb_test tests/rdb_test.cpp)

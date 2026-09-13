@@ -241,6 +241,7 @@ namespace sl
                 return false;
             }
             Bitmap *target = sl::create_render_target(width, height);
+            if (!target) target = sl::create_bitmap(width, height);
             if (!target) return false;
             render_targets.emplace(id, target);
             return true;
@@ -643,8 +644,9 @@ namespace sl
                                      implementation_->databases.emplace(id, db);
                                      return true;
                                  }
-                                 catch (...)
+                                 catch (const std::exception &e)
                                  {
+                                     std::cerr << "rdb.connect exception: " << e.what() << "\n";
                                      return false;
                                  }
                              });
