@@ -264,8 +264,11 @@ namespace sl::detail
         virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;
         virtual bool upload_storage_buffer(std::uint32_t buffer, std::size_t size,
                            const void *data, bool preserve_storage) = 0;
+        virtual bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset,
+                             std::size_t size, void *out_data) = 0;
         virtual void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) = 0;
         virtual void bind_texture_unit(unsigned int unit, std::uint32_t texture) = 0;
+        virtual void bind_storage_texture(unsigned int binding, std::uint32_t texture) = 0;
         virtual void storage_barrier() = 0;
     };
 

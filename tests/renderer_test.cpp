@@ -142,6 +142,42 @@ void test_backend(sl::GraphicsBackend backend)
         multi_shader.reset();
     }
 
+    // 8. Test compute shader and StorageBuffer upload/readback
+    sl::StorageBuffer storage_buf(16 * sizeof(float));
+    assert(storage_buf.is_valid());
+    std::vector<float> input_data(16);
+    for (std::size_t i = 0; i < 16; ++i) input_data[i] = static_cast<float>(i + 1);
+    assert(storage_buf.upload(input_data));
+
+    const std::string comp_source =
+        "#version 430 core\n"
+        "layout(local_size_x = 16) in;\n"
+        "layout(std430, binding = 0) buffer DataBuffer {\n"
+        "    float values[];\n"
+        "};\n"
+        "void main() {\n"
+        "    uint id = gl_GlobalInvocationID.x;\n"
+        "    if (id < values.length()) values[id] *= 2.0;\n"
+        "}\n";
+
+    sl::Shader comp_shader;
+    if (comp_shader.load_compute(comp_source))
+    {
+        assert(comp_shader.is_valid());
+        assert(storage_buf.bind(0));
+        assert(sl::dispatch_compute_for(comp_shader, 16, 1, 1, 16, 1, 1));
+        sl::compute_barrier();
+
+        std::vector<float> output_data(16, 0.0f);
+        assert(storage_buf.readback(output_data));
+        for (std::size_t i = 0; i < 16; ++i)
+        {
+            assert(output_data[i] == static_cast<float>(i + 1) * 2.0f);
+        }
+        comp_shader.reset();
+    }
+    storage_buf.destroy();
+
     sl::destroy_bitmap(rt);
 
     sl::display_shutdown();

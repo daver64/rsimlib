@@ -96,8 +96,10 @@ namespace sl::detail
             bool create_storage_buffer(std::size_t, std::uint32_t &) override { return unsupported(); }
             void destroy_storage_buffer(std::uint32_t) override {}
             bool upload_storage_buffer(std::uint32_t, std::size_t, const void *, bool) override { return unsupported(); }
+            bool readback_storage_buffer(std::uint32_t, std::size_t, std::size_t, void *) override { return unsupported(); }
             void bind_storage_buffer(unsigned int, std::uint32_t) override {}
             void bind_texture_unit(unsigned int, std::uint32_t) override {}
+            void bind_storage_texture(unsigned int, std::uint32_t) override {}
             void storage_barrier() override {}
 
         private:

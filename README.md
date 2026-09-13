@@ -122,6 +122,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
 ./build/excafluid       # Cellular Automata fluid, falling sand, chemistry, and Box2D
+./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
 ./build/ex3d            # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
@@ -157,6 +158,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
+- **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.

@@ -175,12 +175,22 @@ namespace sl::detail
                  const std::vector<VulkanSampler> &samplers, std::string &error);
         bool create_storage_descriptor_layout(VulkanStorageDescriptorLayout &result, std::string &error);
         void destroy_storage_descriptor_layout(VulkanStorageDescriptorLayout &layout);
+        bool create_compute_descriptor_layout_flexible(std::uint32_t storage_buffer_count,
+                                                       std::uint32_t storage_image_count,
+                                                       std::uint32_t sampler_count,
+                                                       VulkanStorageDescriptorLayout &result,
+                                                       std::string &error);
         bool allocate_storage_descriptor(const VulkanDescriptorPool &pool,
                          const VulkanStorageDescriptorLayout &layout,
                          const VulkanBuffer *buffers, std::size_t count,
                          VkDescriptorSet &set, std::string &error);
+        bool allocate_compute_descriptor_set(const VulkanDescriptorPool &pool,
+                                             const VulkanStorageDescriptorLayout &layout,
+                                             VkDescriptorSet &set, std::string &error);
         bool update_storage_descriptor(VkDescriptorSet set, const VulkanBuffer *buffers,
                  std::size_t count, std::string &error);
+        bool download_buffer(const VulkanBuffer &buffer, void *out_data, std::size_t size,
+                             std::size_t offset, std::string &error);
         bool create_imgui_descriptor_pool(VkDescriptorPool &pool, std::string &error);
         void destroy_imgui_descriptor_pool(VkDescriptorPool &pool);
         void bind_storage_descriptor(VkCommandBuffer command_buffer, VkPipelineLayout layout,

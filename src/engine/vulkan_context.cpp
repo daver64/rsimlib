@@ -1384,11 +1384,12 @@ namespace sl::detail
         VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256},
         };
         VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
         pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         pool_info.maxSets = 256;
-        pool_info.poolSizeCount = 2;
+        pool_info.poolSizeCount = 3;
         pool_info.pPoolSizes = pool_sizes;
         if (vkCreateDescriptorPool(device_, &pool_info, nullptr, &result.pool) != VK_SUCCESS)
         {
@@ -1739,11 +1740,75 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::create_compute_descriptor_layout_flexible(std::uint32_t storage_buffer_count,
+                                                                  std::uint32_t storage_image_count,
+                                                                  std::uint32_t sampler_count,
+                                                                  VulkanStorageDescriptorLayout &result,
+                                                                  std::string &error)
+    {
+        result = {};
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        std::uint32_t binding_slot = 0;
+        for (std::uint32_t i = 0; i < storage_buffer_count; ++i)
+        {
+            VkDescriptorSetLayoutBinding b{};
+            b.binding = binding_slot++;
+            b.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            b.descriptorCount = 1;
+            b.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            bindings.push_back(b);
+        }
+        for (std::uint32_t i = 0; i < storage_image_count; ++i)
+        {
+            VkDescriptorSetLayoutBinding b{};
+            b.binding = binding_slot++;
+            b.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            b.descriptorCount = 1;
+            b.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            bindings.push_back(b);
+        }
+        for (std::uint32_t i = 0; i < sampler_count; ++i)
+        {
+            VkDescriptorSetLayoutBinding b{};
+            b.binding = binding_slot++;
+            b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            b.descriptorCount = 1;
+            b.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+            bindings.push_back(b);
+        }
+        VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        info.bindingCount = static_cast<std::uint32_t>(bindings.size());
+        info.pBindings = bindings.data();
+        if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &result.layout) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan compute descriptor layout.";
+            return false;
+        }
+        return true;
+    }
+
     void VulkanContext::destroy_storage_descriptor_layout(VulkanStorageDescriptorLayout &layout)
     {
         if (device_ != VK_NULL_HANDLE && layout.layout != VK_NULL_HANDLE)
             vkDestroyDescriptorSetLayout(device_, layout.layout, nullptr);
         layout = {};
+    }
+
+    bool VulkanContext::allocate_compute_descriptor_set(const VulkanDescriptorPool &pool,
+                                                        const VulkanStorageDescriptorLayout &layout,
+                                                        VkDescriptorSet &set, std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = pool.pool;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout.layout;
+        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan compute descriptor set.";
+            return false;
+        }
+        return true;
     }
 
     bool VulkanContext::allocate_storage_descriptor(const VulkanDescriptorPool &pool,
@@ -1811,6 +1876,25 @@ namespace sl::detail
             writes[index].pBufferInfo = &infos[index];
         }
         vkUpdateDescriptorSets(device_, 3, writes, 0, nullptr);
+        return true;
+    }
+
+    bool VulkanContext::download_buffer(const VulkanBuffer &buffer, void *out_data, std::size_t size,
+                                        std::size_t offset, std::string &error)
+    {
+        if (buffer.memory == VK_NULL_HANDLE || !out_data || (offset + size) > buffer.size)
+        {
+            error = "Invalid Vulkan buffer download request.";
+            return false;
+        }
+        void *mapped = nullptr;
+        if (vkMapMemory(device_, buffer.memory, static_cast<VkDeviceSize>(offset), static_cast<VkDeviceSize>(size), 0, &mapped) != VK_SUCCESS)
+        {
+            error = "Unable to map Vulkan buffer memory for readback.";
+            return false;
+        }
+        std::memcpy(out_data, mapped, size);
+        vkUnmapMemory(device_, buffer.memory);
         return true;
     }
 

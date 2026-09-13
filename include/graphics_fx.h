@@ -88,6 +88,10 @@ namespace sl
         bool set_texture(unsigned int unit, Bitmap *bitmap) const;
         /** Bind a bitmap to a texture unit and assign that unit index to the named sampler uniform. */
         bool set_texture(const char *samplerName, unsigned int unit, Bitmap *bitmap) const;
+        /** Bind a bitmap to an image storage unit (0..N-1) for compute image load/store. Pass nullptr to unbind. */
+        bool set_storage_texture(unsigned int unit, Bitmap *bitmap) const;
+        /** Bind a bitmap to an image storage unit and assign that unit index to the named image uniform. */
+        bool set_storage_texture(const char *samplerName, unsigned int unit, Bitmap *bitmap) const;
         /** Set an integer shader uniform. */
         bool set_uniform(const char *name, int value) const;
         /** Set a floating-point shader uniform. */
@@ -105,6 +109,64 @@ namespace sl
         std::uint32_t program_ = 0;
         std::string error_;
     };
+
+    /** Owns a GPU Storage Buffer Object (SSBO) for compute and shader operations. */
+    class StorageBuffer
+    {
+    public:
+        StorageBuffer() = default;
+        explicit StorageBuffer(std::size_t sizeBytes);
+        ~StorageBuffer();
+
+        StorageBuffer(const StorageBuffer &) = delete;
+        StorageBuffer &operator=(const StorageBuffer &) = delete;
+        StorageBuffer(StorageBuffer &&other) noexcept;
+        StorageBuffer &operator=(StorageBuffer &&other) noexcept;
+
+        /** Allocate/reallocate a GPU storage buffer of the specified size. */
+        bool create(std::size_t sizeBytes);
+        /** Release the GPU buffer resource. */
+        void destroy();
+        /** Return whether the buffer holds a valid handle. */
+        bool is_valid() const;
+        /** Return the buffer size in bytes. */
+        std::size_t size_bytes() const;
+        /** Return the backend handle. */
+        std::uint32_t handle() const;
+
+        /** Upload data from CPU memory into the GPU storage buffer. */
+        bool upload(const void *data, std::size_t sizeBytes, std::size_t offsetBytes = 0);
+        /** Upload a std::vector into the GPU storage buffer. */
+        template <typename T>
+        bool upload(const std::vector<T> &data, std::size_t offsetBytes = 0)
+        {
+            return upload(data.data(), data.size() * sizeof(T), offsetBytes);
+        }
+
+        /** Read back data from the GPU storage buffer into CPU memory. */
+        bool readback(void *outData, std::size_t sizeBytes, std::size_t offsetBytes = 0) const;
+        /** Read back data from the GPU storage buffer into a std::vector. */
+        template <typename T>
+        bool readback(std::vector<T> &outData, std::size_t offsetBytes = 0) const
+        {
+            return readback(outData.data(), outData.size() * sizeof(T), offsetBytes);
+        }
+
+        /** Bind this storage buffer to a shader binding index (0..N-1). */
+        bool bind(unsigned int bindingIndex) const;
+
+    private:
+        std::uint32_t handle_ = 0;
+        std::size_t sizeBytes_ = 0;
+    };
+
+    /** Ensure all memory writes from compute shaders are visible to subsequent commands. */
+    void compute_barrier();
+
+    /** Convenience helper to dispatch a compute shader for a total work count, automatically computing group counts. */
+    bool dispatch_compute_for(const Shader &shader,
+                             unsigned int totalItemsX, unsigned int totalItemsY = 1, unsigned int totalItemsZ = 1,
+                             unsigned int localSizeX = 16, unsigned int localSizeY = 16, unsigned int localSizeZ = 1);
 
     /** Internal helper for chaining fullscreen post-process passes without managing one bitmap per effect. */
     class PingPongBuffer

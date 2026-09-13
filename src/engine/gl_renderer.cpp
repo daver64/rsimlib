@@ -538,6 +538,14 @@ namespace sl::detail
                 if (!preserve_storage || data) glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(size), data, GL_DYNAMIC_DRAW);
                 return true;
             }
+            bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset, std::size_t size, void *out_data) override
+            {
+                if (buffer == 0 || !out_data) return false;
+                flush_2d();
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(buffer));
+                glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size), out_data);
+                return true;
+            }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
                 flush_2d();
@@ -548,10 +556,18 @@ namespace sl::detail
                 flush_2d();
                 glActiveTexture(GL_TEXTURE0 + unit); glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
             }
+            void bind_storage_texture(unsigned int binding, std::uint32_t texture) override
+            {
+                flush_2d();
+                if (glBindImageTexture)
+                {
+                    glBindImageTexture(binding, static_cast<GLuint>(texture), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+                }
+            }
             void storage_barrier() override
             {
                 flush_2d();
-                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+                glMemoryBarrier(GL_ALL_BARRIER_BITS);
             }
 
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,

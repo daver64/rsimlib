@@ -565,12 +565,55 @@ namespace sl::detail
             }
             bool create_compute_shader(const ShaderSource &source, std::uint32_t &program, std::string &error) override
             {
-                if (source.asset_id != "light-cull" || cull_pipeline_.pipeline == VK_NULL_HANDLE)
+                if (source.asset_id == "light-cull")
                 {
-                    error = "Vulkan tiled-lighting compute pipeline is unavailable.";
+                    if (cull_pipeline_.pipeline == VK_NULL_HANDLE)
+                    {
+                        error = "Vulkan tiled-lighting compute pipeline is unavailable.";
+                        return false;
+                    }
+                    program = cull_program_;
+                    return true;
+                }
+
+                std::vector<std::uint32_t> compute_spirv;
+                if (!compile_glsl_to_spirv(ShaderStage::compute, source.text, compute_spirv, error)) return false;
+
+                DynamicVulkanComputeProgram dynamic;
+                if (!context_.create_shader_module(compute_spirv, dynamic.compute_module, error)) return false;
+
+                if (!context_.create_compute_descriptor_layout_flexible(8, 8, 0, dynamic.descriptor_layout, error))
+                {
+                    context_.destroy_shader_module(dynamic.compute_module);
                     return false;
                 }
-                program = cull_program_;
+
+                std::uint32_t push_constant_size = 0;
+                dynamic.uniform_layout = source.vulkan_uniforms;
+                for (const ShaderUniformLayout &uniform : dynamic.uniform_layout)
+                    push_constant_size = std::max(push_constant_size, uniform.offset + uniform.size);
+                dynamic.push_constants.assign(push_constant_size, std::uint8_t{0});
+                dynamic.push_constant_size = push_constant_size;
+
+                if (!context_.create_compute_pipeline(dynamic.compute_module, dynamic.descriptor_layout,
+                                                     push_constant_size, dynamic.pipeline, error))
+                {
+                    context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
+                    context_.destroy_shader_module(dynamic.compute_module);
+                    return false;
+                }
+
+                if (!context_.allocate_compute_descriptor_set(descriptor_pool_, dynamic.descriptor_layout,
+                                                               dynamic.descriptor_set, error))
+                {
+                    context_.destroy_compute_pipeline(dynamic.pipeline);
+                    context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
+                    context_.destroy_shader_module(dynamic.compute_module);
+                    return false;
+                }
+
+                program = next_dynamic_program_++;
+                dynamic_compute_programs_.emplace(program, std::move(dynamic));
                 return true;
             }
             bool create_shader_module(ShaderStage, const ShaderSource &source, std::uint32_t &module, std::string &error) override
@@ -590,6 +633,17 @@ namespace sl::detail
             {
                 if (module == cull_program_) return;
                 flush_2d();
+                const auto compute_iterator = dynamic_compute_programs_.find(module);
+                if (compute_iterator != dynamic_compute_programs_.end())
+                {
+                    if (context_.device() != VK_NULL_HANDLE) vkDeviceWaitIdle(context_.device());
+                    DynamicVulkanComputeProgram &dynamic = compute_iterator->second;
+                    context_.destroy_compute_pipeline(dynamic.pipeline);
+                    context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
+                    context_.destroy_shader_module(dynamic.compute_module);
+                    dynamic_compute_programs_.erase(compute_iterator);
+                    return;
+                }
                 const auto dynamic_iterator = dynamic_programs_.find(module);
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
@@ -610,7 +664,7 @@ namespace sl::detail
             }
             bool use_shader(std::uint32_t program) override
             {
-                if (dynamic_programs_.count(program))
+                if (dynamic_programs_.count(program) || dynamic_compute_programs_.count(program))
                 {
                     if (active_program_ != program)
                     {
@@ -638,10 +692,77 @@ namespace sl::detail
             bool dispatch_compute(std::uint32_t program, unsigned int groups_x, unsigned int groups_y, unsigned int groups_z) override
             {
                 flush_2d();
-                if (program != cull_program_ || storage_descriptor_ == VK_NULL_HANDLE) return unsupported();
-                return context_.record_compute_dispatch(cull_pipeline_.pipeline, cull_pipeline_.layout,
-                    storage_descriptor_, cull_constants_.data(), sizeof(cull_constants_),
-                    groups_x, groups_y, groups_z, last_error_);
+                if (program == cull_program_)
+                {
+                    if (storage_descriptor_ == VK_NULL_HANDLE) return unsupported();
+                    return context_.record_compute_dispatch(cull_pipeline_.pipeline, cull_pipeline_.layout,
+                        storage_descriptor_, cull_constants_.data(), sizeof(cull_constants_),
+                        groups_x, groups_y, groups_z, last_error_);
+                }
+                const auto iterator = dynamic_compute_programs_.find(program);
+                if (iterator == dynamic_compute_programs_.end()) return unsupported();
+                DynamicVulkanComputeProgram &dynamic = iterator->second;
+
+                std::vector<VkDescriptorBufferInfo> buffer_infos;
+                std::vector<VkDescriptorImageInfo> image_infos;
+                std::vector<VkWriteDescriptorSet> writes;
+
+                for (const auto &[binding, buffer_handle] : dynamic.bound_storage_buffers)
+                {
+                    auto buf_it = storage_buffers_.find(buffer_handle);
+                    if (buf_it != storage_buffers_.end() && buf_it->second.buffer.buffer != VK_NULL_HANDLE)
+                    {
+                        VkDescriptorBufferInfo info{};
+                        info.buffer = buf_it->second.buffer.buffer;
+                        info.offset = 0;
+                        info.range = buf_it->second.buffer.size;
+                        buffer_infos.push_back(info);
+
+                        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                        write.dstSet = dynamic.descriptor_set;
+                        write.dstBinding = binding;
+                        write.descriptorCount = 1;
+                        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                        write.pBufferInfo = &buffer_infos.back();
+                        writes.push_back(write);
+                    }
+                }
+
+                for (const auto &[unit, texture_handle] : dynamic.bound_storage_textures)
+                {
+                    VulkanImage img{};
+                    auto tex_it = textures_.find(texture_handle);
+                    if (tex_it != textures_.end()) img = tex_it->second.image;
+                    else
+                    {
+                        auto rt_it = render_targets_.find(texture_handle);
+                        if (rt_it != render_targets_.end()) img = rt_it->second.image;
+                    }
+                    if (img.view != VK_NULL_HANDLE)
+                    {
+                        VkDescriptorImageInfo info{};
+                        info.imageView = img.view;
+                        info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                        image_infos.push_back(info);
+
+                        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                        write.dstSet = dynamic.descriptor_set;
+                        write.dstBinding = 8 + unit;
+                        write.descriptorCount = 1;
+                        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                        write.pImageInfo = &image_infos.back();
+                        writes.push_back(write);
+                    }
+                }
+
+                if (!writes.empty())
+                {
+                    vkUpdateDescriptorSets(context_.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
+                }
+
+                return context_.record_compute_dispatch(dynamic.pipeline.pipeline, dynamic.pipeline.layout,
+                                                       dynamic.descriptor_set, dynamic.push_constants.data(),
+                                                       dynamic.push_constant_size, groups_x, groups_y, groups_z, last_error_);
             }
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
@@ -1364,12 +1485,28 @@ namespace sl::detail
                 }
                 return data ? context_.upload_buffer(iterator->second.buffer, data, size, last_error_) : true;
             }
+            bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset, std::size_t size, void *out_data) override
+            {
+                flush_2d();
+                const auto iterator = storage_buffers_.find(buffer);
+                if (iterator == storage_buffers_.end()) return false;
+                return context_.download_buffer(iterator->second.buffer, out_data, size, offset, last_error_);
+            }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
                 flush_2d();
-                if (binding < 2 || binding > 4) return;
-                storage_handles_[binding - 2] = buffer;
-                update_storage_descriptor();
+                if (active_program_ == cull_program_)
+                {
+                    if (binding < 2 || binding > 4) return;
+                    storage_handles_[binding - 2] = buffer;
+                    update_storage_descriptor();
+                    return;
+                }
+                const auto iterator = dynamic_compute_programs_.find(active_program_);
+                if (iterator != dynamic_compute_programs_.end())
+                {
+                    iterator->second.bound_storage_buffers[binding] = buffer;
+                }
             }
             void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
             {
@@ -1387,6 +1524,15 @@ namespace sl::detail
                     return;
                 }
                 if (unit < lighting_textures_.size()) lighting_textures_[unit] = texture;
+            }
+            void bind_storage_texture(unsigned int binding, std::uint32_t texture) override
+            {
+                flush_2d();
+                const auto iterator = dynamic_compute_programs_.find(active_program_);
+                if (iterator != dynamic_compute_programs_.end())
+                {
+                    iterator->second.bound_storage_textures[binding] = texture;
+                }
             }
             void storage_barrier() override
             {
@@ -1763,6 +1909,21 @@ namespace sl::detail
                 std::array<float, 16> projection{};
             };
             std::unordered_map<std::uint32_t, DynamicVulkanProgram> dynamic_programs_;
+
+            struct DynamicVulkanComputeProgram
+            {
+                VulkanShaderModule compute_module;
+                VulkanStorageDescriptorLayout descriptor_layout;
+                VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+                VulkanComputePipeline pipeline;
+                std::vector<ShaderUniformLayout> uniform_layout;
+                std::vector<std::uint8_t> push_constants;
+                std::uint32_t push_constant_size = 0;
+                std::map<unsigned int, std::uint32_t> bound_storage_buffers;
+                std::map<unsigned int, std::uint32_t> bound_storage_textures;
+            };
+            std::unordered_map<std::uint32_t, DynamicVulkanComputeProgram> dynamic_compute_programs_;
+
             std::uint32_t next_dynamic_program_ = 1;
 
             static constexpr std::size_t MAX_BATCH_VERTICES = 65536;

@@ -414,6 +414,9 @@ target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 add_executable(slunpack src/examples/slunpack/slunpack.cpp)
 target_link_libraries(slunpack PRIVATE simlib)
 
+add_executable(excompute src/examples/excompute/excompute.cpp)
+target_link_libraries(excompute PRIVATE simlib)
+
 if(BUILD_TESTING)
     add_executable(rdb_test tests/rdb_test.cpp)
     target_link_libraries(rdb_test PRIVATE simlib SQLite::SQLite3)

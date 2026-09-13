@@ -356,6 +356,33 @@ namespace sl
 		return true;
 	}
 
+	bool Shader::set_storage_texture(unsigned int unit, Bitmap *bitmap) const
+	{
+		if (!use())
+		{
+			return false;
+		}
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			renderer->bind_storage_texture(unit, bitmap ? bitmap->gpu_texture : 0);
+			return true;
+		}
+		return false;
+	}
+
+	bool Shader::set_storage_texture(const char *samplerName, unsigned int unit, Bitmap *bitmap) const
+	{
+		if (!set_storage_texture(unit, bitmap))
+		{
+			return false;
+		}
+		if (samplerName && *samplerName)
+		{
+			return set_uniform(samplerName, static_cast<int>(unit));
+		}
+		return true;
+	}
+
 	bool Shader::set_uniform(const char *name, int value) const
 	{
 		return detail::active_renderer() && detail::active_renderer()->set_shader_int(program_, name, value);
@@ -384,6 +411,131 @@ namespace sl
 	bool Shader::set_uniform_mat4(const char *name, const float *matrix4x4) const
 	{
 		return detail::active_renderer() && detail::active_renderer()->set_shader_mat4(program_, name, matrix4x4);
+	}
+
+	StorageBuffer::StorageBuffer(std::size_t sizeBytes)
+	{
+		create(sizeBytes);
+	}
+
+	StorageBuffer::~StorageBuffer()
+	{
+		destroy();
+	}
+
+	StorageBuffer::StorageBuffer(StorageBuffer &&other) noexcept
+		: handle_(other.handle_), sizeBytes_(other.sizeBytes_)
+	{
+		other.handle_ = 0;
+		other.sizeBytes_ = 0;
+	}
+
+	StorageBuffer &StorageBuffer::operator=(StorageBuffer &&other) noexcept
+	{
+		if (this != &other)
+		{
+			destroy();
+			handle_ = other.handle_;
+			sizeBytes_ = other.sizeBytes_;
+			other.handle_ = 0;
+			other.sizeBytes_ = 0;
+		}
+		return *this;
+	}
+
+	bool StorageBuffer::create(std::size_t sizeBytes)
+	{
+		destroy();
+		if (sizeBytes == 0) return false;
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			if (renderer->create_storage_buffer(sizeBytes, handle_))
+			{
+				sizeBytes_ = sizeBytes;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void StorageBuffer::destroy()
+	{
+		if (handle_ != 0)
+		{
+			if (detail::Renderer *renderer = detail::active_renderer())
+			{
+				renderer->destroy_storage_buffer(handle_);
+			}
+			handle_ = 0;
+			sizeBytes_ = 0;
+		}
+	}
+
+	bool StorageBuffer::is_valid() const
+	{
+		return handle_ != 0;
+	}
+
+	std::size_t StorageBuffer::size_bytes() const
+	{
+		return sizeBytes_;
+	}
+
+	std::uint32_t StorageBuffer::handle() const
+	{
+		return handle_;
+	}
+
+	bool StorageBuffer::upload(const void *data, std::size_t sizeBytes, std::size_t offsetBytes)
+	{
+		if (!is_valid() || sizeBytes == 0) return false;
+		if (offsetBytes + sizeBytes > sizeBytes_) return false;
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			return renderer->upload_storage_buffer(handle_, sizeBytes, data, offsetBytes > 0);
+		}
+		return false;
+	}
+
+	bool StorageBuffer::readback(void *outData, std::size_t sizeBytes, std::size_t offsetBytes) const
+	{
+		if (!is_valid() || sizeBytes == 0 || !outData) return false;
+		if (offsetBytes + sizeBytes > sizeBytes_) return false;
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			return renderer->readback_storage_buffer(handle_, offsetBytes, sizeBytes, outData);
+		}
+		return false;
+	}
+
+	bool StorageBuffer::bind(unsigned int bindingIndex) const
+	{
+		if (!is_valid()) return false;
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			renderer->bind_storage_buffer(bindingIndex, handle_);
+			return true;
+		}
+		return false;
+	}
+
+	void compute_barrier()
+	{
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			renderer->storage_barrier();
+		}
+	}
+
+	bool dispatch_compute_for(const Shader &shader,
+                             unsigned int totalItemsX, unsigned int totalItemsY, unsigned int totalItemsZ,
+                             unsigned int localSizeX, unsigned int localSizeY, unsigned int localSizeZ)
+	{
+		if (localSizeX == 0 || localSizeY == 0 || localSizeZ == 0) return false;
+		unsigned int groupsX = (totalItemsX + localSizeX - 1) / localSizeX;
+		unsigned int groupsY = (totalItemsY + localSizeY - 1) / localSizeY;
+		unsigned int groupsZ = (totalItemsZ + localSizeZ - 1) / localSizeZ;
+		return shader.dispatch_compute(groupsX, groupsY, groupsZ);
 	}
 
 	void ScreenFade::set_colour(Colour colour)
