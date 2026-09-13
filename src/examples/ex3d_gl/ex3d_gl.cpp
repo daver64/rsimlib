@@ -85,8 +85,11 @@ int main(int argc, char *argv[])
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
         sl::graphics_backend() != sl::GraphicsBackend::opengl)
     {
-        std::fprintf(stderr, "ex3d currently requires the OpenGL backend; use --gl.\n");
-        return -1;
+        if (!sl::set_graphics_backend(sl::GraphicsBackend::opengl))
+        {
+            std::fprintf(stderr, "ex3d_gl requires the OpenGL backend; use --gl.\n");
+            return -1;
+        }
     }
     if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
         return -1;

@@ -96,8 +96,10 @@ cmake --build build --target vulkan_shader_validation
 ## Direct 3D Escape Hatches
 
 `simlib` provides examples demonstrating direct 3D graphics without imposing a rigid 3D engine layer:
-- **[`ex3d`](../src/examples/ex3d/ex3d.cpp)**: Direct OpenGL 3D with VAO/VBOs, custom depth testing, and GLM camera matrices.
+- **[`ex3d_gl`](../src/examples/ex3d_gl/ex3d_gl.cpp)**: Direct OpenGL 3D with VAO/VBOs, custom depth testing, and GLM camera matrices.
 - **[`ex3d_vulkan`](../src/examples/ex3d_vulkan/ex3d_vulkan.cpp)**: Direct Vulkan 3D using the engine's shared Vulkan device, swapchain, depth attachments, custom pipelines, and MVP push constants.
+- **[`ex3d_d3d11`](../src/examples/ex3d_d3d11/ex3d_d3d11.cpp)**: Direct3D 11 3D escape hatch.
+- **[`ex3d_d3d12`](../src/examples/ex3d_d3d12/ex3d_d3d12.cpp)**: Direct3D 12 3D escape hatch.
 
 ---
 

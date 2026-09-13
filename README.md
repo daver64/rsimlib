@@ -127,8 +127,10 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
 ./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
-./build/ex3d            # Direct OpenGL 3D escape hatch
+./build/ex3d_gl         # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
+./build/ex3d_d3d11      # Direct Direct3D 11 3D escape hatch
+./build/ex3d_d3d12      # Direct Direct3D 12 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
 ./build/sltest          # Sample game: menu, physics playground, Lua console
 ./build/slpack          # CLI asset-packing tool
@@ -167,8 +169,10 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
-- **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
+- **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
+- **[`ex3d_d3d11`](src/examples/ex3d_d3d11/ex3d_d3d11.cpp)** — Direct3D 11 3D rendering escape hatch.
+- **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
 
 ---

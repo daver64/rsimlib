@@ -393,8 +393,8 @@ target_link_libraries(exresources PRIVATE simlib)
 add_executable(expostprocess src/examples/expostprocess/expostprocess.cpp)
 target_link_libraries(expostprocess PRIVATE simlib)
 
-add_executable(ex3d src/examples/ex3d/ex3d.cpp)
-target_link_libraries(ex3d PRIVATE simlib)
+add_executable(ex3d_gl src/examples/ex3d_gl/ex3d_gl.cpp)
+target_link_libraries(ex3d_gl PRIVATE simlib)
 
 add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
 target_include_directories(ex3d_vulkan PRIVATE src/engine)
@@ -402,6 +402,24 @@ target_compile_definitions(ex3d_vulkan PRIVATE
     SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
 )
 target_link_libraries(ex3d_vulkan PRIVATE simlib)
+
+if(WIN32)
+    add_executable(ex3d_d3d11 src/examples/ex3d_d3d11/ex3d_d3d11.cpp)
+    target_include_directories(ex3d_d3d11 PRIVATE src/engine)
+    target_link_libraries(ex3d_d3d11 PRIVATE simlib d3d11 dxgi d3dcompiler)
+
+    add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
+    target_include_directories(ex3d_d3d12 PRIVATE src/engine)
+    target_link_libraries(ex3d_d3d12 PRIVATE simlib d3d12 dxgi d3dcompiler)
+else()
+    add_executable(ex3d_d3d11 src/examples/ex3d_d3d11/ex3d_d3d11.cpp)
+    target_include_directories(ex3d_d3d11 PRIVATE src/engine)
+    target_link_libraries(ex3d_d3d11 PRIVATE simlib)
+
+    add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
+    target_include_directories(ex3d_d3d12 PRIVATE src/engine)
+    target_link_libraries(ex3d_d3d12 PRIVATE simlib)
+endif()
 
 add_executable(client_template src/examples/client_template/client_template.cpp)
 target_link_libraries(client_template PRIVATE simlib)
