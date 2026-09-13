@@ -406,24 +406,32 @@ struct DungeonLevel
     Position stairs_up;
     Position stairs_down;
 
-    DungeonLevel()
+    DungeonLevel(int w = DUNGEON_WIDTH, int h = DUNGEON_HEIGHT)
+        : width(w), height(h)
     {
-        tiles.resize(
-            width * height);
+        if (width > 0 && height > 0)
+        {
+            const std::size_t sw = static_cast<std::size_t>(width);
+            const std::size_t sh = static_cast<std::size_t>(height);
+            if (sw <= std::numeric_limits<std::size_t>::max() / sh)
+            {
+                tiles.resize(sw * sh);
+            }
+        }
     }
 
     Tile &at(
         int x,
         int y)
     {
-        return tiles[y * width + x];
+        return tiles[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
     }
 
     const Tile &at(
         int x,
         int y) const
     {
-        return tiles[y * width + x];
+        return tiles[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
     }
 
     bool inside(
