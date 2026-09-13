@@ -123,6 +123,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
 ./build/excafluid       # Cellular Automata fluid, falling sand, chemistry, and Box2D
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
+./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/ex3d            # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
@@ -132,6 +133,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ```
 
 ### Example Walkthrough Source Links
+- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
 - **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular Automata fluid, falling sand, chemistry, and Box2D buoyancy.
 - **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
 - **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`.
@@ -159,6 +161,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
+- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`ex3d`](src/examples/ex3d/ex3d.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
