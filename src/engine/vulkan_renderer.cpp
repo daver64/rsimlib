@@ -231,30 +231,7 @@ namespace sl::detail
                 }
                 drawable_width_ = width;
                 drawable_height_ = height;
-                for (auto &[handle, target] : render_targets_)
-                {
-                    context_.destroy_sampler(target.sampler);
-                    context_.destroy_framebuffer(target.framebuffer);
-                    context_.destroy_image(target.image);
-                }
-                render_targets_.clear();
-                for (VulkanGraphicsPipeline &pipeline : pipelines_)
-                    context_.destroy_graphics_pipeline(pipeline);
-                context_.destroy_graphics_pipeline(lighting_pipeline_);
-                context_.destroy_graphics_pipeline(vignette_effect_.pipeline);
-                context_.destroy_graphics_pipeline(bright_effect_.pipeline);
-                context_.destroy_graphics_pipeline(blur_effect_.pipeline);
-                context_.destroy_graphics_pipeline(composite_effect_.pipeline);
                 if (!context_.recreate_swapchain(width, height, last_error_))
-                {
-                    error = last_error_;
-                    return false;
-                }
-                    if (!create_pipelines(last_error_) ||
-                        !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
-                            lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, last_error_,
-                            &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)) ||
-                        !create_effect_pipelines(last_error_))
                 {
                     error = last_error_;
                     return false;
@@ -1157,17 +1134,21 @@ namespace sl::detail
                     const auto texture_iterator = textures_.find(handle);
                     if (texture_iterator != textures_.end())
                     {
+                        if (!prepare_texture(texture_iterator->second.image))
+                            return false;
                         image = texture_iterator->second.image;
                         sampler = texture_iterator->second.sampler;
-                        return prepare_texture(image);
+                        return true;
                     }
-                    for (const auto &[framebuffer, target] : render_targets_)
+                    for (auto &[framebuffer, target] : render_targets_)
                     {
                         if (target.texture_handle == handle)
                         {
+                            if (!prepare_texture(target.image))
+                                return false;
                             image = target.image;
                             sampler = target.sampler;
-                            return prepare_texture(image);
+                            return true;
                         }
                     }
                     last_error_ = "Vulkan sampled texture handle is not registered.";
@@ -1289,9 +1270,7 @@ namespace sl::detail
                 if (texture_iterator != textures_.end())
                 {
                     descriptor = texture_iterator->second.descriptor;
-                    VulkanImage image = texture_iterator->second.image;
-                    VulkanSampler sampler = texture_iterator->second.sampler;
-                    if (!prepare_texture(image))
+                    if (!prepare_texture(texture_iterator->second.image))
                     {
                         batch_vertices_.clear();
                         return;
@@ -1299,13 +1278,11 @@ namespace sl::detail
                 }
                 else
                 {
-                    for (const auto &[handle, target] : render_targets_)
+                    for (auto &[handle, target] : render_targets_)
                     {
                         if (target.texture_handle == texture_handle)
                         {
-                            VulkanImage image = target.image;
-                            VulkanSampler sampler = target.sampler;
-                            if (!prepare_texture(image))
+                            if (!prepare_texture(target.image))
                             {
                                 batch_vertices_.clear();
                                 return;
@@ -1495,12 +1472,10 @@ namespace sl::detail
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
                 flush_2d();
-                if (active_program_ == cull_program_)
+                if (binding >= 2 && binding <= 4)
                 {
-                    if (binding < 2 || binding > 4) return;
                     storage_handles_[binding - 2] = buffer;
                     update_storage_descriptor();
-                    return;
                 }
                 const auto iterator = dynamic_compute_programs_.find(active_program_);
                 if (iterator != dynamic_compute_programs_.end())

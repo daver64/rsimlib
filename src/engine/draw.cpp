@@ -767,13 +767,14 @@ namespace sl
 		{
 			return;
 		}
-		for (int y = 0; y < bitmap->height; ++y)
-		{
-			for (int x = 0; x < bitmap->width; ++x)
-			{
-				putpixel(bitmap, x, y, colour);
-			}
-		}
+		const std::uint32_t packed = static_cast<std::uint32_t>(colour.red) |
+									 (static_cast<std::uint32_t>(colour.green) << 8) |
+									 (static_cast<std::uint32_t>(colour.blue) << 16) |
+									 (static_cast<std::uint32_t>(colour.alpha) << 24);
+		std::uint32_t *dst = reinterpret_cast<std::uint32_t *>(bitmap->pixels.data());
+		const std::size_t count = bitmap->pixels.size() / 4;
+		std::fill_n(dst, count, packed);
+		bitmap->ram_dirty = true;
 	}
 
 	/** Set one pixel in a bitmap. */

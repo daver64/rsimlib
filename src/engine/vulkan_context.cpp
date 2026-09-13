@@ -605,9 +605,6 @@ namespace sl::detail
         }
         if (image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
             return true;
-        std::fprintf(stderr, "Vulkan sample barrier image=%llx tracked=%d\n",
-            static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(image.image)),
-            static_cast<int>(image.layout));
         if (render_pass_active_)
         {
             vkCmdEndRenderPass(command_buffer_);

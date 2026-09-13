@@ -35,24 +35,28 @@ void ensure_overworld_connectivity(
     const int dx[4] = {1, -1, 0, 0};
     const int dy[4] = {0, 0, 1, -1};
 
-    while (head < queue.size())
-    {
-        Position curr = queue[head++];
-        for (int i = 0; i < 4; ++i)
+    auto flood_fill = [&]() {
+        while (head < queue.size())
         {
-            int nx = curr.x + dx[i];
-            int ny = curr.y + dy[i];
-            if (game.overworld.inside(nx, ny))
+            Position curr = queue[head++];
+            for (int i = 0; i < 4; ++i)
             {
-                std::size_t idx = index(nx, ny);
-                if (!reachable[idx] && !game.overworld.at(nx, ny).blocks_movement)
+                int nx = curr.x + dx[i];
+                int ny = curr.y + dy[i];
+                if (game.overworld.inside(nx, ny))
                 {
-                    reachable[idx] = true;
-                    queue.push_back({nx, ny});
+                    std::size_t idx = index(nx, ny);
+                    if (!reachable[idx] && !game.overworld.at(nx, ny).blocks_movement)
+                    {
+                        reachable[idx] = true;
+                        queue.push_back({nx, ny});
+                    }
                 }
             }
         }
-    }
+    };
+
+    flood_fill();
 
     for (const Position &entrance : entrances)
     {
@@ -61,23 +65,8 @@ void ensure_overworld_connectivity(
             continue;
         }
 
-        int best_x = start_x;
-        int best_y = start_y;
-        int min_dist = std::numeric_limits<int>::max();
-
-        for (std::size_t i = 0; i < queue.size(); ++i)
-        {
-            int dist = std::abs(queue[i].x - entrance.x) + std::abs(queue[i].y - entrance.y);
-            if (dist < min_dist)
-            {
-                min_dist = dist;
-                best_x = queue[i].x;
-                best_y = queue[i].y;
-            }
-        }
-
-        int cx = best_x;
-        int cy = best_y;
+        int cx = entrance.x;
+        int cy = entrance.y;
 
         auto carve_tile = [&](int x, int y) {
             Tile &tile = game.overworld.at(x, y);
@@ -104,35 +93,18 @@ void ensure_overworld_connectivity(
             }
         };
 
-        while (cx != entrance.x)
+        while (cx != start_x || cy != start_y)
         {
-            cx += (entrance.x > cx) ? 1 : -1;
+            if (reachable[index(cx, cy)])
+            {
+                break;
+            }
             carve_tile(cx, cy);
-        }
-        while (cy != entrance.y)
-        {
-            cy += (entrance.y > cy) ? 1 : -1;
-            carve_tile(cx, cy);
+            if (cx != start_x) cx += (start_x > cx) ? 1 : -1;
+            else if (cy != start_y) cy += (start_y > cy) ? 1 : -1;
         }
 
-        while (head < queue.size())
-        {
-            Position curr = queue[head++];
-            for (int i = 0; i < 4; ++i)
-            {
-                int nx = curr.x + dx[i];
-                int ny = curr.y + dy[i];
-                if (game.overworld.inside(nx, ny))
-                {
-                    std::size_t idx = index(nx, ny);
-                    if (!reachable[idx] && !game.overworld.at(nx, ny).blocks_movement)
-                    {
-                        reachable[idx] = true;
-                        queue.push_back({nx, ny});
-                    }
-                }
-            }
-        }
+        flood_fill();
     }
 }
 
@@ -224,9 +196,15 @@ void generate_overworld(Game &game)
     }
 
     std::vector<Position> entrance_positions;
-    int entrances = 0;
 
-    while (entrances < 24)
+    // Guaranteed dungeon entrance right next to player spawn
+    set_tile(game.overworld.at(257, 256), Terrain::DungeonEntrance);
+    entrance_positions.push_back({257, 256});
+
+    int entrances = 1;
+    int attempts = 0;
+
+    while (entrances < 24 && ++attempts < 2000)
     {
         const int x = random_int(10, WORLD_WIDTH - 11);
         const int y = random_int(10, WORLD_HEIGHT - 11);

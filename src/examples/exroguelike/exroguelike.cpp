@@ -76,6 +76,9 @@ static void initialise_game(
     generate_overworld(
         game);
 
+    update_camera(
+        game);
+
     update_fov(
         game);
 
@@ -117,75 +120,69 @@ int main(int argc, char *argv[])
         game);
 
     bool running = true;
-    bool dirty = true;
 
     while (running)
     {
         sl::Event event;
-        bool player_acted = false;
 
         while (sl::poll_event(&event))
         {
             if (event.type() == sl::Event::Type::quit ||
-                (event.type() == sl::Event::Type::key_down && event.key() == sl::Event::Key::escape))
+                (event.type() == sl::Event::Type::key_down &&
+                 (event.key() == sl::Event::Key::escape || event.key() == sl::Event::Key::letter_q)))
             {
                 running = false;
+                break;
             }
 
             if (handle_input(game, event))
             {
-                player_acted = true;
+                game.game_time += 0.1f;
+                advance_turn(game);
+                update_camera(game);
+                update_fov(game);
+                build_lights(game);
             }
 
             sl::display_handle_event(event);
         }
 
-        if (player_acted)
+        if (!running)
         {
-            game.game_time += 0.1f;
-            advance_turn(game);
-            update_fov(game);
-            build_lights(game);
-            dirty = true;
+            break;
         }
 
-        if (dirty)
+        if (scene)
         {
-            if (scene)
-            {
-                sl::begin_render_target(scene);
-                sl::clear_render_target(sl::Colour{10, 10, 15, 255});
+            sl::begin_render_target(scene);
+            sl::clear_render_target(sl::Colour{10, 10, 15, 255});
 
-                render_map(game);
+            render_map(scene, game);
 
-                sl::end_render_target();
+            sl::end_render_target();
 
-                sl::clear_to_colour(sl::screen, sl::Colour{10, 10, 15, 255});
+            sl::clear_to_colour(sl::screen, sl::Colour{10, 10, 15, 255});
 
-                const float ambient = (game.area_type == AreaType::Overworld) ? (game.night ? 0.40f : 0.85f) : 0.25f;
-                lighting_pass.set_ambient(ambient);
+            const float ambient = (game.area_type == AreaType::Overworld) ? (game.night ? 0.40f : 0.85f) : 0.25f;
+            lighting_pass.set_ambient(ambient);
 
-                auto lights = build_simlib_lights(game);
-                auto casters = build_simlib_shadow_casters(game);
-                lighting_pass.apply(scene, lights, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, casters);
+            auto lights = build_simlib_lights(game);
+            auto casters = build_simlib_shadow_casters(game);
+            lighting_pass.apply(scene, lights, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, casters);
 
-                render_ui(game);
-            }
-            else
-            {
-                sl::clear_to_colour(sl::screen, sl::Colour{10, 10, 15, 255});
-                render_game(game);
-            }
-
-            sl::show_video_bitmap();
-            sl::end_frame();
-            dirty = false;
+            render_ui(sl::screen, game);
         }
         else
         {
-            sl::rest(10);
+            sl::clear_to_colour(sl::screen, sl::Colour{10, 10, 15, 255});
+            render_game(sl::screen, game);
         }
+
+        sl::show_video_bitmap();
+        sl::end_frame();
     }
+
+    sl::wait_for_graphics();
 
     if (scene)
     {

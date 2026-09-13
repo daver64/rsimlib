@@ -451,7 +451,9 @@ bool use_stairs(Game &game)
         {
             enter_dungeon(game);
             populate_dungeon(game);
+            update_camera(game);
             update_fov(game);
+            build_lights(game);
             return true;
         }
     }
@@ -461,7 +463,9 @@ bool use_stairs(Game &game)
         {
             descend_dungeon(game);
             populate_dungeon(game);
+            update_camera(game);
             update_fov(game);
+            build_lights(game);
             return true;
         }
 
@@ -469,7 +473,9 @@ bool use_stairs(Game &game)
         {
             ascend_dungeon(game);
             populate_dungeon(game);
+            update_camera(game);
             update_fov(game);
+            build_lights(game);
             return true;
         }
     }
@@ -499,8 +505,8 @@ void build_lights(Game &game)
     game.lighting.clear();
 
     game.lighting.add_point_light(
-        static_cast<float>(game.player.position.x),
-        static_cast<float>(game.player.position.y),
+        static_cast<float>(game.player.position.x) + 0.5f,
+        static_cast<float>(game.player.position.y) + 0.5f,
         9.0f,
         Colours::TorchLight,
         1000.0f,
@@ -535,8 +541,8 @@ void build_lights(Game &game)
     }
 
     game.lighting.update(
-        static_cast<float>(game.player.position.x),
-        static_cast<float>(game.player.position.y),
+        static_cast<float>(game.player.position.x) + 0.5f,
+        static_cast<float>(game.player.position.y) + 0.5f,
         game.game_time);
 }
 
@@ -552,8 +558,8 @@ std::vector<sl::Light> build_simlib_lights(Game &game)
         if (!light.active) continue;
 
         sl::Light sl_light;
-        sl_light.x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH + CELL_WIDTH * 0.5f;
-        sl_light.y = static_cast<float>(MAP_Y) + (light.y - static_cast<float>(game.camera.y)) * CELL_HEIGHT + CELL_HEIGHT * 0.5f;
+        sl_light.x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH;
+        sl_light.y = static_cast<float>(MAP_Y) + (light.y - static_cast<float>(game.camera.y)) * CELL_HEIGHT;
         sl_light.radius = light.radius * CELL_WIDTH;
         sl_light.intensity = light.intensity;
         sl_light.shadow_softness = 2.0f;
@@ -577,8 +583,8 @@ std::vector<sl::Light> build_simlib_lights(Game &game)
         const GameLight &light = game.lighting.lights[i];
         if (!light.active) continue;
 
-        float screen_x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH + CELL_WIDTH * 0.5f;
-        float screen_y = static_cast<float>(MAP_Y) + (light.y - static_cast<float>(game.camera.y)) * CELL_HEIGHT + CELL_HEIGHT * 0.5f;
+        float screen_x = static_cast<float>(MAP_X) + (light.x - static_cast<float>(game.camera.x)) * CELL_WIDTH;
+        float screen_y = static_cast<float>(MAP_Y) + (light.y - static_cast<float>(game.camera.y)) * CELL_HEIGHT;
         float radius_px = light.radius * CELL_WIDTH;
 
         if (screen_x + radius_px < 0 || screen_x - radius_px > SCREEN_WIDTH ||
@@ -612,6 +618,11 @@ std::vector<sl::Light> build_simlib_lights(Game &game)
 std::vector<sl::ShadowCaster> build_simlib_shadow_casters(Game &game)
 {
     std::vector<sl::ShadowCaster> casters;
+    if (game.area_type != AreaType::Dungeon)
+    {
+        return casters;
+    }
+
     for (int screen_y = 0; screen_y < MAP_HEIGHT; ++screen_y)
     {
         for (int screen_x = 0; screen_x < MAP_WIDTH; ++screen_x)
@@ -622,9 +633,27 @@ std::vector<sl::ShadowCaster> build_simlib_shadow_casters(Game &game)
             Tile *tile = current_tile(game, world_x, world_y);
             if (tile && tile->visible && tile->blocks_sight)
             {
-                float px = static_cast<float>(MAP_X + screen_x * CELL_WIDTH);
-                float py = static_cast<float>(MAP_Y + screen_y * CELL_HEIGHT);
-                casters.push_back(sl::make_rectangle_shadow_caster(px, py, px + CELL_WIDTH, py + CELL_HEIGHT));
+                bool near_light = false;
+                for (int slot : game.lighting.shadow_slots)
+                {
+                    if (slot < 0 || slot >= static_cast<int>(game.lighting.lights.size())) continue;
+                    const GameLight &l = game.lighting.lights[slot];
+                    if (!l.active) continue;
+                    float dx = (world_x + 0.5f) - l.x;
+                    float dy = (world_y + 0.5f) - l.y;
+                    if (dx * dx + dy * dy <= (l.radius + 1.0f) * (l.radius + 1.0f))
+                    {
+                        near_light = true;
+                        break;
+                    }
+                }
+
+                if (near_light)
+                {
+                    float px = static_cast<float>(MAP_X + screen_x * CELL_WIDTH);
+                    float py = static_cast<float>(MAP_Y + screen_y * CELL_HEIGHT);
+                    casters.push_back(sl::make_rectangle_shadow_caster(px, py, px + CELL_WIDTH, py + CELL_HEIGHT));
+                }
             }
         }
     }
