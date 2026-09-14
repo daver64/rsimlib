@@ -25,10 +25,13 @@ int main(int argc, char *argv[])
 
     sl::Font *font = sl::get_default_monospace_font();
     const int fontheight = sl::text_height(font);
-    sl::Colour text_colour{0, 255, 0};
+    const sl::Colour heading{235, 220, 155};
+    const sl::Colour text{218, 226, 235};
+    const sl::Colour muted{145, 160, 178};
+    const sl::Colour highlight{255, 215, 92};
     sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
 
-    sl::gprintf_center(32, text_colour, "Triangle drawing examples");
+    sl::gprintf_center(32, heading, "Triangle drawing examples");
 
     sl::triangle(
         sl::screen, 100.0f, 210.0f, 220.0f, 80.0f, 340.0f, 210.0f,

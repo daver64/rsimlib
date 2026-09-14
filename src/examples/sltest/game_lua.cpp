@@ -124,7 +124,10 @@ namespace game
 
         sl::Font *font = sl::get_default_monospace_font();
         const int fontheight = sl::text_height(font);
-        const sl::Colour text_colour{0, 255, 0};
+        const sl::Colour heading{235, 220, 155};
+        const sl::Colour text{218, 226, 235};
+        const sl::Colour muted{145, 160, 178};
+        const sl::Colour highlight{255, 215, 92};
         lua_canvas.render(sl::screen);
 
         const int margin = 1;
@@ -137,10 +140,10 @@ namespace game
         int y = margin;
         for (std::size_t index = first_line; index < total_lines; ++index)
         {
-            sl::textout_cached(console_lines[index].cache, font, margin, y, text_colour, console_lines[index].text);
+            sl::textout_cached(console_lines[index].cache, font, margin, y, text, console_lines[index].text);
             y += fontheight;
         }
-        sl::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
+        sl::textout_cached(input_cache, font, margin, y, text, prompt + input_line + "_");
         apply_mode_fade();
         sl::show_video_bitmap();
         sl::end_frame();

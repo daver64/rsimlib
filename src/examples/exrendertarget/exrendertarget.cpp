@@ -36,10 +36,13 @@ int main(int argc, char *argv[])
             sl::trianglefill(target, 80, 165, 160, 45, 240, 165, {222, 92, 88});
             sl::end_render_target();
         }
-
+        const sl::Colour heading{235, 220, 155};
+        const sl::Colour text{218, 226, 235};
+        const sl::Colour muted{145, 160, 178};
+        const sl::Colour highlight{255, 215, 92};
         sl::clear_to_colour(sl::screen, {14, 18, 25});
         sl::draw_sprite(target, 240, 130);
-        sl::gprintf_center(32, {232, 236, 244}, "Render target example - press Escape to exit");
+        sl::gprintf_center(32, heading, "Render target example - press Escape to exit");
         sl::show_video_bitmap();
         sl::end_frame();
     }

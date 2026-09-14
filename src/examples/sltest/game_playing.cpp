@@ -51,7 +51,7 @@ namespace game
                 playing_vignette.initialise();
                 playing_vignette.set_radius(0.65f);
                 playing_vignette.set_softness(0.35f);
-                playing_vignette.set_intensity(0.65f);
+                playing_vignette.set_intensity(0.05f);
             }
             if (!playing_lighting.is_valid())
             {
@@ -367,7 +367,10 @@ namespace game
 
         sl::Font *font = sl::get_default_monospace_font();
         const int fontheight = sl::text_height(font);
-        sl::Colour text_colour{0, 255, 0};
+        const sl::Colour heading{235, 220, 155};
+        const sl::Colour text{218, 226, 235};
+        const sl::Colour muted{145, 160, 178};
+        const sl::Colour highlight{255, 215, 92};
         if (!post_process_ready)
         {
             sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
@@ -382,15 +385,52 @@ namespace game
             sl::screen_width()*5/6,
             1+10*fontheight,
             sl::Colour{45, 48, 56, 128});
-        sl::gprintf_center(1+fontheight,text_colour,  "Playing Mode");
-        sl::gprintf_center(1+2*fontheight,text_colour,  "Press SPACE to reset");
-        sl::gprintf_center(1+3*fontheight,text_colour,  "Click a balloon to select it, right click to unselect");
-        sl::gprintf_center(1+4*fontheight,text_colour,  "+/-: selected balloon volume, hold B: burner");
-        sl::gprintf_center(1+5*fontheight,text_colour,  "Left/right: selected balloon thrust; layered winds alternate direction");
-        sl::gprintf_center(1+6*fontheight,text_colour,  "M: toggle music, F11: toggle fullscreen");
-        sl::gprintf_center(1+7*fontheight,text_colour,  "Press ESC to return to menu");
+        sl::gprintf_center(1+fontheight, heading,  "Playing Mode");
+        sl::gprintf_center(1+2*fontheight, text,  "Press SPACE to reset");
+        sl::gprintf_center(1+3*fontheight, text,  "Click a balloon to select it, right click to unselect");
+        sl::gprintf_center(1+4*fontheight, text,  "+/-: selected balloon volume, hold B: burner");
+        sl::gprintf_center(1+5*fontheight, text,  "Left/right: selected balloon thrust; layered winds alternate direction");
+        sl::gprintf_center(1+6*fontheight, text,  "M: toggle music, F11: toggle fullscreen");
+        sl::gprintf_center(1+7*fontheight, text,  "Press ESC to return to menu");
 */
         render_objects(playing_objects);
+
+        if (post_process_ready)
+        {
+            sl::end_render_target();
+            const sl::Colour balloon_colours[] = {
+                {255, 80, 70},
+                {80, 150, 255},
+                {100, 235, 120},
+            };
+            std::vector<sl::Light> lights;
+            std::size_t balloon_index = 0;
+            for (const GameObject &object : playing_objects)
+            {
+                if (!object.is_balloon)
+                {
+                    continue;
+                }
+                sl::Light light;
+                light.x = object.x;
+                light.y = object.y;
+                light.radius = 200.0f;
+                light.intensity = 0.65f;
+                light.colour = balloon_colours[std::min(balloon_index, std::size(balloon_colours) - 1)];
+                lights.push_back(light);
+                ++balloon_index;
+            }
+            post_process_ready = sl::begin_render_target(playing_lit_scene);
+            if (post_process_ready)
+            {
+                playing_lighting.apply(playing_scene, lights, 0, 0,
+                                       sl::screen_width(), sl::screen_height());
+                sl::end_render_target();
+            }
+            playing_vignette.apply(playing_lit_scene, 0, 0,
+                                   sl::screen_width(), sl::screen_height());
+        }
+
         if (active_balloon_index < playing_objects.size())
         {
             const GameObject &active_object = playing_objects[active_balloon_index];
@@ -416,58 +456,22 @@ namespace game
                 label_x - 4, label_y,
                 label_x + label_width + 4, label_y + 3 * fontheight,
                 sl::Colour{45, 48, 56, 128});
-            sl::gprintf(label_x, label_y, text_colour, "%s", burner_line);
-            sl::gprintf(label_x, label_y + fontheight, text_colour, "%s", volume_line);
-            sl::gprintf(label_x, label_y + 2 * fontheight, text_colour, "%s", altitude_line);
-        }
-
-        if (post_process_ready)
-        {
-            sl::end_render_target();
-            const sl::Colour balloon_colours[] = {
-                {255, 80, 70},
-                {80, 150, 255},
-                {100, 235, 120},
-            };
-            std::vector<sl::Light> lights;
-            std::size_t balloon_index = 0;
-            for (const GameObject &object : playing_objects)
-            {
-                if (!object.is_balloon)
-                {
-                    continue;
-                }
-                sl::Light light;
-                light.x = object.x;
-                light.y = object.y;
-                light.radius = 200.0f;
-                light.intensity = 0.85f;
-                light.colour = balloon_colours[std::min(balloon_index, std::size(balloon_colours) - 1)];
-                lights.push_back(light);
-                ++balloon_index;
-            }
-            post_process_ready = sl::begin_render_target(playing_lit_scene);
-            if (post_process_ready)
-            {
-                playing_lighting.apply(playing_scene, lights, 0, 0,
-                                       sl::screen_width(), sl::screen_height());
-                sl::end_render_target();
-            }
-            playing_vignette.apply(playing_lit_scene, 0, 0,
-                                   sl::screen_width(), sl::screen_height());
+            sl::gprintf(label_x, label_y, text, "%s", burner_line);
+            sl::gprintf(label_x, label_y + fontheight, text, "%s", volume_line);
+            sl::gprintf(label_x, label_y + 2 * fontheight, text, "%s", altitude_line);
         }
 
         sl::rectfill(sl::screen, sl::screen_width() / 6, 0,
                      sl::screen_width() * 5 / 6,
                      1 + 10 * fontheight,
                      sl::Colour{45, 48, 56, 128});
-        sl::gprintf_center(1 + fontheight, text_colour, "Playing Mode");
-        sl::gprintf_center(1 + 2 * fontheight, text_colour, "Press SPACE to reset");
-        sl::gprintf_center(1 + 3 * fontheight, text_colour, "Click a balloon to select it, right click to unselect");
-        sl::gprintf_center(1 + 4 * fontheight, text_colour, "+/-: selected balloon volume, hold B: burner");
-        sl::gprintf_center(1 + 5 * fontheight, text_colour, "Left/right: selected balloon thrust; layered winds alternate direction");
-        sl::gprintf_center(1 + 6 * fontheight, text_colour, "M: toggle music, F11: toggle fullscreen");
-        sl::gprintf_center(1 + 7 * fontheight, text_colour, "Press ESC to return to menu");
+        sl::gprintf_center(1 + fontheight, heading, "Playing Mode");
+        sl::gprintf_center(1 + 2 * fontheight, text, "Press SPACE to reset");
+        sl::gprintf_center(1 + 3 * fontheight, text, "Click a balloon to select it, right click to unselect");
+        sl::gprintf_center(1 + 4 * fontheight, text, "+/-: selected balloon volume, hold B: burner");
+        sl::gprintf_center(1 + 5 * fontheight, text, "Left/right: selected balloon thrust; layered winds alternate direction");
+        sl::gprintf_center(1 + 6 * fontheight, text, "M: toggle music, F11: toggle fullscreen");
+        sl::gprintf_center(1 + 7 * fontheight, text, "Press ESC to return to menu");
 
         apply_mode_fade();
         sl::show_video_bitmap();
