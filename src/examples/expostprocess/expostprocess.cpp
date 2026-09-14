@@ -142,14 +142,6 @@ int main(int argc, char *argv[])
             shockwave_elapsed += elapsed;
         sl::begin_render_target(scene);
         sl::clear_render_target({18, 23, 34});
-        sl::gprintf_center(30, {232, 236, 244}, "Post-processing example");
-        sl::gprintf_center(56, {170, 185, 205}, "B: Bloom %s  V: Vignette %s  C: Colour %s  L: Blur %s",
-                           use_bloom ? "on" : "off", use_vignette ? "on" : "off",
-                           use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
-        sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  T: CRT %s",
-                           use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
-        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  F: Grain %s  X: Shockwave",
-                           use_dither ? "on" : "off", use_film_grain ? "on" : "off");
         sl::circlefill(sl::screen, 400.0f + std::cos(time) * 180.0f,
                        280.0f + std::sin(time * 1.4f) * 110.0f, 58.0f, {255, 215, 92});
         sl::circlefill(sl::screen, 180.0f, 420.0f, 34.0f, {80, 190, 255});
@@ -272,6 +264,16 @@ int main(int argc, char *argv[])
         {
             sl::draw_sprite(effect_source, 0.0f, 0.0f);
         }
+
+        sl::gprintf_center(30, {232, 236, 244}, "Post-processing example");
+        sl::gprintf_center(56, {170, 185, 205}, "B: Bloom %s  V: Vignette %s  C: Colour %s  L: Blur %s",
+                           use_bloom ? "on" : "off", use_vignette ? "on" : "off",
+                           use_colour_adjust ? "on" : "off", use_blur ? "on" : "off");
+        sl::gprintf_center(78, {170, 185, 205}, "A: Aberration %s  P: Pixelate %s  R: Radial %s  H: Haze %s  T: CRT %s",
+                           use_chromatic ? "on" : "off", use_pixelate ? "on" : "off", use_radial ? "on" : "off", use_heat ? "on" : "off", use_crt ? "on" : "off");
+        sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  F: Grain %s  X: Shockwave",
+                           use_dither ? "on" : "off", use_film_grain ? "on" : "off");
+
         sl::show_video_bitmap();
         sl::end_frame();
     }
