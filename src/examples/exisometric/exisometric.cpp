@@ -60,69 +60,130 @@ namespace
 
         void generate()
         {
-            const float center = static_cast<float>(MAP_SIZE) * 0.5f - 0.5f;
+            constexpr int MAX_LEVEL = 5;
 
             for (int y = 0; y < MAP_SIZE; ++y)
             {
                 for (int x = 0; x < MAP_SIZE; ++x)
                 {
                     IsoCell &cell = cells[y][x];
-                    float dx = static_cast<float>(x) - center;
-                    float dy = static_cast<float>(y) - center;
-                    float dist = std::sqrt(dx * dx + dy * dy);
 
-                    if (dist > 7.5f)
+                    // Distance (in blocks) to the nearest map edge; each step inward is one
+                    // less block wide, forming a stepped pyramid of concentric square layers.
+                    const int inset = std::min({x, y, MAP_SIZE - 1 - x, MAP_SIZE - 1 - y});
+                    const int level = std::min(MAX_LEVEL, inset + 1);
+
+                    cell.height = level;
+                    cell.prop = 0;
+
+                    switch (level)
                     {
+                    case 1:
                         cell.type = TerrainType::Water;
-                        cell.height = 1;
-                        cell.prop = 0;
-                    }
-                    else if (dist > 6.0f)
-                    {
+                        break;
+                    case 2:
                         cell.type = TerrainType::Sand;
-                        cell.height = 1;
-                        cell.prop = 0;
-                    }
-                    else if (dist > 3.5f)
-                    {
+                        break;
+                    case 3:
                         cell.type = TerrainType::Grass;
-                        cell.height = 2;
                         cell.prop = ((x * 5 + y * 11) % 5 == 0) ? 1 : 0; // Trees
-                    }
-                    else if (dist > 1.8f)
-                    {
+                        break;
+                    case 4:
                         cell.type = TerrainType::Dirt;
-                        cell.height = 3;
-                        cell.prop = 0;
-                    }
-                    else
-                    {
+                        break;
+                    default:
                         cell.type = TerrainType::Stone;
-                        cell.height = 4;
-                        cell.prop = (x == MAP_SIZE / 2 && y == MAP_SIZE / 2) ? 2 : 0; // Center torch
+                        break;
                     }
                 }
             }
 
-            // Add stone pillars at plateau corners
             const int mid = MAP_SIZE / 2;
-            cells[mid - 2][mid - 2].height = 5;
-            cells[mid - 2][mid - 2].type = TerrainType::Stone;
+            cells[mid][mid].prop = 2; // Center torch
+
+            // Decorative columns at the stone plateau corners
             cells[mid - 2][mid - 2].prop = 3;
-
-            cells[mid + 2][mid - 2].height = 5;
-            cells[mid + 2][mid - 2].type = TerrainType::Stone;
             cells[mid + 2][mid - 2].prop = 3;
-
-            cells[mid - 2][mid + 2].height = 5;
-            cells[mid - 2][mid + 2].type = TerrainType::Stone;
             cells[mid - 2][mid + 2].prop = 3;
-
-            cells[mid + 2][mid + 2].height = 5;
-            cells[mid + 2][mid + 2].type = TerrainType::Stone;
             cells[mid + 2][mid + 2].prop = 3;
         }
     };
+
+    bool point_in_triangle(float px, float py,
+                            float ax, float ay,
+                            float bx, float by,
+                            float cx, float cy)
+    {
+        const float d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
+        const float d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
+        const float d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+
+        const bool has_neg = (d1 < 0.0f) || (d2 < 0.0f) || (d3 < 0.0f);
+        const bool has_pos = (d1 > 0.0f) || (d2 > 0.0f) || (d3 > 0.0f);
+        return !(has_neg && has_pos);
+    }
+
+    // Tests the full visible hexagon silhouette of a column (top diamond + both side
+    // faces), not just its top face, so clicks/hovers on a block's visible side register.
+    bool point_in_column_silhouette(const sl::IsometricTransform &iso, int gx, int gy, int height,
+                                     float mx, float my)
+    {
+        const sl::IsoTileDiamond top = iso.tile_diamond(static_cast<float>(gx), static_cast<float>(gy), static_cast<float>(height));
+        const sl::IsoTileDiamond ground = iso.tile_diamond(static_cast<float>(gx), static_cast<float>(gy), 0.0f);
+
+        if (point_in_triangle(mx, my, top.top.x, top.top.y, top.right.x, top.right.y, top.bottom.x, top.bottom.y) ||
+            point_in_triangle(mx, my, top.top.x, top.top.y, top.bottom.x, top.bottom.y, top.left.x, top.left.y))
+        {
+            return true;
+        }
+
+        if (point_in_triangle(mx, my, top.left.x, top.left.y, top.bottom.x, top.bottom.y, ground.bottom.x, ground.bottom.y) ||
+            point_in_triangle(mx, my, top.left.x, top.left.y, ground.bottom.x, ground.bottom.y, ground.left.x, ground.left.y))
+        {
+            return true;
+        }
+
+        if (point_in_triangle(mx, my, top.bottom.x, top.bottom.y, top.right.x, top.right.y, ground.right.x, ground.right.y) ||
+            point_in_triangle(mx, my, top.bottom.x, top.bottom.y, ground.right.x, ground.right.y, ground.bottom.x, ground.bottom.y))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    // Picks the front-most column whose visible silhouette (top or either side face) contains
+    // the given screen point, matching the same back-to-front painter's order used for drawing.
+    bool pick_tile(const sl::IsometricTransform &iso, const WorldMap &map, float mx, float my, int &out_x, int &out_y)
+    {
+        int best_x = -1;
+        int best_y = -1;
+        float best_depth = -1.0f;
+
+        for (int y = 0; y < MAP_SIZE; ++y)
+        {
+            for (int x = 0; x < MAP_SIZE; ++x)
+            {
+                const int height = map.cells[y][x].height;
+                if (!point_in_column_silhouette(iso, x, y, height, mx, my))
+                {
+                    continue;
+                }
+
+                const float depth = sl::IsometricTransform::depth_sort_key(static_cast<float>(x), static_cast<float>(y), static_cast<float>(height));
+                if (best_x < 0 || depth > best_depth)
+                {
+                    best_depth = depth;
+                    best_x = x;
+                    best_y = y;
+                }
+            }
+        }
+
+        out_x = best_x;
+        out_y = best_y;
+        return best_x >= 0;
+    }
 
     struct RenderItem
     {
@@ -373,7 +434,7 @@ int main(int argc, char *argv[])
             }
             else if (event.type() == sl::Event::Type::mouse_button_down)
             {
-                if (event.mouse_button() == 2 || event.mouse_button() == 3)
+                if (event.mouse_button() == 2)
                 {
                     dragging = true;
                     last_mouse_x = sl::mouse_x();
@@ -381,25 +442,12 @@ int main(int argc, char *argv[])
                 }
                 else if (event.mouse_button() == 1)
                 {
-                    // Find hovered tile by testing from top layer down
                     const float mx = static_cast<float>(sl::mouse_x());
                     const float my = static_cast<float>(sl::mouse_y());
 
                     int picked_x = -1;
                     int picked_y = -1;
-
-                    for (int z = MAX_HEIGHT; z >= 0 && picked_x < 0; --z)
-                    {
-                        sl::IsoGridPoint g = iso.screen_to_grid(mx, my, static_cast<float>(z));
-                        if (g.x >= 0 && g.x < MAP_SIZE && g.y >= 0 && g.y < MAP_SIZE)
-                        {
-                            if (map.cells[g.y][g.x].height == z)
-                            {
-                                picked_x = g.x;
-                                picked_y = g.y;
-                            }
-                        }
-                    }
+                    pick_tile(iso, map, mx, my, picked_x, picked_y);
 
                     if (picked_x >= 0 && picked_y >= 0)
                     {
@@ -408,14 +456,36 @@ int main(int argc, char *argv[])
                         if (cell.type == TerrainType::Water) cell.type = TerrainType::Sand;
                     }
                 }
+                else if (event.mouse_button() == 3)
+                {
+                    const float mx = static_cast<float>(sl::mouse_x());
+                    const float my = static_cast<float>(sl::mouse_y());
+
+                    int picked_x = -1;
+                    int picked_y = -1;
+                    pick_tile(iso, map, mx, my, picked_x, picked_y);
+
+                    if (picked_x >= 0 && picked_y >= 0)
+                    {
+                        IsoCell &cell = map.cells[picked_y][picked_x];
+                        cell.height = std::max(1, cell.height - 1);
+                        if (cell.height == 1)
+                        {
+                            cell.type = TerrainType::Water;
+                            cell.prop = 0;
+                        }
+                    }
+                }
+
             }
             else if (event.type() == sl::Event::Type::mouse_button_up)
             {
-                if (event.mouse_button() == 2 || event.mouse_button() == 3)
+                if (event.mouse_button() == 2)
                 {
                     dragging = false;
                 }
             }
+
             else if (event.type() == sl::Event::Type::mouse_motion)
             {
                 if (dragging)
@@ -437,24 +507,12 @@ int main(int argc, char *argv[])
 
         torch_pulse += 0.05f;
 
-        // Hover picking detection: test layers top-to-bottom
+        // Hover picking detection: same silhouette test used for click picking
         const float mx = static_cast<float>(sl::mouse_x());
         const float my = static_cast<float>(sl::mouse_y());
         int hovered_x = -1;
         int hovered_y = -1;
-
-        for (int z = MAX_HEIGHT; z >= 0 && hovered_x < 0; --z)
-        {
-            sl::IsoGridPoint g = iso.screen_to_grid(mx, my, static_cast<float>(z));
-            if (g.x >= 0 && g.x < MAP_SIZE && g.y >= 0 && g.y < MAP_SIZE)
-            {
-                if (map.cells[g.y][g.x].height == z)
-                {
-                    hovered_x = g.x;
-                    hovered_y = g.y;
-                }
-            }
-        }
+        pick_tile(iso, map, mx, my, hovered_x, hovered_y);
 
         // Build list of all block layers across the map
         std::vector<RenderItem> items;
@@ -546,7 +604,7 @@ int main(int argc, char *argv[])
         const sl::Colour muted{145, 160, 178};
 
         sl::gprintf(24, 20, heading, "Isometric View Engine (exisometric)");
-        sl::gprintf(24, 44, text, "Left Click: Raise Block | Right/Middle Drag or WASD: Pan | +/-: Zoom (%.2fx)", iso.zoom);
+        sl::gprintf(24, 44, text, "Left Click: Raise | Right Click: Lower | Middle Drag or WASD: Pan | +/-: Zoom (%.2fx)", iso.zoom);
         sl::gprintf(24, 66, text, "T: Texture Atlas (%s) | L: Soft Lighting (%s) | R: Reset Map | Escape: Exit",
                     use_texture_atlas ? "ON" : "OFF", enable_lighting ? "ON" : "OFF");
 

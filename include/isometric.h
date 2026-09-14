@@ -210,12 +210,16 @@ namespace sl
         /**
          * @brief Calculate depth sorting key for back-to-front rendering order.
          *
-         * In isometric projection, elements with lower (X + Y + Z * factor) are behind elements
-         * with higher depth values.
+         * (X + Y) must dominate the key so that a tile which is diagonally further
+         * forward always renders after (on top of) every tile diagonally behind it,
+         * no matter how tall either column is. Z is only used to order layers within
+         * the same (x, y) column, and must never be large enough to outweigh a
+         * one-unit change in X or Y (which would let a tall column behind erroneously
+         * paint over a shorter column in front, hiding its top face).
          */
         static float depth_sort_key(float x, float y, float z = 0.0f)
         {
-            return x + y + z * 1.0001f;
+            return (x + y) * 64.0f + z;
         }
     };
 
