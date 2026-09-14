@@ -453,7 +453,14 @@ target_link_libraries(exroguelike PRIVATE simlib)
 add_executable(exisometric src/examples/exisometric/exisometric.cpp)
 target_link_libraries(exisometric PRIVATE simlib)
 
+add_executable(exconfig src/examples/exconfig/exconfig.cpp)
+target_link_libraries(exconfig PRIVATE simlib)
+
 if(BUILD_TESTING)
+    add_executable(config_test tests/config_test.cpp)
+    target_link_libraries(config_test PRIVATE simlib)
+    add_test(NAME config COMMAND config_test)
+
     add_executable(isometric_test tests/isometric_test.cpp)
     target_link_libraries(isometric_test PRIVATE simlib)
     add_test(NAME isometric COMMAND isometric_test)

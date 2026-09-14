@@ -22,7 +22,8 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 13. [Procedural FastNoise Generation](#procedural-fastnoise-generation-noiseh)
 14. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
 15. [Resource Archives](#resource-archives-resourceh)
-16. [Isometric Math & Projection](#isometric-math--projection-isometricsh)
+16. [Isometric Math & Projection](#isometric-math--projection-isometrich)
+17. [JSON Configuration](#json-configuration-configh)
 
 ---
 
@@ -815,6 +816,38 @@ namespace sl {
 
         // Depth sorting key
         static float depth_sort_key(float x, float y, float z = 0.0f);
+    };
+}
+```
+
+---
+
+## JSON Configuration ([include/config.h](include/config.h))
+
+Provides a JSON-backed application configuration document with nested dotted-key path access, typed serialization, and fallback values.
+
+```cpp
+namespace sl {
+    class Config {
+    public:
+        Config() = default;
+
+        // File I/O
+        bool load(const std::string &path);
+        bool save(const std::string &path, int indentation = 4) const;
+
+        // Key queries
+        bool contains(const std::string &key) const;
+
+        // Typed getters and setters (supporting dotted paths like "video.resolution.width")
+        template <typename Type>
+        Type get(const std::string &key, const Type &fallback) const;
+
+        template <typename Type>
+        void set(const std::string &key, const Type &value);
+
+        // Document access
+        const nlohmann::json &document() const;
     };
 }
 ```

@@ -122,6 +122,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/exparticles     # Particle emitters, fades, and gravity
 ./build/exresources     # Encrypted/compressed ZIP asset archive loading
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
+./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
 ./build/excafluid       # Cellular automata fluid mechanics, thermodynamics, phase changes etc
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
@@ -167,6 +168,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
+- **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
