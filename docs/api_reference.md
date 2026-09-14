@@ -22,6 +22,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 13. [Procedural FastNoise Generation](#procedural-fastnoise-generation-noiseh)
 14. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
 15. [Resource Archives](#resource-archives-resourceh)
+16. [Isometric Math & Projection](#isometric-math--projection-isometricsh)
 
 ---
 
@@ -776,6 +777,46 @@ public:
     std::vector<std::string> entries() const;
     std::vector<std::uint8_t> read(const std::string &name) const;
 };
+```
+
+---
+
+## Isometric Math & Projection ([include/isometric.h](include/isometric.h))
+
+Provides pure mathematical transformations between 3D isometric world grid coordinates $(x, y, z)$ and 2D screen coordinates $(sx, sy)$, diamond vertex calculations, mouse tile picking, viewport culling, and depth sorting.
+
+```cpp
+namespace sl {
+    struct IsometricConfig {
+        float tile_width = 64.0f;
+        float tile_height = 32.0f;
+        float elevation_height = 16.0f;
+    };
+
+    struct IsometricTransform {
+        IsometricConfig config;
+        float origin_x = 0.0f;
+        float origin_y = 0.0f;
+        float zoom = 1.0f;
+
+        // Forward transform: 3D grid -> 2D screen
+        IsoPoint world_to_screen(float x, float y, float z = 0.0f) const;
+        void world_to_screen(float x, float y, float z, float &sx, float &sy) const;
+
+        // Inverse transform: 2D screen -> 3D grid
+        IsoPoint screen_to_world(float sx, float sy, float z = 0.0f) const;
+        void screen_to_world(float sx, float sy, float z, float &x, float &y) const;
+        IsoGridPoint screen_to_grid(float sx, float sy, float z = 0.0f) const;
+
+        // Geometric helpers
+        IsoTileDiamond tile_diamond(float x, float y, float z = 0.0f) const;
+        IsoBounds visible_bounds(float left, float top, float right, float bottom,
+                                 float min_z = 0.0f, float max_z = 0.0f) const;
+
+        // Depth sorting key
+        static float depth_sort_key(float x, float y, float z = 0.0f);
+    };
+}
 ```
 
 ---

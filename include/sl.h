@@ -23,6 +23,7 @@
 #include "gamepad.h"
 #include "gui.h"
 #include "input.h"
+#include "isometric.h"
 #include "lua_canvas.h"
 #include "lua_runtime.h"
 #include "noise.h"

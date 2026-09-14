@@ -127,6 +127,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
 ./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
+./build/exisometric     # 2.5D isometric projection, tile picking, elevation, and 2D lighting
 ./build/ex3d_gl         # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
 ./build/ex3d_d3d11      # Direct Direct3D 11 3D escape hatch
@@ -169,6 +170,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
+- **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`ex3d_d3d11`](src/examples/ex3d_d3d11/ex3d_d3d11.cpp)** — Direct3D 11 3D rendering escape hatch.

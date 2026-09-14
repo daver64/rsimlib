@@ -450,7 +450,14 @@ add_executable(exroguelike
 target_include_directories(exroguelike PRIVATE src/examples/exroguelike)
 target_link_libraries(exroguelike PRIVATE simlib)
 
+add_executable(exisometric src/examples/exisometric/exisometric.cpp)
+target_link_libraries(exisometric PRIVATE simlib)
+
 if(BUILD_TESTING)
+    add_executable(isometric_test tests/isometric_test.cpp)
+    target_link_libraries(isometric_test PRIVATE simlib)
+    add_test(NAME isometric COMMAND isometric_test)
+
     add_executable(rdb_test tests/rdb_test.cpp)
     target_include_directories(rdb_test PRIVATE src/examples/exdb)
     target_link_libraries(rdb_test PRIVATE simlib lua sol2 SQLite::SQLite3)
