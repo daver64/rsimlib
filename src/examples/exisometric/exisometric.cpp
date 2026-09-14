@@ -136,6 +136,61 @@ namespace
         int prop = 0;
     };
 
+    int get_atlas_tile_index(TerrainType type, bool is_top_layer)
+    {
+        switch (type)
+        {
+        case TerrainType::Grass:
+            // 1-based index 2 (0-based 1) for top grass layer; 1-based index 1 (0-based 0) for dirt beneath
+            return is_top_layer ? 1 : 0;
+        case TerrainType::Dirt:
+            // 1-based index 1 (0-based 0)
+            return 0;
+        case TerrainType::Sand:
+            // 1-based index 4 (0-based 3)
+            return 3;
+        case TerrainType::Water:
+            // 1-based index 5 (0-based 4)
+            return 4;
+        case TerrainType::Stone:
+            // 1-based index 3 (0-based 2)
+            return 2;
+        case TerrainType::Wood:
+            return 24;
+        }
+        return 0;
+    }
+
+    void draw_textured_block_layer(const sl::IsometricTransform &iso, const sl::Atlas &atlas, const RenderItem &item)
+    {
+        float cx = 0.0f;
+        float cy = 0.0f;
+        const float z_top = static_cast<float>(item.gz + 1);
+        iso.world_to_screen(static_cast<float>(item.gx) + 0.5f, static_cast<float>(item.gy) + 0.5f, z_top, cx, cy);
+
+        const float dest_w = iso.config.tile_width * iso.zoom;
+        const float dest_h = (17.0f / 16.0f) * dest_w;
+        const float dest_x = cx - dest_w * 0.5f;
+        const float dest_y = cy - (iso.config.tile_height * 0.5f * iso.zoom);
+
+        const int tile_idx = get_atlas_tile_index(item.type, item.is_top_layer);
+        sl::atlas_stretch_blit(atlas, sl::screen, tile_idx,
+                               static_cast<int>(std::round(dest_x)),
+                               static_cast<int>(std::round(dest_y)),
+                               static_cast<int>(std::round(dest_w)),
+                               static_cast<int>(std::round(dest_h)));
+
+        // Highlight diamond outline
+        if (item.is_highlighted)
+        {
+            const sl::IsoTileDiamond diamond = iso.tile_diamond(static_cast<float>(item.gx), static_cast<float>(item.gy), z_top);
+            sl::line(sl::screen, diamond.top.x, diamond.top.y, diamond.right.x, diamond.right.y, {255, 255, 255}, 2.0f);
+            sl::line(sl::screen, diamond.right.x, diamond.right.y, diamond.bottom.x, diamond.bottom.y, {255, 255, 255}, 2.0f);
+            sl::line(sl::screen, diamond.bottom.x, diamond.bottom.y, diamond.left.x, diamond.left.y, {255, 255, 255}, 2.0f);
+            sl::line(sl::screen, diamond.left.x, diamond.left.y, diamond.top.x, diamond.top.y, {255, 255, 255}, 2.0f);
+        }
+    }
+
     void draw_block_layer(const sl::IsometricTransform &iso, const RenderItem &item)
     {
         const float z_top = static_cast<float>(item.gz + 1);
@@ -245,11 +300,11 @@ int main(int argc, char *argv[])
     map.generate();
 
     sl::IsometricTransform iso;
-    iso.config.tile_width = 64.0f;
-    iso.config.tile_height = 32.0f;
-    iso.config.elevation_height = 16.0f;
+    iso.config.tile_width = 48.0f;
+    iso.config.tile_height = 24.0f;
+    iso.config.elevation_height = 27.0f;
     iso.origin_x = 480.0f;
-    iso.origin_y = 170.0f;
+    iso.origin_y = 120.0f;
     iso.zoom = 1.0f;
 
     sl::Bitmap *scene = sl::create_render_target(960, 640);
@@ -260,8 +315,16 @@ int main(int argc, char *argv[])
         lighting.set_ambient(0.40f);
     }
 
+    sl::Bitmap *atlas_bitmap = sl::load_bitmap("assets/textures/atlas_iso.png");
+    sl::Atlas atlas;
+    if (atlas_bitmap)
+    {
+        atlas = sl::create_atlas(atlas_bitmap, 16, 17, 0, 0);
+    }
+
     bool running = true;
     bool enable_lighting = true;
+    bool use_texture_atlas = true;
     bool dragging = false;
     int last_mouse_x = 0;
     int last_mouse_y = 0;
@@ -291,6 +354,13 @@ int main(int argc, char *argv[])
                 else if (event.key() == sl::Event::Key::letter_l)
                 {
                     enable_lighting = !enable_lighting;
+                }
+                else if (event.key() == sl::Event::Key::letter_t)
+                {
+                    if (atlas_bitmap && atlas.tile_count > 0)
+                    {
+                        use_texture_atlas = !use_texture_atlas;
+                    }
                 }
                 else if (event.key() == sl::Event::Key::plus || event.key() == sl::Event::Key::keypad_plus || event.key() == sl::Event::Key::equals)
                 {
@@ -430,7 +500,15 @@ int main(int argc, char *argv[])
 
         for (const RenderItem &item : items)
         {
-            draw_block_layer(iso, item);
+            if (use_texture_atlas && atlas.bitmap)
+            {
+                draw_textured_block_layer(iso, atlas, item);
+            }
+            else
+            {
+                draw_block_layer(iso, item);
+            }
+
             if (item.prop != 0)
             {
                 draw_prop(iso, item.gx, item.gy, item.gz, item.prop);
@@ -469,7 +547,8 @@ int main(int argc, char *argv[])
 
         sl::gprintf(24, 20, heading, "Isometric View Engine (exisometric)");
         sl::gprintf(24, 44, text, "Left Click: Raise Block | Right/Middle Drag or WASD: Pan | +/-: Zoom (%.2fx)", iso.zoom);
-        sl::gprintf(24, 66, text, "L: 2D Soft Lighting (%s) | R: Reset Map | Escape: Exit", enable_lighting ? "ON" : "OFF");
+        sl::gprintf(24, 66, text, "T: Texture Atlas (%s) | L: Soft Lighting (%s) | R: Reset Map | Escape: Exit",
+                    use_texture_atlas ? "ON" : "OFF", enable_lighting ? "ON" : "OFF");
 
         if (hovered_x >= 0 && hovered_y >= 0)
         {
@@ -487,6 +566,10 @@ int main(int argc, char *argv[])
 
     sl::wait_for_graphics();
     lighting.shutdown();
+    if (atlas_bitmap)
+    {
+        sl::destroy_bitmap(atlas_bitmap);
+    }
     if (scene)
     {
         sl::destroy_bitmap(scene);
