@@ -126,6 +126,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
 ./build/excafluid       # Cellular automata fluid mechanics, thermodynamics, phase changes etc
 ./build/excompute       # GPU compute shader particle simulation & SSBO buffer readback
+./build/exgpuparticles  # 150k GPU compute particles with gravity wells, explosions, and glow
 ./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
 ./build/exisometric     # 2.5D isometric projection, tile picking, elevation, and 2D lighting
@@ -170,6 +171,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
+- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
