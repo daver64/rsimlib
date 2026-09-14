@@ -182,6 +182,23 @@ namespace sl
     void putpixel(Bitmap *bitmap, int x, int y, Colour colour);
     /** Read one pixel, returning a zero colour for invalid coordinates. */
     Colour getpixel(Bitmap *bitmap, int x, int y);
+    /** One screen-space point for draw_points(), e.g. a GPU-simulated particle. */
+    struct PointVertex
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        Colour colour;
+    };
+    /** Draw many single-pixel points to the screen in one batched GPU submission. */
+    void draw_points(Bitmap *bitmap, const PointVertex *points, int count);
+    /** Colour blending mode used by subsequent draw calls on the screen. */
+    enum class BlendMode
+    {
+        normal,
+        additive
+    };
+    /** Select the blend mode used when compositing subsequent draws onto the screen. */
+    void set_blend_mode(BlendMode mode);
     /** Draw an outline circle. */
     void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour, float thickness = 1.0f);
     /** Draw a filled circle. */

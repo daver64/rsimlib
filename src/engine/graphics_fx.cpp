@@ -237,10 +237,16 @@ namespace sl
 
 	bool Shader::load_compute(const std::string &computeSource)
 	{
-		return load_compute(computeSource, {});
+		return load_compute(computeSource, std::string{});
 	}
 
 	bool Shader::load_compute(const std::string &computeSource, const std::string &assetId)
+	{
+		return load_compute(computeSource, {}, assetId);
+	}
+
+	bool Shader::load_compute(const std::string &computeSource, const std::vector<ShaderUniform> &vulkanUniforms,
+							 const std::string &assetId)
 	{
 		reset();
 		detail::Renderer *renderer = detail::active_renderer();
@@ -249,8 +255,13 @@ namespace sl
 			error_ = "No active renderer is available for compute shader creation.";
 			return false;
 		}
-		return renderer->create_compute_shader(
-			detail::ShaderSource{detail::ShaderLanguage::glsl, computeSource, {}, assetId}, program_, error_);
+		std::vector<detail::ShaderUniformLayout> uniforms;
+		uniforms.reserve(vulkanUniforms.size());
+		for (const ShaderUniform &uniform : vulkanUniforms)
+			uniforms.push_back({uniform.name, uniform.offset, uniform.size});
+		detail::ShaderSource source{detail::ShaderLanguage::glsl, computeSource, {}, assetId};
+		source.vulkan_uniforms = uniforms;
+		return renderer->create_compute_shader(source, program_, error_);
 	}
 
 	bool Shader::load_compute_file(const std::string &computePath, const std::string &assetId)

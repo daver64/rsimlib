@@ -3,6 +3,8 @@
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_video.h>
 
+#include <string>
+
 #include "event.h"
 
 namespace sl
@@ -28,6 +30,8 @@ namespace sl
     bool graphics_backend_available(GraphicsBackend backend);
     /** Return the selected graphics backend. */
     GraphicsBackend graphics_backend();
+    /** Return a human-readable name for the selected graphics backend (e.g. "OpenGL", "Vulkan"). */
+    std::string graphics_backend_name();
 
     /** Create a window and initialize the drawing screen using the selected backend. */
     bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);

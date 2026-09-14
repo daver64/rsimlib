@@ -435,7 +435,7 @@ namespace sl::detail
                     set_shader_mat4(default_2d_shader_, "uProjection", projection);
                     set_shader_int(default_2d_shader_, "uTexture", 0);
                     glEnable(GL_BLEND);
-                    glBlendFunc(premultiplied_alpha_ ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    apply_blend_func();
                     glActiveTexture(GL_TEXTURE0);
                     active_2d_shader_ = default_2d_shader_;
                     last_2d_width_ = width;
@@ -463,7 +463,7 @@ namespace sl::detail
                     !set_shader_int(program, "uTexture", 0))
                     return false;
                 glEnable(GL_BLEND);
-                glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                apply_blend_func();
                 glActiveTexture(GL_TEXTURE0);
                 active_2d_shader_ = program;
                 last_2d_width_ = width;
@@ -478,7 +478,16 @@ namespace sl::detail
                 {
                     flush_2d();
                     premultiplied_alpha_ = enabled;
-                    glBlendFunc(enabled ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    apply_blend_func();
+                }
+            }
+            void set_blend_mode(BlendMode mode) override
+            {
+                if (blend_mode_ != mode)
+                {
+                    flush_2d();
+                    blend_mode_ = mode;
+                    apply_blend_func();
                 }
             }
             bool clear_frame(float red, float green, float blue, float alpha) override
@@ -776,6 +785,15 @@ namespace sl::detail
             PrimitiveType batch_primitive_ = PrimitiveType::triangles;
             std::uint32_t batch_texture_ = 0;
             bool premultiplied_alpha_ = false;
+            BlendMode blend_mode_ = BlendMode::normal;
+            /** Apply the GL blend function matching the current premultiplied-alpha/blend-mode state. */
+            void apply_blend_func()
+            {
+                if (blend_mode_ == BlendMode::additive)
+                    glBlendFunc(GL_ONE, GL_ONE);
+                else
+                    glBlendFunc(premultiplied_alpha_ ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
             std::uint32_t active_2d_shader_ = 0;
             int last_2d_width_ = -1;
             int last_2d_height_ = -1;

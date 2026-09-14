@@ -823,6 +823,37 @@ namespace sl
 		return {bitmap->pixels[offset], bitmap->pixels[offset + 1], bitmap->pixels[offset + 2], bitmap->pixels[offset + 3]};
 	}
 
+	/** Draw many single-pixel points in one batched GPU submission (e.g. GPU particle systems). */
+	void draw_points(Bitmap *bitmap, const PointVertex *points, int count)
+	{
+		if (!is_screen(bitmap) || !points || count <= 0)
+		{
+			return;
+		}
+
+		// Reused across calls so drawing 100k+ points per frame does not reallocate.
+		static std::vector<detail::GLVertex> vertices;
+		vertices.resize(static_cast<std::size_t>(count));
+		for (int i = 0; i < count; ++i)
+		{
+			float r, g, b, a;
+			colour_components(points[i].colour, r, g, b, a);
+			vertices[static_cast<std::size_t>(i)] = detail::GLVertex{points[i].x, points[i].y, 0.0f, 0.0f, r, g, b, a};
+		}
+
+		detail::gl2d_begin(screen_width(), screen_height());
+		detail::gl2d_submit(detail::PrimitiveType::points, vertices.data(), count);
+	}
+
+	/** Select the blend mode used when compositing subsequent draws onto the screen. */
+	void set_blend_mode(BlendMode mode)
+	{
+		if (detail::Renderer *renderer = detail::active_renderer())
+		{
+			renderer->set_blend_mode(mode);
+		}
+	}
+
 	/** Draw an outline circle. */
 	void circle(Bitmap *bitmap, float x, float y, float radius, Colour colour, float thickness)
 	{

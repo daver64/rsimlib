@@ -66,6 +66,15 @@ namespace sl
         bool load_compute(const std::string &computeSource);
         /** Compile and link a named built-in compute shader asset, replacing the current program. */
         bool load_compute(const std::string &computeSource, const std::string &assetId);
+        /**
+         * Compile and link a compute shader that uses `layout(push_constant)` uniforms on Vulkan.
+         * On Vulkan, `vulkanUniforms` maps named push-constant fields (matching a block the
+         * compute source itself declares) to offsets settable via set_uniform(); the GLSL text
+         * must be Vulkan-valid (no loose `uniform` globals). On OpenGL, `vulkanUniforms` is
+         * ignored and plain `uniform` globals in the same source work as usual.
+         */
+        bool load_compute(const std::string &computeSource, const std::vector<ShaderUniform> &vulkanUniforms,
+                          const std::string &assetId = {});
         /** Load and compile a compute GLSL source file. */
         bool load_compute_file(const std::string &computePath, const std::string &assetId = {});
         /** Delete the program and clear its error state. */

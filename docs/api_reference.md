@@ -343,6 +343,30 @@ void flood_fill(Bitmap *bitmap, int x, int y, Colour colour);
 ```
 - **Description**: Writes or reads an individual pixel, or performs a 4-way flood fill starting at `(x, y)`.
 
+#### `draw_points(bitmap, points, count)`
+```cpp
+struct PointVertex { float x, y; Colour colour; };
+void draw_points(Bitmap *bitmap, const PointVertex *points, int count);
+```
+- **Description**: Draws many single-pixel points to the screen in one batched GPU submission (e.g. a CPU-readback GPU particle system). Only supported on `sl::screen`; unlike `putpixel()`, this issues a single draw call for the whole array instead of one per point.
+
+#### `set_blend_mode(mode)`
+```cpp
+enum class BlendMode { normal, additive };
+void set_blend_mode(BlendMode mode);
+```
+- **Description**: Selects the colour-blending mode for subsequent draws (e.g. additive glow for particles). `BlendMode::additive` is fully supported on both OpenGL and Vulkan, for points and triangle-based draws (including post-process effects like `sl::Blur`).
+
+#### `draw_points(bitmap, points, count)` / `set_blend_mode(mode)`
+```cpp
+struct PointVertex { float x = 0.0f, y = 0.0f; Colour colour; };
+void draw_points(Bitmap *bitmap, const PointVertex *points, int count);
+
+enum class BlendMode { normal, additive };
+void set_blend_mode(BlendMode mode);
+```
+- **Description**: `draw_points` submits many single-pixel points to the screen in one batched GPU call, for use cases like rendering large GPU-simulated particle systems (see `excompute`/`exgpuparticles`) without a per-point draw call. `set_blend_mode` selects additive (`GL_ONE, GL_ONE`) vs. normal alpha blending for subsequent draws, supported on both OpenGL and Vulkan.
+
 #### Sprite Drawing Functions
 ```cpp
 void draw_sprite(Bitmap *bitmap, float x, float y);

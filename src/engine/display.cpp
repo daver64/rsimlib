@@ -87,6 +87,22 @@ namespace sl
         return selected_backend;
     }
 
+    std::string graphics_backend_name()
+    {
+        switch (selected_backend)
+        {
+        case GraphicsBackend::opengl:
+            return "OpenGL";
+        case GraphicsBackend::vulkan:
+            return "Vulkan";
+        case GraphicsBackend::d3d11:
+            return "D3D11";
+        case GraphicsBackend::d3d12:
+            return "D3D12";
+        }
+        return "Unknown";
+    }
+
     bool set_gfx_mode(int driver,
                       int requestedWidth, int requestedHeight,
                       int virtualWidth, int virtualHeight)

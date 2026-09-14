@@ -436,6 +436,9 @@ target_link_libraries(slunpack PRIVATE simlib)
 add_executable(excompute src/examples/excompute/excompute.cpp)
 target_link_libraries(excompute PRIVATE simlib)
 
+add_executable(exgpuparticles src/examples/exgpuparticles/exgpuparticles.cpp)
+target_link_libraries(exgpuparticles PRIVATE simlib)
+
 add_executable(execs src/examples/execs/execs.cpp)
 target_include_directories(execs PRIVATE src/examples/execs)
 target_link_libraries(execs PRIVATE simlib)

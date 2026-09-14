@@ -192,6 +192,7 @@ namespace sl::detail
                 context_.destroy_graphics_pipeline(film_grain_effect_.pipeline);
                 context_.destroy_graphics_pipeline(bright_effect_.pipeline);
                 context_.destroy_graphics_pipeline(blur_effect_.pipeline);
+                context_.destroy_graphics_pipeline(blur_effect_additive_pipeline_);
                 context_.destroy_graphics_pipeline(composite_effect_.pipeline);
                 context_.destroy_compute_pipeline(cull_pipeline_);
                 context_.destroy_shader_module(vertex_module_);
@@ -226,11 +227,21 @@ namespace sl::detail
                     context_.destroy_shader_module(dynamic.fragment_module);
                 }
                 dynamic_programs_.clear();
+                for (auto &[handle, dynamic] : dynamic_compute_programs_)
+                {
+                    if (dynamic.descriptor_set != VK_NULL_HANDLE)
+                        context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
+                    context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
+                    context_.destroy_compute_pipeline(dynamic.pipeline);
+                    context_.destroy_shader_module(dynamic.compute_module);
+                }
+                dynamic_compute_programs_.clear();
                 context_.destroy_descriptor_pool(descriptor_pool_);
                 context_.destroy_descriptor_set_layout(descriptor_layout_);
                 context_.destroy_descriptor_set_layout(lighting_descriptor_layout_);
                 context_.destroy_descriptor_set_layout(composite_descriptor_layout_);
                 context_.destroy_storage_descriptor_layout(storage_layout_);
+
                 context_.shutdown();
                 window_ = nullptr;
             }
@@ -260,7 +271,11 @@ namespace sl::detail
                 return resize(drawable_width_, drawable_height_, error) &&
                        context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
             }
-            bool vsync_active() const override { return vsync_enabled_; }
+            // Reflects the actual chosen present mode (may fall back away from FIFO if the
+            // surface doesn't support it), not just the requested vsync_enabled_ preference, so
+            // the software frame limiter in system.cpp correctly kicks in when presentation isn't
+            // really pacing us (e.g. IMMEDIATE fallback) - otherwise the app runs fully unthrottled.
+            bool vsync_active() const override { return vsync_enabled_ && context_.present_mode_blocks_on_vsync(); }
             void present() override
             {
                 if (frame_active_)
@@ -716,6 +731,10 @@ namespace sl::detail
                 std::vector<VkDescriptorBufferInfo> buffer_infos;
                 std::vector<VkDescriptorImageInfo> image_infos;
                 std::vector<VkWriteDescriptorSet> writes;
+                // Reserved upfront: writes below store pointers into these vectors, which would be
+                // invalidated by a reallocation from a later push_back if capacity ran out.
+                buffer_infos.reserve(dynamic.bound_storage_buffers.size());
+                image_infos.reserve(dynamic.bound_storage_textures.size());
 
                 for (const auto &[binding, buffer_handle] : dynamic.bound_storage_buffers)
                 {
@@ -778,6 +797,8 @@ namespace sl::detail
             }
             bool set_shader_int(std::uint32_t program, const char *name, int value) override
             {
+                if (dynamic_compute_programs_.count(program))
+                    return set_dynamic_compute_uniform(program, name, &value, sizeof(value));
                 if (dynamic_programs_.count(program))
                     return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program == colour_adjust_effect_.program && name && std::strcmp(name, "source") == 0)
@@ -818,6 +839,8 @@ namespace sl::detail
             }
             bool set_shader_float(std::uint32_t program, const char *name, float value) override
             {
+                if (dynamic_compute_programs_.count(program))
+                    return set_dynamic_compute_uniform(program, name, &value, sizeof(value));
                 if (dynamic_programs_.count(program))
                     return set_dynamic_uniform(program, name, &value, sizeof(value));
                 if (program_kind(program) == BuiltinProgram::lighting && name && std::strcmp(name, "ambient") == 0)
@@ -969,6 +992,11 @@ namespace sl::detail
             }
             bool set_shader_float2(std::uint32_t program, const char *name, float x, float y) override
             {
+                if (dynamic_compute_programs_.count(program))
+                {
+                    const float values[2] = {x, y};
+                    return set_dynamic_compute_uniform(program, name, values, sizeof(values));
+                }
                 if (dynamic_programs_.count(program))
                 {
                     const float values[2] = {x, y};
@@ -1029,6 +1057,11 @@ namespace sl::detail
             }
             bool set_shader_int2(std::uint32_t program, const char *name, int x, int y) override
             {
+                if (dynamic_compute_programs_.count(program))
+                {
+                    const int values[2] = {x, y};
+                    return set_dynamic_compute_uniform(program, name, values, sizeof(values));
+                }
                 if (dynamic_programs_.count(program))
                 {
                     const int values[2] = {x, y};
@@ -1061,6 +1094,11 @@ namespace sl::detail
             }
             bool set_shader_float3(std::uint32_t program, const char *name, float x, float y, float z) override
             {
+                if (dynamic_compute_programs_.count(program))
+                {
+                    const float values[3] = {x, y, z};
+                    return set_dynamic_compute_uniform(program, name, values, sizeof(values));
+                }
                 if (dynamic_programs_.count(program))
                 {
                     const float values[3] = {x, y, z};
@@ -1070,6 +1108,10 @@ namespace sl::detail
             }
             bool set_shader_mat4(std::uint32_t program, const char *name, const float *matrix) override
             {
+                if (dynamic_compute_programs_.count(program) && name && matrix)
+                {
+                    return set_dynamic_compute_uniform(program, name, matrix, sizeof(float) * 16);
+                }
                 if (dynamic_programs_.count(program) && name && matrix)
                 {
                     return set_dynamic_uniform(program, name, matrix, sizeof(float) * 16);
@@ -1185,6 +1227,14 @@ namespace sl::detail
                 return set_shader_mat4(program, "uProjection", projection);
             }
             void set_premultiplied_alpha(bool) override {}
+            void set_blend_mode(BlendMode mode) override
+            {
+                if (blend_mode_ != mode)
+                {
+                    flush_2d();
+                    blend_mode_ = mode;
+                }
+            }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 flush_2d();
@@ -1487,13 +1537,44 @@ namespace sl::detail
                 }
                 if (program_kind(batch_program_) == BuiltinProgram::blur)
                 {
-                    context_.record_postprocess_draw(blur_effect_.pipeline.pipeline, blur_effect_.pipeline.layout,
+                    // The builtin blur pipeline defaults to premultiplied-alpha blending; callers
+                    // that set BlendMode::additive (e.g. sl::Blur used as an additive glow) need
+                    // the separate additive variant instead, or their glow silently barely shows.
+                    VulkanGraphicsPipeline *blur_pipeline = &blur_effect_.pipeline;
+                    if (blend_mode_ == BlendMode::additive)
+                    {
+                        if (!ensure_additive_blur_pipeline())
+                        {
+                            batch_vertices_.clear();
+                            return;
+                        }
+                        blur_pipeline = &blur_effect_additive_pipeline_;
+                    }
+                    context_.record_postprocess_draw(blur_pipeline->pipeline, blur_pipeline->layout,
                                                      buffer.buffer, descriptor, static_cast<std::uint32_t>(upload_count), postprocess_projection_.data(),
                                                      &blur_constants_, sizeof(blur_constants_), last_error_);
                     batch_vertices_.clear();
                     return;
                 }
-                const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
+                // Only points and triangles currently have additive-blend pipeline variants;
+                // triangles cover the fullscreen-quad composites used by Blur/Bloom glow.
+                const bool want_additive_points = blend_mode_ == BlendMode::additive && primitive == PrimitiveType::points;
+                const bool want_additive_triangles = blend_mode_ == BlendMode::additive && primitive == PrimitiveType::triangles;
+                if (want_additive_points && !ensure_additive_points_pipeline())
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                if (want_additive_triangles && !ensure_additive_triangles_pipeline())
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                const std::size_t pipeline_index = want_additive_points
+                                                        ? points_additive_pipeline_index_
+                                                        : want_additive_triangles
+                                                              ? triangles_additive_pipeline_index_
+                                                              : static_cast<std::size_t>(primitive);
                 if (pipeline_index >= pipelines_.size())
                 {
                     batch_vertices_.clear();
@@ -1758,6 +1839,36 @@ namespace sl::detail
                        context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
             }
 
+            // Created on first actual additive-blend points draw rather than eagerly at startup,
+            // so apps that never use it (i.e. everything except exgpuparticles) are unaffected.
+            bool ensure_additive_points_pipeline()
+            {
+                if (pipelines_[points_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
+                    return true;
+                return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points,
+                                                         pipelines_[points_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true);
+            }
+
+            // Additive-blend triangles are used by post-process effects (Blur/Bloom glow composites)
+            // drawing fullscreen quads with BlendMode::additive; without this, those draws silently
+            // fell back to the standard alpha-blend triangle pipeline and the glow barely showed up.
+            bool ensure_additive_triangles_pipeline()
+            {
+                if (pipelines_[triangles_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
+                    return true;
+                return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles,
+                                                         pipelines_[triangles_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true);
+            }
+
+            bool ensure_additive_blur_pipeline()
+            {
+                if (blur_effect_additive_pipeline_.pipeline != VK_NULL_HANDLE)
+                    return true;
+                return context_.create_graphics_pipeline(lighting_vertex_module_, blur_fragment_module_, descriptor_layout_,
+                                                         PrimitiveType::triangle_fan, blur_effect_additive_pipeline_, last_error_,
+                                                         nullptr, sizeof(BlurConstants), false, false, true);
+            }
+
             bool create_effect_pipelines(std::string &error)
             {
                 struct EffectSpec
@@ -1879,6 +1990,27 @@ namespace sl::detail
                 return unsupported();
             }
 
+            bool set_dynamic_compute_uniform(std::uint32_t program, const char *name, const void *data, std::size_t size)
+            {
+                if (!name || !data)
+                    return unsupported();
+                const auto iterator = dynamic_compute_programs_.find(program);
+                if (iterator == dynamic_compute_programs_.end())
+                    return unsupported();
+                DynamicVulkanComputeProgram &dynamic = iterator->second;
+                for (const ShaderUniformLayout &uniform : dynamic.uniform_layout)
+                {
+                    if (uniform.name == name)
+                    {
+                        if (uniform.offset + uniform.size > dynamic.push_constants.size())
+                            return unsupported();
+                        std::memcpy(dynamic.push_constants.data() + uniform.offset, data, std::min<std::size_t>(size, uniform.size));
+                        return true;
+                    }
+                }
+                return unsupported();
+            }
+
             SDL_Window *window_ = nullptr;
             unsigned int window_flags_ = 0;
             VulkanContext context_;
@@ -1926,6 +2058,10 @@ namespace sl::detail
             BuiltinEffect bright_effect_{bright_program_, {}};
             VulkanShaderModule blur_fragment_module_;
             BuiltinEffect blur_effect_{blur_program_, {}};
+            // Blur is used both for normal-blend post-process (Bloom) and additive-blend glow
+            // (e.g. exgpuparticles' sl::Blur); the builtin pipeline above is fixed to
+            // premultiplied-alpha blending, so additive callers need this separate variant.
+            VulkanGraphicsPipeline blur_effect_additive_pipeline_;
             VulkanShaderModule composite_fragment_module_;
             BuiltinEffect composite_effect_{composite_program_, {}};
             VulkanDescriptorSetLayout composite_descriptor_layout_;
@@ -1949,7 +2085,10 @@ namespace sl::detail
             std::uint32_t active_program_ = 0;
             std::unordered_map<std::uint32_t, VulkanShaderModule> shader_modules_;
             std::uint32_t next_shader_module_ = 1;
-            std::array<VulkanGraphicsPipeline, 5> pipelines_{};
+            static constexpr std::size_t points_additive_pipeline_index_ = 5;
+            static constexpr std::size_t triangles_additive_pipeline_index_ = 6;
+            std::array<VulkanGraphicsPipeline, 7> pipelines_{};
+            BlendMode blend_mode_ = BlendMode::normal;
             VulkanComputePipeline cull_pipeline_;
             VulkanStorageDescriptorLayout storage_layout_;
             std::vector<VulkanBuffer> vertex_buffers_;

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -95,6 +96,41 @@ namespace sl::detail
         }
         std::vector<VkPhysicalDevice> devices(device_count);
         vkEnumeratePhysicalDevices(instance_, &device_count, devices.data());
+
+        // Prefer an integrated GPU over a discrete one when both support presentation. On this
+        // hybrid (Optimus/PRIME) laptop, sustained heavy GPU workloads (compute + high particle
+        // counts + render-target churn) have been observed to make the NVIDIA driver's
+        // vkDeviceWaitIdle()/vkDestroySwapchainKHR() take many seconds to tens of seconds to
+        // return - the GPU is genuinely still busy at that point, not hung, so it looks like a
+        // real driver-side synchronization issue rather than anything fixable from here. The
+        // integrated GPU does not exhibit this for the same workloads.
+        // Override: SIMLIB_VULKAN_DEVICE_TYPE=discrete|integrated|any.
+        const char *forced_device_type = std::getenv("SIMLIB_VULKAN_DEVICE_TYPE");
+        auto device_score = [forced_device_type](VkPhysicalDeviceType type) -> int
+        {
+            if (forced_device_type)
+            {
+                const bool wants_discrete = std::strcmp(forced_device_type, "discrete") == 0;
+                const bool wants_integrated = std::strcmp(forced_device_type, "integrated") == 0;
+                if (wants_discrete)
+                    return type == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 3 : -1;
+                if (wants_integrated)
+                    return type == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? 3 : -1;
+            }
+            switch (type)
+            {
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+                return 3;
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                return 2;
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+                return 1;
+            default:
+                return 0;
+            }
+        };
+
+        int best_score = -1;
         for (VkPhysicalDevice candidate : devices)
         {
             unsigned int queue_count = 0;
@@ -107,13 +143,18 @@ namespace sl::detail
                 vkGetPhysicalDeviceSurfaceSupportKHR(candidate, index, surface_, &supports_surface);
                 if ((queues[index].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0 && supports_surface == VK_TRUE)
                 {
-                    physical_device_ = candidate;
-                    graphics_queue_family_ = index;
+                    VkPhysicalDeviceProperties props{};
+                    vkGetPhysicalDeviceProperties(candidate, &props);
+                    const int score = device_score(props.deviceType);
+                    if (score > best_score)
+                    {
+                        best_score = score;
+                        physical_device_ = candidate;
+                        graphics_queue_family_ = index;
+                    }
                     break;
                 }
             }
-            if (physical_device_ != VK_NULL_HANDLE)
-                break;
         }
         if (physical_device_ == VK_NULL_HANDLE)
         {
@@ -164,6 +205,13 @@ namespace sl::detail
             error = "Invalid Vulkan swapchain dimensions or context.";
             return false;
         }
+        // Skip the (fairly expensive) teardown+recreate when nothing actually changed, e.g. the
+        // caller re-confirming the same size right after initial creation.
+        if (swapchain_ != VK_NULL_HANDLE && swapchain_extent_.width == static_cast<std::uint32_t>(width) &&
+            swapchain_extent_.height == static_cast<std::uint32_t>(height))
+        {
+            return true;
+        }
         destroy_swapchain();
 
         VkSurfaceCapabilitiesKHR capabilities{};
@@ -195,14 +243,20 @@ namespace sl::detail
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, surface_, &present_mode_count, nullptr);
         std::vector<VkPresentModeKHR> present_modes(present_mode_count);
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, surface_, &present_mode_count, present_modes.data());
+        // FIFO blocks/queues presents strictly one-per-vblank; on displays/compositors that don't
+        // deliver vblank promptly (e.g. some virtual/remote desktop setups, or some NVIDIA/PRIME
+        // configurations), that queue can back up to the point where a later vkDeviceWaitIdle()
+        // has to wait many seconds to tens of seconds for it to drain. MAILBOX avoids this (still
+        // tear-free) and is preferred first; IMMEDIATE (which can tear) is preferred over FIFO
+        // next since a confirmed severe hang is worse than occasional tearing. FIFO is the last
+        // resort, used only when neither of the above is supported (it's the only mode the spec
+        // guarantees is always available).
         VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
-        if (!vsync_enabled_ &&
-            std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != present_modes.end())
+        if (std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != present_modes.end())
         {
             present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
         }
-        else if (!vsync_enabled_ &&
-                 std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != present_modes.end())
+        else if (std::find(present_modes.begin(), present_modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != present_modes.end())
         {
             present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
         }
@@ -243,6 +297,7 @@ namespace sl::detail
         }
         swapchain_format_ = surface_format.format;
         swapchain_extent_ = extent;
+        present_mode_ = present_mode;
 
         const VkFormat depth_candidates[] = {
             VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM};
@@ -2008,7 +2063,8 @@ namespace sl::detail
                                                  const VulkanStorageDescriptorLayout *storage_layout,
                                                  std::uint32_t fragment_push_constant_size,
                                                  bool three_dimensional,
-                                                 bool premultiplied_alpha)
+                                                 bool premultiplied_alpha,
+                                                 bool additive_blend)
     {
         result = {};
         if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
@@ -2106,11 +2162,13 @@ namespace sl::detail
         multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
         VkPipelineColorBlendAttachmentState blend_attachment{};
         blend_attachment.blendEnable = VK_TRUE;
-        blend_attachment.srcColorBlendFactor = premultiplied_alpha ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
-        blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        blend_attachment.srcColorBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE
+                                               : premultiplied_alpha ? VK_BLEND_FACTOR_ONE
+                                                                     : VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.dstColorBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
-        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        blend_attachment.srcAlphaBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
+        blend_attachment.dstAlphaBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
         blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -2208,6 +2266,12 @@ namespace sl::detail
 
     void VulkanContext::destroy_swapchain()
     {
+        // Nothing was ever created yet (e.g. the first call from recreate_swapchain() during
+        // initial setup) - skip silently.
+        if (swapchain_ == VK_NULL_HANDLE && render_pass_ == VK_NULL_HANDLE &&
+            command_pool_ == VK_NULL_HANDLE && image_available_ == VK_NULL_HANDLE)
+            return;
+
         if (device_ != VK_NULL_HANDLE)
         {
             vkDeviceWaitIdle(device_);
@@ -2230,6 +2294,17 @@ namespace sl::detail
             resume_render_pass_ = VK_NULL_HANDLE;
             offscreen_render_pass_ = VK_NULL_HANDLE;
             resume_offscreen_render_pass_ = VK_NULL_HANDLE;
+            for (VkImageView view : swapchain_image_views_)
+            {
+                vkDestroyImageView(device_, view, nullptr);
+            }
+            swapchain_image_views_.clear();
+            swapchain_images_.clear();
+            if (swapchain_ != VK_NULL_HANDLE)
+            {
+                vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+                swapchain_ = VK_NULL_HANDLE;
+            }
             if (image_available_ != VK_NULL_HANDLE)
                 vkDestroySemaphore(device_, image_available_, nullptr);
             if (render_finished_ != VK_NULL_HANDLE)
@@ -2245,17 +2320,6 @@ namespace sl::detail
                 vkDestroyCommandPool(device_, command_pool_, nullptr);
                 command_pool_ = VK_NULL_HANDLE;
             }
-            for (VkImageView view : swapchain_image_views_)
-            {
-                vkDestroyImageView(device_, view, nullptr);
-            }
-            swapchain_image_views_.clear();
-            swapchain_images_.clear();
-            if (swapchain_ != VK_NULL_HANDLE)
-            {
-                vkDestroySwapchainKHR(device_, swapchain_, nullptr);
-                swapchain_ = VK_NULL_HANDLE;
-            }
         }
         swapchain_format_ = VK_FORMAT_UNDEFINED;
         depth_format_ = VK_FORMAT_UNDEFINED;
@@ -2264,6 +2328,11 @@ namespace sl::detail
 
     void VulkanContext::shutdown()
     {
+        // Idempotent: VulkanRenderer::shutdown() calls this explicitly, then the ~VulkanContext()
+        // destructor calls it again when the renderer itself is destroyed.
+        if (device_ == VK_NULL_HANDLE && instance_ == VK_NULL_HANDLE)
+            return;
+
         destroy_swapchain();
         if (device_ != VK_NULL_HANDLE)
         {

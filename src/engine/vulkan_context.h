@@ -207,7 +207,8 @@ namespace sl::detail
                                       const VulkanStorageDescriptorLayout *storage_layout = nullptr,
                                       std::uint32_t fragment_push_constant_size = 0,
                                       bool three_dimensional = false,
-                                      bool premultiplied_alpha = false);
+                                      bool premultiplied_alpha = false,
+                                      bool additive_blend = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -226,6 +227,12 @@ namespace sl::detail
         VkFormat depth_format() const { return depth_format_; }
         VkCommandBuffer command_buffer() const { return command_buffer_; }
         std::uint32_t swapchain_image_count() const { return static_cast<std::uint32_t>(framebuffers_.size()); }
+        /** Whether the actual chosen present mode blocks/paces on real vsync (FIFO family) rather
+         * than presenting immediately (IMMEDIATE/MAILBOX), which needs a software frame limiter. */
+        bool present_mode_blocks_on_vsync() const
+        {
+            return present_mode_ == VK_PRESENT_MODE_FIFO_KHR || present_mode_ == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+        }
 
     private:
         VkInstance instance_ = VK_NULL_HANDLE;
@@ -235,6 +242,7 @@ namespace sl::detail
         VkQueue graphics_queue_ = VK_NULL_HANDLE;
         unsigned int graphics_queue_family_ = 0;
         VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
+        VkPresentModeKHR present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
         VkFormat swapchain_format_ = VK_FORMAT_UNDEFINED;
         VkFormat depth_format_ = VK_FORMAT_UNDEFINED;
         VkExtent2D swapchain_extent_{};

@@ -87,6 +87,7 @@ namespace sl::detail
             bool begin_2d(int, int) override { return unsupported(); }
             bool begin_shader_2d(std::uint32_t, int, int) override { return unsupported(); }
             void set_premultiplied_alpha(bool) override {}
+            void set_blend_mode(BlendMode) override {}
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 context_.clear(red, green, blue, alpha);
