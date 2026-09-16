@@ -68,6 +68,11 @@ namespace sl
                 requested = GraphicsBackend::d3d11;
             else if (argument == "--d3d12")
                 requested = GraphicsBackend::d3d12;
+            else
+            {
+                std::fprintf(stderr, "Unknown graphics backend argument: %s\n", argument.data());
+                return false;
+            }
         }
         return set_graphics_backend(requested);
     }
