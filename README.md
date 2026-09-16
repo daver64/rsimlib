@@ -83,7 +83,19 @@ sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
     libvulkan-dev glslang-tools spirv-tools
 ```
 
-Dear ImGui, Lua, sol2, and Box2D are fetched automatically via CMake's `FetchContent` — no manual setup required.
+Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's `FetchContent` — no manual setup required.
+
+### Video Playback
+
+`sl::open_video()` (see [`exvideo`](src/examples/exvideo/exvideo.cpp)) decodes MPEG1 video and MP2 audio only
+(via the bundled `pl_mpeg` decoder) — it cannot read `.mp4`/`.mov`/`.webm`/H.264 files directly. Transcode
+source footage with `ffmpeg` first:
+
+```bash
+ffmpeg -i input.mp4 -c:v mpeg1video -q:v 2 -c:a mp2 -format mpeg cutscene.mpg
+```
+
+Then play it back with `./build/exvideo cutscene.mpg [--loop]`.
 
 ### Build Commands:
 
@@ -135,6 +147,8 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/ex3d_d3d11      # Direct Direct3D 11 3D escape hatch
 ./build/ex3d_d3d12      # Direct Direct3D 12 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
+./build/exspriteeditor  # Pixel sprite/animation editor (1x1-512x512, zoom, frames, PNG spritesheet I/O)
+./build/exvideo         # MPEG1/MP2 "cutscene" video playback into a bitmap (see ffmpeg note below)
 ./build/sltest          # Sample game: menu, physics playground, Lua console
 ./build/slpack          # CLI asset-packing tool
 ./build/slunpack        # CLI asset-unpacking tool
@@ -178,6 +192,8 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
+- **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load.
+- **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — MPEG1/MP2 video decoding via `pl_mpeg` into a bitmap, with synced audio playback; see [Video Playback](#video-playback) below for the required source format.
 - **[`ex3d_d3d11`](src/examples/ex3d_d3d11/ex3d_d3d11.cpp)** — Direct3D 11 3D rendering escape hatch.
 - **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.

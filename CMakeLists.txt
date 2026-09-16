@@ -196,6 +196,15 @@ set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "Disable Box2D testbed" FORCE)
 FetchContent_MakeAvailable(box2d)
 set_target_properties(box2d PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 
+# Single-header MPEG1/MP2 decoder used by video.cpp for cutscene-style video playback.
+FetchContent_Declare(
+    pl_mpeg
+    GIT_REPOSITORY https://github.com/phoboslab/pl_mpeg.git
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(pl_mpeg)
+
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
     set(SIMLIB_TTF_TARGET SDL2_ttf::SDL2_ttf)
@@ -250,6 +259,7 @@ add_library(simlib STATIC
     src/engine/gl_renderer.cpp
     src/engine/vulkan_context.cpp
     src/engine/vulkan_renderer.cpp
+    src/engine/video.cpp
 )
 if(WIN32)
     target_sources(simlib PRIVATE
@@ -260,6 +270,7 @@ if(WIN32)
     )
 endif()
 target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(simlib PRIVATE ${pl_mpeg_SOURCE_DIR})
 if(NOT GLSLANG_VALIDATOR)
     find_program(GLSLANG_VALIDATOR glslangValidator)
 endif()
@@ -429,6 +440,9 @@ target_link_libraries(slpaint PRIVATE simlib)
 
 add_executable(exspriteeditor src/examples/exspriteeditor/exspriteeditor.cpp)
 target_link_libraries(exspriteeditor PRIVATE simlib imgui)
+
+add_executable(exvideo src/examples/exvideo/exvideo.cpp)
+target_link_libraries(exvideo PRIVATE simlib)
 
 add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
