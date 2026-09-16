@@ -427,6 +427,9 @@ target_link_libraries(client_template PRIVATE simlib)
 add_executable(slpaint src/examples/slpaint/slpaint.cpp)
 target_link_libraries(slpaint PRIVATE simlib)
 
+add_executable(exspriteeditor src/examples/exspriteeditor/exspriteeditor.cpp)
+target_link_libraries(exspriteeditor PRIVATE simlib imgui)
+
 add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
 
