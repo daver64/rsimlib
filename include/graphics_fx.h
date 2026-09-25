@@ -14,6 +14,40 @@ namespace sl
 namespace sl
 {
 
+    class PixelPallete {
+        public:
+        PixelPallete() = default;
+        ~PixelPallete() = default;
+        bool load(const std::string &filename)
+        {
+            Bitmap *bmp = load_bitmap(filename);
+            if (!bmp)
+                return false;
+
+            int numcolours=bmp->width;
+            for (int i = 0; i < numcolours; ++i)
+            {
+                const Colour col = getpixel(bmp,i,0);
+                //fprintf(stderr, "Loaded colour: R=%d, G=%d, B=%d\n", col.red, col.green, col.blue);
+                colours.emplace_back(col);
+            }
+            return true;
+        }
+        const Colour at(std::size_t index) const
+        {
+            return colours.at(index);
+        }
+        Colour &operator[](std::size_t index) 
+        {
+            return colours.at(index);
+        }
+        const size_t size() const
+        {
+            return colours.size();
+        }
+        private:
+        std::vector<Colour> colours;
+    };
     /**
      * Describes one named field inside a custom Vulkan shader's fragment
      * push-constant block, relative to the block's own start (0-based).
