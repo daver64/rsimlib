@@ -1,0 +1,33 @@
+.TH "sl::LuaScriptResult" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::LuaScriptResult
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <lua_runtime\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "bool \fBsuccess\fP = false"
+.br
+.ti -1c
+.RI "std::string \fBerror\fP"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Result of executing a Lua chunk or dispatching a Lua callback\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "std::string sl::LuaScriptResult::error"
+Error message; empty on success\&. 
+.SS "bool sl::LuaScriptResult::success = false"
+True when Lua completed without an error\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

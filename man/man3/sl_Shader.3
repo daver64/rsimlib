@@ -1,0 +1,175 @@
+.TH "sl::Shader" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Shader
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBShader\fP (const std::string &vertexSource, const std::string &fragmentSource)"
+.br
+.ti -1c
+.RI "\fBShader\fP (const \fBShader\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBShader\fP & \fBoperator=\fP (const \fBShader\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBShader\fP (\fBShader\fP &&other) noexcept"
+.br
+.ti -1c
+.RI "\fBShader\fP & \fBoperator=\fP (\fBShader\fP &&other) noexcept"
+.br
+.ti -1c
+.RI "bool \fBload\fP (const std::string &vertexSource, const std::string &fragmentSource)"
+.br
+.ti -1c
+.RI "bool \fBload\fP (const std::string &vertexSource, const std::string &fragmentSource, const std::string &assetId)"
+.br
+.ti -1c
+.RI "bool \fBload\fP (const std::string &vertexSource, const std::string &fragmentSource, const std::vector< std::string > &vulkanSamplerNames, const std::vector< \fBShaderUniform\fP > &vulkanUniforms)"
+.br
+.ti -1c
+.RI "bool \fBload_files\fP (const std::string &vertexPath, const std::string &fragmentPath, const std::vector< std::string > &vulkanSamplerNames={}, const std::vector< \fBShaderUniform\fP > &vulkanUniforms={}, const std::string &assetId={})"
+.br
+.ti -1c
+.RI "bool \fBload_compute\fP (const std::string &computeSource)"
+.br
+.ti -1c
+.RI "bool \fBload_compute\fP (const std::string &computeSource, const std::string &assetId)"
+.br
+.ti -1c
+.RI "bool \fBload_compute\fP (const std::string &computeSource, const std::vector< \fBShaderUniform\fP > &vulkanUniforms, const std::string &assetId={})"
+.br
+.ti -1c
+.RI "bool \fBload_compute_file\fP (const std::string &computePath, const std::string &assetId={})"
+.br
+.ti -1c
+.RI "void \fBreset\fP ()"
+.br
+.ti -1c
+.RI "bool \fBis_valid\fP () const"
+.br
+.ti -1c
+.RI "const std::string & \fBerror\fP () const"
+.br
+.ti -1c
+.RI "bool \fBuse\fP () const"
+.br
+.ti -1c
+.RI "bool \fBdraw_textured_quad\fP (\fBBitmap\fP *texture, float x, float y, float width, float height) const"
+.br
+.ti -1c
+.RI "bool \fBdispatch_compute\fP (unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const"
+.br
+.ti -1c
+.RI "bool \fBset_texture\fP (unsigned int unit, \fBBitmap\fP *bitmap) const"
+.br
+.ti -1c
+.RI "bool \fBset_texture\fP (const char *samplerName, unsigned int unit, \fBBitmap\fP *bitmap) const"
+.br
+.ti -1c
+.RI "bool \fBset_storage_texture\fP (unsigned int unit, \fBBitmap\fP *bitmap) const"
+.br
+.ti -1c
+.RI "bool \fBset_storage_texture\fP (const char *samplerName, unsigned int unit, \fBBitmap\fP *bitmap) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform\fP (const char *name, int value) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform\fP (const char *name, float value) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform\fP (const char *name, float x, float y) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform\fP (const char *name, int x, int y) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform\fP (const char *name, float x, float y, float z) const"
+.br
+.ti -1c
+.RI "bool \fBset_uniform_mat4\fP (const char *name, const float *matrix4x4) const"
+.br
+.in -1c
+.SS "Static Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "static void \fBstop\fP ()"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Owns and applies a shader program for the active graphics backend\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::Shader::Shader (const std::string & vertexSource, const std::string & fragmentSource)"
+Compile and link the supplied vertex and fragment GLSL sources\&. 
+.SS "sl::Shader::Shader (\fBShader\fP && other)\fC [noexcept]\fP"
+Transfer ownership of a compiled shader program\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "bool sl::Shader::dispatch_compute (unsigned int groupsX, unsigned int groupsY, unsigned int groupsZ) const"
+Dispatch this program as a compute shader\&. 
+.SS "bool sl::Shader::draw_textured_quad (\fBBitmap\fP * texture, float x, float y, float width, float height) const"
+Draw a textured quad with this shader using the active renderer\&. 
+.SS "const std::string & sl::Shader::error () const"
+Return the most recent shader compilation or linking error\&. 
+.SS "bool sl::Shader::is_valid () const"
+Return whether a linked program is available\&. 
+.SS "bool sl::Shader::load (const std::string & vertexSource, const std::string & fragmentSource)"
+Compile and link shader source, replacing the current program\&. 
+.SS "bool sl::Shader::load (const std::string & vertexSource, const std::string & fragmentSource, const std::string & assetId)"
+Compile and link a named built-in shader asset, replacing the current program\&. 
+.SS "bool sl::Shader::load (const std::string & vertexSource, const std::string & fragmentSource, const std::vector< std::string > & vulkanSamplerNames, const std::vector< \fBShaderUniform\fP > & vulkanUniforms)"
+Compile and link an arbitrary custom shader, replacing the current program\&. On Vulkan this compiles the supplied GLSL to SPIR-V at runtime (requires glslangValidator to be installed) and builds a pipeline whose fragment stage samples \fCvulkanSamplerNames\fP (in binding order 0\&.\&.N-1) and exposes \fCvulkanUniforms\fP as named push-constant fields settable via set_uniform\&. The special uniform name 'uProjection' is always available for a 4x4 matrix and does not need to be listed in \fCvulkanUniforms\fP\&. On OpenGL, \fCvulkanSamplerNames\fP and \fCvulkanUniforms\fP are ignored\&. 
+.SS "bool sl::Shader::load_compute (const std::string & computeSource)"
+Compile and link a compute shader, replacing the current program\&. 
+.SS "bool sl::Shader::load_compute (const std::string & computeSource, const std::string & assetId)"
+Compile and link a named built-in compute shader asset, replacing the current program\&. 
+.SS "bool sl::Shader::load_compute (const std::string & computeSource, const std::vector< \fBShaderUniform\fP > & vulkanUniforms, const std::string & assetId = \fC{}\fP)"
+Compile and link a compute shader that uses \fClayout(push_constant)\fP uniforms on Vulkan\&. On Vulkan, \fCvulkanUniforms\fP maps named push-constant fields (matching a block the compute source itself declares) to offsets settable via \fBset_uniform()\fP; the GLSL text must be Vulkan-valid (no loose \fCuniform\fP globals)\&. On OpenGL, \fCvulkanUniforms\fP is ignored and plain \fCuniform\fP globals in the same source work as usual\&. 
+.SS "bool sl::Shader::load_compute_file (const std::string & computePath, const std::string & assetId = \fC{}\fP)"
+Load and compile a compute GLSL source file\&. 
+.SS "bool sl::Shader::load_files (const std::string & vertexPath, const std::string & fragmentPath, const std::vector< std::string > & vulkanSamplerNames = \fC{}\fP, const std::vector< \fBShaderUniform\fP > & vulkanUniforms = \fC{}\fP, const std::string & assetId = \fC{}\fP)"
+Load vertex and fragment GLSL source files and compile them\&. 
+.SS "\fBShader\fP & sl::Shader::operator= (\fBShader\fP && other)\fC [noexcept]\fP"
+Release this program and take ownership of another shader's program\&. 
+.SS "void sl::Shader::reset ()"
+Delete the program and clear its error state\&. 
+.SS "bool sl::Shader::set_storage_texture (const char * samplerName, unsigned int unit, \fBBitmap\fP * bitmap) const"
+Bind a bitmap to an image storage unit and assign that unit index to the named image uniform\&. 
+.SS "bool sl::Shader::set_storage_texture (unsigned int unit, \fBBitmap\fP * bitmap) const"
+Bind a bitmap to an image storage unit (0\&.\&.N-1) for compute image load/store\&. Pass nullptr to unbind\&. 
+.SS "bool sl::Shader::set_texture (const char * samplerName, unsigned int unit, \fBBitmap\fP * bitmap) const"
+Bind a bitmap to a texture unit and assign that unit index to the named sampler uniform\&. 
+.SS "bool sl::Shader::set_texture (unsigned int unit, \fBBitmap\fP * bitmap) const"
+Bind a bitmap to a shader texture unit (0\&.\&.N-1)\&. Pass nullptr to unbind\&. 
+.SS "bool sl::Shader::set_uniform (const char * name, float value) const"
+Set a floating-point shader uniform\&. 
+.SS "bool sl::Shader::set_uniform (const char * name, float x, float y) const"
+Set a two-component floating-point shader uniform\&. 
+.SS "bool sl::Shader::set_uniform (const char * name, float x, float y, float z) const"
+Set a three-component floating-point shader uniform\&. 
+.SS "bool sl::Shader::set_uniform (const char * name, int value) const"
+Set an integer shader uniform\&. 
+.SS "bool sl::Shader::set_uniform (const char * name, int x, int y) const"
+Set a two-component integer shader uniform\&. 
+.SS "bool sl::Shader::set_uniform_mat4 (const char * name, const float * matrix4x4) const"
+Set a 4x4 matrix shader uniform (column-major)\&. 
+.SS "static void sl::Shader::stop ()\fC [static]\fP"
+Unbind the current shader program\&. 
+.SS "bool sl::Shader::use () const"
+Bind this shader program for subsequent OpenGL calls\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

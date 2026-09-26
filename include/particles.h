@@ -11,11 +11,17 @@ namespace sl
     /** One live particle owned by a ParticleEmitter. */
     struct Particle
     {
+        /** Current horizontal position in pixels. */
         float x = 0.0f;
+        /** Current vertical position in pixels. */
         float y = 0.0f;
+        /** Horizontal velocity in pixels per second. */
         float vx = 0.0f;
+        /** Vertical velocity in pixels per second. */
         float vy = 0.0f;
+        /** Remaining lifetime in seconds. */
         float life = 0.0f;
+        /** Lifetime assigned when the particle was spawned, in seconds. */
         float max_life = 1.0f;
     };
 
@@ -29,16 +35,20 @@ namespace sl
 
         /** Initial speed range, in pixels/second. */
         float min_speed = 20.0f;
+        /** Maximum initial speed, in pixels/second. */
         float max_speed = 80.0f;
         /** Spawn direction in degrees (0 = +x/right, -90 = up), and +/- spread around it. */
         float direction_degrees = -90.0f;
+        /** Maximum angular deviation from the configured direction, in degrees. */
         float spread_degrees = 30.0f;
 
         /** Quad size in pixels at birth and at death. */
         float start_size = 8.0f;
+        /** Quad size in pixels when the particle expires. */
         float end_size = 0.0f;
         /** Colour at birth and at death; channels (including alpha) fade linearly between them. */
         Colour start_colour{255, 255, 255, 255};
+        /** Colour at particle expiry. */
         Colour end_colour{255, 255, 255, 0};
 
         /** Added to vertical velocity every second (positive falls down). */
@@ -54,15 +64,19 @@ namespace sl
     {
     public:
         ParticleEmitter() = default;
+        /** Create an emitter from a configuration and initial pixel position. */
         explicit ParticleEmitter(const EmitterConfig &config, float x = 0.0f, float y = 0.0f);
 
         /** Move the emitter; newly spawned particles originate from this position. */
         void set_position(float x, float y);
+        /** Return the current horizontal position in pixels. */
         float x() const;
+        /** Return the current vertical position in pixels. */
         float y() const;
 
         /** Start/stop spawning new particles; existing ones keep updating/rendering. */
         void set_active(bool active);
+        /** Return whether the emitter is spawning new particles. */
         bool is_active() const;
 
         /** Instantly remove all live particles. */

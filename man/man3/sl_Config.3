@@ -1,0 +1,53 @@
+.TH "sl::Config" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Config
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <config\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "bool \fBload\fP (const std::string &path)"
+.br
+.ti -1c
+.RI "bool \fBsave\fP (const std::string &path, int indentation=4) const"
+.br
+.ti -1c
+.RI "bool \fBcontains\fP (const std::string &key) const"
+.br
+.ti -1c
+.RI "template<typename Type > Type \fBget\fP (const std::string &key, const Type &fallback) const"
+.br
+.ti -1c
+.RI "template<typename Type > void \fBset\fP (const std::string &key, const Type &value)"
+.br
+.ti -1c
+.RI "const nlohmann::json & \fBdocument\fP () const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A JSON-backed application configuration document\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "bool sl::Config::contains (const std::string & key) const"
+Return whether a dotted key path exists\&. 
+.SS "const nlohmann::json & sl::Config::document () const"
+Return the complete JSON document\&. 
+.SS "template<typename Type > Type sl::Config::get (const std::string & key, const Type & fallback) const\fC [inline]\fP"
+Return a typed value, or the supplied default when absent or invalid\&. 
+.SS "bool sl::Config::load (const std::string & path)"
+Load a JSON configuration document from disk\&. 
+.SS "bool sl::Config::save (const std::string & path, int indentation = \fC4\fP) const"
+Save the configuration document to disk\&. 
+.SS "template<typename Type > void sl::Config::set (const std::string & key, const Type & value)\fC [inline]\fP"
+Set a value at a dotted key path, creating objects as necessary\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

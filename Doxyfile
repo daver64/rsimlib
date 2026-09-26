@@ -8,13 +8,17 @@ FILE_PATTERNS          = *.h *.cpp
 RECURSIVE              = NO
 EXCLUDE                = build assets
 
-EXTRACT_ALL            = YES
-EXTRACT_PRIVATE        = YES
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
 EXTRACT_STATIC         = YES
 FULL_PATH_NAMES        = NO
 
 GENERATE_HTML          = YES
 HTML_OUTPUT            = html
+GENERATE_MAN           = YES
+MAN_OUTPUT             = man
+MAN_EXTENSION          = .3
+MAN_LINKS              = YES
 GENERATE_LATEX         = NO
 GENERATE_TREEVIEW      = YES
 

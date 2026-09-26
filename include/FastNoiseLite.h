@@ -53,9 +53,11 @@
 #include <cmath>
 #include <cstdint>
 
+/** Single-header generator for 2D/3D coherent noise and domain warping. */
 class FastNoiseLite
 {
 public:
+    /** Available base noise algorithms. */
     enum NoiseType
     {
         NoiseType_OpenSimplex2,
@@ -66,6 +68,7 @@ public:
         NoiseType_Value
     };
 
+    /** Optional coordinate rotations for 3D noise. */
     enum RotationType3D
     {
         RotationType3D_None,
@@ -73,6 +76,7 @@ public:
         RotationType3D_ImproveXZPlanes
     };
 
+    /** Fractal combination modes for noise and domain warping. */
     enum FractalType
     {
         FractalType_None,
@@ -83,6 +87,7 @@ public:
         FractalType_DomainWarpIndependent
     };
 
+    /** Distance metrics used by cellular noise. */
     enum CellularDistanceFunction
     {
         CellularDistanceFunction_Euclidean,
@@ -91,6 +96,7 @@ public:
         CellularDistanceFunction_Hybrid
     };
 
+    /** Values returned by cellular noise lookups. */
     enum CellularReturnType
     {
         CellularReturnType_CellValue,
@@ -102,6 +108,7 @@ public:
         CellularReturnType_Distance2Div
     };
 
+    /** Algorithms used to warp input coordinates. */
     enum DomainWarpType
     {
         DomainWarpType_OpenSimplex2,

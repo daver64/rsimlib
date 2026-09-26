@@ -1,0 +1,41 @@
+.TH "sl::IsometricConfig" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::IsometricConfig \- Configuration parameters for isometric projection\&.  
+
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <isometric\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "float \fBtile_width\fP = 64\&.0f"
+.br
+.ti -1c
+.RI "float \fBtile_height\fP = 32\&.0f"
+.br
+.ti -1c
+.RI "float \fBelevation_height\fP = 16\&.0f"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Configuration parameters for isometric projection\&. 
+
+Standard dimetric 2:1 isometric tiles have tile_height = tile_width / 2\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "float sl::IsometricConfig::elevation_height = 16\&.0f"
+Screen pixels per world elevation unit at zoom 1\&. 
+.SS "float sl::IsometricConfig::tile_height = 32\&.0f"
+Full height of one tile in screen pixels at zoom 1\&. 
+.SS "float sl::IsometricConfig::tile_width = 64\&.0f"
+Full width of one tile in screen pixels at zoom 1\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

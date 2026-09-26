@@ -1,0 +1,81 @@
+.TH "sl::Blur" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Blur
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBBlur\fP (const \fBBlur\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBBlur\fP & \fBoperator=\fP (const \fBBlur\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBBlur\fP (\fBBlur\fP &&other) noexcept"
+.br
+.ti -1c
+.RI "\fBBlur\fP & \fBoperator=\fP (\fBBlur\fP &&other) noexcept"
+.br
+.ti -1c
+.RI "bool \fBinitialise\fP ()"
+.br
+.ti -1c
+.RI "void \fBshutdown\fP ()"
+.br
+.ti -1c
+.RI "bool \fBis_valid\fP () const"
+.br
+.ti -1c
+.RI "const std::string & \fBerror\fP () const"
+.br
+.ti -1c
+.RI "void \fBset_radius\fP (float radius)"
+.br
+.ti -1c
+.RI "void \fBset_iterations\fP (int iterations)"
+.br
+.ti -1c
+.RI "void \fBset_opacity\fP (float opacity)"
+.br
+.ti -1c
+.RI "void \fBapply\fP (\fBBitmap\fP *source, int x=0, int y=0, int width=0, int height=0) const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Applies a separable Gaussian blur to a bitmap using two temporary targets\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::Blur::Blur (\fBBlur\fP && other)\fC [noexcept]\fP"
+Transfer ownership of the blur shader and temporary targets\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "void sl::Blur::apply (\fBBitmap\fP * source, int x = \fC0\fP, int y = \fC0\fP, int width = \fC0\fP, int height = \fC0\fP) const"
+\fBBlur\fP a bitmap region and composite the result over its source\&. 
+.SS "const std::string & sl::Blur::error () const"
+Return the most recent initialization error\&. 
+.SS "bool sl::Blur::initialise ()"
+Compile the blur shader and prepare the effect\&. 
+.SS "bool sl::Blur::is_valid () const"
+Return whether the effect is ready to apply\&. 
+.SS "\fBBlur\fP & sl::Blur::operator= (\fBBlur\fP && other)\fC [noexcept]\fP"
+Release this blur's resources and take ownership of another blur's\&. 
+.SS "void sl::Blur::set_iterations (int iterations)"
+Set the number of horizontal/vertical blur passes\&. 
+.SS "void sl::Blur::set_opacity (float opacity)"
+Set the composited blur opacity\&. 
+.SS "void sl::Blur::set_radius (float radius)"
+Set the blur radius in source-pixel units\&. 
+.SS "void sl::Blur::shutdown ()"
+Release the shader and temporary render targets\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

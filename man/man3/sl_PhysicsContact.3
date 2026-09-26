@@ -1,0 +1,48 @@
+.TH "sl::PhysicsContact" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::PhysicsContact
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <physics\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "ContactType \fBtype\fP = ContactType::begin"
+.br
+.ti -1c
+.RI "PhysicsBody * \fBbody_a\fP = nullptr"
+.br
+.ti -1c
+.RI "PhysicsBody * \fBbody_b\fP = nullptr"
+.br
+.ti -1c
+.RI "\fBVec2\fP \fBpoint\fP"
+.br
+.ti -1c
+.RI "\fBVec2\fP \fBnormal\fP"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A contact event reported by the most recent physics step\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "PhysicsBody* sl::PhysicsContact::body_a = nullptr"
+First body participating in the contact\&. 
+.SS "PhysicsBody* sl::PhysicsContact::body_b = nullptr"
+Second body participating in the contact\&. 
+.SS "\fBVec2\fP sl::PhysicsContact::normal"
+Contact normal pointing from the first body toward the second\&. 
+.SS "\fBVec2\fP sl::PhysicsContact::point"
+Contact point in screen pixels\&. 
+.SS "ContactType sl::PhysicsContact::type = ContactType::begin"
+Whether the contact began or ended\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

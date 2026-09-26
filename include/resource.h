@@ -16,7 +16,9 @@ namespace sl
 
         Archive(const Archive &) = delete;
         Archive &operator=(const Archive &) = delete;
+        /** Move the open archive state from another archive. */
         Archive(Archive &&) noexcept = default;
+        /** Close this archive and take ownership of another archive's state. */
         Archive &operator=(Archive &&) noexcept = default;
 
         /** Open a ZIP archive from disk. */

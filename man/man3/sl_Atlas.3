@@ -1,0 +1,63 @@
+.TH "sl::Atlas" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Atlas
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <atlas\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "\fBBitmap\fP * \fBbitmap\fP = nullptr"
+.br
+.ti -1c
+.RI "int \fBtile_width\fP = 0"
+.br
+.ti -1c
+.RI "int \fBtile_height\fP = 0"
+.br
+.ti -1c
+.RI "int \fBspacing\fP = 0"
+.br
+.ti -1c
+.RI "int \fBmargin\fP = 0"
+.br
+.ti -1c
+.RI "int \fBcolumns\fP = 0"
+.br
+.ti -1c
+.RI "int \fBrows\fP = 0"
+.br
+.ti -1c
+.RI "int \fBtile_count\fP = 0"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A bitmap sliced into a uniform grid of equally sized tiles\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "\fBBitmap\fP* sl::Atlas::bitmap = nullptr"
+Source bitmap; the atlas does not own it\&. 
+.SS "int sl::Atlas::columns = 0"
+Number of complete tile columns\&. 
+.SS "int sl::Atlas::margin = 0"
+Border between the bitmap edge and the first tile, in pixels\&. 
+.SS "int sl::Atlas::rows = 0"
+Number of complete tile rows\&. 
+.SS "int sl::Atlas::spacing = 0"
+Gap between adjacent tiles in pixels\&. 
+.SS "int sl::Atlas::tile_count = 0"
+Total number of tiles, in row-major order\&. 
+.SS "int sl::Atlas::tile_height = 0"
+Height of one tile in pixels\&. 
+.SS "int sl::Atlas::tile_width = 0"
+Width of one tile in pixels\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

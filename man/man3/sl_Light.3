@@ -1,0 +1,73 @@
+.TH "sl::Light" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Light
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "float \fBx\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBy\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBradius\fP = 256\&.0f"
+.br
+.ti -1c
+.RI "float \fBintensity\fP = 1\&.0f"
+.br
+.ti -1c
+.RI "float \fBshadow_softness\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBdirection_x\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBdirection_y\fP = \-1\&.0f"
+.br
+.ti -1c
+.RI "float \fBinner_angle\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBouter_angle\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "\fBColour\fP \fBcolour\fP {255, 255, 255}"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A radial or optional cone-shaped 2D light expressed in screen pixels\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "\fBColour\fP sl::Light::colour {255, 255, 255}"
+RGB light colour and alpha intensity\&. 
+.SS "float sl::Light::direction_x = 0\&.0f"
+Direction in screen space; used when the cone angles are positive\&. 
+.SS "float sl::Light::direction_y = \-1\&.0f"
+Vertical component of the spotlight direction\&. 
+.SS "float sl::Light::inner_angle = 0\&.0f"
+Inner/outer cone angles in degrees\&. Zero angles disable spotlight falloff\&. 
+.SS "float sl::Light::intensity = 1\&.0f"
+\fBLight\fP contribution multiplier\&. 
+.SS "float sl::Light::outer_angle = 0\&.0f"
+Outer spotlight cone angle in degrees\&. 
+.SS "float sl::Light::radius = 256\&.0f"
+Influence radius in screen pixels\&. 
+.SS "float sl::Light::shadow_softness = 0\&.0f"
+Softness of polygon shadow edges in screen pixels\&. 
+.SS "float sl::Light::x = 0\&.0f"
+Horizontal position in screen pixels\&. 
+.SS "float sl::Light::y = 0\&.0f"
+Vertical position in screen pixels\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

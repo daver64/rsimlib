@@ -1,0 +1,88 @@
+.TH "sl::EmitterConfig" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::EmitterConfig
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <particles\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "float \fBemit_rate\fP = 30\&.0f"
+.br
+.ti -1c
+.RI "float \fBparticle_lifetime\fP = 1\&.0f"
+.br
+.ti -1c
+.RI "float \fBmin_speed\fP = 20\&.0f"
+.br
+.ti -1c
+.RI "float \fBmax_speed\fP = 80\&.0f"
+.br
+.ti -1c
+.RI "float \fBdirection_degrees\fP = \-90\&.0f"
+.br
+.ti -1c
+.RI "float \fBspread_degrees\fP = 30\&.0f"
+.br
+.ti -1c
+.RI "float \fBstart_size\fP = 8\&.0f"
+.br
+.ti -1c
+.RI "float \fBend_size\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "\fBColour\fP \fBstart_colour\fP {255, 255, 255, 255}"
+.br
+.ti -1c
+.RI "\fBColour\fP \fBend_colour\fP {255, 255, 255, 0}"
+.br
+.ti -1c
+.RI "float \fBgravity\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "int \fBmax_particles\fP = 500"
+.br
+.ti -1c
+.RI "\fBBitmap\fP * \fBtexture\fP = nullptr"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Configures how a \fBParticleEmitter\fP spawns and evolves particles\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "float sl::EmitterConfig::direction_degrees = \-90\&.0f"
+Spawn direction in degrees (0 = +x/right, -90 = up), and +/- spread around it\&. 
+.SS "float sl::EmitterConfig::emit_rate = 30\&.0f"
+Particles spawned per second while the emitter is active\&. 
+.SS "\fBColour\fP sl::EmitterConfig::end_colour {255, 255, 255, 0}"
+\fBColour\fP at particle expiry\&. 
+.SS "float sl::EmitterConfig::end_size = 0\&.0f"
+Quad size in pixels when the particle expires\&. 
+.SS "float sl::EmitterConfig::gravity = 0\&.0f"
+Added to vertical velocity every second (positive falls down)\&. 
+.SS "int sl::EmitterConfig::max_particles = 500"
+Hard cap on live particles this emitter can own at once\&. 
+.SS "float sl::EmitterConfig::max_speed = 80\&.0f"
+Maximum initial speed, in pixels/second\&. 
+.SS "float sl::EmitterConfig::min_speed = 20\&.0f"
+Initial speed range, in pixels/second\&. 
+.SS "float sl::EmitterConfig::particle_lifetime = 1\&.0f"
+Seconds each particle lives before disappearing\&. 
+.SS "float sl::EmitterConfig::spread_degrees = 30\&.0f"
+Maximum angular deviation from the configured direction, in degrees\&. 
+.SS "\fBColour\fP sl::EmitterConfig::start_colour {255, 255, 255, 255}"
+\fBColour\fP at birth and at death; channels (including alpha) fade linearly between them\&. 
+.SS "float sl::EmitterConfig::start_size = 8\&.0f"
+Quad size in pixels at birth and at death\&. 
+.SS "\fBBitmap\fP* sl::EmitterConfig::texture = nullptr"
+Optional texture drawn per particle; nullptr draws a flat-coloured quad\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

@@ -104,6 +104,40 @@ cmake -S . -B build
 cmake --build build -j$(nproc)
 ```
 
+### Install to a Local Prefix
+
+Configure simlib with the prefix where you want it installed, then build and install the library:
+
+```bash
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt/simlib"
+cmake --build build --target simlib -j"$(nproc)"
+cmake --install build
+```
+
+The install contains the public headers, `simlib` static library, bundled ImGui/Lua/sol2/Box2D dependencies, shader assets, and a CMake package. SDL2, SDL2_ttf, SDL2_image, SDL2_mixer, OpenGL, Vulkan, PNG, and zlib remain system prerequisites; install their development packages on the machine building the application.
+
+### Configure a Consumer
+
+In the application's `CMakeLists.txt`, find the installed package and link the exported target:
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+project(my_app LANGUAGES CXX)
+
+find_package(simlib CONFIG REQUIRED)
+add_executable(my_app src/main.cpp)
+target_link_libraries(my_app PRIVATE simlib::simlib)
+```
+
+Tell CMake where the local prefix is when configuring the application:
+
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$HOME/opt/simlib"
+cmake --build build -j"$(nproc)"
+```
+
+If you change the install prefix, reconfigure simlib with the new `CMAKE_INSTALL_PREFIX` and reinstall it. The configured prefix is also used to locate the installed runtime shader assets.
+
 Run the test suite:
 
 ```bash
@@ -203,8 +237,10 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 
 ## Documentation Generation
 
-If Doxygen is installed, generate complete HTML API documentation with:
+If Doxygen is installed, generate HTML API documentation and section-3 man pages with:
 
 ```bash
 cmake --build build --target docs
 ```
+
+`cmake --install build` also generates and installs the API man pages under `${CMAKE_INSTALL_PREFIX}/share/man/man3` (or the platform's configured man directory). Doxygen documents only explicitly documented public declarations; the docs target currently completes with no undocumented-symbol warnings.

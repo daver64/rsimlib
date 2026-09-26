@@ -12,8 +12,11 @@ namespace sl
      */
     struct IsometricConfig
     {
+        /** Full width of one tile in screen pixels at zoom 1. */
         float tile_width = 64.0f;
+        /** Full height of one tile in screen pixels at zoom 1. */
         float tile_height = 32.0f;
+        /** Screen pixels per world elevation unit at zoom 1. */
         float elevation_height = 16.0f;
     };
 
@@ -22,7 +25,9 @@ namespace sl
      */
     struct IsoPoint
     {
+        /** Horizontal coordinate. */
         float x = 0.0f;
+        /** Vertical coordinate. */
         float y = 0.0f;
     };
 
@@ -31,7 +36,9 @@ namespace sl
      */
     struct IsoGridPoint
     {
+        /** Tile column. */
         int x = 0;
+        /** Tile row. */
         int y = 0;
     };
 
@@ -40,9 +47,13 @@ namespace sl
      */
     struct IsoBounds
     {
+        /** Minimum tile column, inclusive. */
         int min_x = 0;
+        /** Minimum tile row, inclusive. */
         int min_y = 0;
+        /** Maximum tile column, inclusive. */
         int max_x = 0;
+        /** Maximum tile row, inclusive. */
         int max_y = 0;
     };
 
@@ -51,9 +62,13 @@ namespace sl
      */
     struct IsoTileDiamond
     {
+        /** Top vertex in screen coordinates. */
         IsoPoint top;
+        /** Right vertex in screen coordinates. */
         IsoPoint right;
+        /** Bottom vertex in screen coordinates. */
         IsoPoint bottom;
+        /** Left vertex in screen coordinates. */
         IsoPoint left;
     };
 
@@ -68,9 +83,13 @@ namespace sl
      */
     struct IsometricTransform
     {
+        /** Tile geometry and elevation scale. */
         IsometricConfig config;
+        /** Screen-space horizontal origin in pixels. */
         float origin_x = 0.0f;
+        /** Screen-space vertical origin in pixels. */
         float origin_y = 0.0f;
+        /** Uniform zoom multiplier applied to tile and elevation dimensions. */
         float zoom = 1.0f;
 
         /**

@@ -1,0 +1,66 @@
+.TH "sl::Archive" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Archive
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <resource\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBArchive\fP (const \fBArchive\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBArchive\fP & \fBoperator=\fP (const \fBArchive\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBArchive\fP (\fBArchive\fP &&) noexcept=default"
+.br
+.ti -1c
+.RI "\fBArchive\fP & \fBoperator=\fP (\fBArchive\fP &&) noexcept=default"
+.br
+.ti -1c
+.RI "bool \fBopen\fP (const std::string &path)"
+.br
+.ti -1c
+.RI "void \fBclose\fP ()"
+.br
+.ti -1c
+.RI "bool \fBcontains\fP (const std::string &name) const"
+.br
+.ti -1c
+.RI "std::vector< std::string > \fBentries\fP () const"
+.br
+.ti -1c
+.RI "std::vector< std::uint8_t > \fBread\fP (const std::string &name) const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A read-only ZIP resource archive\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::Archive::Archive (\fBArchive\fP &&)\fC [default]\fP, \fC [noexcept]\fP"
+Move the open archive state from another archive\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "void sl::Archive::close ()"
+Close the archive and release its directory and file data\&. 
+.SS "bool sl::Archive::contains (const std::string & name) const"
+Return whether an entry exists in the archive\&. 
+.SS "std::vector< std::string > sl::Archive::entries () const"
+Return all file and directory entry names in archive order\&. 
+.SS "bool sl::Archive::open (const std::string & path)"
+Open a ZIP archive from disk\&. 
+.SS "\fBArchive\fP & sl::Archive::operator= (\fBArchive\fP &&)\fC [default]\fP, \fC [noexcept]\fP"
+Close this archive and take ownership of another archive's state\&. 
+.SS "std::vector< std::uint8_t > sl::Archive::read (const std::string & name) const"
+Read an entry into memory, returning an empty vector on failure\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

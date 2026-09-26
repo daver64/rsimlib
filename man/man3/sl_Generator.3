@@ -1,0 +1,50 @@
+.TH "sl::Generator" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Generator
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <noise\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBGenerator\fP (int seed=1337)"
+.br
+.ti -1c
+.RI "void \fBset_frequency\fP (float frequency)"
+.br
+.ti -1c
+.RI "void \fBset_type\fP (\fBFastNoiseLite::NoiseType\fP type)"
+.br
+.ti -1c
+.RI "float \fBget\fP (float x, float y) const"
+.br
+.ti -1c
+.RI "float \fBget\fP (float x, float y, float z) const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A configurable 2D/3D procedural noise generator\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::Generator::Generator (int seed = \fC1337\fP)\fC [explicit]\fP"
+Construct a noise generator with the given deterministic seed\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "float sl::Generator::get (float x, float y) const"
+Return noise in the range approximately [-1, 1]\&. 
+.SS "float sl::Generator::get (float x, float y, float z) const"
+Return 3D noise in the range approximately [-1, 1]\&. 
+.SS "void sl::Generator::set_frequency (float frequency)"
+Set the noise frequency\&. 
+.SS "void sl::Generator::set_type (\fBFastNoiseLite::NoiseType\fP type)"
+Set the \fBFastNoiseLite\fP algorithm\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

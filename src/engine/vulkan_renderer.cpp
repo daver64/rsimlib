@@ -109,7 +109,9 @@ namespace sl::detail
                     !context_.create_storage_descriptor_layout(storage_layout_, error) ||
                     !context_.create_descriptor_pool(descriptor_pool_, error))
                     return false;
-                const std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_2d.vert.spv"))
+                    shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.vert.spv", vertex_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.frag.spv", fragment_module_, error) ||
                     !create_pipelines(error))

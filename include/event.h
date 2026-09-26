@@ -11,6 +11,7 @@ namespace sl
     class Event
     {
     public:
+        /** Normalized category of the wrapped SDL event. */
         enum class Type
         {
             unknown,
@@ -208,9 +209,13 @@ namespace sl
             right_gui
         };
 
+        /** Construct an event with unknown type and default data. */
         Event();
+        /** Release the wrapped event data. */
         ~Event();
+        /** Move an event and its backend data. */
         Event(Event &&) noexcept;
+        /** Replace this event with the data from another event. */
         Event &operator=(Event &&) noexcept;
         Event(const Event &) = delete;
         Event &operator=(const Event &) = delete;

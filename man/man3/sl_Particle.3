@@ -1,0 +1,53 @@
+.TH "sl::Particle" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::Particle
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <particles\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "float \fBx\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBy\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBvx\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBvy\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBlife\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBmax_life\fP = 1\&.0f"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+One live particle owned by a \fBParticleEmitter\fP\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "float sl::Particle::life = 0\&.0f"
+Remaining lifetime in seconds\&. 
+.SS "float sl::Particle::max_life = 1\&.0f"
+Lifetime assigned when the particle was spawned, in seconds\&. 
+.SS "float sl::Particle::vx = 0\&.0f"
+Horizontal velocity in pixels per second\&. 
+.SS "float sl::Particle::vy = 0\&.0f"
+Vertical velocity in pixels per second\&. 
+.SS "float sl::Particle::x = 0\&.0f"
+Current horizontal position in pixels\&. 
+.SS "float sl::Particle::y = 0\&.0f"
+Current vertical position in pixels\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

@@ -9,11 +9,17 @@ namespace sl
     /** A perspective camera using right-handed GLM coordinates. */
     struct Camera
     {
+        /** Camera position in right-handed world coordinates. */
         glm::vec3 position{0.0f, 0.0f, 3.0f};
+        /** Point the camera looks toward. */
         glm::vec3 target{0.0f, 0.0f, 0.0f};
+        /** Camera's upward direction. */
         glm::vec3 up{0.0f, 1.0f, 0.0f};
+        /** Vertical field of view in degrees. */
         float field_of_view = 60.0f;
+        /** Near clipping distance. */
         float near_plane = 0.1f;
+        /** Far clipping distance. */
         float far_plane = 1000.0f;
 
         /** Build the camera view matrix. */

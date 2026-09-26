@@ -8,10 +8,13 @@ namespace sl
     /** 2D position or vector expressed in screen pixels. */
     struct Vec2
     {
+        /** Horizontal component in screen pixels or pixels per second. */
         float x = 0.0f;
+        /** Vertical component in screen pixels or pixels per second. */
         float y = 0.0f;
     };
 
+    /** Motion model used when creating a physics body. */
     enum class BodyType
     {
         static_body,
@@ -22,18 +25,25 @@ namespace sl
     struct PhysicsWorld;
     struct PhysicsBody;
 
+    /** Whether a contact has just begun or ended. */
     enum class ContactType
     {
         begin,
         end
     };
 
+    /** A contact event reported by the most recent physics step. */
     struct PhysicsContact
     {
+        /** Whether the contact began or ended. */
         ContactType type = ContactType::begin;
+        /** First body participating in the contact. */
         PhysicsBody *body_a = nullptr;
+        /** Second body participating in the contact. */
         PhysicsBody *body_b = nullptr;
+        /** Contact point in screen pixels. */
         Vec2 point;
+        /** Contact normal pointing from the first body toward the second. */
         Vec2 normal;
     };
 

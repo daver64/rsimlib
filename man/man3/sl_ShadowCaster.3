@@ -1,0 +1,28 @@
+.TH "sl::ShadowCaster" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::ShadowCaster
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "std::vector< \fBShadowPoint\fP > \fBvertices\fP"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A polygon whose edges can block a radial light\&. Vertices should be ordered around its perimeter\&. 
+.SH "Member Data Documentation"
+.PP 
+.SS "std::vector<\fBShadowPoint\fP> sl::ShadowCaster::vertices"
+Polygon boundary vertices in screen coordinates, ordered around the perimeter\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

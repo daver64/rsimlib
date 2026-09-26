@@ -1,0 +1,75 @@
+.TH "sl::ParticleEmitter" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::ParticleEmitter
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <particles\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBParticleEmitter\fP (const \fBEmitterConfig\fP &config, float \fBx\fP=0\&.0f, float \fBy\fP=0\&.0f)"
+.br
+.ti -1c
+.RI "void \fBset_position\fP (float \fBx\fP, float \fBy\fP)"
+.br
+.ti -1c
+.RI "float \fBx\fP () const"
+.br
+.ti -1c
+.RI "float \fBy\fP () const"
+.br
+.ti -1c
+.RI "void \fBset_active\fP (bool active)"
+.br
+.ti -1c
+.RI "bool \fBis_active\fP () const"
+.br
+.ti -1c
+.RI "void \fBclear\fP ()"
+.br
+.ti -1c
+.RI "void \fBupdate\fP (float dt_seconds)"
+.br
+.ti -1c
+.RI "void \fBrender\fP () const"
+.br
+.ti -1c
+.RI "std::size_t \fBparticle_count\fP () const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+A movable point that continuously spawns and owns its own particles\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::ParticleEmitter::ParticleEmitter (const \fBEmitterConfig\fP & config, float x = \fC0\&.0f\fP, float y = \fC0\&.0f\fP)\fC [explicit]\fP"
+Create an emitter from a configuration and initial pixel position\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "void sl::ParticleEmitter::clear ()"
+Instantly remove all live particles\&. 
+.SS "bool sl::ParticleEmitter::is_active () const"
+Return whether the emitter is spawning new particles\&. 
+.SS "std::size_t sl::ParticleEmitter::particle_count () const"
+Return the number of currently live particles\&. 
+.SS "void sl::ParticleEmitter::render () const"
+Draw every live particle owned by this emitter in a single batched draw call\&. 
+.SS "void sl::ParticleEmitter::set_active (bool active)"
+Start/stop spawning new particles; existing ones keep updating/rendering\&. 
+.SS "void sl::ParticleEmitter::set_position (float x, float y)"
+Move the emitter; newly spawned particles originate from this position\&. 
+.SS "void sl::ParticleEmitter::update (float dt_seconds)"
+Advance existing particles and spawn new ones for this frame\&. 
+.SS "float sl::ParticleEmitter::x () const"
+Return the current horizontal position in pixels\&. 
+.SS "float sl::ParticleEmitter::y () const"
+Return the current vertical position in pixels\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

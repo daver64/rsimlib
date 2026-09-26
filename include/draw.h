@@ -22,9 +22,13 @@ namespace sl
     /** An RGBA colour with 8-bit channels. */
     struct Colour
     {
+        /** Red channel, in the range 0-255. */
         Uint8 red;
+        /** Green channel, in the range 0-255. */
         Uint8 green;
+        /** Blue channel, in the range 0-255. */
         Uint8 blue;
+        /** Alpha channel, in the range 0-255; defaults to opaque. */
         Uint8 alpha = 255;
     };
     // Whites & Grays
@@ -129,14 +133,21 @@ namespace sl
      */
     struct Bitmap
     {
+        /** Bitmap width in pixels. */
         int width = 0;
+        /** Bitmap height in pixels. */
         int height = 0;
+        /** CPU-side RGBA8 pixels, when retained or acquired. */
         std::vector<Uint8> pixels;
+        /** Backend texture handle; zero when no GPU texture exists. */
         std::uint32_t gpu_texture = 0;
         /** Non-zero if this bitmap is an offscreen render target (see create_render_target()). */
         std::uint32_t fbo = 0;
+        /** True when CPU pixels contain changes not yet uploaded to the GPU. */
         bool ram_dirty = false;
+        /** True when the GPU texture contains changes not yet downloaded to RAM. */
         bool gpu_dirty = false;
+        /** Distinguishes ordinary bitmaps from the display framebuffer. */
         BitmapKind kind = BitmapKind::Bitmap;
     };
 
@@ -185,8 +196,11 @@ namespace sl
     /** One screen-space point for draw_points(), e.g. a GPU-simulated particle. */
     struct PointVertex
     {
+        /** Horizontal screen coordinate in pixels. */
         float x = 0.0f;
+        /** Vertical screen coordinate in pixels. */
         float y = 0.0f;
+        /** Point colour. */
         Colour colour;
     };
     /** Draw many single-pixel points to the screen in one batched GPU submission. */

@@ -1,0 +1,58 @@
+.TH "sl::DitherFilter" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::DitherFilter
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "bool \fBinitialise\fP ()"
+.br
+.ti -1c
+.RI "void \fBshutdown\fP ()"
+.br
+.ti -1c
+.RI "bool \fBis_valid\fP () const"
+.br
+.ti -1c
+.RI "const std::string & \fBerror\fP () const"
+.br
+.ti -1c
+.RI "void \fBset_pixel_size\fP (float size)"
+.br
+.ti -1c
+.RI "void \fBset_levels\fP (float levels)"
+.br
+.ti -1c
+.RI "void \fBapply\fP (\fBBitmap\fP *source, int x=0, int y=0, int width=0, int height=0) const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Applies ordered (Bayer) dithering to reduce colour depth for a retro/print look\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "void sl::DitherFilter::apply (\fBBitmap\fP * source, int x = \fC0\fP, int y = \fC0\fP, int width = \fC0\fP, int height = \fC0\fP) const"
+Apply ordered colour dithering to a bitmap region\&. 
+.SS "const std::string & sl::DitherFilter::error () const"
+Return the most recent initialization error\&. 
+.SS "bool sl::DitherFilter::initialise ()"
+Compile the dithering shader and prepare the effect\&. 
+.SS "bool sl::DitherFilter::is_valid () const"
+Return whether the effect is ready to apply\&. 
+.SS "void sl::DitherFilter::set_levels (float levels)"
+Set the number of output shades per channel\&. 
+.SS "void sl::DitherFilter::set_pixel_size (float size)"
+Set the Bayer pattern block size in source pixels\&. 
+.SS "void sl::DitherFilter::shutdown ()"
+Release resources owned by the effect\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

@@ -9,6 +9,7 @@ namespace sl
     class Generator
     {
     public:
+        /** Construct a noise generator with the given deterministic seed. */
         explicit Generator(int seed = 1337);
 
         /** Set the noise frequency. */

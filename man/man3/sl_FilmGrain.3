@@ -1,0 +1,58 @@
+.TH "sl::FilmGrain" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::FilmGrain
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "bool \fBinitialise\fP ()"
+.br
+.ti -1c
+.RI "void \fBshutdown\fP ()"
+.br
+.ti -1c
+.RI "bool \fBis_valid\fP () const"
+.br
+.ti -1c
+.RI "const std::string & \fBerror\fP () const"
+.br
+.ti -1c
+.RI "void \fBset_strength\fP (float strength)"
+.br
+.ti -1c
+.RI "void \fBset_time\fP (float time)"
+.br
+.ti -1c
+.RI "void \fBapply\fP (\fBBitmap\fP *source, int x=0, int y=0, int width=0, int height=0) const"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Adds animated monochrome film grain over a bitmap\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "void sl::FilmGrain::apply (\fBBitmap\fP * source, int x = \fC0\fP, int y = \fC0\fP, int width = \fC0\fP, int height = \fC0\fP) const"
+Add animated monochrome grain to a bitmap region\&. 
+.SS "const std::string & sl::FilmGrain::error () const"
+Return the most recent initialization error\&. 
+.SS "bool sl::FilmGrain::initialise ()"
+Compile the film-grain shader and prepare the effect\&. 
+.SS "bool sl::FilmGrain::is_valid () const"
+Return whether the effect is ready to apply\&. 
+.SS "void sl::FilmGrain::set_strength (float strength)"
+Set the grain intensity from 0 (off) upward\&. 
+.SS "void sl::FilmGrain::set_time (float time)"
+Set the animation time in seconds\&. 
+.SS "void sl::FilmGrain::shutdown ()"
+Release resources owned by the effect\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

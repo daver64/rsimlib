@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(simlib LANGUAGES C CXX)
 
 include(CTest)
+include(GNUInstallDirs)
 
 # Single-config generators (Makefiles, Ninja) default to an unoptimized build if
 # this is left unset, which is easily mistaken for a genuine performance bug.
@@ -151,7 +152,12 @@ add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
-target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_include_directories(imgui PUBLIC
+    $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/backends>
+)
 target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
 
 FetchContent_Declare(
@@ -168,7 +174,10 @@ list(REMOVE_ITEM LUA_SOURCES
     ${lua_SOURCE_DIR}/luac.c
 )
 add_library(lua STATIC ${LUA_SOURCES})
-target_include_directories(lua PUBLIC ${lua_SOURCE_DIR})
+target_include_directories(lua PUBLIC
+    $<BUILD_INTERFACE:${lua_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 if(UNIX AND NOT APPLE)
     target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
     target_link_libraries(lua PUBLIC m dl)
@@ -195,6 +204,9 @@ set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "Disable Box2D unit tests" FORCE)
 set(BOX2D_BUILD_TESTBED OFF CACHE BOOL "Disable Box2D testbed" FORCE)
 FetchContent_MakeAvailable(box2d)
 set_target_properties(box2d PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+if(NOT TARGET box2d::box2d)
+    add_library(box2d::box2d ALIAS box2d)
+endif()
 
 # Single-header MPEG1/MP2 decoder used by video.cpp for cutscene-style video playback.
 FetchContent_Declare(
@@ -269,7 +281,10 @@ if(WIN32)
         src/engine/d3d12_renderer.cpp
     )
 endif()
-target_include_directories(simlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(simlib PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 target_include_directories(simlib PRIVATE ${pl_mpeg_SOURCE_DIR})
 if(NOT GLSLANG_VALIDATOR)
     find_program(GLSLANG_VALIDATOR glslangValidator)
@@ -278,13 +293,16 @@ if(NOT GLSLANG_VALIDATOR)
     set(GLSLANG_VALIDATOR "")
 endif()
 target_compile_definitions(simlib PRIVATE
-    SIMLIB_GLSL_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl"
-    SIMLIB_D3D_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/d3d"
-    SIMLIB_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    SIMLIB_GLSL_SHADER_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders/glsl"
+    SIMLIB_BUILD_GLSL_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl"
+    SIMLIB_D3D_SHADER_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders/d3d"
+    SIMLIB_BUILD_D3D_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/d3d"
+    SIMLIB_SHADER_BINARY_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders"
+    SIMLIB_BUILD_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
-target_link_libraries(simlib PUBLIC box2d)
+target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
     target_link_libraries(simlib PRIVATE d3d11 d3d12 dxgi d3dcompiler)
@@ -306,24 +324,30 @@ target_link_libraries(simlib PUBLIC ${SIMLIB_TTF_TARGET})
 
 find_package(SDL2_image QUIET CONFIG)
 if(TARGET SDL2_image::SDL2_image)
-    target_link_libraries(simlib PUBLIC SDL2_image::SDL2_image)
+    set(SIMLIB_IMAGE_TARGET SDL2_image::SDL2_image)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_IMAGE_TARGET})
 elseif(TARGET SDL2_image::SDL2_image-static)
-    target_link_libraries(simlib PUBLIC SDL2_image::SDL2_image-static)
+    set(SIMLIB_IMAGE_TARGET SDL2_image::SDL2_image-static)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_IMAGE_TARGET})
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SDL2_IMAGE REQUIRED IMPORTED_TARGET SDL2_image)
-    target_link_libraries(simlib PUBLIC PkgConfig::SDL2_IMAGE)
+    set(SIMLIB_IMAGE_TARGET PkgConfig::SDL2_IMAGE)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_IMAGE_TARGET})
 endif()
 
 find_package(SDL2_mixer QUIET CONFIG)
 if(TARGET SDL2_mixer::SDL2_mixer)
-    target_link_libraries(simlib PUBLIC SDL2_mixer::SDL2_mixer)
+    set(SIMLIB_MIXER_TARGET SDL2_mixer::SDL2_mixer)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_MIXER_TARGET})
 elseif(TARGET SDL2_mixer::SDL2_mixer-static)
-    target_link_libraries(simlib PUBLIC SDL2_mixer::SDL2_mixer-static)
+    set(SIMLIB_MIXER_TARGET SDL2_mixer::SDL2_mixer-static)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_MIXER_TARGET})
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SDL2_MIXER REQUIRED IMPORTED_TARGET SDL2_mixer)
-    target_link_libraries(simlib PUBLIC PkgConfig::SDL2_MIXER)
+    set(SIMLIB_MIXER_TARGET PkgConfig::SDL2_MIXER)
+    target_link_libraries(simlib PUBLIC ${SIMLIB_MIXER_TARGET})
 endif()
 
 add_executable(sltest
@@ -544,4 +568,79 @@ if(Doxygen_FOUND)
         COMMENT "Generating simlib API documentation"
         VERBATIM
     )
+    install(CODE "
+        execute_process(
+            COMMAND \"${DOXYGEN_EXECUTABLE}\" \"${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile\"
+            WORKING_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\"
+            RESULT_VARIABLE simlib_doxygen_result
+        )
+        if(NOT simlib_doxygen_result EQUAL 0)
+            message(FATAL_ERROR \"Doxygen failed while generating simlib man pages\")
+        endif()
+    ")
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/man/man3/"
+        DESTINATION ${CMAKE_INSTALL_MANDIR}/man3
+        OPTIONAL
+        FILES_MATCHING PATTERN "*.3"
+    )
 endif()
+
+install(TARGETS simlib imgui lua
+    EXPORT simlibTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(EXPORT simlibTargets
+    FILE simlibTargets.cmake
+    NAMESPACE simlib::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
+)
+
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+file(GLOB IMGUI_PUBLIC_HEADERS "${imgui_SOURCE_DIR}/*.h")
+file(GLOB IMGUI_BACKEND_HEADERS "${imgui_SOURCE_DIR}/backends/*.h")
+install(FILES ${IMGUI_PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES ${IMGUI_BACKEND_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/backends)
+install(FILES
+    "${lua_SOURCE_DIR}/lua.h"
+    "${lua_SOURCE_DIR}/luaconf.h"
+    "${lua_SOURCE_DIR}/lauxlib.h"
+    "${lua_SOURCE_DIR}/lualib.h"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY "${box2d_SOURCE_DIR}/include/box2d"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+    RENAME simlib-LICENSE
+)
+install(FILES "${imgui_SOURCE_DIR}/LICENSE.txt"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+    RENAME imgui-LICENSE.txt
+)
+install(FILES "${sol2_SOURCE_DIR}/LICENSE.txt"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+    RENAME sol2-LICENSE.txt
+)
+install(FILES "${box2d_SOURCE_DIR}/LICENSE"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+    RENAME box2d-LICENSE
+)
+install(DIRECTORY shaders/glsl/ DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/shaders/glsl)
+install(DIRECTORY shaders/d3d/ DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/shaders/d3d)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shaders/"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/shaders
+    OPTIONAL
+    FILES_MATCHING PATTERN "*.spv"
+)
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    cmake/simlibConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
+)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
+)

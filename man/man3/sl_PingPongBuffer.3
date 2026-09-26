@@ -1,0 +1,64 @@
+.TH "sl::PingPongBuffer" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::PingPongBuffer
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <graphics_fx\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBPingPongBuffer\fP (const \fBPingPongBuffer\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBPingPongBuffer\fP & \fBoperator=\fP (const \fBPingPongBuffer\fP &)=delete"
+.br
+.ti -1c
+.RI "void \fBinitialise\fP (int width, int height)"
+.br
+.ti -1c
+.RI "void \fBshutdown\fP ()"
+.br
+.ti -1c
+.RI "bool \fBvalid\fP () const"
+.br
+.ti -1c
+.RI "\fBBitmap\fP * \fBbegin\fP (\fBBitmap\fP *\fBsource\fP)"
+.br
+.ti -1c
+.RI "\fBBitmap\fP * \fBsource\fP () const"
+.br
+.ti -1c
+.RI "\fBBitmap\fP * \fBtarget\fP () const"
+.br
+.ti -1c
+.RI "\fBBitmap\fP * \fBadvance\fP ()"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Internal helper for chaining fullscreen post-process passes without managing one bitmap per effect\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "\fBBitmap\fP * sl::PingPongBuffer::advance ()"
+Promote the current destination to source and rotate to the other target\&. 
+.SS "\fBBitmap\fP * sl::PingPongBuffer::begin (\fBBitmap\fP * source)"
+Begin a chain with the source bitmap and return the first destination\&. 
+.SS "void sl::PingPongBuffer::initialise (int width, int height)"
+Allocate two render targets of the given dimensions\&. 
+.SS "void sl::PingPongBuffer::shutdown ()"
+Release both render targets and clear the current chain state\&. 
+.SS "\fBBitmap\fP * sl::PingPongBuffer::source () const"
+Return the most recently completed bitmap in the chain\&. 
+.SS "\fBBitmap\fP * sl::PingPongBuffer::target () const"
+Return the destination bitmap for the next effect pass\&. 
+.SS "bool sl::PingPongBuffer::valid () const"
+Return whether both render targets are available\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

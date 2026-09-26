@@ -1,0 +1,126 @@
+.TH "sl::IsometricTransform" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::IsometricTransform \- Pure mathematical transformation layer between 3D isometric world space (x, y, z) and 2D screen space (sx, sy)\&.  
+
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <isometric\&.h>\fP
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "void \fBworld_to_screen\fP (float x, float y, float z, float &sx, float &sy) const"
+.br
+.RI "Convert 3D isometric world coordinates (x, y, z) to 2D screen coordinates (sx, sy)\&. "
+.ti -1c
+.RI "\fBIsoPoint\fP \fBworld_to_screen\fP (float x, float y, float z=0\&.0f) const"
+.br
+.RI "Convert 3D isometric world coordinates (x, y, z) to 2D screen coordinates\&. "
+.ti -1c
+.RI "void \fBscreen_to_world\fP (float sx, float sy, float z, float &x, float &y) const"
+.br
+.RI "Convert 2D screen coordinates (sx, sy) on elevation plane z to continuous world coordinates (x, y)\&. "
+.ti -1c
+.RI "\fBIsoPoint\fP \fBscreen_to_world\fP (float sx, float sy, float z=0\&.0f) const"
+.br
+.RI "Convert 2D screen coordinates (sx, sy) on elevation plane z to continuous world coordinates\&. "
+.ti -1c
+.RI "\fBIsoGridPoint\fP \fBscreen_to_grid\fP (float sx, float sy, float z=0\&.0f) const"
+.br
+.RI "Convert 2D screen coordinates (sx, sy) on elevation plane z to discrete grid cell coordinates\&. "
+.ti -1c
+.RI "\fBIsoTileDiamond\fP \fBtile_diamond\fP (float x, float y, float z=0\&.0f) const"
+.br
+.RI "Compute the 4 screen-space diamond vertices for a tile at grid position (x, y, z)\&. "
+.ti -1c
+.RI "\fBIsoBounds\fP \fBvisible_bounds\fP (float left, float top, float right, float bottom, float min_z=0\&.0f, float max_z=0\&.0f) const"
+.br
+.RI "Compute visible grid bounds for a 2D screen rectangle [left, top, right, bottom]\&. "
+.in -1c
+.SS "Static Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "static float \fBdepth_sort_key\fP (float x, float y, float z=0\&.0f)"
+.br
+.RI "Calculate depth sorting key for back-to-front rendering order\&. "
+.in -1c
+.SS "Public Attributes"
+
+.in +1c
+.ti -1c
+.RI "\fBIsometricConfig\fP \fBconfig\fP"
+.br
+.ti -1c
+.RI "float \fBorigin_x\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBorigin_y\fP = 0\&.0f"
+.br
+.ti -1c
+.RI "float \fBzoom\fP = 1\&.0f"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Pure mathematical transformation layer between 3D isometric world space (x, y, z) and 2D screen space (sx, sy)\&. 
+
+In world coordinates:
+.IP "\(bu" 2
++X points down-right along the isometric grid\&.
+.IP "\(bu" 2
++Y points down-left along the isometric grid\&.
+.IP "\(bu" 2
++Z points upward (elevation/height)\&. 
+.PP
+
+.SH "Member Function Documentation"
+.PP 
+.SS "static float sl::IsometricTransform::depth_sort_key (float x, float y, float z = \fC0\&.0f\fP)\fC [inline]\fP, \fC [static]\fP"
+
+.PP
+Calculate depth sorting key for back-to-front rendering order\&. (X + Y) must dominate the key so that a tile which is diagonally further forward always renders after (on top of) every tile diagonally behind it, no matter how tall either column is\&. Z is only used to order layers within the same (x, y) column, and must never be large enough to outweigh a one-unit change in X or Y (which would let a tall column behind erroneously paint over a shorter column in front, hiding its top face)\&. 
+.SS "\fBIsoBounds\fP sl::IsometricTransform::visible_bounds (float left, float top, float right, float bottom, float min_z = \fC0\&.0f\fP, float max_z = \fC0\&.0f\fP) const\fC [inline]\fP"
+
+.PP
+Compute visible grid bounds for a 2D screen rectangle [left, top, right, bottom]\&. 
+.PP
+\fBParameters\fP
+.RS 4
+\fIleft\fP Viewport left coordinate (e\&.g\&. 0)\&. 
+.br
+\fItop\fP Viewport top coordinate (e\&.g\&. 0)\&. 
+.br
+\fIright\fP Viewport right coordinate (e\&.g\&. screen_width())\&. 
+.br
+\fIbottom\fP Viewport bottom coordinate (e\&.g\&. screen_height())\&. 
+.br
+\fImin_z\fP Minimum elevation plane to consider for culling\&. 
+.br
+\fImax_z\fP Maximum elevation plane to consider for culling\&. 
+.RE
+.PP
+\fBReturns\fP
+.RS 4
+Bounding box of all potentially visible grid tiles\&. 
+.RE
+.PP
+
+.SH "Member Data Documentation"
+.PP 
+.SS "\fBIsometricConfig\fP sl::IsometricTransform::config"
+Tile geometry and elevation scale\&. 
+.SS "float sl::IsometricTransform::origin_x = 0\&.0f"
+Screen-space horizontal origin in pixels\&. 
+.SS "float sl::IsometricTransform::origin_y = 0\&.0f"
+Screen-space vertical origin in pixels\&. 
+.SS "float sl::IsometricTransform::zoom = 1\&.0f"
+Uniform zoom multiplier applied to tile and elevation dimensions\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.

@@ -14,10 +14,12 @@ namespace sl
 namespace sl
 {
 
+    /** A collection of colours loaded from the first row of an image. */
     class PixelPallete {
         public:
         PixelPallete() = default;
         ~PixelPallete() = default;
+        /** Load and append the first image row's pixels as palette entries. */
         bool load(const std::string &filename)
         {
             Bitmap *bmp = load_bitmap(filename);
@@ -33,14 +35,17 @@ namespace sl
             }
             return true;
         }
+        /** Return a palette colour by index, throwing std::out_of_range if invalid. */
         const Colour at(std::size_t index) const
         {
             return colours.at(index);
         }
+        /** Return a mutable palette colour by index, throwing std::out_of_range if invalid. */
         Colour &operator[](std::size_t index) 
         {
             return colours.at(index);
         }
+        /** Return the number of stored colours. */
         const size_t size() const
         {
             return colours.size();
@@ -56,8 +61,11 @@ namespace sl
      */
     struct ShaderUniform
     {
+        /** Field name as declared in the shader's push-constant block. */
         std::string name;
+        /** Byte offset from the start of the block. */
         std::uint32_t offset = 0;
+        /** Field size in bytes. */
         std::uint32_t size = 0;
     };
 
@@ -66,12 +74,15 @@ namespace sl
     {
     public:
         Shader() = default;
+        /** Compile and link the supplied vertex and fragment GLSL sources. */
         Shader(const std::string &vertexSource, const std::string &fragmentSource);
         ~Shader();
 
         Shader(const Shader &) = delete;
         Shader &operator=(const Shader &) = delete;
+        /** Transfer ownership of a compiled shader program. */
         Shader(Shader &&other) noexcept;
+        /** Release this program and take ownership of another shader's program. */
         Shader &operator=(Shader &&other) noexcept;
 
         /** Compile and link shader source, replacing the current program. */
@@ -158,12 +169,15 @@ namespace sl
     {
     public:
         StorageBuffer() = default;
+        /** Allocate a GPU storage buffer with the requested capacity in bytes. */
         explicit StorageBuffer(std::size_t sizeBytes);
         ~StorageBuffer();
 
         StorageBuffer(const StorageBuffer &) = delete;
         StorageBuffer &operator=(const StorageBuffer &) = delete;
+        /** Transfer ownership of a GPU storage buffer. */
         StorageBuffer(StorageBuffer &&other) noexcept;
+        /** Release this buffer and take ownership of another buffer's resource. */
         StorageBuffer &operator=(StorageBuffer &&other) noexcept;
 
         /** Allocate/reallocate a GPU storage buffer of the specified size. */
@@ -221,13 +235,20 @@ namespace sl
         PingPongBuffer(const PingPongBuffer &) = delete;
         PingPongBuffer &operator=(const PingPongBuffer &) = delete;
 
+        /** Allocate two render targets of the given dimensions. */
         void initialise(int width, int height);
+        /** Release both render targets and clear the current chain state. */
         void shutdown();
+        /** Return whether both render targets are available. */
         bool valid() const;
 
+        /** Begin a chain with the source bitmap and return the first destination. */
         Bitmap *begin(Bitmap *source);
+        /** Return the most recently completed bitmap in the chain. */
         Bitmap *source() const;
+        /** Return the destination bitmap for the next effect pass. */
         Bitmap *target() const;
+        /** Promote the current destination to source and rotate to the other target. */
         Bitmap *advance();
 
     private:
@@ -239,6 +260,7 @@ namespace sl
         int next_index_ = 0;
     };
 
+    /** Thresholds bright pixels, blurs them, and composites a glow over a bitmap. */
     class Bloom
     {
     public:
@@ -247,7 +269,9 @@ namespace sl
 
         Bloom(const Bloom &) = delete;
         Bloom &operator=(const Bloom &) = delete;
+        /** Transfer ownership of the effect's shaders and render targets. */
         Bloom(Bloom &&other) noexcept;
+        /** Release this effect's resources and take ownership of another effect's. */
         Bloom &operator=(Bloom &&other) noexcept;
 
         /** Compile the bloom shaders and prepare the effect. */
@@ -304,7 +328,9 @@ namespace sl
 
         Vignette(const Vignette &) = delete;
         Vignette &operator=(const Vignette &) = delete;
+        /** Transfer ownership of the vignette shader. */
         Vignette(Vignette &&other) noexcept;
+        /** Release this shader and take ownership of another vignette's. */
         Vignette &operator=(Vignette &&other) noexcept;
 
         /** Compile the vignette shader and prepare the effect. */
@@ -343,14 +369,23 @@ namespace sl
         ColourAdjust() = default;
         ~ColourAdjust() = default;
 
+        /** Compile the colour-adjustment shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set brightness offset, where zero leaves brightness unchanged. */
         void set_brightness(float value);
+        /** Set contrast multiplier, where one leaves contrast unchanged. */
         void set_contrast(float value);
+        /** Set saturation multiplier, where one leaves saturation unchanged. */
         void set_saturation(float value);
+        /** Set exposure adjustment in stops, where zero leaves exposure unchanged. */
         void set_exposure(float value);
+        /** Apply the configured colour adjustments to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -369,16 +404,26 @@ namespace sl
         ~Blur();
         Blur(const Blur &) = delete;
         Blur &operator=(const Blur &) = delete;
+        /** Transfer ownership of the blur shader and temporary targets. */
         Blur(Blur &&other) noexcept;
+        /** Release this blur's resources and take ownership of another blur's. */
         Blur &operator=(Blur &&other) noexcept;
 
+        /** Compile the blur shader and prepare the effect. */
         bool initialise();
+        /** Release the shader and temporary render targets. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the blur radius in source-pixel units. */
         void set_radius(float radius);
+        /** Set the number of horizontal/vertical blur passes. */
         void set_iterations(int iterations);
+        /** Set the composited blur opacity. */
         void set_opacity(float opacity);
+        /** Blur a bitmap region and composite the result over its source. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -396,11 +441,17 @@ namespace sl
     class ChromaticAberration
     {
     public:
+        /** Compile the chromatic-aberration shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the normalized separation between colour channels. */
         void set_strength(float strength);
+        /** Apply the effect to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -412,11 +463,17 @@ namespace sl
     class Pixelate
     {
     public:
+        /** Compile the pixelation shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the pixel-block size in source pixels. */
         void set_pixel_size(float size);
+        /** Apply pixelation to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -428,13 +485,21 @@ namespace sl
     class RadialBlur
     {
     public:
+        /** Compile the radial-blur shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the focal point in normalized source coordinates from 0 to 1. */
         void set_centre(float x, float y);
+        /** Set the distance samples are displaced toward the focal point. */
         void set_strength(float strength);
+        /** Set the number of samples used for the blur. */
         void set_samples(int samples);
+        /** Apply the radial blur to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -449,13 +514,21 @@ namespace sl
     class HeatHaze
     {
     public:
+        /** Compile the heat-haze shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the maximum texture-coordinate displacement. */
         void set_strength(float strength);
+        /** Set the spatial frequency of the distortion pattern. */
         void set_frequency(float frequency);
+        /** Set animation time in seconds. */
         void set_time(float time);
+        /** Apply the current heat-haze distortion to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -469,9 +542,13 @@ namespace sl
     class Shockwave
     {
     public:
+        /** Compile the shockwave shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
         /** Set the normalized focal point; (0, 0) is top-left and (1, 1) is bottom-right. */
         void set_centre(float x, float y);
@@ -481,6 +558,7 @@ namespace sl
         void set_width(float width);
         /** Set the normalized outward displacement at the ring peak. */
         void set_strength(float strength);
+        /** Distort a bitmap region around the configured shockwave ring. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -496,13 +574,21 @@ namespace sl
     class CRTFilter
     {
     public:
+        /** Compile the CRT shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the simulated pixel-block size in source pixels. */
         void set_pixel_size(float size);
+        /** Set scanline darkness from zero (off) to one (strong). */
         void set_scanline_strength(float strength);
+        /** Set the barrel-distortion amount; zero disables curvature. */
         void set_curvature(float curvature);
+        /** Apply the CRT treatment to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -516,12 +602,19 @@ namespace sl
     class DitherFilter
     {
     public:
+        /** Compile the dithering shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
+        /** Set the Bayer pattern block size in source pixels. */
         void set_pixel_size(float size);
+        /** Set the number of output shades per channel. */
         void set_levels(float levels);
+        /** Apply ordered colour dithering to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -534,14 +627,19 @@ namespace sl
     class FilmGrain
     {
     public:
+        /** Compile the film-grain shader and prepare the effect. */
         bool initialise();
+        /** Release resources owned by the effect. */
         void shutdown();
+        /** Return whether the effect is ready to apply. */
         bool is_valid() const;
+        /** Return the most recent initialization error. */
         const std::string &error() const;
         /** Set the grain intensity from 0 (off) upward. */
         void set_strength(float strength);
         /** Set the animation time in seconds. */
         void set_time(float time);
+        /** Add animated monochrome grain to a bitmap region. */
         void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
 
     private:
@@ -559,9 +657,13 @@ namespace sl
         ScreenShake(const ScreenShake &) = delete;
         ScreenShake &operator=(const ScreenShake &) = delete;
 
+        /** Start a shake with pixel amplitude and duration in seconds. */
         void trigger(float amplitude, float duration);
+        /** Advance the shake envelope by elapsed seconds. */
         void update(float delta_seconds);
+        /** Stop shaking and reset the current offset. */
         void clear();
+        /** Return whether the shake still has non-zero duration. */
         bool active() const;
 
     private:
@@ -575,30 +677,43 @@ namespace sl
     /** A radial or optional cone-shaped 2D light expressed in screen pixels. */
     struct Light
     {
+        /** Horizontal position in screen pixels. */
         float x = 0.0f;
+        /** Vertical position in screen pixels. */
         float y = 0.0f;
+        /** Influence radius in screen pixels. */
         float radius = 256.0f;
+        /** Light contribution multiplier. */
         float intensity = 1.0f;
+        /** Softness of polygon shadow edges in screen pixels. */
         float shadow_softness = 0.0f;
         /** Direction in screen space; used when the cone angles are positive. */
         float direction_x = 0.0f;
         float direction_y = -1.0f;
+            /** Vertical component of the spotlight direction. */
+            float direction_y = -1.0f;
         /** Inner/outer cone angles in degrees. Zero angles disable spotlight falloff. */
         float inner_angle = 0.0f;
         float outer_angle = 0.0f;
+        /** Outer spotlight cone angle in degrees. */
+        float outer_angle = 0.0f;
+        /** RGB light colour and alpha intensity. */
         Colour colour{255, 255, 255};
     };
 
     /** A point in a 2D shadow-casting polygon. */
     struct ShadowPoint
     {
+        /** Horizontal screen coordinate in pixels. */
         float x = 0.0f;
+        /** Vertical screen coordinate in pixels. */
         float y = 0.0f;
     };
 
     /** A polygon whose edges can block a radial light. Vertices should be ordered around its perimeter. */
     struct ShadowCaster
     {
+        /** Polygon boundary vertices in screen coordinates, ordered around the perimeter. */
         std::vector<ShadowPoint> vertices;
     };
 
@@ -609,8 +724,11 @@ namespace sl
     class LightingPass
     {
     public:
+        /** Maximum number of lights processed with shadow casters. */
         static constexpr std::size_t max_shadow_lights = 8;
+        /** Screen tile dimension used to cull lights. */
         static constexpr int tile_size = 16;
+        /** Maximum lights stored for one screen tile. */
         static constexpr int max_lights_per_tile = 128;
 
         LightingPass() = default;
@@ -618,7 +736,9 @@ namespace sl
 
         LightingPass(const LightingPass &) = delete;
         LightingPass &operator=(const LightingPass &) = delete;
+        /** Transfer ownership of lighting shaders and GPU buffers. */
         LightingPass(LightingPass &&other) noexcept;
+        /** Release this pass's resources and take ownership of another pass's. */
         LightingPass &operator=(LightingPass &&other) noexcept;
 
         /** Compile the lighting shader and prepare the effect. */

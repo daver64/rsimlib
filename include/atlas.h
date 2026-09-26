@@ -8,13 +8,21 @@ namespace sl
     /** A bitmap sliced into a uniform grid of equally sized tiles. */
     struct Atlas
     {
+        /** Source bitmap; the atlas does not own it. */
         Bitmap *bitmap = nullptr;
+        /** Width of one tile in pixels. */
         int tile_width = 0;
+        /** Height of one tile in pixels. */
         int tile_height = 0;
+        /** Gap between adjacent tiles in pixels. */
         int spacing = 0;
+        /** Border between the bitmap edge and the first tile, in pixels. */
         int margin = 0;
+        /** Number of complete tile columns. */
         int columns = 0;
+        /** Number of complete tile rows. */
         int rows = 0;
+        /** Total number of tiles, in row-major order. */
         int tile_count = 0;
     };
 

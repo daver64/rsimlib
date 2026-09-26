@@ -5,6 +5,7 @@
 
 namespace sl
 {
+    /** Element kinds understood by the cellular-automata fluid simulation. */
     enum class FluidElement : std::uint8_t
     {
         empty = 0,
@@ -23,21 +24,33 @@ namespace sl
         steam
     };
 
+    /** Material and per-cell state stored at one grid coordinate. */
     struct FluidCell
     {
+        /** Material occupying this cell. */
         FluidElement type = FluidElement::empty;
+        /** Material mass used by movement and pressure calculations. */
         float mass = 0.0f;
+        /** Cell temperature in degrees Celsius. */
         float temp = 20.0f;
+        /** Remaining lifetime for transient elements such as fire or smoke. */
         std::uint8_t life = 0;
+        /** Small per-cell visual or simulation variation. */
         std::int8_t variation = 0;
+        /** Tick on which this cell was last processed. */
         std::uint32_t turn = 0;
     };
 
+    /** Fixed-size cellular-automata grid and its simulation tick. */
     struct FluidSimulation
     {
+        /** Grid width in cells. */
         int width = 0;
+        /** Grid height in cells. */
         int height = 0;
+        /** Cells in row-major order, indexed as y * width + x. */
         std::vector<FluidCell> cells;
+        /** Number of completed simulation steps. */
         std::uint32_t turn = 0;
     };
 

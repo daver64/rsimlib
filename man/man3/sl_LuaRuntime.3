@@ -1,0 +1,112 @@
+.TH "sl::LuaRuntime" 3 "simlib" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+sl::LuaRuntime
+.SH SYNOPSIS
+.br
+.PP
+.PP
+\fC#include <lua_runtime\&.h>\fP
+.SS "Public Types"
+
+.in +1c
+.ti -1c
+.RI "using \fBOutputHandler\fP = std::function< void(const std::string &)>"
+.br
+.in -1c
+.SS "Public Member Functions"
+
+.in +1c
+.ti -1c
+.RI "\fBLuaRuntime\fP ()"
+.br
+.ti -1c
+.RI "\fB~LuaRuntime\fP ()"
+.br
+.ti -1c
+.RI "\fBLuaRuntime\fP (const \fBLuaRuntime\fP &)=delete"
+.br
+.ti -1c
+.RI "\fBLuaRuntime\fP & \fBoperator=\fP (const \fBLuaRuntime\fP &)=delete"
+.br
+.ti -1c
+.RI "void \fBinitialise\fP (\fBOutputHandler\fP output_handler={})"
+.br
+.ti -1c
+.RI "bool \fBis_initialised\fP () const"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBexecute\fP (const std::string &script)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBcall\fP (const std::string &function_name, const std::string &argument)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name, int value)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name, float value)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name, bool value)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name, const std::string &value)"
+.br
+.ti -1c
+.RI "\fBLuaScriptResult\fP \fBemit\fP (const std::string &event_name, const std::string &name, float x, float y)"
+.br
+.ti -1c
+.RI "sol::state & \fBstate\fP ()"
+.br
+.ti -1c
+.RI "void \fBreset\fP ()"
+.br
+.in -1c
+.SH "Detailed Description"
+.PP 
+Owns a sandboxed Lua state and provides script execution and callbacks\&. 
+.SH "Member Typedef Documentation"
+.PP 
+.SS "using \fBsl::LuaRuntime::OutputHandler\fP =  std::function<void(const std::string &)>"
+Receives output emitted by Lua print calls\&. 
+.SH "Constructor & Destructor Documentation"
+.PP 
+.SS "sl::LuaRuntime::LuaRuntime ()"
+Construct an uninitialised runtime\&. 
+.SS "sl::LuaRuntime::~LuaRuntime ()"
+Destroy the Lua state and its registered resources\&. 
+.SH "Member Function Documentation"
+.PP 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::call (const std::string & function_name, const std::string & argument)"
+Invoke an optional global Lua callback with a string argument\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name)"
+Emit an optional Lua callback with no arguments\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name, bool value)"
+Emit an optional Lua callback with a boolean argument\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name, const std::string & name, float x, float y)"
+Emit an optional Lua callback with a named two-dimensional position\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name, const std::string & value)"
+Emit an optional Lua callback with a string argument\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name, float value)"
+Emit an optional Lua callback with a floating-point argument\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::emit (const std::string & event_name, int value)"
+Emit an optional Lua callback with an integer argument\&. 
+.SS "\fBLuaScriptResult\fP sl::LuaRuntime::execute (const std::string & script)"
+Execute a Lua source string and capture any runtime error\&. 
+.SS "void sl::LuaRuntime::initialise (\fBOutputHandler\fP output_handler = \fC{}\fP)"
+Create the Lua state and register simlib's script bindings\&. 
+.SS "bool sl::LuaRuntime::is_initialised () const"
+Return whether the Lua state has been initialised\&. 
+.SS "void sl::LuaRuntime::reset ()"
+Destroy the current state and return the runtime to an uninitialised state\&. 
+.SS "sol::state & sl::LuaRuntime::state ()"
+Access the underlying sol2 state for application-defined bindings\&. 
+
+.SH "Author"
+.PP 
+Generated automatically by Doxygen for simlib from the source code\&.
