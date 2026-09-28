@@ -1,0 +1,30 @@
+.TH SIMLIB 3 "2026-09-26" "simlib" "Library Functions"
+.SH NAME
+simlib \- SDL2-based 2D game and rendering library
+.SH SYNOPSIS
+.nf
+#include <sl.h>
+.fi
+.SH DESCRIPTION
+simlib is a C++17 game framework providing 2D drawing, input, audio, fonts,
+post-processing effects, physics, resources, and Lua scripting through a single
+public header.
+.PP
+The library is consumed through the CMake target \fBsimlib::simlib\fR. The
+installed API reference contains individual section 3 pages for documented
+public types, functions, and members.
+.SH CONFIGURATION
+For a user-local installation under \fB$HOME/opt\fR, configure an application
+with:
+.PP
+.nf
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$HOME/opt"
+.fi
+.PP
+In the application's CMake project, use \fBfind_package(simlib CONFIG REQUIRED)\fR
+and link \fBsimlib::simlib\fR.
+.SH MANUAL SEARCH PATH
+Add \fB$HOME/opt/share/man\fR to the \fBMANPATH\fR environment variable to
+allow \fBman simlib\fR and the individual API pages to be found.
+.SH SEE ALSO
+\fBsl_Bitmap\fR(3), \fBsl_Atlas\fR(3), \fBsl_StorageBuffer\fR(3)

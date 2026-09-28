@@ -109,7 +109,7 @@ cmake --build build -j$(nproc)
 Configure simlib with the prefix where you want it installed, then build and install the library:
 
 ```bash
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt/simlib"
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt"
 cmake --build build --target simlib -j"$(nproc)"
 cmake --install build
 ```
@@ -132,7 +132,7 @@ target_link_libraries(my_app PRIVATE simlib::simlib)
 Tell CMake where the local prefix is when configuring the application:
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH="$HOME/opt/simlib"
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$HOME/opt"
 cmake --build build -j"$(nproc)"
 ```
 
@@ -244,3 +244,13 @@ cmake --build build --target docs
 ```
 
 `cmake --install build` also generates and installs the API man pages under `${CMAKE_INSTALL_PREFIX}/share/man/man3` (or the platform's configured man directory). Doxygen documents only explicitly documented public declarations; the docs target currently completes with no undocumented-symbol warnings.
+
+For a user-local prefix such as `$HOME/opt`, add its man directory to `MANPATH` to make the pages discoverable:
+
+```bash
+export MANPATH="$HOME/opt/share/man${MANPATH:+:$MANPATH}"
+man 3 simlib
+man 3 sl_Bitmap
+```
+
+Add the `export MANPATH=...` line to your shell startup file to keep it across sessions.

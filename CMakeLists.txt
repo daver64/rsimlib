@@ -584,6 +584,9 @@ if(Doxygen_FOUND)
         FILES_MATCHING PATTERN "*.3"
     )
 endif()
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/man/simlib.3"
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man3
+)
 
 install(TARGETS simlib imgui lua
     EXPORT simlibTargets

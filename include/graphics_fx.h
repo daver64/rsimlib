@@ -689,12 +689,10 @@ namespace sl
         float shadow_softness = 0.0f;
         /** Direction in screen space; used when the cone angles are positive. */
         float direction_x = 0.0f;
+        /** Vertical component of the spotlight direction. */
         float direction_y = -1.0f;
-            /** Vertical component of the spotlight direction. */
-            float direction_y = -1.0f;
         /** Inner/outer cone angles in degrees. Zero angles disable spotlight falloff. */
         float inner_angle = 0.0f;
-        float outer_angle = 0.0f;
         /** Outer spotlight cone angle in degrees. */
         float outer_angle = 0.0f;
         /** RGB light colour and alpha intensity. */
