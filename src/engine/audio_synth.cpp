@@ -167,37 +167,7 @@ std::vector<std::int16_t> generate_audio(const SynthParams &params)
             phases[i] -= std::floor(phases[i]);
         }
         
-        for (std::size_t i = 0; i < params.oscillators.size(); ++i)
-        {
-            const SynthOscillator &osc = params.oscillators[i];
-
-            float sample;
-
-            if (osc.waveform == Waveform::noise)
-            {
-                sample = random_noise(noise_state);
-            }
-            else
-            {
-                sample = oscillator_sample(osc.waveform, phases[i]);
-            }
-
-            value += sample * osc.amplitude;
-
-            /*
-             * Frequency is in Hz, phase is cycles.
-             */
-            const float increment = (osc.frequency * pitch) / static_cast<float>(params.sample_rate);
-
-            phases[i] += increment;
-
-            /*
-             * fmod isn't necessary and is considerably
-             * more expensive than this for normal audio
-             * frequencies.
-             */
-            phases[i] -= std::floor(phases[i]);
-        }
+     
 
         /*
          * Avoid clipping when multiple oscillators
