@@ -137,10 +137,36 @@ std::vector<std::int16_t> generate_audio(const SynthParams &params)
          *
          * 1.0 = original pitch.
          */
-        const float pitch = params.pitch_start + (params.pitch_end - params.pitch_start) * p;
-
+        // const float pitch = params.pitch_start + (params.pitch_end - params.pitch_start) * p;
         float value = 0.0f;
+        for (std::size_t i = 0; i < params.oscillators.size(); ++i)
+        {
+            const SynthOscillator &osc = params.oscillators[i];
 
+            const float pitch = osc.pitch.start + (osc.pitch.end - osc.pitch.start) * p;
+
+            float sample;
+
+            if (osc.waveform == Waveform::noise)
+            {
+                sample = random_noise(noise_state);
+            }
+            else
+            {
+                sample = oscillator_sample(osc.waveform, phases[i]);
+            }
+
+            value += sample * osc.amplitude;
+
+            const float frequency = osc.frequency * pitch;
+
+            const float increment = frequency / static_cast<float>(params.sample_rate);
+
+            phases[i] += increment;
+
+            phases[i] -= std::floor(phases[i]);
+        }
+        
         for (std::size_t i = 0; i < params.oscillators.size(); ++i)
         {
             const SynthOscillator &osc = params.oscillators[i];

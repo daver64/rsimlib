@@ -26,11 +26,18 @@ struct Adsr
     float release = 0.10f;
 };
 
+struct Pitch
+{
+    float start = 1.0f;
+    float end   = 1.0f;
+};
+
 struct SynthOscillator
 {
     Waveform waveform = Waveform::sine;
     float frequency = 440.0f;
     float amplitude = 1.0f;
+    Pitch pitch;
 };
 
 struct SynthParams
@@ -44,8 +51,6 @@ struct SynthParams
 
     Adsr envelope;
 
-    float pitch_start = 1.0f;
-    float pitch_end   = 1.0f;
 
     unsigned int noise_seed = 0x12345678;
 };
