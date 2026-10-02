@@ -21,6 +21,8 @@
 #include <type_traits>
 #include <unordered_map>
 #include <cstring>
+#include <limits>
+#include <vector>
 
 namespace sl
 {
@@ -209,36 +211,66 @@ Sample *create_sample_from_pcm(const std::int16_t *data, std::size_t frames, int
     if (size > std::numeric_limits<std::uint32_t>::max())
         return nullptr;
 
-    /*
-     * Mix_QuickLoad_RAW() does not copy the buffer.
-     *
-     * Therefore we make our own copy and arrange for it to be
-     * owned by the Mix_Chunk.
-     */
-    auto *buffer = new std::uint8_t[size];
+    std::vector<std::uint8_t> bytes(size);
+    std::memcpy(bytes.data(), data, size);
 
-    std::memcpy(buffer, data, size);
-
-    return worker.call([buffer, size, sample_rate, channels] {
+    return worker.call([bytes = std::move(bytes), sample_rate, channels]() -> Sample * {
         std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
 
-        Mix_Chunk *chunk = new Mix_Chunk{};
+        int device_rate = 0;
+        Uint16 device_format = 0;
+        int device_channels = 0;
+        if (!Mix_QuerySpec(&device_rate, &device_format, &device_channels))
+        {
+            sl::detail::set_error(Mix_GetError());
+            return nullptr;
+        }
 
+        SDL_AudioCVT cvt;
+        const int needs_conversion =
+            SDL_BuildAudioCVT(&cvt, AUDIO_S16SYS, static_cast<Uint8>(channels), sample_rate, device_format,
+                              static_cast<Uint8>(device_channels), device_rate);
+        if (needs_conversion < 0)
+        {
+            sl::detail::set_error(SDL_GetError());
+            return nullptr;
+        }
+
+        const std::size_t capacity = bytes.size() * static_cast<std::size_t>(needs_conversion ? cvt.len_mult : 1);
+        // Mix_FreeChunk releases abuf with SDL_free, so it must come from SDL_malloc.
+        auto *buffer = static_cast<std::uint8_t *>(SDL_malloc(capacity));
+        if (!buffer)
+        {
+            sl::detail::set_error("Out of memory");
+            return nullptr;
+        }
+        std::memcpy(buffer, bytes.data(), bytes.size());
+
+        Uint32 length = static_cast<Uint32>(bytes.size());
+        if (needs_conversion)
+        {
+            cvt.buf = buffer;
+            cvt.len = static_cast<int>(bytes.size());
+            if (SDL_ConvertAudio(&cvt) < 0)
+            {
+                sl::detail::set_error(SDL_GetError());
+                SDL_free(buffer);
+                return nullptr;
+            }
+            length = static_cast<Uint32>(cvt.len_cvt);
+        }
+
+        auto *chunk = static_cast<Mix_Chunk *>(SDL_calloc(1, sizeof(Mix_Chunk)));
+        if (!chunk)
+        {
+            SDL_free(buffer);
+            sl::detail::set_error("Out of memory");
+            return nullptr;
+        }
         chunk->allocated = 1;
         chunk->abuf = buffer;
-        chunk->alen = static_cast<Uint32>(size);
+        chunk->alen = length;
         chunk->volume = MIX_MAX_VOLUME;
-
-        /*
-         * SDL_mixer needs to know the format of the
-         * raw data. This is normally the mixer format.
-         *
-         * The default rsimlib mixer format is signed
-         * 16-bit native-endian PCM.
-         */
-        (void)sample_rate;
-        (void)channels;
-
         return new Sample{chunk};
     });
 }

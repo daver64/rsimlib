@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <random>
 
 namespace sl
 {
@@ -132,12 +131,6 @@ std::vector<std::int16_t> generate_audio(const SynthParams &params)
     {
         const float p = frames > 1 ? static_cast<float>(frame) / static_cast<float>(frames - 1) : 0.0f;
 
-        /*
-         * Linear pitch envelope.
-         *
-         * 1.0 = original pitch.
-         */
-        // const float pitch = params.pitch_start + (params.pitch_end - params.pitch_start) * p;
         float value = 0.0f;
         for (std::size_t i = 0; i < params.oscillators.size(); ++i)
         {
@@ -166,8 +159,6 @@ std::vector<std::int16_t> generate_audio(const SynthParams &params)
 
             phases[i] -= std::floor(phases[i]);
         }
-        
-     
 
         /*
          * Avoid clipping when multiple oscillators
@@ -197,6 +188,16 @@ std::vector<std::int16_t> generate_audio(const SynthParams &params)
     }
 
     return output;
+}
+
+Sample *generate_sample(const SynthParams &params)
+{
+    const std::vector<std::int16_t> pcm = generate_audio(params);
+    if (pcm.empty())
+        return nullptr;
+
+    return create_sample_from_pcm(pcm.data(), pcm.size() / static_cast<std::size_t>(params.channels),
+                                  params.sample_rate, params.channels);
 }
 
 } // namespace sl

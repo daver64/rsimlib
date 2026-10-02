@@ -414,6 +414,9 @@ target_link_libraries(exrendertarget PRIVATE simlib)
 add_executable(exaudio src/examples/exaudio/exaudio.cpp)
 target_link_libraries(exaudio PRIVATE simlib)
 
+add_executable(exsynth src/examples/exsynth/exsynth.cpp)
+target_link_libraries(exsynth PRIVATE simlib)
+
 add_executable(exinput src/examples/exinput/exinput.cpp)
 target_link_libraries(exinput PRIVATE simlib)
 
