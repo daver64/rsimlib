@@ -253,6 +253,7 @@ add_library(simlib STATIC
     src/engine/audio_backend.cpp
     src/engine/audio_fx.cpp
     src/engine/audio_music.cpp
+    src/engine/audio_synth.cpp
     src/engine/system.cpp
     src/engine/input.cpp
     src/engine/lua_canvas.cpp
