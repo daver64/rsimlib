@@ -381,18 +381,7 @@ namespace game
                 playing_background, 0.0f, 0.0f,
                 sl::screen_width(), sl::screen_height());
         }
-        /*sl::rectfill(sl::screen,sl::screen_width()/6,0,
-            sl::screen_width()*5/6,
-            1+10*fontheight,
-            sl::Colour{45, 48, 56, 128});
-        sl::gprintf_center(1+fontheight, heading,  "Playing Mode");
-        sl::gprintf_center(1+2*fontheight, text,  "Press SPACE to reset");
-        sl::gprintf_center(1+3*fontheight, text,  "Click a balloon to select it, right click to unselect");
-        sl::gprintf_center(1+4*fontheight, text,  "+/-: selected balloon volume, hold B: burner");
-        sl::gprintf_center(1+5*fontheight, text,  "Left/right: selected balloon thrust; layered winds alternate direction");
-        sl::gprintf_center(1+6*fontheight, text,  "M: toggle music, F11: toggle fullscreen");
-        sl::gprintf_center(1+7*fontheight, text,  "Press ESC to return to menu");
-*/
+
         render_objects(playing_objects);
 
         if (post_process_ready)

@@ -61,7 +61,13 @@ namespace sl
     void gprintf(int x, int y, const Colour &colour, const char *fmt, ...);
     /** Format and draw text with the default monospace font, horizontally centred on screen. */
     void gprintf_center(int y, const Colour &colour, const char *fmt, ...);
+    /** Format and draw text with the given font at a screen position. */
+    void gprintf(int x, int y,Font *font, const Colour &colour, const char *fmt, ...);
+    /** Format and draw text with the given font, horizontally centred on screen. */
+    void gprintf_center(int y, Font *font, const Colour &colour, const char *fmt, ...);
 
+    
+    
     /** Opaque cache holding one GPU text texture, rebuilt only when its text/font/colour change. */
     struct TextCache;
 

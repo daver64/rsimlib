@@ -624,6 +624,32 @@ namespace sl
         const int x = (screen->width - text_width) / 2;
         draw_formatted_text(font, x, y, colour, buffer);
     }
+    /** Format and draw text with the given font at a screen position. */
+    void gprintf(int x, int y,Font *font, const Colour &colour, const char *fmt, ...)
+    {
+        if (!fmt)
+            return;
+        char buffer[1024];
+        va_list args;
+        va_start(args, fmt);
+        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        va_end(args);
+        draw_formatted_text(font, x, y, colour, buffer);
+    }
+    /** Format and draw text with the given font, horizontally centred on screen. */
+    void gprintf_center(int y, Font *font, const Colour &colour, const char *fmt, ...)
+    {
+         if (!fmt)
+            return;
+        char buffer[1024];
+        va_list args;
+        va_start(args, fmt);
+        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        va_end(args);
+        const int text_width = text_length(font, buffer);
+        const int x = (screen->width - text_width) / 2;
+        draw_formatted_text(font, x, y, colour, buffer);     
+    }
 
     TextCache *create_text_cache()
     {
