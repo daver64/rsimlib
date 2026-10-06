@@ -254,9 +254,12 @@ namespace sl
     }
     bool set_vsync(bool enabled)
     {
-        return renderer && renderer->set_vsync(enabled);
+        return renderer->set_vsync(enabled);
     }
-
+	bool get_vsync()
+	{
+		return renderer->vsync_active();
+	}
     int screen_width()
     {
         if (renderTargetWidth > 0)

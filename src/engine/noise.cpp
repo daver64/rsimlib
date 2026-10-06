@@ -22,6 +22,10 @@ namespace sl
         generator_.SetNoiseType(type);
     }
 
+    void Generator::set_fractal_type(FastNoiseLite::FractalType type)
+    {
+	    generator_.SetFractalType(type);
+    }
     float Generator::get(float x, float y) const
     {
         return generator_.GetNoise(x, y);

@@ -47,6 +47,8 @@ namespace sl
     bool toggle_fullscreen();
     /** Set the OpenGL swap interval; zero disables vsync. */
     bool set_vsync(bool enabled);
+      /** Return whether or not vsync is enabled */
+    bool get_vsync();  
     /** Return the current drawable width in pixels. */
     int screen_width();
     /** Return the current drawable height in pixels. */
