@@ -77,7 +77,49 @@ namespace sl
 			case Event::Key::comma:
 			sdl_key=SDL_SCANCODE_COMMA;
 			case Event::Key::f1:
-			sdl_key=SDL_SCANCODE_F1;																																																																		
+			sdl_key=SDL_SCANCODE_F1;
+			case Event::Key::f2:
+			sdl_key=SDL_SCANCODE_F2;
+			case Event::Key::f3:
+			sdl_key=SDL_SCANCODE_F3;
+			case Event::Key::f4:
+			sdl_key=SDL_SCANCODE_F4;
+			case Event::Key::f5:
+			sdl_key=SDL_SCANCODE_F5;
+			case Event::Key::f6:
+			sdl_key=SDL_SCANCODE_F6;
+			case Event::Key::f7:
+			sdl_key=SDL_SCANCODE_F7;
+			case Event::Key::f8:
+			sdl_key=SDL_SCANCODE_F8;
+			case Event::Key::f9:
+			sdl_key=SDL_SCANCODE_F9;
+			case Event::Key::f10:
+			sdl_key=SDL_SCANCODE_F10;
+			case Event::Key::f11:
+			sdl_key=SDL_SCANCODE_F11;
+			case Event::Key::f12:
+			sdl_key=SDL_SCANCODE_F12;
+			case Event::Key::digit_0:
+			sdl_key=SDL_SCANCODE_0;
+			case Event::Key::digit_1:
+			sdl_key=SDL_SCANCODE_1;
+			case Event::Key::digit_2:
+			sdl_key=SDL_SCANCODE_2;
+			case Event::Key::digit_3:
+			sdl_key=SDL_SCANCODE_3;
+			case Event::Key::digit_4:
+			sdl_key=SDL_SCANCODE_4;
+			case Event::Key::digit_5:
+			sdl_key=SDL_SCANCODE_5;
+			case Event::Key::digit_6:
+			sdl_key=SDL_SCANCODE_6;
+			case Event::Key::digit_7:
+			sdl_key=SDL_SCANCODE_7;
+			case Event::Key::digit_8:
+			sdl_key=SDL_SCANCODE_8;
+			case Event::Key::digit_9:
+			sdl_key=SDL_SCANCODE_9;
 		}
 		return key_down(sdl_key);
 	}
