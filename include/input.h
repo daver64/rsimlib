@@ -8,11 +8,12 @@
 
 namespace sl
 {
-
+    using Key = Event::Key;
     /** Poll the next SDL event, returning false when the queue is empty. */
     bool poll_event(Event *event);
     /** Return whether a keyboard scancode is currently held. */
     bool key_down(SDL_Scancode key);
+    bool key_down(Event::Key key);
     /** Return the current mouse X coordinate in window pixels. */
     int mouse_x();
     /** Return the current mouse Y coordinate in window pixels. */
