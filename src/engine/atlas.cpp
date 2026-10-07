@@ -33,10 +33,10 @@ Atlas create_atlas(Bitmap *bitmap, int tile_width, int tile_height, int spacing,
     atlas.tile_count = columns * rows;
     return atlas;
 }
-sl::Atlas load_atlas_from_file(const std::string &atlas_file, int num_tiles_w, int num_tiles_h)
+sl::Atlas load_atlas_from_file(const std::string &atlas_file, int tile_width, int tile_height)
 {
     sl::Bitmap *bitmap = sl::load_bitmap(atlas_file);
-    sl::Atlas atlas = sl::create_atlas(bitmap, num_tiles_h, num_tiles_w);
+    sl::Atlas atlas = sl::create_atlas(bitmap, tile_width, tile_height);
     return atlas;
 }
 bool atlas_tile_rect(const Atlas &atlas, int tile_index, int &x, int &y, int &width, int &height)
@@ -81,6 +81,39 @@ void atlas_stretch_blit(const Atlas &atlas, Bitmap *destination, int tile_index,
     }
     stretch_blit(atlas.bitmap, destination, x, y, width, height, destinationX, destinationY, destinationWidth,
                  destinationHeight);
+}
+
+void atlas_rotate_stretch_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees,
+                                 float destinationWidth, float destinationHeight, float pivotX, float pivotY)
+{
+    int sourceX = 0;
+    int sourceY = 0;
+    int width = 0;
+    int height = 0;
+    if (!atlas_tile_rect(atlas, tile_index, sourceX, sourceY, width, height))
+    {
+        return;
+    }
+    draw_sprite_region_rotated(atlas.bitmap, sourceX, sourceY, width, height, x, y, destinationWidth,
+                               destinationHeight, pivotX, pivotY, angleDegrees);
+}
+
+void atlas_rotate_stretch_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees,
+                                 float destinationWidth, float destinationHeight)
+{
+    atlas_rotate_stretch_sprite(atlas, tile_index, x, y, angleDegrees, destinationWidth, destinationHeight,
+                                destinationWidth * 0.5f, destinationHeight * 0.5f);
+}
+
+void atlas_rotate_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees, float pivotX, float pivotY)
+{
+    atlas_rotate_stretch_sprite(atlas, tile_index, x, y, angleDegrees, static_cast<float>(atlas.tile_width),
+                                static_cast<float>(atlas.tile_height), pivotX, pivotY);
+}
+
+void atlas_rotate_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees)
+{
+    atlas_rotate_sprite(atlas, tile_index, x, y, angleDegrees, atlas.tile_width * 0.5f, atlas.tile_height * 0.5f);
 }
 
 } // namespace sl

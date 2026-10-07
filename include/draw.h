@@ -292,6 +292,8 @@ namespace sl
     void draw_sprite_rotated(Bitmap *bitmap, float centerX, float centerY, float angleDegrees);
     /** Draw a stretched sprite centred at (centerX, centerY), rotated clockwise by angleDegrees. */
     void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int width, int height);
+    /** Draw a bitmap region with its unrotated top-left at (x, y), rotated clockwise by angleDegrees around a pivot offset (in destination pixels) from that corner; the region is scaled to destinationWidth x destinationHeight. */
+    void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees);
     /** Draw a horizontally flipped bitmap. */
     void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
     /** Draw a vertically flipped bitmap. */

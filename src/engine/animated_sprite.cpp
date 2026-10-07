@@ -25,11 +25,14 @@ AnimatedSprite create_animated_sprite(sl::Atlas atlas, int start_tile_id, int nu
     return sprite;
 }
 
-
 void draw_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination)
 {
     sl::atlas_stretch_blit(sprite.atlas, destination, sprite.frames[sprite.current_frame].tile_id, sprite.x, sprite.y,
                            sprite.width, sprite.height);
 }
-
+void draw_rotated_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination)
+{
+    sl::atlas_rotate_stretch_sprite(sprite.atlas,sprite.frames[sprite.current_frame].tile_id,sprite.x,sprite.y,
+        sprite.rotation_angle,sprite.width,sprite.height,sprite.pivotx,sprite.pivoty);
+}
 } // namespace sl

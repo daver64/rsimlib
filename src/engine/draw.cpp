@@ -182,6 +182,48 @@ namespace sl
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
 
+		/** Draw a bitmap region rotated clockwise around a pivot given in destination pixels, scaled to the destination size; (x, y) is the unrotated top-left. */
+		void draw_textured_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees)
+		{
+			if (!upload_bitmap(bitmap))
+			{
+				return;
+			}
+
+			const float angleRadians = angleDegrees * pi / 180.0f;
+			const float cosine = std::cos(angleRadians);
+			const float sine = std::sin(angleRadians);
+			const float originX = x + pivotX;
+			const float originY = y + pivotY;
+			const auto rotate = [originX, originY, cosine, sine](float dx, float dy)
+			{
+				return std::pair<float, float>{
+					originX + dx * cosine - dy * sine,
+					originY + dx * sine + dy * cosine};
+			};
+
+			const auto topLeft = rotate(-pivotX, -pivotY);
+			const auto topRight = rotate(destinationWidth - pivotX, -pivotY);
+			const auto bottomRight = rotate(destinationWidth - pivotX, destinationHeight - pivotY);
+			const auto bottomLeft = rotate(-pivotX, destinationHeight - pivotY);
+
+			const float leftTexture = static_cast<float>(sourceX) / bitmap->width;
+			const float topTexture = static_cast<float>(sourceY) / bitmap->height;
+			const float rightTexture = static_cast<float>(sourceX + width) / bitmap->width;
+			const float bottomTexture = static_cast<float>(sourceY + height) / bitmap->height;
+
+			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
+			const detail::GLVertex vertices[4] = {
+				{topLeft.first, topLeft.second, leftTexture, topTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+				{topRight.first, topRight.second, rightTexture, topTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+				{bottomRight.first, bottomRight.second, rightTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+				{bottomLeft.first, bottomLeft.second, leftTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+			};
+			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
+		}
+
 		/** Render a plain or textured line directly to the screen with optional thickness. */
 		void draw_screen_thick_line(float x1, float y1, float x2, float y2, float thickness, Bitmap *texture, Colour colour)
 		{
@@ -1718,6 +1760,16 @@ namespace sl
 		}
 		draw_textured_quad_rotated(bitmap, centerX, centerY, angleDegrees, width, height);
 	}
+	/** Draw a bitmap region scaled to a destination size, rotated clockwise around a pivot offset (in destination pixels). */
+	void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees)
+	{
+		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
+		{
+			return;
+		}
+		draw_textured_region_rotated(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, pivotX, pivotY, angleDegrees);
+	}
+
 	/** Draw a horizontally flipped bitmap. */
 	void draw_sprite_h_flip(Bitmap *bitmap, float x, float y)
 	{

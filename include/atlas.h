@@ -28,12 +28,20 @@ namespace sl
 
     /** Slice a bitmap into a tile grid; the atlas does not take ownership of the bitmap. */
     Atlas create_atlas(Bitmap *bitmap, int tile_width, int tile_height, int spacing = 0, int margin = 0);
-    sl::Atlas load_atlas_from_file(const std::string &atlas_file, int num_tiles_w, int num_tiles_h);
+    sl::Atlas load_atlas_from_file(const std::string &atlas_file, int tile_width, int tile_height);
     /** Compute a tile's source rectangle within the atlas bitmap; returns false for an out-of-range index. */
     bool atlas_tile_rect(const Atlas &atlas, int tile_index, int &x, int &y, int &width, int &height);
     /** Draw one atlas tile at the destination position, skipping fully transparent pixels. */
     void atlas_blit(const Atlas &atlas, Bitmap *destination, int tile_index, int destinationX, int destinationY);
     /** Draw one atlas tile scaled into a destination rectangle. */
     void atlas_stretch_blit(const Atlas &atlas, Bitmap *destination, int tile_index, int destinationX, int destinationY, int destinationWidth, int destinationHeight);
+    /** Draw one tile with its unrotated top-left at (x, y), rotated clockwise by angleDegrees around the tile centre. */
+    void atlas_rotate_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees);
+    /** As above, but rotating around (pivotX, pivotY), measured in pixels from the tile's top-left corner. */
+    void atlas_rotate_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees, float pivotX, float pivotY);
+    /** Draw one tile scaled to destinationWidth x destinationHeight, rotated clockwise around the centre of the scaled tile. */
+    void atlas_rotate_stretch_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees, float destinationWidth, float destinationHeight);
+    /** As above, but rotating around (pivotX, pivotY), measured in destination pixels from the scaled tile's top-left corner. */
+    void atlas_rotate_stretch_sprite(const Atlas &atlas, int tile_index, float x, float y, float angleDegrees, float destinationWidth, float destinationHeight, float pivotX, float pivotY);
 
 } // namespace sl
