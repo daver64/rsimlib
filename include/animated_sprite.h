@@ -65,6 +65,34 @@ public:
             draw_animated_sprite(sprite, bitmap);
         }
     }
+    bool get_sprite(int index, AnimatedSprite **sprite)
+    {
+        if(index<0 || index>-animated_sprites.size())
+        {
+            (*sprite)=nullptr;
+            return false;
+        }
+        (*sprite)=&animated_sprites[index];
+        return true;
+    }
+    bool set_sprite_tiles(int index, std::vector<int> &tiles)
+    {
+        AnimatedSprite *sprite;
+        bool sprite_valid=get_sprite(index,&sprite);
+        if(sprite_valid)
+        {
+            int i=0;
+            if(sprite->frames.size()!= tiles.size())
+                return false;
+            for(auto & af : sprite->frames)
+            {
+                af.tile_id=tiles[i];
+                i++;
+            }
+            return true;
+        }
+        return false;
+    }
 private:
     std::vector<AnimatedSprite> animated_sprites;
 };
