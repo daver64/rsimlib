@@ -32,7 +32,127 @@ void draw_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination)
 }
 void draw_rotated_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination)
 {
-    sl::atlas_rotate_stretch_sprite(sprite.atlas,sprite.frames[sprite.current_frame].tile_id,sprite.x,sprite.y,
-        sprite.rotation_angle,sprite.width,sprite.height,sprite.pivotx,sprite.pivoty);
+    sl::atlas_rotate_stretch_sprite(sprite.atlas, sprite.frames[sprite.current_frame].tile_id, sprite.x, sprite.y,
+                                    sprite.rotation_angle, sprite.width, sprite.height, sprite.pivotx, sprite.pivoty);
+}
+
+AnimationManager::AnimationManager()
+{
+}
+AnimationManager::~AnimationManager()
+{
+}
+void AnimationManager::update()
+{
+    const double delta_t = sl::get_frame_time() / 1000.0;
+    for (auto &as : animated_sprites)
+    {
+        if (as.paused)
+            continue;
+        double time_left = as.frames[as.current_frame].time_left;
+        time_left -= delta_t;
+        if (time_left < 0)
+        {
+            int next_frame = as.current_frame;
+            next_frame++;
+            if (next_frame >= as.frames.size())
+                next_frame = 0;
+            as.current_frame = next_frame;
+            as.frames[as.current_frame].time_left = as.frames[as.current_frame].duration;
+        }
+        else
+        {
+            as.frames[as.current_frame].time_left = time_left;
+        }
+    }
+}
+const int AnimationManager::add_animated_sprite(AnimatedSprite &sprite)
+{
+    animated_sprites.emplace_back(sprite);
+    return (int)animated_sprites.size() - 1;
+}
+void AnimationManager::draw_sprites(sl::Bitmap *bitmap)
+{
+    for (auto &sprite : animated_sprites)
+    {
+        if (!sprite.draw_rotated)
+            draw_animated_sprite(sprite, bitmap);
+        else
+            draw_rotated_animated_sprite(sprite, bitmap);
+    }
+}
+bool AnimationManager::get_sprite(int index, AnimatedSprite **sprite)
+{
+    if (index < 0 || index > -animated_sprites.size())
+    {
+        (*sprite) = nullptr;
+        return false;
+    }
+    (*sprite) = &animated_sprites[index];
+    return true;
+}
+bool AnimationManager::set_sprite_tiles(int index, std::vector<int> &tiles)
+{
+    AnimatedSprite *sprite;
+    bool sprite_valid = get_sprite(index, &sprite);
+    if (sprite_valid)
+    {
+        int i = 0;
+        if (sprite->frames.size() != tiles.size())
+            return false;
+        for (auto &af : sprite->frames)
+        {
+            af.tile_id = tiles[i];
+            i++;
+        }
+        return true;
+    }
+    return false;
+}
+bool AnimationManager::set_sprite_position(int index, int x, int y)
+{
+    AnimatedSprite *sprite;
+    bool sprite_valid = get_sprite(index, &sprite);
+    if (sprite_valid)
+    {
+        sprite->x = x;
+        sprite->y = y;
+        return true;
+    }
+    return false;
+}
+bool AnimationManager::set_sprite_rotation(int index, float angle)
+{
+    float passed_angle = std::fmod(angle, 360.0f);
+    AnimatedSprite *sprite;
+    bool sprite_valid = get_sprite(index, &sprite);
+    if (sprite_valid)
+    {
+        sprite->rotation_angle = passed_angle;
+        return true;
+    }
+    return false;
+}
+// not sure we need this...
+bool AnimationManager::get_sprite_position(int index, int &x, int &y)
+{
+    AnimatedSprite *sprite;
+    bool sprite_valid = get_sprite(index, &sprite);
+    if (sprite_valid)
+    {
+        x = sprite->x;
+        y = sprite->y;
+        return true;
+    }
+    return false;
+}
+void AnimationManager::toggle_pause(int index)
+{
+    AnimatedSprite *sprite;
+    bool sprite_valid = get_sprite(index, &sprite);
+    if (sprite_valid)
+    {
+        sprite->paused = !sprite->paused;
+    }
 }
 } // namespace sl
