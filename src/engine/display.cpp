@@ -175,8 +175,9 @@ namespace sl
         }
 
         SDL_GetWindowSize(window, &width, &height);
-        logicalWidth = virtualWidth > 0 ? virtualWidth : width;
-        logicalHeight = virtualHeight > 0 ? virtualHeight : height;
+        // 0 means "follow the window size"; only an explicit virtual size is fixed
+        logicalWidth = virtualWidth > 0 ? virtualWidth : 0;
+        logicalHeight = virtualHeight > 0 ? virtualHeight : 0;
         if (!renderer->resize(width, height, renderer_error))
         {
             sl::detail::set_error(renderer_error);
@@ -189,7 +190,7 @@ namespace sl
             SDL_Quit();
             return false;
         }
-        detail::initialise_screen(logicalWidth, logicalHeight);
+        detail::initialise_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
         sl_default_monospace_font = open_monospace_font(12);
         if (!sl_default_monospace_font)
         {
@@ -238,6 +239,7 @@ namespace sl
             if (!renderer->resize(width, height, error) && !error.empty())
                 sl::detail::set_error(error);
         }
+        detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
         return true;
     }
 

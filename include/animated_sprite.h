@@ -54,9 +54,10 @@ public:
             }
         }
     }
-    void add_animated_sprite(AnimatedSprite &sprite)
+    const int  add_animated_sprite(AnimatedSprite &sprite)
     {
         animated_sprites.emplace_back(sprite);
+        return (int)animated_sprites.size()-1;
     }
     void draw_sprites(sl::Bitmap *bitmap)
     {
