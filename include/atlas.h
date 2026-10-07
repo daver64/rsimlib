@@ -28,6 +28,7 @@ namespace sl
 
     /** Slice a bitmap into a tile grid; the atlas does not take ownership of the bitmap. */
     Atlas create_atlas(Bitmap *bitmap, int tile_width, int tile_height, int spacing = 0, int margin = 0);
+    sl::Atlas load_atlas_from_file(const std::string &atlas_file, int num_tiles_w, int num_tiles_h);
     /** Compute a tile's source rectangle within the atlas bitmap; returns false for an out-of-range index. */
     bool atlas_tile_rect(const Atlas &atlas, int tile_index, int &x, int &y, int &width, int &height);
     /** Draw one atlas tile at the destination position, skipping fully transparent pixels. */

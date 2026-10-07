@@ -43,7 +43,7 @@ if(SIMLIB_VALIDATE_SHADERS)
             crt.frag
             dither.frag
             film_grain.frag
-                        colour_adjust.frag
+            colour_adjust.frag
             tint.frag
             ex3d.vert
             ex3d.frag
@@ -273,6 +273,7 @@ add_library(simlib STATIC
     src/engine/vulkan_context.cpp
     src/engine/vulkan_renderer.cpp
     src/engine/video.cpp
+    src/engine/animated_sprite.cpp
 )
 if(WIN32)
     target_sources(simlib PRIVATE

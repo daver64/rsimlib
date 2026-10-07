@@ -27,4 +27,5 @@ namespace sl
         FastNoiseLite generator_;
     };
 
+    const float prng();
 } // namespace sl
