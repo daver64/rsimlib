@@ -191,6 +191,7 @@ namespace sl
             return false;
         }
         detail::initialise_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
+        detail::refresh_mouse_cursor();
         sl_default_monospace_font = open_monospace_font(12);
         if (!sl_default_monospace_font)
         {
@@ -217,6 +218,33 @@ namespace sl
                 sl::detail::set_error(error);
         }
         detail::resize_screen(logicalWidth > 0 ? logicalWidth : width, logicalHeight > 0 ? logicalHeight : height);
+    }
+
+    namespace
+    {
+        bool mouseVisible = true;
+    } // namespace
+
+    namespace detail
+    {
+        void refresh_mouse_cursor()
+        {
+            // a custom bitmap is drawn by the library, so the OS cursor is hidden while it is in use
+            const bool softwareCursor = mouseVisible && mouse_bitmap() != nullptr;
+            SDL_ShowCursor(mouseVisible && !softwareCursor ? SDL_ENABLE : SDL_DISABLE);
+        }
+    } // namespace detail
+
+    void show_mouse()
+    {
+        mouseVisible = true;
+        detail::refresh_mouse_cursor();
+    }
+
+    void hide_mouse()
+    {
+        mouseVisible = false;
+        detail::refresh_mouse_cursor();
     }
 
     void set_window_title(const char *title)
@@ -341,6 +369,8 @@ namespace sl
     {
         if (renderer)
         {
+            if (mouseVisible)
+                detail::draw_mouse_cursor();
             renderer->present();
         }
     }

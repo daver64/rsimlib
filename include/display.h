@@ -9,6 +9,7 @@
 
 namespace sl
 {
+    struct Bitmap;
 
     /** Select the windowed auto-detected graphics driver. */
     constexpr int GFX_AUTODETECT_WINDOWED = 1;
@@ -59,9 +60,21 @@ namespace sl
     int virtual_screen_height();
     /** Restore the GL viewport to the actual window size (used after rendering to an offscreen target). */
     void restore_window_viewport();
-
+    
+    /** Show the mouse cursor (the custom bitmap if one is set, otherwise the OS cursor). */
+    void show_mouse();
+    /** Hide the mouse cursor. */
+    void hide_mouse();
+    /** Use a bitmap as the mouse cursor, drawn so the pixel at (offset_x, offset_y), measured from the bitmap's top-left, sits on the mouse position; nullptr restores the OS cursor. */
+    void set_mouse_bitmap(Bitmap *mouse_bitmap, int offset_x = 0, int offset_y = 0);
     namespace detail
     {
+        /** Return the custom mouse cursor bitmap, or nullptr. */
+        Bitmap *mouse_bitmap();
+        /** Apply the current mouse visibility and cursor bitmap to the OS cursor. */
+        void refresh_mouse_cursor();
+        /** Draw the custom mouse cursor, if any, at the mouse position. */
+        void draw_mouse_cursor();
         /** Override screen_width()/screen_height() while an offscreen render target is bound; 0 clears it. */
         void set_render_target_size(int width, int height);
         void set_screen_offset(float x, float y);

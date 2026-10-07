@@ -7,6 +7,7 @@
 #include "display.h"
 #include "error.h"
 #include "gl2d.h"
+#include "input.h"
 #include "renderer.h"
 #include "resource.h"
 
@@ -1721,6 +1722,36 @@ namespace sl
 		renderer->bind_texture_unit(unit, bitmap->gpu_texture);
 		return true;
 	}
+	namespace
+	{
+		Bitmap *cursorBitmap = nullptr;
+		int cursorOffsetX = 0;
+		int cursorOffsetY = 0;
+	} // namespace
+
+	void set_mouse_bitmap(Bitmap *mouse_bitmap, int offset_x, int offset_y)
+	{
+		cursorBitmap = mouse_bitmap;
+		cursorOffsetX = offset_x;
+		cursorOffsetY = offset_y;
+		detail::refresh_mouse_cursor();
+	}
+
+	namespace detail
+	{
+		Bitmap *mouse_bitmap()
+		{
+			return cursorBitmap;
+		}
+
+		void draw_mouse_cursor()
+		{
+			// only on the window, never into an offscreen target
+			if (!cursorBitmap || cursorBitmap == screen || cursorBitmap->fbo != 0)
+				return;
+			draw_sprite(cursorBitmap, static_cast<float>(mouse_x() - cursorOffsetX), static_cast<float>(mouse_y() - cursorOffsetY));
+		}
+	} // namespace detail
 
 	/** Draw a bitmap at a screen position. */
 	void draw_sprite(Bitmap *bitmap, float x, float y)
