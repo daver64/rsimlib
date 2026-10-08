@@ -25,10 +25,13 @@ struct AnimatedSprite {
     float pivoty=0.0f;
     bool paused=false;
     bool draw_rotated=false;
+    bool one_shot=false;
+    int one_shot_counts=0;
+    int one_shot_counter=0;
     std::vector<AnimationFrame> frames;
 };
 AnimatedSprite create_animated_sprite(sl::Atlas atlas,int start_tile_id,
-    int numframes,int x, int y, int width, int height, float duration);
+    int numframes,int x, int y, int width, int height, float duration,bool one_shot=false,int oneshot_counts=64);
 void draw_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination);
 void draw_rotated_animated_sprite(AnimatedSprite &sprite, sl::Bitmap *destination);
 

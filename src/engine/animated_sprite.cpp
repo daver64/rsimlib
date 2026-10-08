@@ -4,7 +4,7 @@ namespace sl
 {
 
 AnimatedSprite create_animated_sprite(sl::Atlas atlas, int start_tile_id, int numframes, int x, int y, int width,
-                                      int height, float duration)
+                                      int height, float duration, bool one_shot,  int oneshot_counts)
 {
     AnimatedSprite sprite;
     sprite.atlas = atlas;
@@ -14,6 +14,8 @@ AnimatedSprite create_animated_sprite(sl::Atlas atlas, int start_tile_id, int nu
     sprite.x = x;
     sprite.y = y;
     sprite.start_tile_id = start_tile_id;
+    sprite.one_shot=one_shot;
+    sprite.one_shot_counts=oneshot_counts;
     for (int i = 0; i < numframes; i++)
     {
         AnimationFrame frame;
@@ -45,6 +47,7 @@ AnimationManager::~AnimationManager()
 void AnimationManager::update()
 {
     const double delta_t = sl::get_frame_time() / 1000.0;
+    std::vector<AnimatedSprite> keep_list;
     for (auto &as : animated_sprites)
     {
         if (as.paused)
@@ -59,12 +62,29 @@ void AnimationManager::update()
                 next_frame = 0;
             as.current_frame = next_frame;
             as.frames[as.current_frame].time_left = as.frames[as.current_frame].duration;
+            if(!as.one_shot)
+            {
+                keep_list.emplace_back(as);
+            }
+            else
+            {
+              //  fprintf(stderr,"one_shot_counter=%d one_shot_counts=%d\n",as.one_shot_counter,as.one_shot_counts);
+                if(as.one_shot_counter<as.one_shot_counts)
+                {
+                    
+                    as.one_shot_counter++;
+                    keep_list.emplace_back(as);
+                   // fprintf(stderr,"one_shot_counter=%d one_shot_counts=%d\n",as.one_shot_counter,as.one_shot_counts);
+                }
+            }
         }
         else
         {
             as.frames[as.current_frame].time_left = time_left;
+            keep_list.emplace_back(as);
         }
     }
+    animated_sprites.swap(keep_list);
 }
 const int AnimationManager::add_animated_sprite(AnimatedSprite &sprite)
 {
