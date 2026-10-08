@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         }
 
         sl::clear_to_colour(sl::screen, {18, 23, 32});
-        sl::new_frame();
+        sl::gui_new_frame();
         ImGui::SetNextWindowBgAlpha(panel_alpha);
         ImGui::Begin("simlib GUI example", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::Text("Dear ImGui integration");
@@ -73,10 +73,10 @@ int main(int argc, char *argv[])
         ImGui::Text("Press Escape to exit");
         ImGui::End();
         if (show_demo)
-            sl::show_demo_window();
+            sl::gui_show_demo_window();
         if (show_metrics)
-            ImGui::ShowMetricsWindow(&show_metrics);
-        sl::render();
+            sl::gui_show_metrics_window(show_metrics);
+        sl::gui_render();
         sl::show_video_bitmap();
         sl::end_frame();
     }

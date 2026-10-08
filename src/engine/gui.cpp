@@ -74,7 +74,7 @@ namespace sl
         ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event *>(detail::event_handle(event)));
     }
 
-    void new_frame()
+    void gui_new_frame()
     {
         if (graphics_backend() == GraphicsBackend::opengl)
             ImGui_ImplOpenGL3_NewFrame();
@@ -84,7 +84,7 @@ namespace sl
         ImGui::NewFrame();
     }
 
-    void render()
+    void gui_render()
     {
         detail::gl2d_flush();
         ImGui::Render();
@@ -114,8 +114,13 @@ namespace sl
         ImGui::DestroyContext();
     }
 
-    void show_demo_window()
+    void gui_show_demo_window()
     {
         ImGui::ShowDemoWindow();
+    }
+
+    void gui_show_metrics_window(bool &show_metrics)
+    {
+         ImGui::ShowMetricsWindow(&show_metrics);
     }
 } // namespace sl

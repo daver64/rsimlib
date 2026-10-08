@@ -1474,9 +1474,9 @@ int main(int argc, char **argv)
         app.update();
         app.render();
 
-        sl::new_frame();
+        sl::gui_new_frame();
         app.render_gui();
-        sl::render();
+        sl::gui_render();
 
         sl::show_video_bitmap();
         sl::end_frame();

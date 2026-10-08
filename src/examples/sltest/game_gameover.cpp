@@ -22,7 +22,7 @@ namespace game
     void update_and_render_gameover()
     {
         sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
-        sl::new_frame();
+        sl::gui_new_frame();
 
         const ImGuiViewport *viewport = ImGui::GetMainViewport();
         const ImVec2 window_size{260.0f, 130.0f};
@@ -41,7 +41,7 @@ namespace game
             request_mode(Mode::menu);
         }
         ImGui::End();
-        sl::render();
+        sl::gui_render();
 
         sl::show_video_bitmap();
         sl::end_frame();
