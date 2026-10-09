@@ -415,7 +415,7 @@ namespace sl::detail
         attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         attachment.format = swapchain_format_;
-        attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -633,6 +633,17 @@ namespace sl::detail
         if (command_buffer_recording_ && render_pass_active_)
             vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
+        VkImageMemoryBarrier to_sampled{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        to_sampled.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        to_sampled.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        to_sampled.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        to_sampled.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        to_sampled.image = active_offscreen_image_;
+        to_sampled.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        to_sampled.subresourceRange.levelCount = 1;
+        to_sampled.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(command_buffer_, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_sampled);
         const RenderPassState previous = render_pass_stack_.back();
         render_pass_stack_.pop_back();
         VkClearValue clear_values[2]{};
