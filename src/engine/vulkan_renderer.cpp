@@ -1663,7 +1663,7 @@ namespace sl::detail
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
                 flush_2d();
-                if (binding >= 2 && binding <= 4)
+                if (binding >= 2 && binding <= 5)
                 {
                     storage_handles_[binding - 2] = buffer;
                     update_storage_descriptor();
@@ -1818,7 +1818,7 @@ namespace sl::detail
 
             bool update_storage_descriptor()
             {
-                VulkanBuffer buffers[3]{};
+                VulkanBuffer buffers[4]{};
                 for (std::size_t index = 0; index < storage_handles_.size(); ++index)
                 {
                     const auto iterator = storage_buffers_.find(storage_handles_[index]);
@@ -2108,7 +2108,7 @@ namespace sl::detail
             };
             std::unordered_map<std::uint32_t, VulkanStorageBuffer> storage_buffers_;
             std::uint32_t next_storage_buffer_ = 1;
-            std::array<std::uint32_t, 3> storage_handles_{};
+            std::array<std::uint32_t, 4> storage_handles_{};
             VkDescriptorSet storage_descriptor_ = VK_NULL_HANDLE;
             VkDescriptorSet lighting_descriptor_ = VK_NULL_HANDLE;
             std::array<int, 5> cull_constants_{};

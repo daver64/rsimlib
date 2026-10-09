@@ -172,6 +172,20 @@ namespace sl
 			case Event::Key::escape:
 			sdl_key=SDL_SCANCODE_ESCAPE;
 			break;
+			case Event::Key::arrow_right:
+			sdl_key=SDL_SCANCODE_RIGHT;
+			break;
+			case Event::Key::arrow_left:
+			sdl_key=SDL_SCANCODE_LEFT;
+			break;
+			case Event::Key::arrow_down:
+			sdl_key=SDL_SCANCODE_DOWN;
+			break;
+			case Event::Key::arrow_up:
+			sdl_key=SDL_SCANCODE_UP;
+			break;
+			default:
+			break;
 		}
 		
 		return key_down(sdl_key);

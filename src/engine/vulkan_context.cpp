@@ -1793,8 +1793,8 @@ namespace sl::detail
     bool VulkanContext::create_storage_descriptor_layout(VulkanStorageDescriptorLayout &result, std::string &error)
     {
         result = {};
-        VkDescriptorSetLayoutBinding bindings[3]{};
-        for (std::uint32_t index = 0; index < 3; ++index)
+        VkDescriptorSetLayoutBinding bindings[4]{};
+        for (std::uint32_t index = 0; index < 4; ++index)
         {
             bindings[index].binding = index;
             bindings[index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1802,7 +1802,7 @@ namespace sl::detail
             bindings[index].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         }
         VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        info.bindingCount = 3;
+        info.bindingCount = 4;
         info.pBindings = bindings;
         if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &result.layout) != VK_SUCCESS)
         {
@@ -1889,7 +1889,7 @@ namespace sl::detail
                                                     VkDescriptorSet &set, std::string &error)
     {
         set = VK_NULL_HANDLE;
-        if (!buffers || count == 0 || count > 3)
+        if (!buffers || count == 0 || count > 4)
         {
             error = "Invalid Vulkan storage descriptor request.";
             return false;
@@ -1924,14 +1924,14 @@ namespace sl::detail
     bool VulkanContext::update_storage_descriptor(VkDescriptorSet set, const VulkanBuffer *buffers,
                                                   std::size_t count, std::string &error)
     {
-        if (set == VK_NULL_HANDLE || !buffers || count != 3)
+        if (set == VK_NULL_HANDLE || !buffers || count != 4)
         {
             error = "Invalid Vulkan storage descriptor update.";
             return false;
         }
-        VkDescriptorBufferInfo infos[3]{};
-        VkWriteDescriptorSet writes[3]{};
-        for (std::uint32_t index = 0; index < 3; ++index)
+        VkDescriptorBufferInfo infos[4]{};
+        VkWriteDescriptorSet writes[4]{};
+        for (std::uint32_t index = 0; index < 4; ++index)
         {
             if (buffers[index].buffer == VK_NULL_HANDLE || buffers[index].size == 0)
             {
@@ -1947,7 +1947,7 @@ namespace sl::detail
             writes[index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             writes[index].pBufferInfo = &infos[index];
         }
-        vkUpdateDescriptorSets(device_, 3, writes, 0, nullptr);
+        vkUpdateDescriptorSets(device_, 4, writes, 0, nullptr);
         return true;
     }
 

@@ -51,7 +51,10 @@ void AnimationManager::update()
     for (auto &as : animated_sprites)
     {
         if (as.paused)
+        {
+            keep_list.emplace_back(as);
             continue;
+        }
         double time_left = as.frames[as.current_frame].time_left;
         time_left -= delta_t;
         if (time_left < 0)
@@ -103,7 +106,7 @@ void AnimationManager::draw_sprites(sl::Bitmap *bitmap)
 }
 bool AnimationManager::get_sprite(int index, AnimatedSprite **sprite)
 {
-    if (index < 0 || index > -animated_sprites.size())
+    if (index < 0 || index >= static_cast<int>(animated_sprites.size()))
     {
         (*sprite) = nullptr;
         return false;

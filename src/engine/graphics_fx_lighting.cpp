@@ -20,12 +20,6 @@ namespace sl
 
 	namespace
 	{
-		struct Point
-		{
-			float x;
-			float y;
-		};
-
 		struct GpuLight
 		{
 			float positionRadius[4];
@@ -33,90 +27,54 @@ namespace sl
 			float shadowSoftness[4];
 		};
 
-		Point project_from_light(Point point, const Light &light, float distance)
+		/** Append the light-facing edges of casters that can reach the light. Returns the number appended. */
+		std::uint32_t append_light_edges(std::vector<float> &edges, const Light &light,
+										 const std::vector<ShadowCaster> &casters)
 		{
-			const float dx = point.x - light.x;
-			const float dy = point.y - light.y;
-			const float length = std::sqrt(dx * dx + dy * dy);
-			if (length <= 0.0001f)
+			std::uint32_t count = 0;
+			for (const ShadowCaster &caster : casters)
 			{
-				return point;
-			}
-			return {point.x + dx / length * distance, point.y + dy / length * distance};
-		}
-
-		void fill_shadow_triangle(Bitmap *mask, Point first, Point second, Point third)
-		{
-			const float area = (second.x - first.x) * (third.y - first.y) -
-							   (second.y - first.y) * (third.x - first.x);
-			if (std::abs(area) <= 0.0001f)
-			{
-				return;
-			}
-
-			const int minimumX = std::max(0, static_cast<int>(std::floor(std::min({first.x, second.x, third.x}))));
-			const int maximumX = std::min(mask->width - 1, static_cast<int>(std::ceil(std::max({first.x, second.x, third.x}))));
-			const int minimumY = std::max(0, static_cast<int>(std::floor(std::min({first.y, second.y, third.y}))));
-			const int maximumY = std::min(mask->height - 1, static_cast<int>(std::ceil(std::max({first.y, second.y, third.y}))));
-			if (minimumX > maximumX || minimumY > maximumY)
-			{
-				return;
-			}
-
-			for (int y = minimumY; y <= maximumY; ++y)
-			{
-				for (int x = minimumX; x <= maximumX; ++x)
+				if (caster.vertices.size() < 2)
 				{
-					const Point sample{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
-					const float edgeA = (second.x - first.x) * (sample.y - first.y) -
-										(second.y - first.y) * (sample.x - first.x);
-					const float edgeB = (third.x - second.x) * (sample.y - second.y) -
-										(third.y - second.y) * (sample.x - second.x);
-					const float edgeC = (first.x - third.x) * (sample.y - third.y) -
-										(first.y - third.y) * (sample.x - third.x);
-					if ((edgeA >= 0.0f && edgeB >= 0.0f && edgeC >= 0.0f) ||
-						(edgeA <= 0.0f && edgeB <= 0.0f && edgeC <= 0.0f))
+					continue;
+				}
+				// A caster wholly outside the light's radius cannot shadow anything the light reaches.
+				if (light.radius > 0.0f)
+				{
+					float minX = caster.vertices[0].x, maxX = minX, minY = caster.vertices[0].y, maxY = minY;
+					for (const ShadowPoint &vertex : caster.vertices)
 					{
-						const std::size_t offset = (static_cast<std::size_t>(y) * mask->width + x) * 4;
-						mask->pixels[offset] = 0;
-						mask->pixels[offset + 1] = 0;
-						mask->pixels[offset + 2] = 0;
-						mask->pixels[offset + 3] = 255;
+						minX = std::min(minX, vertex.x);
+						maxX = std::max(maxX, vertex.x);
+						minY = std::min(minY, vertex.y);
+						maxY = std::max(maxY, vertex.y);
+					}
+					// Margin covers the soft-shadow sampling offsets.
+					const float reach = light.radius + 4.0f * std::max(light.shadow_softness, 0.0f);
+					const float dx = std::clamp(light.x, minX, maxX) - light.x;
+					const float dy = std::clamp(light.y, minY, maxY) - light.y;
+					if (dx * dx + dy * dy > reach * reach)
+					{
+						continue;
 					}
 				}
+				for (std::size_t index = 0; index < caster.vertices.size(); ++index)
+				{
+					const ShadowPoint &first = caster.vertices[index];
+					const ShadowPoint &second = caster.vertices[(index + 1) % caster.vertices.size()];
+					const float normalX = second.y - first.y;
+					const float normalY = -(second.x - first.x);
+					const float facing = (light.x - (first.x + second.x) * 0.5f) * normalX +
+										 (light.y - (first.y + second.y) * 0.5f) * normalY;
+					if (facing <= 0.0f)
+					{
+						continue;
+					}
+					edges.insert(edges.end(), {first.x, first.y, second.x, second.y});
+					++count;
+				}
 			}
-		}
-
-		void draw_shadow_edge(Bitmap *mask, Point first, Point second, const Light &light, float projectionDistance)
-		{
-			const Point edge{second.x - first.x, second.y - first.y};
-			const Point normal{edge.y, -edge.x};
-			const Point midpoint{(first.x + second.x) * 0.5f, (first.y + second.y) * 0.5f};
-			const float facing = (light.x - midpoint.x) * normal.x + (light.y - midpoint.y) * normal.y;
-			if (facing <= 0.0f)
-			{
-				return;
-			}
-
-			const Point firstFar = project_from_light(first, light, projectionDistance);
-			const Point secondFar = project_from_light(second, light, projectionDistance);
-			fill_shadow_triangle(mask, first, second, secondFar);
-			fill_shadow_triangle(mask, first, secondFar, firstFar);
-		}
-
-		void draw_shadow_caster(Bitmap *mask, const ShadowCaster &caster, const Light &light)
-		{
-			if (caster.vertices.size() < 2)
-			{
-				return;
-			}
-			const float projectionDistance = static_cast<float>(std::max(mask->width, mask->height)) * 4.0f;
-			for (std::size_t index = 0; index < caster.vertices.size(); ++index)
-			{
-				const ShadowPoint &first = caster.vertices[index];
-				const ShadowPoint &second = caster.vertices[(index + 1) % caster.vertices.size()];
-				draw_shadow_edge(mask, {first.x, first.y}, {second.x, second.y}, light, projectionDistance);
-			}
+			return count;
 		}
 
 	} // namespace
@@ -138,10 +96,10 @@ namespace sl
 
 	LightingPass::LightingPass(LightingPass &&other) noexcept
 		: shader_(std::move(other.shader_)), cullShader_(std::move(other.cullShader_)), ambient_(other.ambient_),
-		  shadowMasks_(std::exchange(other.shadowMasks_, {})),
 		  lightBuffer_(std::exchange(other.lightBuffer_, 0)),
 		  tileCountsBuffer_(std::exchange(other.tileCountsBuffer_, 0)),
 		  tileIndicesBuffer_(std::exchange(other.tileIndicesBuffer_, 0)),
+		  shadowEdgesBuffer_(std::exchange(other.shadowEdgesBuffer_, 0)),
 		  tileCountX_(other.tileCountX_), tileCountY_(other.tileCountY_)
 	{
 	}
@@ -154,7 +112,7 @@ namespace sl
 			shader_ = std::move(other.shader_);
 			cullShader_ = std::move(other.cullShader_);
 			ambient_ = other.ambient_;
-			shadowMasks_ = std::exchange(other.shadowMasks_, {});
+			shadowEdgesBuffer_ = std::exchange(other.shadowEdgesBuffer_, 0);
 			lightBuffer_ = std::exchange(other.lightBuffer_, 0);
 			tileCountsBuffer_ = std::exchange(other.tileCountsBuffer_, 0);
 			tileIndicesBuffer_ = std::exchange(other.tileIndicesBuffer_, 0);
@@ -170,7 +128,6 @@ namespace sl
 		{
 			return true;
 		}
-		shadowMasks_.resize(max_shadow_lights, nullptr);
 		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
 			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
 		{
@@ -178,7 +135,8 @@ namespace sl
 		}
 		if (!detail::active_renderer()->create_storage_buffer(sizeof(GpuLight), lightBuffer_) ||
 			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileCountsBuffer_) ||
-			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_))
+			!detail::active_renderer()->create_storage_buffer(sizeof(std::uint32_t), tileIndicesBuffer_) ||
+			!detail::active_renderer()->create_storage_buffer(sizeof(float) * 4, shadowEdgesBuffer_))
 			return false;
 		return true;
 	}
@@ -186,11 +144,6 @@ namespace sl
 	void LightingPass::shutdown()
 	{
 		shader_.reset();
-		for (Bitmap *&shadowMask : shadowMasks_)
-		{
-			destroy_bitmap(shadowMask);
-			shadowMask = nullptr;
-		}
 		if (lightBuffer_ != 0)
 		{
 			detail::active_renderer()->destroy_storage_buffer(lightBuffer_);
@@ -206,12 +159,17 @@ namespace sl
 			detail::active_renderer()->destroy_storage_buffer(tileIndicesBuffer_);
 			tileIndicesBuffer_ = 0;
 		}
+		if (shadowEdgesBuffer_ != 0)
+		{
+			detail::active_renderer()->destroy_storage_buffer(shadowEdgesBuffer_);
+			shadowEdgesBuffer_ = 0;
+		}
 	}
 
 	bool LightingPass::is_valid() const
 	{
 		return shader_.is_valid() && cullShader_.is_valid() && lightBuffer_ != 0 &&
-			   tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0;
+			   tileCountsBuffer_ != 0 && tileIndicesBuffer_ != 0 && shadowEdgesBuffer_ != 0;
 	}
 
 	const std::string &LightingPass::error() const
@@ -222,22 +180,6 @@ namespace sl
 	void LightingPass::set_ambient(float ambient)
 	{
 		ambient_ = std::clamp(ambient, 0.0f, 1.0f);
-	}
-
-	bool LightingPass::ensure_shadow_mask(std::size_t index, int width, int height) const
-	{
-		if (index >= shadowMasks_.size())
-		{
-			return false;
-		}
-		Bitmap *&shadowMask = shadowMasks_[index];
-		if (shadowMask && shadowMask->width == width && shadowMask->height == height)
-		{
-			return true;
-		}
-		destroy_bitmap(shadowMask);
-		shadowMask = create_bitmap(width, height);
-		return shadowMask != nullptr;
 	}
 
 	void LightingPass::apply(Bitmap *source, const Light &light, int x, int y, int width, int height,
@@ -272,21 +214,20 @@ namespace sl
 		const std::size_t shadowLightCount = casters.empty()
 												 ? 0
 												 : std::min<std::size_t>(lightCount, max_shadow_lights);
+		// Shadow edges are evaluated per pixel in the lighting shader. The buffer starts with one
+		// (first edge, edge count) header per shadow light, followed by edges as (x1, y1, x2, y2).
+		std::vector<float> shadowData(shadowLightCount * 4, 0.0f);
+		std::uint32_t edgeOffset = static_cast<std::uint32_t>(shadowLightCount);
 		for (std::size_t index = 0; index < shadowLightCount; ++index)
 		{
-			if (!ensure_shadow_mask(index, source->width, source->height))
-			{
-				return;
-			}
-			clear_to_colour(shadowMasks_[index], {255, 255, 255});
-			for (const ShadowCaster &caster : casters)
-			{
-				draw_shadow_caster(shadowMasks_[index], caster, lights[index]);
-			}
-			if (!upload_bitmap(shadowMasks_[index]))
-			{
-				return;
-			}
+			const std::uint32_t edgeCount = append_light_edges(shadowData, lights[index], casters);
+			shadowData[index * 4] = static_cast<float>(edgeOffset);
+			shadowData[index * 4 + 1] = static_cast<float>(edgeCount);
+			edgeOffset += edgeCount;
+		}
+		if (shadowData.empty())
+		{
+			shadowData.assign(4, 0.0f);
 		}
 
 		std::vector<GpuLight> gpuLights(lightCount);
@@ -317,6 +258,8 @@ namespace sl
 		detail::Renderer *renderer = detail::active_renderer();
 		renderer->upload_storage_buffer(lightBuffer_, gpuLights.size() * sizeof(GpuLight), gpuLights.data(), false);
 		renderer->bind_storage_buffer(2, lightBuffer_);
+		renderer->upload_storage_buffer(shadowEdgesBuffer_, shadowData.size() * sizeof(float), shadowData.data(), false);
+		renderer->bind_storage_buffer(5, shadowEdgesBuffer_);
 
 		const int tileCountX = (source->width + tile_size - 1) / tile_size;
 		const int tileCountY = (source->height + tile_size - 1) / tile_size;
@@ -345,12 +288,6 @@ namespace sl
 		shader_.set_uniform("lightCount", static_cast<int>(lightCount));
 		shader_.set_uniform("shadowLightCount", static_cast<int>(shadowLightCount));
 		shader_.set_uniform("tileCount", tileCountX_, tileCountY_);
-		for (std::size_t index = 0; index < shadowLightCount; ++index)
-		{
-			const std::string suffix = "[" + std::to_string(index) + "]";
-			renderer->bind_texture_unit(static_cast<unsigned int>(index + 1), shadowMasks_[index]->gpu_texture);
-			shader_.set_uniform(("shadowMasks" + suffix).c_str(), static_cast<int>(index + 1));
-		}
 		shader_.set_uniform("ambient", ambient_);
 		shader_.set_uniform("flipVertical", sourceFlipVertical ? 1 : 0);
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);

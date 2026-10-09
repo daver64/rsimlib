@@ -33,6 +33,7 @@
 #include "particles.h"
 #include "system.h"
 #include "video.h"
+#include "animated_sprite.h"
 
 /** @mainpage simlib
  *

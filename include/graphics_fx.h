@@ -764,14 +764,12 @@ namespace sl
         Shader shader_;
         Shader cullShader_;
         float ambient_ = 0.2f;
-        mutable std::vector<Bitmap *> shadowMasks_;
         std::uint32_t lightBuffer_ = 0;
         mutable std::uint32_t tileCountsBuffer_ = 0;
         mutable std::uint32_t tileIndicesBuffer_ = 0;
+        mutable std::uint32_t shadowEdgesBuffer_ = 0;
         mutable int tileCountX_ = 0;
         mutable int tileCountY_ = 0;
-
-        bool ensure_shadow_mask(std::size_t index, int width, int height) const;
     };
 
     /** Draws a solid-colour overlay over the whole screen, useful for fades and hit-flash feedback. */

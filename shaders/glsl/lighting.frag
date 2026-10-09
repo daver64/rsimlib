@@ -5,7 +5,6 @@ uniform int lightCount;
 uniform int shadowLightCount;
 uniform float ambient;
 uniform int flipVertical;
-uniform sampler2D shadowMasks[8];
 uniform ivec2 tileCount;
 
 struct GpuLight
@@ -30,8 +29,33 @@ layout(std430, binding = 4) readonly buffer TileIndices
     uint tileIndices[];
 };
 
+layout(std430, binding = 5) readonly buffer ShadowEdges
+{
+    vec4 shadowEdges[];
+};
+
 in vec2 uv;
 out vec4 fragColor;
+
+// 1.0 when the segment from the light to `target` is unobstructed by the light's shadow edges.
+float visibility(vec2 lightPosition, vec2 target, int first, int count)
+{
+    vec2 ray = target - lightPosition;
+    for (int edge = 0; edge < count; ++edge)
+    {
+        vec4 segment = shadowEdges[first + edge];
+        vec2 start = segment.xy - lightPosition;
+        vec2 direction = segment.zw - segment.xy;
+        float denominator = ray.x * direction.y - ray.y * direction.x;
+        if (abs(denominator) < 1e-6)
+            continue;
+        float along = (start.x * direction.y - start.y * direction.x) / denominator;
+        float across = (start.x * ray.y - start.y * ray.x) / denominator;
+        if (along >= 0.0 && along <= 1.0 && across >= 0.0 && across <= 1.0)
+            return 0.0;
+    }
+    return 1.0;
+}
 
 void main()
 {
@@ -63,18 +87,27 @@ void main()
         }
 
         float shadow = 1.0;
-        if (index < shadowLightCount)
+        if (index < shadowLightCount && falloff > 0.0)
         {
-            vec2 shadowTexel = 1.0 / vec2(textureSize(shadowMasks[index], 0));
-            shadow = 0.0;
-            for (int offsetY = -1; offsetY <= 1; ++offsetY)
+            vec4 header = shadowEdges[index];
+            int first = int(header.x);
+            int count = int(header.y);
+            if (count > 0)
             {
-                for (int offsetX = -1; offsetX <= 1; ++offsetX)
+                float softness = max(light.shadowSoftness.x, 0.0);
+                if (softness <= 0.0)
                 {
-                    shadow += texture(shadowMasks[index], lightUv + vec2(offsetX, offsetY) * shadowTexel * max(light.shadowSoftness.x, 0.0)).r;
+                    shadow = visibility(light.positionRadius.xy, pixelPosition, first, count);
+                }
+                else
+                {
+                    shadow = 0.0;
+                    for (int offsetY = -1; offsetY <= 1; ++offsetY)
+                        for (int offsetX = -1; offsetX <= 1; ++offsetX)
+                            shadow += visibility(light.positionRadius.xy, pixelPosition + vec2(offsetX, offsetY) * softness, first, count);
+                    shadow /= 9.0;
                 }
             }
-            shadow /= 9.0;
         }
 
         illumination += light.colourIntensity.rgb * falloff * light.colourIntensity.a * shadow;
