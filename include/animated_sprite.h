@@ -49,6 +49,8 @@ public:
     // not sure we need this...
     bool get_sprite_position(int index, int &x, int &y);
     void toggle_pause(int index);
+    // Indices of sprites after the removed one shift down by one.
+    bool remove_animated_sprite(int index);
 private:
     std::vector<AnimatedSprite> animated_sprites;
 };

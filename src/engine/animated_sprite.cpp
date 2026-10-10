@@ -94,6 +94,13 @@ const int AnimationManager::add_animated_sprite(AnimatedSprite &sprite)
     animated_sprites.emplace_back(sprite);
     return (int)animated_sprites.size() - 1;
 }
+bool AnimationManager::remove_animated_sprite(int index)
+{
+    if (index < 0 || index >= static_cast<int>(animated_sprites.size()))
+        return false;
+    animated_sprites.erase(animated_sprites.begin() + index);
+    return true;
+}
 void AnimationManager::draw_sprites(sl::Bitmap *bitmap)
 {
     for (auto &sprite : animated_sprites)
