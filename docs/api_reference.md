@@ -185,14 +185,37 @@ while (sl::poll_event(&event)) {
 }
 ```
 
-#### `key_down(scancode)`
+#### `key_down(key)`
 ```cpp
+bool key_down(Event::Key key);
 bool key_down(SDL_Scancode key);
 ```
-- **Description**: Queries whether a specific keyboard scancode is currently physically held down.
+- **Description**: Queries whether a specific keyboard key is currently physically held down. Client applications should prefer `Event::Key` (e.g., `sl::Key::w`, `sl::Key::space`, `sl::Key::escape`) to avoid exposing platform/SDL scancodes.
 - **Parameters**:
-  - `key` (`SDL_Scancode`): SDL scancode to test (e.g., `SDL_SCANCODE_SPACE`, `SDL_SCANCODE_W`).
+  - `key` (`Event::Key` or `SDL_Scancode`): Key identifier to test.
 - **Returns**: `true` if the key is held; `false` otherwise.
+
+#### `MouseButton`
+```cpp
+enum class MouseButton : std::uint8_t {
+    left = 1,
+    middle = 2,
+    right = 3,
+    x1 = 4,
+    x2 = 5
+};
+```
+- **Description**: Identifies mouse buttons portably without SDL constants. Bitmasks `MOUSE_BUTTON_LEFT_MASK`, `MOUSE_BUTTON_MIDDLE_MASK`, and `MOUSE_BUTTON_RIGHT_MASK` are also available.
+
+#### `mouse_button_down(button)`
+```cpp
+bool mouse_button_down(MouseButton button);
+bool mouse_button_down(int button);
+```
+- **Description**: Tests whether a specific mouse button is currently held down.
+- **Parameters**:
+  - `button` (`MouseButton` or 1-based `int`): The button to query.
+- **Returns**: `true` if currently pressed; `false` otherwise.
 
 #### `mouse_x()` / `mouse_y()` / `mouse_buttons()`
 ```cpp
@@ -201,7 +224,25 @@ int mouse_y();
 std::uint32_t mouse_buttons();
 ```
 - **Description**: Queries the current cursor position (in window pixel coordinates) and held mouse button bitmask.
-- **Returns**: Integer coordinates or bitfield (`SDL_BUTTON_LMASK`, `SDL_BUTTON_RMASK`).
+- **Returns**: Integer coordinates or bitfield (`MOUSE_BUTTON_LEFT_MASK`, `MOUSE_BUTTON_RIGHT_MASK`, etc.).
+
+#### `set_relative_mouse_mode(enabled)` / `relative_mouse_mode()`
+```cpp
+bool set_relative_mouse_mode(bool enabled);
+bool relative_mouse_mode();
+```
+- **Description**: Enables or disables relative mouse mode (captures cursor, hides pointer, and reports continuous relative motion deltas), or queries current state.
+- **Parameters**: `enabled` (`bool`): `true` to enable relative mode, `false` to disable.
+- **Returns**: `true` on success.
+
+#### `mouse_delta(dx, dy)` / `mouse_relative_state(dx, dy)`
+```cpp
+void mouse_delta(int *dx, int *dy);
+void mouse_delta(int &dx, int &dy);
+std::uint32_t mouse_relative_state(int *dx, int *dy);
+```
+- **Description**: Queries relative mouse motion deltas accumulated since the last check, and optionally returns the button bitmask.
+- **Parameters**: `dx`, `dy`: References or pointers to receive horizontal and vertical motion deltas.
 
 #### `gamepad_init()` / `gamepad_count()` / `gamepad_connected(index)`
 ```cpp

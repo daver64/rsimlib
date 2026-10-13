@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 
     int selected_palette_index = 0;
     bool mouse_captured = true;
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    sl::set_relative_mouse_mode(true);
     bool running = true;
     int frame_count = 0;
     int prev_mouse_x = screen_w / 2;
@@ -401,7 +401,7 @@ int main(int argc, char *argv[])
                 if (!mouse_captured)
                 {
                     mouse_captured = true;
-                    SDL_SetRelativeMouseMode(SDL_TRUE);
+                    sl::set_relative_mouse_mode(true);
                 }
             }
             else if (event.type() == sl::Event::Type::key_down)
@@ -411,7 +411,7 @@ int main(int argc, char *argv[])
                     if (mouse_captured)
                     {
                         mouse_captured = false;
-                        SDL_SetRelativeMouseMode(SDL_FALSE);
+                        sl::set_relative_mouse_mode(false);
                     }
                     else
                     {
@@ -421,7 +421,7 @@ int main(int argc, char *argv[])
                 else if (event.key() == sl::Event::Key::tab)
                 {
                     mouse_captured = !mouse_captured;
-                    SDL_SetRelativeMouseMode(mouse_captured ? SDL_TRUE : SDL_FALSE);
+                    sl::set_relative_mouse_mode(mouse_captured);
                 }
                 // Palette selection via numbers 1-9
                 if (event.key() == sl::Event::Key::digit_1) selected_palette_index = 0;
@@ -438,28 +438,27 @@ int main(int argc, char *argv[])
         }
 
         // Mouse look
-        int mouse_x = 0, mouse_y = 0;
-        const std::uint32_t mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
-
         if (mouse_captured)
         {
             int dx = 0, dy = 0;
-            SDL_GetRelativeMouseState(&dx, &dy);
+            sl::mouse_delta(dx, dy);
             constexpr float sensitivity = 0.003f;
             yaw += static_cast<float>(dx) * sensitivity;
             pitch -= static_cast<float>(dy) * sensitivity;
         }
-        else if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT))
+        else if (sl::mouse_button_down(sl::MouseButton::right))
         {
             // Right mouse drag also looks around if not captured
+            const int mouse_x = sl::mouse_x();
+            const int mouse_y = sl::mouse_y();
             const int dx = mouse_x - prev_mouse_x;
             const int dy = mouse_y - prev_mouse_y;
             constexpr float sensitivity = 0.005f;
             yaw += static_cast<float>(dx) * sensitivity;
             pitch -= static_cast<float>(dy) * sensitivity;
         }
-        prev_mouse_x = mouse_x;
-        prev_mouse_y = mouse_y;
+        prev_mouse_x = sl::mouse_x();
+        prev_mouse_y = sl::mouse_y();
 
         // Clamp pitch to avoid flip
         pitch = std::clamp(pitch, -1.55f, 1.55f);
@@ -474,23 +473,22 @@ int main(int argc, char *argv[])
         const glm::vec3 up(0.0f, 1.0f, 0.0f);
 
         // Keyboard movement
-        const Uint8 *keys = SDL_GetKeyboardState(nullptr);
         float move_speed = 12.0f;
-        if (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT])
+        if (sl::key_down(sl::Key::left_shift) || sl::key_down(sl::Key::right_shift))
             move_speed = 24.0f;
 
         glm::vec3 move_dir(0.0f);
-        if (keys[SDL_SCANCODE_W])
+        if (sl::key_down(sl::Key::letter_w))
             move_dir += glm::vec3(forward.x, 0.0f, forward.z);
-        if (keys[SDL_SCANCODE_S])
+        if (sl::key_down(sl::Key::letter_s))
             move_dir -= glm::vec3(forward.x, 0.0f, forward.z);
-        if (keys[SDL_SCANCODE_A])
+        if (sl::key_down(sl::Key::letter_a))
             move_dir -= right;
-        if (keys[SDL_SCANCODE_D])
+        if (sl::key_down(sl::Key::letter_d))
             move_dir += right;
-        if (keys[SDL_SCANCODE_SPACE])
+        if (sl::key_down(sl::Key::space))
             move_dir.y += 1.0f;
-        if (keys[SDL_SCANCODE_C] || keys[SDL_SCANCODE_LCTRL])
+        if (sl::key_down(sl::Key::letter_c) || sl::key_down(sl::Key::left_control))
             move_dir.y -= 1.0f;
 
         if (glm::length(move_dir) > 0.01f)
@@ -502,8 +500,8 @@ int main(int argc, char *argv[])
         // Handle block breaking and placement
         static bool prev_left_down = false;
         static bool prev_right_down = false;
-        const bool left_down = (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
-        const bool right_down = (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+        const bool left_down = sl::mouse_button_down(sl::MouseButton::left);
+        const bool right_down = sl::mouse_button_down(sl::MouseButton::right);
 
         // Left click in captured mode: break block
         if (mouse_captured && left_down && !prev_left_down && ray_hit.hit)

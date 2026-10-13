@@ -169,6 +169,105 @@ namespace sl
 			case Event::Key::digit_9:
 			sdl_key=SDL_SCANCODE_9;
 			break;
+			case Event::Key::space:
+			sdl_key=SDL_SCANCODE_SPACE;
+			break;
+			case Event::Key::tab:
+			sdl_key=SDL_SCANCODE_TAB;
+			break;
+			case Event::Key::return_key:
+			sdl_key=SDL_SCANCODE_RETURN;
+			break;
+			case Event::Key::keypad_enter:
+			sdl_key=SDL_SCANCODE_KP_ENTER;
+			break;
+			case Event::Key::backspace:
+			sdl_key=SDL_SCANCODE_BACKSPACE;
+			break;
+			case Event::Key::delete_key:
+			sdl_key=SDL_SCANCODE_DELETE;
+			break;
+			case Event::Key::insert:
+			sdl_key=SDL_SCANCODE_INSERT;
+			break;
+			case Event::Key::home:
+			sdl_key=SDL_SCANCODE_HOME;
+			break;
+			case Event::Key::end:
+			sdl_key=SDL_SCANCODE_END;
+			break;
+			case Event::Key::page_up:
+			sdl_key=SDL_SCANCODE_PAGEUP;
+			break;
+			case Event::Key::page_down:
+			sdl_key=SDL_SCANCODE_PAGEDOWN;
+			break;
+			case Event::Key::left_shift:
+			sdl_key=SDL_SCANCODE_LSHIFT;
+			break;
+			case Event::Key::right_shift:
+			sdl_key=SDL_SCANCODE_RSHIFT;
+			break;
+			case Event::Key::left_control:
+			sdl_key=SDL_SCANCODE_LCTRL;
+			break;
+			case Event::Key::right_control:
+			sdl_key=SDL_SCANCODE_RCTRL;
+			break;
+			case Event::Key::left_alt:
+			sdl_key=SDL_SCANCODE_LALT;
+			break;
+			case Event::Key::right_alt:
+			sdl_key=SDL_SCANCODE_RALT;
+			break;
+			case Event::Key::left_gui:
+			sdl_key=SDL_SCANCODE_LGUI;
+			break;
+			case Event::Key::right_gui:
+			sdl_key=SDL_SCANCODE_RGUI;
+			break;
+			case Event::Key::caps_lock:
+			sdl_key=SDL_SCANCODE_CAPSLOCK;
+			break;
+			case Event::Key::num_lock:
+			sdl_key=SDL_SCANCODE_NUMLOCKCLEAR;
+			break;
+			case Event::Key::scroll_lock:
+			sdl_key=SDL_SCANCODE_SCROLLLOCK;
+			break;
+			case Event::Key::pause:
+			sdl_key=SDL_SCANCODE_PAUSE;
+			break;
+			case Event::Key::print_screen:
+			sdl_key=SDL_SCANCODE_PRINTSCREEN;
+			break;
+			case Event::Key::minus:
+			sdl_key=SDL_SCANCODE_MINUS;
+			break;
+			case Event::Key::equals:
+			sdl_key=SDL_SCANCODE_EQUALS;
+			break;
+			case Event::Key::left_bracket:
+			sdl_key=SDL_SCANCODE_LEFTBRACKET;
+			break;
+			case Event::Key::right_bracket:
+			sdl_key=SDL_SCANCODE_RIGHTBRACKET;
+			break;
+			case Event::Key::backslash:
+			sdl_key=SDL_SCANCODE_BACKSLASH;
+			break;
+			case Event::Key::semicolon:
+			sdl_key=SDL_SCANCODE_SEMICOLON;
+			break;
+			case Event::Key::period:
+			sdl_key=SDL_SCANCODE_PERIOD;
+			break;
+			case Event::Key::slash:
+			sdl_key=SDL_SCANCODE_SLASH;
+			break;
+			case Event::Key::backquote:
+			sdl_key=SDL_SCANCODE_GRAVE;
+			break;
 			case Event::Key::escape:
 			sdl_key=SDL_SCANCODE_ESCAPE;
 			break;
@@ -232,6 +331,56 @@ namespace sl
 	std::uint32_t mouse_buttons()
 	{
 		return SDL_GetMouseState(nullptr, nullptr);
+	}
+
+	bool mouse_button_down(MouseButton button)
+	{
+		const int b = static_cast<int>(button);
+		if (b < 1 || b > 31)
+		{
+			return false;
+		}
+		return (mouse_buttons() & (1u << (b - 1))) != 0;
+	}
+
+	bool mouse_button_down(int button)
+	{
+		if (button < 1 || button > 31)
+		{
+			return false;
+		}
+		return (mouse_buttons() & (1u << (button - 1))) != 0;
+	}
+
+	bool set_relative_mouse_mode(bool enabled)
+	{
+		return SDL_SetRelativeMouseMode(enabled ? SDL_TRUE : SDL_FALSE) == 0;
+	}
+
+	bool relative_mouse_mode()
+	{
+		return SDL_GetRelativeMouseMode() == SDL_TRUE;
+	}
+
+	std::uint32_t mouse_relative_state(int *dx, int *dy)
+	{
+		int rx = 0;
+		int ry = 0;
+		const std::uint32_t buttons = SDL_GetRelativeMouseState(&rx, &ry);
+		if (dx)
+		{
+			*dx = rx;
+		}
+		if (dy)
+		{
+			*dy = ry;
+		}
+		return buttons;
+	}
+
+	void mouse_delta(int *dx, int *dy)
+	{
+		mouse_relative_state(dx, dy);
 	}
 
 } // namespace sl

@@ -68,8 +68,25 @@ int main()
         sl::poll_event(&event) && event.type() == sl::Event::Type::quit &&
         sl::poll_event(&event) && event.type() == sl::Event::Type::user &&
         sl::poll_event(&event) && event.type() == sl::Event::Type::mouse_button_down &&
-        event.mouse_button() == SDL_BUTTON_RIGHT;
+        event.mouse_button() == static_cast<std::uint8_t>(sl::MouseButton::right);
+
+    // Test mouse button enum and bitmask constants
+    const bool mouse_constants_valid =
+        static_cast<std::uint8_t>(sl::MouseButton::left) == SDL_BUTTON_LEFT &&
+        static_cast<std::uint8_t>(sl::MouseButton::middle) == SDL_BUTTON_MIDDLE &&
+        static_cast<std::uint8_t>(sl::MouseButton::right) == SDL_BUTTON_RIGHT &&
+        sl::MOUSE_BUTTON_LEFT_MASK == SDL_BUTTON_LMASK &&
+        sl::MOUSE_BUTTON_MIDDLE_MASK == SDL_BUTTON_MMASK &&
+        sl::MOUSE_BUTTON_RIGHT_MASK == SDL_BUTTON_RMASK;
+
+    // Test mouse delta and button query calls (headless/no window safe)
+    int test_dx = -1, test_dy = -1;
+    sl::mouse_delta(test_dx, test_dy);
+    sl::mouse_button_down(sl::MouseButton::left);
+    sl::mouse_button_down(sl::MouseButton::right);
+    sl::set_relative_mouse_mode(false);
+    const bool rel_off = !sl::relative_mouse_mode();
 
     SDL_Quit();
-    return passed ? 0 : 1;
+    return (passed && mouse_constants_valid && rel_off) ? 0 : 1;
 }
