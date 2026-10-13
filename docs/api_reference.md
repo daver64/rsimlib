@@ -654,6 +654,18 @@ std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 
 ---
 
+## 3D Surfaces ([include/surface3d.h](include/surface3d.h))
+
+A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL and Vulkan backends; other backends report an error from `create_surface_3d`.
+
+- `create_surface_3d(w, h)` / `destroy_surface_3d(surface)`
+- `begin_surface_3d(surface, camera)` / `end_surface_3d()`: bracket 3D drawing. Contents are undefined until `clear_surface_3d(colour)` is called.
+- `set_light_3d({direction, ambient})`: one directional light.
+- `create_cube_mesh`, `create_plane_mesh`, `create_sphere_mesh`, `create_mesh(vertices, indices)` / `destroy_mesh`
+- `draw_mesh(mesh, model_matrix, {tint, lit})`
+
+See `src/examples/ex3d_surface`. Textures and model loading are not yet supported.
+
 ## Audio Subsystem (Samples & Streams) ([include/audio.h](include/audio.h))
 
 Handles SDL_mixer sample sound effects (0-255 Allegro volume/pan conventions) and music streams.

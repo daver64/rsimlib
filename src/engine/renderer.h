@@ -4,6 +4,7 @@
 
 #include "display.h"
 #include "draw.h"
+#include "surface3d.h"
 
 #include <memory>
 #include <cstdint>
@@ -76,6 +77,16 @@ namespace sl::detail
         int width = 0;
         int height = 0;
         TextureFilter filter = TextureFilter::nearest;
+    };
+
+    /** Per-draw data for Renderer::draw_mesh(). Matrices are column-major, as in GLM. */
+    struct MeshDrawParams
+    {
+        float mvp[16];
+        /** Rows of the 3x3 matrix that transforms normals to world space; w holds tint r, g, b. */
+        float normal_rows[3][4];
+        /** xyz: unit vector pointing toward the light; w: ambient. Unlit draws use (0,0,0,1). */
+        float light[4];
     };
 
     struct Vertex2D
@@ -232,6 +243,16 @@ namespace sl::detail
         /** Read back RGBA8 pixels from a render target (or framebuffer 0 for default display) into host memory. */
         virtual bool download_render_target(std::uint32_t framebuffer, int width, int height,
                                             std::uint8_t *out_pixels) = 0;
+        /** Create a colour render target that also has a depth buffer; false if unsupported. */
+        virtual bool create_render_target_3d(int, int, std::uint32_t &, std::uint32_t &) { return false; }
+        /** Upload an indexed triangle mesh; false if 3D meshes are unsupported. */
+        virtual bool create_mesh(const Vertex3D *, std::size_t, const std::uint32_t *, std::size_t,
+                                 std::uint32_t &) { return false; }
+        virtual void destroy_mesh(std::uint32_t) {}
+        /** Draw a mesh into the active render target, depth tested. */
+        virtual bool draw_mesh(std::uint32_t, const MeshDrawParams &) { return false; }
+        /** Clear the active render target's colour and depth. */
+        virtual bool clear_3d(float, float, float, float) { return false; }
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                    std::uint32_t &program, std::string &error) = 0;

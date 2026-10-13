@@ -47,6 +47,8 @@ if(SIMLIB_VALIDATE_SHADERS)
             tint.frag
             ex3d.vert
             ex3d.frag
+            mesh3d.vert
+            mesh3d.frag
             lighting.frag
             light_cull.comp
         )
@@ -85,7 +87,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag vulkan_mesh3d.vert vulkan_mesh3d.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -232,6 +234,7 @@ add_library(simlib STATIC
     src/engine/display.cpp
     src/engine/event.cpp
     src/engine/draw.cpp
+    src/engine/surface3d.cpp
     src/engine/atlas.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
@@ -435,6 +438,9 @@ target_link_libraries(expostprocess PRIVATE simlib)
 
 add_executable(ex3d_gl src/examples/ex3d_gl/ex3d_gl.cpp)
 target_link_libraries(ex3d_gl PRIVATE simlib)
+
+add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
+target_link_libraries(ex3d_surface PRIVATE simlib)
 
 add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
 target_include_directories(ex3d_vulkan PRIVATE src/engine)

@@ -65,6 +65,14 @@ namespace sl::detail
         float colour[3];
     };
 
+    /** Vertex layout used by the engine's mesh pipeline (see Vertex3D in surface3d.h). */
+    struct Vulkan3DMeshVertex
+    {
+        float position[3];
+        float normal[3];
+        float colour[4];
+    };
+
     struct VulkanComputePipeline
     {
         VkPipeline pipeline = VK_NULL_HANDLE;
@@ -100,6 +108,12 @@ namespace sl::detail
         bool record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
                             VkBuffer vertex_buffer, std::uint32_t vertex_count,
                             const float *mvp, std::string &error);
+        /** vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats. */
+        bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                              VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
+                              const float *vertex_constants, const float *fragment_constants,
+                              std::string &error);
+        bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                   VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
                                   VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
@@ -208,7 +222,8 @@ namespace sl::detail
                                       std::uint32_t fragment_push_constant_size = 0,
                                       bool three_dimensional = false,
                                       bool premultiplied_alpha = false,
-                                      bool additive_blend = false);
+                                      bool additive_blend = false,
+                                      bool mesh_vertices = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,

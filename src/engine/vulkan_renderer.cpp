@@ -158,6 +158,19 @@ namespace sl::detail
                 for (VulkanBuffer &buffer : vertex_buffers_)
                     context_.destroy_buffer(buffer);
                 vertex_buffers_.clear();
+                for (auto &[handle, mesh] : meshes_)
+                {
+                    context_.destroy_buffer(mesh.vertices);
+                    context_.destroy_buffer(mesh.indices);
+                }
+                meshes_.clear();
+                if (mesh_pipeline_ready_)
+                {
+                    context_.destroy_graphics_pipeline(mesh_pipeline_);
+                    context_.destroy_shader_module(mesh_vertex_module_);
+                    context_.destroy_shader_module(mesh_fragment_module_);
+                    mesh_pipeline_ready_ = false;
+                }
                 for (auto &[handle, texture] : textures_)
                 {
                     context_.destroy_sampler(texture.sampler);
@@ -425,6 +438,73 @@ namespace sl::detail
                 }
                 render_targets_.emplace(framebuffer, std::move(resource));
                 return true;
+            }
+            bool create_render_target_3d(int width, int height, std::uint32_t &texture,
+                                         std::uint32_t &framebuffer) override
+            {
+                // Vulkan render targets always carry a depth attachment.
+                return create_render_target(width, height, texture, framebuffer);
+            }
+            bool create_mesh(const Vertex3D *vertices, std::size_t vertex_count,
+                             const std::uint32_t *indices, std::size_t index_count,
+                             std::uint32_t &handle) override
+            {
+                handle = 0;
+                static_assert(sizeof(Vertex3D) == sizeof(Vulkan3DMeshVertex), "mesh vertex layouts must match");
+                if (!vertices || !indices || vertex_count == 0 || index_count == 0)
+                    return false;
+                const auto host_visible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+                VulkanMesh mesh;
+                mesh.index_count = static_cast<std::uint32_t>(index_count);
+                const VkDeviceSize vertex_bytes = sizeof(Vulkan3DMeshVertex) * vertex_count;
+                const VkDeviceSize index_bytes = sizeof(std::uint32_t) * index_count;
+                // Vertex3D and Vulkan3DMeshVertex share the same layout.
+                if (!context_.create_buffer(vertex_bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, host_visible,
+                                            mesh.vertices, last_error_) ||
+                    !context_.upload_buffer(mesh.vertices, vertices, vertex_bytes, last_error_) ||
+                    !context_.create_buffer(index_bytes, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, host_visible,
+                                            mesh.indices, last_error_) ||
+                    !context_.upload_buffer(mesh.indices, indices, index_bytes, last_error_))
+                {
+                    context_.destroy_buffer(mesh.vertices);
+                    context_.destroy_buffer(mesh.indices);
+                    return false;
+                }
+                handle = next_mesh_++;
+                meshes_[handle] = mesh;
+                return true;
+            }
+            void destroy_mesh(std::uint32_t handle) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end())
+                    return;
+                // Buffers may still be referenced by a submitted frame.
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
+                context_.destroy_buffer(found->second.vertices);
+                context_.destroy_buffer(found->second.indices);
+                meshes_.erase(found);
+            }
+            bool clear_3d(float red, float green, float blue, float alpha) override
+            {
+                flush_2d();
+                return context_.clear_active_frame_3d(red, green, blue, alpha, last_error_);
+            }
+            bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end() || !ensure_mesh_pipeline())
+                    return false;
+                flush_2d();
+                MeshDrawParams adjusted = params;
+                // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1].
+                for (int column = 0; column < 4; ++column)
+                    adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
+                return context_.record_mesh_draw(mesh_pipeline_.pipeline, mesh_pipeline_.layout,
+                                                 found->second.vertices.buffer, found->second.indices.buffer,
+                                                 found->second.index_count, adjusted.mvp, adjusted.light,
+                                                 last_error_);
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
             {
@@ -2207,6 +2287,39 @@ namespace sl::detail
                 VkFramebuffer framebuffer = VK_NULL_HANDLE;
                 std::uint32_t texture_handle = 0;
             };
+            struct VulkanMesh
+            {
+                VulkanBuffer vertices;
+                VulkanBuffer indices;
+                std::uint32_t index_count = 0;
+            };
+            std::unordered_map<std::uint32_t, VulkanMesh> meshes_;
+            std::uint32_t next_mesh_ = 1;
+            VulkanGraphicsPipeline mesh_pipeline_;
+            VulkanShaderModule mesh_vertex_module_;
+            VulkanShaderModule mesh_fragment_module_;
+            bool mesh_pipeline_ready_ = false;
+            bool ensure_mesh_pipeline()
+            {
+                if (mesh_pipeline_ready_)
+                    return true;
+                std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d.vert.spv"))
+                    shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.vert.spv", mesh_vertex_module_, last_error_) ||
+                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.frag.spv", mesh_fragment_module_, last_error_) ||
+                    !context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
+                                                       PrimitiveType::triangles, mesh_pipeline_, last_error_,
+                                                       nullptr, 0, true, false, false, true))
+                {
+                    context_.destroy_graphics_pipeline(mesh_pipeline_);
+                    context_.destroy_shader_module(mesh_vertex_module_);
+                    context_.destroy_shader_module(mesh_fragment_module_);
+                    return false;
+                }
+                mesh_pipeline_ready_ = true;
+                return true;
+            }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::vector<VulkanTexture> retired_textures_;
             std::map<std::uint32_t, VulkanRenderTarget> render_targets_;

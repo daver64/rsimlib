@@ -776,6 +776,58 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
+                                         VkBuffer vertex_buffer, VkBuffer index_buffer,
+                                         std::uint32_t index_count, const float *vertex_constants,
+                                         const float *fragment_constants, std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
+            layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
+            !vertex_constants || !fragment_constants || index_count == 0)
+        {
+            error = "Invalid Vulkan mesh draw state.";
+            return false;
+        }
+        // Negative height matches the 2D path so render targets are stored top-down.
+        VkViewport viewport{0.0f, static_cast<float>(active_extent_.height),
+                            static_cast<float>(active_extent_.width),
+                            -static_cast<float>(active_extent_.height), 0.0f, 1.0f};
+        VkRect2D scissor{{0, 0}, active_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                           sizeof(float) * 28, vertex_constants);
+        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
+                           sizeof(float) * 4, fragment_constants);
+        const VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        vkCmdBindIndexBuffer(command_buffer_, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(command_buffer_, index_count, 1, 0, 0, 0);
+        return true;
+    }
+
+    bool VulkanContext::clear_active_frame_3d(float red, float green, float blue, float alpha,
+                                              std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_)
+        {
+            error = "Vulkan frame is not active.";
+            return false;
+        }
+        VkClearAttachment attachments[2]{};
+        attachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        attachments[0].colorAttachment = 0;
+        attachments[0].clearValue.color = {{red, green, blue, alpha}};
+        attachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        attachments[1].clearValue.depthStencil = {1.0f, 0};
+        VkClearRect rect{};
+        rect.rect.extent = active_extent_;
+        rect.layerCount = 1;
+        vkCmdClearAttachments(command_buffer_, 2, attachments, 1, &rect);
+        return true;
+    }
+
     bool VulkanContext::record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                              VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
                                              VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
@@ -2075,9 +2127,12 @@ namespace sl::detail
                                                  std::uint32_t fragment_push_constant_size,
                                                  bool three_dimensional,
                                                  bool premultiplied_alpha,
-                                                 bool additive_blend)
+                                                 bool additive_blend,
+                                                 bool mesh_vertices)
     {
         result = {};
+        if (mesh_vertices)
+            three_dimensional = true;
         if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
         {
             error = "Invalid Vulkan graphics pipeline inputs.";
@@ -2085,12 +2140,14 @@ namespace sl::detail
         }
         if (three_dimensional)
         {
-            VkPushConstantRange range{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16};
+            const VkPushConstantRange ranges[] = {
+                {VK_SHADER_STAGE_VERTEX_BIT, 0, mesh_vertices ? sizeof(float) * 28 : sizeof(float) * 16},
+                {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28, sizeof(float) * 4}};
             VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
             layout_info.setLayoutCount = 1;
             layout_info.pSetLayouts = &descriptor_layout.layout;
-            layout_info.pushConstantRangeCount = 1;
-            layout_info.pPushConstantRanges = &range;
+            layout_info.pushConstantRangeCount = mesh_vertices ? 2u : 1u;
+            layout_info.pPushConstantRanges = ranges;
             if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)
             {
                 error = "Unable to create Vulkan 3D pipeline layout.";
@@ -2125,14 +2182,22 @@ namespace sl::detail
         };
         VkVertexInputBindingDescription binding{};
         binding.binding = 0;
-        binding.stride = three_dimensional ? sizeof(Vulkan3DVertex) : sizeof(Vertex2D);
+        binding.stride = mesh_vertices ? sizeof(Vulkan3DMeshVertex)
+                         : three_dimensional ? sizeof(Vulkan3DVertex)
+                                             : sizeof(Vertex2D);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
         VkVertexInputAttributeDescription attributes[3] = {
             {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
             {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
             {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
         };
-        if (three_dimensional)
+        if (mesh_vertices)
+        {
+            attributes[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, position))};
+            attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, normal))};
+            attributes[2] = {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, colour))};
+        }
+        else if (three_dimensional)
         {
             attributes[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, position))};
             attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, colour))};
@@ -2140,7 +2205,7 @@ namespace sl::detail
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
         vertex_input.vertexBindingDescriptionCount = 1;
         vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = three_dimensional ? 2u : 3u;
+        vertex_input.vertexAttributeDescriptionCount = (three_dimensional && !mesh_vertices) ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)

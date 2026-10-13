@@ -116,6 +116,14 @@ namespace sl::detail
             void shutdown() override
             {
                 shutdown_2d();
+                while (!meshes_.empty())
+                    destroy_mesh(meshes_.begin()->first);
+                if (mesh_program_ != 0)
+                {
+                    glDeleteProgram(mesh_program_);
+                    mesh_program_ = 0;
+                }
+                depth_buffers_.clear();
                 texture_sizes_.clear();
                 render_target_stack_.clear();
                 context_.shutdown();
@@ -292,8 +300,128 @@ namespace sl::detail
                 {
                     const GLuint handle = static_cast<GLuint>(framebuffer);
                     glDeleteFramebuffers(1, &handle);
+                    const auto depth = depth_buffers_.find(handle);
+                    if (depth != depth_buffers_.end())
+                    {
+                        glDeleteRenderbuffers(1, &depth->second);
+                        depth_buffers_.erase(depth);
+                    }
                 }
                 destroy_texture(texture);
+            }
+
+            bool create_render_target_3d(int width, int height, std::uint32_t &texture,
+                                         std::uint32_t &framebuffer) override
+            {
+                if (!create_render_target(width, height, texture, framebuffer))
+                    return false;
+                GLint previous_framebuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
+                GLuint depth = 0;
+                glGenRenderbuffers(1, &depth);
+                glBindRenderbuffer(GL_RENDERBUFFER, depth);
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+                glBindRenderbuffer(GL_RENDERBUFFER, 0);
+                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
+                const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
+                if (!complete)
+                {
+                    glDeleteRenderbuffers(1, &depth);
+                    destroy_render_target(texture, framebuffer);
+                    texture = 0;
+                    framebuffer = 0;
+                    return false;
+                }
+                depth_buffers_[static_cast<GLuint>(framebuffer)] = depth;
+                return true;
+            }
+
+            bool create_mesh(const Vertex3D *vertices, std::size_t vertex_count,
+                             const std::uint32_t *indices, std::size_t index_count,
+                             std::uint32_t &handle) override
+            {
+                handle = 0;
+                if (!vertices || !indices || vertex_count == 0 || index_count == 0)
+                    return false;
+                GLMesh mesh;
+                mesh.index_count = static_cast<GLsizei>(index_count);
+                glGenVertexArrays(1, &mesh.vao);
+                glGenBuffers(1, &mesh.vbo);
+                glGenBuffers(1, &mesh.ebo);
+                glBindVertexArray(mesh.vao);
+                glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex3D) * vertex_count, vertices, GL_STATIC_DRAW);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(std::uint32_t) * index_count, indices, GL_STATIC_DRAW);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, position)));
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, normal)));
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, colour)));
+                glBindVertexArray(0);
+                handle = next_mesh_++;
+                meshes_[handle] = mesh;
+                return true;
+            }
+
+            void destroy_mesh(std::uint32_t handle) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end())
+                    return;
+                glDeleteVertexArrays(1, &found->second.vao);
+                glDeleteBuffers(1, &found->second.vbo);
+                glDeleteBuffers(1, &found->second.ebo);
+                meshes_.erase(found);
+            }
+
+            bool clear_3d(float red, float green, float blue, float alpha) override
+            {
+                flush_2d();
+                glDepthMask(GL_TRUE);
+                glClearColor(red, green, blue, alpha);
+                glClearDepth(1.0);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                return true;
+            }
+
+            bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end())
+                    return false;
+                if (mesh_program_ == 0)
+                {
+                    std::string error;
+                    if (!create_shader(ShaderSource::glsl(load_glsl_shader("mesh3d.vert")),
+                                       ShaderSource::glsl(load_glsl_shader("mesh3d.frag")),
+                                       mesh_program_, error))
+                        return false;
+                }
+                flush_2d();
+                GLint previous_program = 0;
+                glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
+                const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
+                glEnable(GL_DEPTH_TEST);
+                glDepthFunc(GL_LESS);
+                glDepthMask(GL_TRUE);
+                glUseProgram(mesh_program_);
+                glUniformMatrix4fv(glGetUniformLocation(mesh_program_, "uMvp"), 1, GL_FALSE, params.mvp);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uNormalRows"), 3, &params.normal_rows[0][0]);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);
+                glBindVertexArray(found->second.vao);
+                glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
+                glBindVertexArray(0);
+                glUseProgram(static_cast<GLuint>(previous_program));
+                if (!depth_was_enabled)
+                    glDisable(GL_DEPTH_TEST);
+                return true;
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &) override
             {
@@ -785,6 +913,17 @@ namespace sl::detail
             std::string shader_error_;
             std::unordered_map<GLuint, std::pair<int, int>> texture_sizes_;
             std::vector<RenderTargetState> render_target_stack_;
+            struct GLMesh
+            {
+                GLuint vao = 0;
+                GLuint vbo = 0;
+                GLuint ebo = 0;
+                GLsizei index_count = 0;
+            };
+            std::unordered_map<GLuint, GLuint> depth_buffers_;
+            std::unordered_map<std::uint32_t, GLMesh> meshes_;
+            std::uint32_t next_mesh_ = 1;
+            std::uint32_t mesh_program_ = 0;
 
             std::vector<Vertex2D> batch_vertices_;
             PrimitiveType batch_primitive_ = PrimitiveType::triangles;
