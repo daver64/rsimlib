@@ -1,7 +1,7 @@
 # simlib
 
 `simlib` is an easy-to-use, feature-packed Allegro4-style 2D game framework and rendering engine built on
-SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, offscreen 3D surfaces with MSAA and model loading, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -62,6 +62,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, and dynamic polygon soft shadows.
 - ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and 3D escape hatches.
+- 🧊 **[3D Surfaces & Model Loading](docs/api_reference.md#3d-surfaces-includesurface3dh)** — Offscreen MSAA 3D targets, camera perspective, directional lighting, OBJ/glTF/GLB models, and seamless 2D HUD compositing.
 - 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper, simple particle/AABB entity physics, and Lua physics bindings.
 - 📜 **[Sandboxed Lua Scripting & Canvas](docs/scripting_lua.md)** — Hardened Lua sandbox via sol2, persistent canvas drawing API, audio scripting, and C++ event dispatching.
 
@@ -146,6 +147,33 @@ ctest --test-dir build --output-on-failure
 
 ---
 
+## 3D Surfaces & Model Rendering
+
+While `simlib` is fundamentally designed for fast, immediate-mode 2D games, it provides high-level offscreen 3D drawing via `sl::Surface3D` ([include/surface3d.h](include/surface3d.h)) on both the OpenGL and Vulkan backends. You can create an offscreen colour+depth surface with optional multisample anti-aliasing (MSAA), direct drawing commands to it using a 3D `Camera` and directional `Light3D`, draw built-in primitive meshes (cubes, planes, spheres) or loaded models (Wavefront `.obj` with `.mtl` materials, plus `.gltf` and `.glb` assets), draw 2D overlays (HUD, text, and sprites) directly on top of the 3D scene, and then composite the completed surface into your main 2D frame with `sl::draw_sprite(sl::surface_3d_bitmap(surface), x, y)`.
+
+```cpp
+// Create an offscreen 3D surface with 4x MSAA
+sl::Surface3D *surface = sl::create_surface_3d(640, 480, 4);
+sl::Model *crate = sl::load_model("assets/models/crate.obj");
+sl::Camera camera;
+camera.position = {2.5f, 2.2f, 4.0f};
+camera.target = {0.0f, 0.3f, 0.0f};
+
+// Draw 3D scene and 2D overlays into the surface
+if (sl::begin_surface_3d(surface, camera))
+{
+    sl::clear_surface_3d({20, 30, 60});
+    sl::draw_model(crate, sl::model_matrix({0, 0, 0}, {0, rotation, 0}));
+    sl::gprintf(16, 16, {255, 255, 255}, "MSAA %dx Surface3D", sl::surface_3d_samples(surface));
+    sl::end_surface_3d();
+}
+
+// Composite the 3D surface bitmap into your 2D scene
+sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
+```
+
+---
+
 ## Running the Examples
 
 Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulkan` (on Windows, `--d3d11` and `--d3d12` are also available).
@@ -176,6 +204,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/execs           # Interactive Entity Component System (RECS) integration
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
 ./build/exisometric     # 2.5D isometric projection, tile picking, elevation, and 2D lighting
+./build/ex3d_surface    # Offscreen 3D surface with MSAA, models (OBJ/glTF/GLB), and 2D HUD
 ./build/ex3d_gl         # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
 ./build/ex3d_d3d11      # Direct Direct3D 11 3D escape hatch
@@ -224,6 +253,7 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
+- **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB), directional lighting, and 2D HUD compositing.
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load.
