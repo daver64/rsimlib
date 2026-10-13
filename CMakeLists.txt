@@ -278,6 +278,7 @@ add_library(simlib STATIC
     src/engine/vulkan_renderer.cpp
     src/engine/video.cpp
     src/engine/animated_sprite.cpp
+    src/engine/voxel.cpp
 )
 if(WIN32)
     target_sources(simlib PRIVATE
@@ -443,6 +444,9 @@ target_link_libraries(ex3d_gl PRIVATE simlib)
 add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
 target_link_libraries(ex3d_surface PRIVATE simlib)
 
+add_executable(exvoxel src/examples/exvoxel/exvoxel.cpp)
+target_link_libraries(exvoxel PRIVATE simlib)
+
 add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
 target_include_directories(ex3d_vulkan PRIVATE src/engine)
 target_compile_definitions(ex3d_vulkan PRIVATE
@@ -570,6 +574,10 @@ if(BUILD_TESTING)
     add_executable(renderer_test tests/renderer_test.cpp)
     target_link_libraries(renderer_test PRIVATE simlib)
     add_test(NAME renderer COMMAND renderer_test)
+
+    add_executable(voxel_test tests/voxel_test.cpp)
+    target_link_libraries(voxel_test PRIVATE simlib)
+    add_test(NAME voxel COMMAND voxel_test)
 endif()
 
 find_package(Doxygen QUIET)

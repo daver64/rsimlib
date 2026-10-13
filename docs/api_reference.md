@@ -668,6 +668,42 @@ A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then 
 
 See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF cameras/lights are not yet supported.
 
+---
+
+## Voxel Chunks & World ([include/voxel.h](include/voxel.h))
+
+`simlib` provides basic voxel support designed for building Minecraft-style block worlds. Voxels are managed in 16x16x16 chunks using hidden-face culling to batch visible cube faces into indexed GPU `Mesh` buffers, directional face shading, texture atlas UV mapping, and 3D DDA raycasting for block picking and placement.
+
+### Key Types & Constants
+
+- `CHUNK_SIZE = 16`: Dimensions along X, Y, and Z axes (4,096 voxels per chunk).
+- `BlockId = std::uint8_t`: 8-bit block identifier (`BLOCK_AIR = 0`).
+- `VoxelFace`: Cube faces `top` (+Y), `bottom` (-Y), `north` (+Z), `south` (-Z), `east` (+X), `west` (-X).
+- `BlockDefinition`: Defines block properties (`is_solid`, `is_transparent`, per-face `tiles[6]`, `tint`).
+- `VoxelAtlas`: Grid texture atlas helper converting tile coordinates `(x, y)` to normalized UV coordinates `[u0, v0, u1, v1]`.
+- `VoxelRaycastResult`: Stores raycast intersection results (`hit`, `hit_block`, `place_block`, `hit_face`, `hit_pos`, `distance`).
+
+### `sl::VoxelChunk`
+- `VoxelChunk(cx, cy, cz)`: Creates a chunk at chunk grid coordinates.
+- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Local block access in `[0..15]`.
+- `fill(id)`: Fills entire chunk with a block ID.
+- `count_visible_faces(lookup)`: Counts visible faces after hidden-face culling without allocating GPU memory.
+- `rebuild_mesh(atlas, lookup)`: Generates an indexed GPU `Mesh*` with culled quads, directional shading, and UV mapping.
+- `mesh()` / `vertex_count()` / `triangle_count()`: Inspect generated mesh.
+- `draw(material)`: Renders the chunk mesh at its world origin into the active 3D surface.
+
+### `sl::VoxelWorld`
+- Multi-chunk manager coordinating chunk storage, cross-boundary culling, and dirty chunk updating.
+- `world_to_chunk(x, y, z)` / `world_to_local(x, y, z)`: Coordinate conversion helpers handling negative coordinates correctly.
+- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Query and set blocks at arbitrary world coordinates. Automatically marks affected chunks (and border neighbors) dirty.
+- `update_dirty_chunks(atlas)`: Rebuilds meshes for all modified chunks.
+- `raycast(origin, direction, max_distance)`: Fast Voxel Traversal (3D DDA) through world blocks.
+- `draw(material)`: Draws all chunk meshes.
+
+See `src/examples/exvoxel` for an interactive demo with procedural terrain generation, pixel-art texture atlas, first-person camera, and block break/place mechanics.
+
+---
+
 ## Audio Subsystem (Samples & Streams) ([include/audio.h](include/audio.h))
 
 Handles SDL_mixer sample sound effects (0-255 Allegro volume/pan conventions) and music streams.
