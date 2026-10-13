@@ -31,6 +31,7 @@
 #include "resource.h"
 #include "scene3d.h"
 #include "surface3d.h"
+#include "model3d.h"
 #include "particles.h"
 #include "system.h"
 #include "video.h"

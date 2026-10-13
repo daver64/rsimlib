@@ -164,9 +164,9 @@ namespace sl::detail
                     context_.destroy_buffer(mesh.indices);
                 }
                 meshes_.clear();
+                destroy_mesh_pipelines();
                 if (mesh_pipeline_ready_)
                 {
-                    context_.destroy_graphics_pipeline(mesh_pipeline_);
                     context_.destroy_shader_module(mesh_vertex_module_);
                     context_.destroy_shader_module(mesh_fragment_module_);
                     mesh_pipeline_ready_ = false;
@@ -186,11 +186,13 @@ namespace sl::detail
                     context_.destroy_framebuffer(target.framebuffer);
                     context_.destroy_image(target.image);
                     context_.destroy_image(target.depth);
-                    context_.destroy_image(target.depth);
+                    context_.destroy_image(target.multisample_color);
                 }
                 render_targets_.clear();
-                for (VulkanGraphicsPipeline &pipeline : pipelines_)
-                    context_.destroy_graphics_pipeline(pipeline);
+                for (auto &[samples, set] : pipelines_2d_)
+                    for (VulkanGraphicsPipeline &pipeline : set)
+                        context_.destroy_graphics_pipeline(pipeline);
+                pipelines_2d_.clear();
                 context_.destroy_graphics_pipeline(bright_effect_.pipeline);
                 context_.destroy_graphics_pipeline(blur_effect_.pipeline);
                 context_.destroy_graphics_pipeline(composite_effect_.pipeline);
@@ -233,8 +235,9 @@ namespace sl::detail
                 shader_modules_.clear();
                 for (auto &[handle, dynamic] : dynamic_programs_)
                 {
-                    for (auto &pipeline : dynamic.pipelines)
-                        context_.destroy_graphics_pipeline(pipeline);
+                    for (auto &[samples, pipeline_set] : dynamic.pipelines)
+                        for (auto &pipeline : pipeline_set)
+                            context_.destroy_graphics_pipeline(pipeline);
                     if (dynamic.descriptor_set != VK_NULL_HANDLE)
                         context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
                     context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
@@ -283,8 +286,10 @@ namespace sl::detail
                 vsync_enabled_ = enabled;
                 context_.set_vsync_enabled(enabled);
                 std::string error;
+                const auto iterator = pipelines_2d_.find(1);
                 return resize(drawable_width_, drawable_height_, error) &&
-                       context_.is_valid() && pipelines_[0].pipeline != VK_NULL_HANDLE;
+                       context_.is_valid() && iterator != pipelines_2d_.end() &&
+                       iterator->second[0].pipeline != VK_NULL_HANDLE;
             }
             // Reflects the actual chosen present mode (may fall back away from FIFO if the
             // surface doesn't support it), not just the requested vsync_enabled_ preference, so
@@ -407,17 +412,29 @@ namespace sl::detail
             }
             bool create_render_target(int width, int height, std::uint32_t &texture, std::uint32_t &framebuffer) override
             {
+                return create_render_target(width, height, texture, framebuffer, 1);
+            }
+            bool create_render_target(int width, int height, std::uint32_t &texture, std::uint32_t &framebuffer, int samples)
+            {
                 VulkanRenderTarget resource;
+                resource.samples = samples;
                 if (!context_.create_image(width, height, context_.render_target_format(),
                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                            resource.image, last_error_) ||
                     !context_.create_image(width, height, context_.depth_format(),
                                            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                           resource.depth, last_error_) ||
+                                           resource.depth, last_error_, static_cast<VkSampleCountFlagBits>(samples)) ||
+                    (samples > 1 &&
+                     !context_.create_image(width, height, context_.render_target_format(),
+                                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                            resource.multisample_color, last_error_,
+                                            static_cast<VkSampleCountFlagBits>(samples))) ||
                     !context_.create_sampler(TextureFilter::linear, resource.sampler, last_error_) ||
                     !context_.create_render_target_framebuffer(resource.image, resource.depth, width, height,
-                                                               resource.framebuffer, last_error_))
+                                                               resource.framebuffer, last_error_,
+                                                               &resource.multisample_color, samples))
                 {
+                    context_.destroy_image(resource.multisample_color);
                     context_.destroy_framebuffer(resource.framebuffer);
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
@@ -434,16 +451,18 @@ namespace sl::detail
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
                     context_.destroy_image(resource.depth);
+                    context_.destroy_image(resource.multisample_color);
                     return false;
                 }
                 render_targets_.emplace(framebuffer, std::move(resource));
                 return true;
             }
-            bool create_render_target_3d(int width, int height, std::uint32_t &texture,
+            bool create_render_target_3d(int width, int height, int &samples, std::uint32_t &texture,
                                          std::uint32_t &framebuffer) override
             {
                 // Vulkan render targets always carry a depth attachment.
-                return create_render_target(width, height, texture, framebuffer);
+                samples = context_.clamp_msaa_samples(samples);
+                return create_render_target(width, height, texture, framebuffer, samples);
             }
             bool create_mesh(const Vertex3D *vertices, std::size_t vertex_count,
                              const std::uint32_t *indices, std::size_t index_count,
@@ -494,16 +513,48 @@ namespace sl::detail
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
             {
                 const auto found = meshes_.find(handle);
-                if (found == meshes_.end() || !ensure_mesh_pipeline())
+                if (found == meshes_.end())
+                    return false;
+                const int target_samples = current_target_samples();
+                const MeshPipelineSet *pipelines = ensure_mesh_pipelines(target_samples);
+                if (!pipelines)
                     return false;
                 flush_2d();
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+                const std::uint32_t texture_handle = params.texture != 0 ? params.texture : white_texture_;
+                const auto texture_iterator = textures_.find(texture_handle);
+                if (texture_iterator != textures_.end())
+                {
+                    if (!context_.prepare_image_for_sampling(texture_iterator->second.image, last_error_))
+                        return false;
+                    descriptor = texture_iterator->second.descriptor;
+                }
+                else
+                {
+                    for (auto &[framebuffer, target] : render_targets_)
+                    {
+                        if (target.texture_handle == texture_handle)
+                        {
+                            if (!context_.prepare_image_for_sampling(target.image, last_error_))
+                                return false;
+                            descriptor = target.descriptor;
+                            break;
+                        }
+                    }
+                }
+                if (descriptor == VK_NULL_HANDLE)
+                {
+                    last_error_ = "Vulkan mesh texture handle is not registered.";
+                    return false;
+                }
                 MeshDrawParams adjusted = params;
                 // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1].
                 for (int column = 0; column < 4; ++column)
                     adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
-                return context_.record_mesh_draw(mesh_pipeline_.pipeline, mesh_pipeline_.layout,
+                const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
+                return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
-                                                 found->second.index_count, adjusted.mvp, adjusted.light,
+                                                 found->second.index_count, descriptor, adjusted.mvp, adjusted.light,
                                                  last_error_);
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
@@ -516,6 +567,7 @@ namespace sl::detail
                 context_.destroy_framebuffer(iterator->second.framebuffer);
                 context_.destroy_image(iterator->second.image);
                 context_.destroy_image(iterator->second.depth);
+                context_.destroy_image(iterator->second.multisample_color);
                 render_targets_.erase(iterator);
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
@@ -524,7 +576,7 @@ namespace sl::detail
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end() || !begin_frame(error) ||
                     !context_.begin_offscreen_render_pass(iterator->second.framebuffer, iterator->second.image,
-                                                          width, height, error))
+                                                          width, height, error, iterator->second.samples))
                     return false;
                 active_render_targets_.push_back(framebuffer);
                 iterator->second.image.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -750,8 +802,9 @@ namespace sl::detail
                     if (context_.device() != VK_NULL_HANDLE)
                         vkDeviceWaitIdle(context_.device());
                     DynamicVulkanProgram &dynamic = dynamic_iterator->second;
-                    for (auto &pipeline : dynamic.pipelines)
-                        context_.destroy_graphics_pipeline(pipeline);
+                    for (auto &[samples, pipeline_set] : dynamic.pipelines)
+                        for (auto &pipeline : pipeline_set)
+                            context_.destroy_graphics_pipeline(pipeline);
                     if (dynamic.descriptor_set != VK_NULL_HANDLE)
                         context_.free_descriptor_set(descriptor_pool_, dynamic.descriptor_set);
                     context_.destroy_descriptor_set_layout(dynamic.descriptor_layout);
@@ -1268,7 +1321,21 @@ namespace sl::detail
                 }
                 return unsupported();
             }
-            bool initialise_2d() override { return pipelines_[4].pipeline != VK_NULL_HANDLE; }
+            int current_target_samples() const
+            {
+                if (!active_render_targets_.empty())
+                {
+                    const auto target = render_targets_.find(active_render_targets_.back());
+                    if (target != render_targets_.end())
+                        return target->second.samples;
+                }
+                return 1;
+            }
+            bool initialise_2d() override
+            {
+                const auto iterator = pipelines_2d_.find(1);
+                return iterator != pipelines_2d_.end() && iterator->second[4].pipeline != VK_NULL_HANDLE;
+            }
             void shutdown_2d() override
             {
                 flush_2d();
@@ -1419,24 +1486,26 @@ namespace sl::detail
                         batch_vertices_.clear();
                         return;
                     }
+                    const int target_samples = current_target_samples();
+                    auto &pipeline_set = dynamic.pipelines[target_samples];
                     const std::size_t pipeline_index = static_cast<std::size_t>(primitive);
-                    if (pipeline_index >= dynamic.pipelines.size())
+                    if (pipeline_index >= pipeline_set.size())
                     {
                         batch_vertices_.clear();
                         return;
                     }
-                    if (dynamic.pipelines[pipeline_index].pipeline == VK_NULL_HANDLE)
+                    if (pipeline_set[pipeline_index].pipeline == VK_NULL_HANDLE)
                     {
                         if (!context_.create_graphics_pipeline(dynamic.vertex_module, dynamic.fragment_module,
-                                                               dynamic.descriptor_layout, primitive, dynamic.pipelines[pipeline_index], last_error_,
-                                                               nullptr, dynamic.push_constant_size))
+                                                               dynamic.descriptor_layout, primitive, pipeline_set[pipeline_index], last_error_,
+                                                               nullptr, dynamic.push_constant_size, false, false, false, false, VK_CULL_MODE_NONE, target_samples))
                         {
                             batch_vertices_.clear();
                             return;
                         }
                     }
-                    context_.record_postprocess_draw(dynamic.pipelines[pipeline_index].pipeline,
-                                                     dynamic.pipelines[pipeline_index].layout, buffer.buffer, dynamic.descriptor_set,
+                    context_.record_postprocess_draw(pipeline_set[pipeline_index].pipeline,
+                                                     pipeline_set[pipeline_index].layout, buffer.buffer, dynamic.descriptor_set,
                                                      static_cast<std::uint32_t>(upload_count), dynamic.projection.data(),
                                                      dynamic.push_constants.empty() ? nullptr : dynamic.push_constants.data(),
                                                      static_cast<std::uint32_t>(dynamic.push_constants.size()), last_error_);
@@ -1640,14 +1709,20 @@ namespace sl::detail
                 }
                 // Only points and triangles currently have additive-blend pipeline variants;
                 // triangles cover the fullscreen-quad composites used by Blur/Bloom glow.
+                const int target_samples = current_target_samples();
                 const bool want_additive_points = blend_mode_ == BlendMode::additive && primitive == PrimitiveType::points;
                 const bool want_additive_triangles = blend_mode_ == BlendMode::additive && primitive == PrimitiveType::triangles;
-                if (want_additive_points && !ensure_additive_points_pipeline())
+                if (want_additive_points && !ensure_additive_points_pipeline(target_samples))
                 {
                     batch_vertices_.clear();
                     return;
                 }
-                if (want_additive_triangles && !ensure_additive_triangles_pipeline())
+                if (want_additive_triangles && !ensure_additive_triangles_pipeline(target_samples))
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                if (!ensure_2d_pipelines(target_samples, last_error_))
                 {
                     batch_vertices_.clear();
                     return;
@@ -1657,12 +1732,8 @@ namespace sl::detail
                                                         : want_additive_triangles
                                                               ? triangles_additive_pipeline_index_
                                                               : static_cast<std::size_t>(primitive);
-                if (pipeline_index >= pipelines_.size())
-                {
-                    batch_vertices_.clear();
-                    return;
-                }
-                context_.record_vertex_draw(pipelines_[pipeline_index].pipeline, pipelines_[pipeline_index].layout, buffer.buffer, descriptor,
+                const VulkanGraphicsPipeline &pipeline = pipelines_2d_[target_samples][pipeline_index];
+                context_.record_vertex_draw(pipeline.pipeline, pipeline.layout, buffer.buffer, descriptor,
                                             static_cast<std::uint32_t>(upload_count), primitive, projection_.data(), last_error_);
                 batch_vertices_.clear();
             }
@@ -1912,34 +1983,56 @@ namespace sl::detail
                 return context_.update_storage_descriptor(storage_descriptor_, buffers, std::size(buffers), last_error_);
             }
 
+            bool ensure_2d_pipelines(int samples, std::string &error)
+            {
+                auto iterator = pipelines_2d_.find(samples);
+                if (iterator != pipelines_2d_.end())
+                    return true;
+                PipelineSet2D set{};
+                if (!context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points, set[0], error, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples) ||
+                    !context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::lines, set[1], error, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples) ||
+                    !context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, set[2], error, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples) ||
+                    !context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, set[3], error, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples) ||
+                    !context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, set[4], error, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples))
+                {
+                    for (auto &pipeline : set)
+                        context_.destroy_graphics_pipeline(pipeline);
+                    return false;
+                }
+                pipelines_2d_[samples] = set;
+                return true;
+            }
+
             bool create_pipelines(std::string &error)
             {
-                return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points, pipelines_[0], error) &&
-                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::lines, pipelines_[1], error) &&
-                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::line_loop, pipelines_[2], error) &&
-                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles, pipelines_[3], error) &&
-                       context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangle_fan, pipelines_[4], error);
+                return ensure_2d_pipelines(1, error);
             }
 
             // Created on first actual additive-blend points draw rather than eagerly at startup,
             // so apps that never use it (i.e. everything except exgpuparticles) are unaffected.
-            bool ensure_additive_points_pipeline()
+            bool ensure_additive_points_pipeline(int samples)
             {
-                if (pipelines_[points_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
+                if (!ensure_2d_pipelines(samples, last_error_))
+                    return false;
+                PipelineSet2D &set = pipelines_2d_[samples];
+                if (set[points_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
                     return true;
                 return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::points,
-                                                         pipelines_[points_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true);
+                                                         set[points_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true, false, VK_CULL_MODE_NONE, samples);
             }
 
             // Additive-blend triangles are used by post-process effects (Blur/Bloom glow composites)
             // drawing fullscreen quads with BlendMode::additive; without this, those draws silently
             // fell back to the standard alpha-blend triangle pipeline and the glow barely showed up.
-            bool ensure_additive_triangles_pipeline()
+            bool ensure_additive_triangles_pipeline(int samples)
             {
-                if (pipelines_[triangles_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
+                if (!ensure_2d_pipelines(samples, last_error_))
+                    return false;
+                PipelineSet2D &set = pipelines_2d_[samples];
+                if (set[triangles_additive_pipeline_index_].pipeline != VK_NULL_HANDLE)
                     return true;
                 return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles,
-                                                         pipelines_[triangles_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true);
+                                                         set[triangles_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true, false, VK_CULL_MODE_NONE, samples);
             }
 
             bool ensure_additive_blur_pipeline()
@@ -2169,7 +2262,8 @@ namespace sl::detail
             std::uint32_t next_shader_module_ = 1;
             static constexpr std::size_t points_additive_pipeline_index_ = 5;
             static constexpr std::size_t triangles_additive_pipeline_index_ = 6;
-            std::array<VulkanGraphicsPipeline, 7> pipelines_{};
+            using PipelineSet2D = std::array<VulkanGraphicsPipeline, 7>;
+            std::map<int, PipelineSet2D> pipelines_2d_;
             BlendMode blend_mode_ = BlendMode::normal;
             VulkanComputePipeline cull_pipeline_;
             VulkanStorageDescriptorLayout storage_layout_;
@@ -2282,6 +2376,8 @@ namespace sl::detail
             {
                 VulkanImage image;
                 VulkanImage depth;
+                VulkanImage multisample_color;
+                int samples = 1;
                 VulkanSampler sampler;
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 VkFramebuffer framebuffer = VK_NULL_HANDLE;
@@ -2295,30 +2391,51 @@ namespace sl::detail
             };
             std::unordered_map<std::uint32_t, VulkanMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
-            VulkanGraphicsPipeline mesh_pipeline_;
+            using MeshPipelineSet = std::array<VulkanGraphicsPipeline, 3>; // Indexed by CullMode.
+            std::map<int, MeshPipelineSet> mesh_pipelines_; // Keyed by sample count.
             VulkanShaderModule mesh_vertex_module_;
             VulkanShaderModule mesh_fragment_module_;
             bool mesh_pipeline_ready_ = false;
-            bool ensure_mesh_pipeline()
+            void destroy_mesh_pipelines()
             {
-                if (mesh_pipeline_ready_)
-                    return true;
-                std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d.vert.spv"))
-                    shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
-                if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.vert.spv", mesh_vertex_module_, last_error_) ||
-                    !context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.frag.spv", mesh_fragment_module_, last_error_) ||
-                    !context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
-                                                       PrimitiveType::triangles, mesh_pipeline_, last_error_,
-                                                       nullptr, 0, true, false, false, true))
+                for (auto &[samples, set] : mesh_pipelines_)
+                    for (VulkanGraphicsPipeline &culled : set)
+                        context_.destroy_graphics_pipeline(culled);
+                mesh_pipelines_.clear();
+            }
+            const MeshPipelineSet *ensure_mesh_pipelines(int samples)
+            {
+                if (!mesh_pipeline_ready_)
                 {
-                    context_.destroy_graphics_pipeline(mesh_pipeline_);
-                    context_.destroy_shader_module(mesh_vertex_module_);
-                    context_.destroy_shader_module(mesh_fragment_module_);
-                    return false;
+                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d.vert.spv"))
+                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.vert.spv", mesh_vertex_module_, last_error_) ||
+                        !context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.frag.spv", mesh_fragment_module_, last_error_))
+                    {
+                        context_.destroy_shader_module(mesh_vertex_module_);
+                        context_.destroy_shader_module(mesh_fragment_module_);
+                        return nullptr;
+                    }
+                    mesh_pipeline_ready_ = true;
                 }
-                mesh_pipeline_ready_ = true;
-                return true;
+                const auto existing = mesh_pipelines_.find(samples);
+                if (existing != mesh_pipelines_.end())
+                    return &existing->second;
+                MeshPipelineSet set{};
+                const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
+                for (int mode = 0; mode < 3; ++mode)
+                {
+                    if (!context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
+                                                           PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
+                                                           true, false, false, true, flags[mode], samples))
+                    {
+                        for (VulkanGraphicsPipeline &created : set)
+                            context_.destroy_graphics_pipeline(created);
+                        return nullptr;
+                    }
+                }
+                return &(mesh_pipelines_[samples] = set);
             }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::vector<VulkanTexture> retired_textures_;
@@ -2329,7 +2446,7 @@ namespace sl::detail
 
             struct DynamicVulkanProgram
             {
-                std::array<VulkanGraphicsPipeline, 5> pipelines{};
+                std::map<int, std::array<VulkanGraphicsPipeline, 5>> pipelines;
                 VulkanDescriptorSetLayout descriptor_layout;
                 VulkanShaderModule vertex_module;
                 VulkanShaderModule fragment_module;

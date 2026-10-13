@@ -235,6 +235,7 @@ add_library(simlib STATIC
     src/engine/event.cpp
     src/engine/draw.cpp
     src/engine/surface3d.cpp
+    src/engine/model3d.cpp
     src/engine/atlas.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp

@@ -87,6 +87,9 @@ namespace sl::detail
         float normal_rows[3][4];
         /** xyz: unit vector pointing toward the light; w: ambient. Unlit draws use (0,0,0,1). */
         float light[4];
+        /** Backend texture handle sampled by the mesh, or 0 for plain vertex colours. */
+        std::uint32_t texture = 0;
+        CullMode cull = CullMode::back;
     };
 
     struct Vertex2D
@@ -244,7 +247,8 @@ namespace sl::detail
         virtual bool download_render_target(std::uint32_t framebuffer, int width, int height,
                                             std::uint8_t *out_pixels) = 0;
         /** Create a colour render target that also has a depth buffer; false if unsupported. */
-        virtual bool create_render_target_3d(int, int, std::uint32_t &, std::uint32_t &) { return false; }
+        // samples is the requested MSAA count on entry and the count actually used on return.
+        virtual bool create_render_target_3d(int, int, int &, std::uint32_t &, std::uint32_t &) { return false; }
         /** Upload an indexed triangle mesh; false if 3D meshes are unsupported. */
         virtual bool create_mesh(const Vertex3D *, std::size_t, const std::uint32_t *, std::size_t,
                                  std::uint32_t &) { return false; }

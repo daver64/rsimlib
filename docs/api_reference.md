@@ -658,13 +658,15 @@ std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 
 A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL and Vulkan backends; other backends report an error from `create_surface_3d`.
 
-- `create_surface_3d(w, h)` / `destroy_surface_3d(surface)`
+- `create_surface_3d(w, h, samples = 1)` / `destroy_surface_3d(surface)`: `samples` requests MSAA (e.g. 4), clamped to GPU support; `surface_3d_samples(surface)` reports the count in use. Both 3D meshes and 2D elements (HUD, text, sprites) can be drawn into multisampled surfaces on OpenGL and Vulkan.
 - `begin_surface_3d(surface, camera)` / `end_surface_3d()`: bracket 3D drawing. Contents are undefined until `clear_surface_3d(colour)` is called.
 - `set_light_3d({direction, ambient})`: one directional light.
 - `create_cube_mesh`, `create_plane_mesh`, `create_sphere_mesh`, `create_mesh(vertices, indices)` / `destroy_mesh`
-- `draw_mesh(mesh, model_matrix, {tint, lit})`
+- `load_obj_mesh(path, colour)` / `load_obj_mesh_from_memory(data, size, colour)`: Wavefront OBJ (v/vt/vn/f, polygons triangulated, negative indices); normals are generated when missing.
+- `load_model(path)` / `draw_model(model, transform)` / `destroy_model(model)`: loads `.obj` (with `.mtl`: `Kd` colour, `map_Kd` texture, one part per `usemtl`), `.gltf` and `.glb` (node hierarchy, base-colour factor/texture, `doubleSided`, POSITION/NORMAL/TEXCOORD_0/COLOR_0, triangle primitives). A `Model` owns its meshes and textures; each `ModelPart` has a `Material` and transform.
+- `draw_mesh(mesh, model_matrix, {tint, lit, texture, cull})`: `texture` is an optional `Bitmap*` sampled with the vertex `uv` (v = 0 is the image top) and multiplied into the colour. `cull` is a `CullMode`: `back` (default; clockwise-wound faces are culled), `front`, or `none`.
 
-See `src/examples/ex3d_surface`. Textures and model loading are not yet supported.
+See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF cameras/lights are not yet supported.
 
 ## Audio Subsystem (Samples & Streams) ([include/audio.h](include/audio.h))
 

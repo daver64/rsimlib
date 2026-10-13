@@ -124,6 +124,7 @@ namespace sl::detail
                     mesh_program_ = 0;
                 }
                 depth_buffers_.clear();
+                multisample_targets_.clear();
                 texture_sizes_.clear();
                 render_target_stack_.clear();
                 context_.shutdown();
@@ -300,6 +301,14 @@ namespace sl::detail
                 {
                     const GLuint handle = static_cast<GLuint>(framebuffer);
                     glDeleteFramebuffers(1, &handle);
+                        const auto multisample = multisample_targets_.find(handle);
+                    if (multisample != multisample_targets_.end())
+                    {
+                        glDeleteFramebuffers(1, &multisample->second.framebuffer);
+                        glDeleteRenderbuffers(1, &multisample->second.color);
+                        glDeleteRenderbuffers(1, &multisample->second.depth);
+                        multisample_targets_.erase(multisample);
+                    }
                     const auto depth = depth_buffers_.find(handle);
                     if (depth != depth_buffers_.end())
                     {
@@ -310,11 +319,51 @@ namespace sl::detail
                 destroy_texture(texture);
             }
 
-            bool create_render_target_3d(int width, int height, std::uint32_t &texture,
+            bool create_multisample_target(int width, int height, int samples, std::uint32_t texture,
+                                           std::uint32_t framebuffer)
+            {
+                MultisampleTarget target;
+                target.samples = samples;
+                glGenFramebuffers(1, &target.framebuffer);
+                glGenRenderbuffers(1, &target.color);
+                glGenRenderbuffers(1, &target.depth);
+                glBindRenderbuffer(GL_RENDERBUFFER, target.color);
+                glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_RGBA8, width, height);
+                glBindRenderbuffer(GL_RENDERBUFFER, target.depth);
+                glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH_COMPONENT24, width, height);
+                glBindRenderbuffer(GL_RENDERBUFFER, 0);
+                GLint previous_framebuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
+                glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer);
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, target.color);
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, target.depth);
+                const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
+                if (!complete)
+                {
+                    glDeleteFramebuffers(1, &target.framebuffer);
+                    glDeleteRenderbuffers(1, &target.color);
+                    glDeleteRenderbuffers(1, &target.depth);
+                    return false;
+                }
+                multisample_targets_[static_cast<GLuint>(framebuffer)] = target;
+                return true;
+            }
+
+            bool create_render_target_3d(int width, int height, int &samples, std::uint32_t &texture,
                                          std::uint32_t &framebuffer) override
             {
                 if (!create_render_target(width, height, texture, framebuffer))
                     return false;
+                GLint max_samples = 1;
+                glGetIntegerv(GL_MAX_SAMPLES, &max_samples);
+                samples = samples > max_samples ? max_samples : samples;
+                if (samples > 1)
+                {
+                    if (create_multisample_target(width, height, samples, texture, framebuffer))
+                        return true;
+                    samples = 1;
+                }
                 GLint previous_framebuffer = 0;
                 glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
                 GLuint depth = 0;
@@ -364,6 +413,9 @@ namespace sl::detail
                 glEnableVertexAttribArray(2);
                 glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
                                       reinterpret_cast<void *>(offsetof(Vertex3D, colour)));
+                glEnableVertexAttribArray(3);
+                glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, uv)));
                 glBindVertexArray(0);
                 handle = next_mesh_++;
                 meshes_[handle] = mesh;
@@ -411,7 +463,21 @@ namespace sl::detail
                 glEnable(GL_DEPTH_TEST);
                 glDepthFunc(GL_LESS);
                 glDepthMask(GL_TRUE);
+                const GLboolean cull_was_enabled = glIsEnabled(GL_CULL_FACE);
+                if (params.cull == CullMode::none)
+                {
+                    glDisable(GL_CULL_FACE);
+                }
+                else
+                {
+                    glEnable(GL_CULL_FACE);
+                    glCullFace(params.cull == CullMode::front ? GL_FRONT : GL_BACK);
+                    glFrontFace(GL_CCW);
+                }
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.texture != 0 ? params.texture : white_texture_));
                 glUseProgram(mesh_program_);
+                glUniform1i(glGetUniformLocation(mesh_program_, "uTexture"), 0);
                 glUniformMatrix4fv(glGetUniformLocation(mesh_program_, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uNormalRows"), 3, &params.normal_rows[0][0]);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);
@@ -419,6 +485,8 @@ namespace sl::detail
                 glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
                 glBindVertexArray(0);
                 glUseProgram(static_cast<GLuint>(previous_program));
+                if (!cull_was_enabled)
+                    glDisable(GL_CULL_FACE);
                 if (!depth_was_enabled)
                     glDisable(GL_DEPTH_TEST);
                 return true;
@@ -433,8 +501,17 @@ namespace sl::detail
                 RenderTargetState previous{};
                 glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous.framebuffer);
                 glGetIntegerv(GL_VIEWPORT, previous.viewport);
+                GLuint draw_framebuffer = static_cast<GLuint>(framebuffer);
+                const auto multisample = multisample_targets_.find(draw_framebuffer);
+                if (multisample != multisample_targets_.end())
+                {
+                    previous.resolve_framebuffer = draw_framebuffer;
+                    previous.width = width;
+                    previous.height = height;
+                    draw_framebuffer = multisample->second.framebuffer;
+                }
                 render_target_stack_.push_back(previous);
-                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                glBindFramebuffer(GL_FRAMEBUFFER, draw_framebuffer);
                 glViewport(0, 0, width, height);
                 return true;
             }
@@ -448,6 +525,16 @@ namespace sl::detail
                 }
                 const RenderTargetState previous = render_target_stack_.back();
                 render_target_stack_.pop_back();
+                if (previous.resolve_framebuffer != 0)
+                {
+                    GLint source = 0;
+                    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &source);
+                    glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(source));
+                    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, previous.resolve_framebuffer);
+                    glBlitFramebuffer(0, 0, previous.width, previous.height, 0, 0, previous.width, previous.height,
+                                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+                }
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous.framebuffer));
                 glViewport(previous.viewport[0], previous.viewport[1], previous.viewport[2], previous.viewport[3]);
                 return true;
@@ -889,6 +976,16 @@ namespace sl::detail
             {
                 GLint framebuffer = 0;
                 GLint viewport[4] = {};
+                GLuint resolve_framebuffer = 0;
+                int width = 0;
+                int height = 0;
+            };
+            struct MultisampleTarget
+            {
+                GLuint framebuffer = 0;
+                GLuint color = 0;
+                GLuint depth = 0;
+                int samples = 1;
             };
 
             template <typename Setter>
@@ -921,6 +1018,7 @@ namespace sl::detail
                 GLsizei index_count = 0;
             };
             std::unordered_map<GLuint, GLuint> depth_buffers_;
+            std::unordered_map<GLuint, MultisampleTarget> multisample_targets_;
             std::unordered_map<std::uint32_t, GLMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
             std::uint32_t mesh_program_ = 0;

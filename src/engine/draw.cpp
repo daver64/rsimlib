@@ -43,6 +43,17 @@ namespace sl
 			return bitmap && bitmap->kind == BitmapKind::Screen;
 		}
 
+		std::vector<Bitmap *> active_target_stack;
+
+		bool is_drawing_target(const Bitmap *bitmap)
+		{
+			if (!bitmap)
+				return false;
+			if (bitmap->kind == BitmapKind::Screen)
+				return true;
+			return !active_target_stack.empty() && bitmap == active_target_stack.back();
+		}
+
 		void sync_render_target(Bitmap *bitmap)
 		{
 			if (bitmap && bitmap->fbo != 0 && bitmap->ram_dirty)
@@ -234,7 +245,7 @@ namespace sl
 				std::uint32_t glTexture = 0;
 				if (texture)
 				{
-					if (is_screen(texture) || !upload_bitmap(texture))
+					if (is_drawing_target(texture) || !upload_bitmap(texture))
 						return;
 					glTexture = texture->gpu_texture;
 				}
@@ -271,7 +282,7 @@ namespace sl
 			std::uint32_t glTexture = 0;
 			if (texture)
 			{
-				if (is_screen(texture) || !upload_bitmap(texture))
+				if (is_drawing_target(texture) || !upload_bitmap(texture))
 					return;
 				glTexture = texture->gpu_texture;
 			}
@@ -299,7 +310,7 @@ namespace sl
 			std::uint32_t glTexture = 0;
 			if (texture)
 			{
-				if (is_screen(texture) || !upload_bitmap(texture))
+				if (is_drawing_target(texture) || !upload_bitmap(texture))
 				{
 					return;
 				}
@@ -388,7 +399,7 @@ namespace sl
 				std::uint32_t glTexture = 0;
 				if (texture)
 				{
-					if (is_screen(texture) || !upload_bitmap(texture))
+					if (is_drawing_target(texture) || !upload_bitmap(texture))
 					{
 						return;
 					}
@@ -430,7 +441,7 @@ namespace sl
 				std::uint32_t glTexture = 0;
 				if (texture)
 				{
-					if (is_screen(texture) || !upload_bitmap(texture))
+					if (is_drawing_target(texture) || !upload_bitmap(texture))
 					{
 						return;
 					}
@@ -606,12 +617,15 @@ namespace sl
 			return false;
 		}
 		detail::set_render_target_size(target->width, target->height);
+		active_target_stack.push_back(target);
 		return true;
 	}
 
 	/** Stop rendering to a target and restore drawing to the window. */
 	void end_render_target()
 	{
+		if (!active_target_stack.empty())
+			active_target_stack.pop_back();
 		if (detail::Renderer *renderer = detail::active_renderer())
 		{
 			std::string error;
@@ -619,7 +633,9 @@ namespace sl
 			if (!error.empty())
 				sl::detail::set_error(error);
 		}
-		detail::set_render_target_size(0, 0);
+		detail::set_render_target_size(
+			active_target_stack.empty() ? 0 : active_target_stack.back()->width,
+			active_target_stack.empty() ? 0 : active_target_stack.back()->height);
 	}
 
 	/** Clear the currently bound render target. */
@@ -801,7 +817,7 @@ namespace sl
 	/** Fill a bitmap with one colour. */
 	void clear_to_colour(Bitmap *bitmap, Colour colour)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			if (detail::Renderer *renderer = detail::active_renderer())
 			{
@@ -830,7 +846,7 @@ namespace sl
 	/** Set one pixel in a bitmap. */
 	void putpixel(Bitmap *bitmap, int x, int y, Colour colour)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			if (x < 0 || x >= bitmap->width || y < 0 || y >= bitmap->height)
 			{
@@ -869,7 +885,7 @@ namespace sl
 	/** Draw many single-pixel points in one batched GPU submission (e.g. GPU particle systems). */
 	void draw_points(Bitmap *bitmap, const PointVertex *points, int count)
 	{
-		if (!is_screen(bitmap) || !points || count <= 0)
+		if (!is_drawing_target(bitmap) || !points || count <= 0)
 		{
 			return;
 		}
@@ -902,7 +918,7 @@ namespace sl
 	{
 		if (!bitmap || radius < 0.0f)
 			return;
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_ellipse(x, y, radius, radius, false, nullptr, colour, thickness);
 			return;
@@ -928,7 +944,7 @@ namespace sl
 	{
 		if (!bitmap || radius < 0.0f)
 			return;
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_ellipse(x, y, radius, radius, true, nullptr, colour);
 			return;
@@ -948,7 +964,7 @@ namespace sl
 	/** Draw an outline rectangle. */
 	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour, float thickness)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_rect(left, top, right, bottom, false, nullptr, colour, thickness);
 			return;
@@ -967,12 +983,14 @@ namespace sl
 	/** Draw a filled rectangle. */
 	void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Colour colour)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
-			left = std::clamp(left, 0.0f, static_cast<float>(bitmap->width));
-			right = std::clamp(right, 0.0f, static_cast<float>(bitmap->width));
-			top = std::clamp(top, 0.0f, static_cast<float>(bitmap->height));
-			bottom = std::clamp(bottom, 0.0f, static_cast<float>(bitmap->height));
+			const float w = static_cast<float>(screen_width());
+			const float h = static_cast<float>(screen_height());
+			left = std::clamp(left, 0.0f, w);
+			right = std::clamp(right, 0.0f, w);
+			top = std::clamp(top, 0.0f, h);
+			bottom = std::clamp(bottom, 0.0f, h);
 			draw_screen_rect(left, top, right, bottom, true, nullptr, colour);
 			return;
 		}
@@ -999,7 +1017,7 @@ namespace sl
 	{
 		if (!bitmap || radiusX < 0.0f || radiusY < 0.0f)
 			return;
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_ellipse(x, y, radiusX, radiusY, false, nullptr, colour, thickness);
 			return;
@@ -1025,7 +1043,7 @@ namespace sl
 	{
 		if (!bitmap || radiusX < 0.0f || radiusY < 0.0f)
 			return;
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_ellipse(x, y, radiusX, radiusY, true, nullptr, colour);
 			return;
@@ -1046,7 +1064,7 @@ namespace sl
 	/** Draw an outline triangle. */
 	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour, float thickness)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, nullptr, colour, thickness);
 			return;
@@ -1060,7 +1078,7 @@ namespace sl
 	/** Draw a filled triangle. */
 	void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, nullptr, colour);
 			return;
@@ -1097,7 +1115,7 @@ namespace sl
 		{
 			return;
 		}
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 		{
 			draw_screen_thick_line(x1, y1, x2, y2, thickness, nullptr, colour);
 			return;
@@ -1463,58 +1481,58 @@ namespace sl
 	/** Draw a textured circle outline. */
 	void circle(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture, float thickness)
 	{
-		if (is_screen(bitmap) && radius >= 0.0f)
+		if (is_drawing_target(bitmap) && radius >= 0.0f)
 			draw_screen_ellipse(x, y, radius, radius, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled circle. */
 	void circlefill(Bitmap *bitmap, float x, float y, float radius, Bitmap *texture)
 	{
-		if (is_screen(bitmap) && radius >= 0.0f)
+		if (is_drawing_target(bitmap) && radius >= 0.0f)
 			draw_screen_ellipse(x, y, radius, radius, true, texture, {});
 	}
 	/** Draw a textured rectangle outline. */
 	void rect(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture, float thickness)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 			draw_screen_rect(left, top, right, bottom, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled rectangle. */
 	void rectfill(Bitmap *bitmap, float left, float top, float right, float bottom, Bitmap *texture)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 			draw_screen_rect(left, top, right, bottom, true, texture, {});
 	}
 	/** Draw a textured ellipse outline. */
 	void ellipse(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture, float thickness)
 	{
-		if (is_screen(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f)
+		if (is_drawing_target(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f)
 			draw_screen_ellipse(x, y, radiusX, radiusY, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled ellipse. */
 	void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY, Bitmap *texture)
 	{
-		if (is_screen(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f)
+		if (is_drawing_target(bitmap) && radiusX >= 0.0f && radiusY >= 0.0f)
 			draw_screen_ellipse(x, y, radiusX, radiusY, true, texture, {});
 	}
 	/** Draw a textured triangle outline. */
 	void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture, float thickness)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 			draw_screen_triangle(x1, y1, x2, y2, x3, y3, false, texture, {}, thickness);
 	}
 	/** Draw a textured filled triangle. */
 	void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Bitmap *texture)
 	{
-		if (is_screen(bitmap))
+		if (is_drawing_target(bitmap))
 			draw_screen_triangle(x1, y1, x2, y2, x3, y3, true, texture, {});
 	}
 
 	/** Copy a rectangular bitmap region without scaling. */
 	void blit(Bitmap *source, Bitmap *destination, int sourceX, int sourceY, float destinationX, float destinationY, int width, int height)
 	{
-		if (is_screen(destination))
+		if (is_drawing_target(destination))
 		{
-			if (!source || is_screen(source))
+			if (!source || is_drawing_target(source))
 			{
 				return;
 			}
@@ -1562,7 +1580,7 @@ namespace sl
 		}
 		const int idestinationX = static_cast<int>(std::lround(destinationX));
 		const int idestinationY = static_cast<int>(std::lround(destinationY));
-		if (is_screen(destination))
+		if (is_drawing_target(destination))
 		{
 			for (int y = 0; y < height; ++y)
 			{
@@ -1604,7 +1622,7 @@ namespace sl
 	{
 		if (!source || !destination || sourceWidth <= 0 || sourceHeight <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
 			return;
-		if (is_screen(destination))
+		if (is_drawing_target(destination))
 		{
 			draw_textured_quad(source, sourceX, sourceY, sourceWidth, sourceHeight, destinationX, destinationY, destinationWidth, destinationHeight);
 			return;
@@ -1756,7 +1774,7 @@ namespace sl
 	/** Draw a bitmap at a screen position. */
 	void draw_sprite(Bitmap *bitmap, float x, float y)
 	{
-		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0)
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0)
 		{
 			return;
 		}
@@ -1766,7 +1784,7 @@ namespace sl
 	/** Draw a stretched sprite. */
 	void draw_sprite_stretched(Bitmap *bitmap, float x, float y, int width, int height)
 	{
-		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0)
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0)
 		{
 			return;
 		}
@@ -1775,7 +1793,7 @@ namespace sl
 	/** Draw a sprite rotated around its centre. */
 	void draw_sprite_rotated(Bitmap *bitmap, float centerX, float centerY, float angleDegrees)
 	{
-		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0)
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0)
 		{
 			return;
 		}
@@ -1785,7 +1803,7 @@ namespace sl
 	/** Draw a stretched sprite rotated around its centre. */
 	void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int width, int height)
 	{
-		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0)
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0)
 		{
 			return;
 		}
@@ -1794,7 +1812,7 @@ namespace sl
 	/** Draw a bitmap region scaled to a destination size, rotated clockwise around a pivot offset (in destination pixels). */
 	void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees)
 	{
-		if (!bitmap || is_screen(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
 		{
 			return;
 		}
@@ -1804,14 +1822,14 @@ namespace sl
 	/** Draw a horizontally flipped bitmap. */
 	void draw_sprite_h_flip(Bitmap *bitmap, float x, float y)
 	{
-		if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0)
+		if (bitmap && !is_drawing_target(bitmap) && screen_width() > 0 && screen_height() > 0)
 			draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, true, false);
 	}
 
 	/** Draw a vertically flipped bitmap. */
 	void draw_sprite_v_flip(Bitmap *bitmap, float x, float y)
 	{
-		if (bitmap && !is_screen(bitmap) && screen_width() > 0 && screen_height() > 0)
+		if (bitmap && !is_drawing_target(bitmap) && screen_width() > 0 && screen_height() > 0)
 			draw_textured_quad(bitmap, 0, 0, bitmap->width, bitmap->height, x, y, -1, -1, false, true);
 	}
 

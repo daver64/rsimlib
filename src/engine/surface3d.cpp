@@ -20,7 +20,8 @@ namespace sl
         ActiveSurface active;
         Light3D current_light;
 
-        Vertex3D make_vertex(const glm::vec3 &position, const glm::vec3 &normal, Colour colour)
+        Vertex3D make_vertex(const glm::vec3 &position, const glm::vec3 &normal, Colour colour,
+                             float u = 0.0f, float v = 0.0f)
         {
             Vertex3D vertex;
             vertex.position[0] = position.x;
@@ -33,11 +34,13 @@ namespace sl
             vertex.colour[1] = colour.green / 255.0f;
             vertex.colour[2] = colour.blue / 255.0f;
             vertex.colour[3] = colour.alpha / 255.0f;
+            vertex.uv[0] = u;
+            vertex.uv[1] = v;
             return vertex;
         }
     } // namespace
 
-    Surface3D *create_surface_3d(int width, int height)
+    Surface3D *create_surface_3d(int width, int height, int samples)
     {
         if (width <= 0 || height <= 0)
         {
@@ -47,7 +50,8 @@ namespace sl
         detail::Renderer *renderer = detail::active_renderer();
         std::uint32_t texture = 0;
         std::uint32_t framebuffer = 0;
-        if (!renderer || !renderer->create_render_target_3d(width, height, texture, framebuffer))
+        samples = samples < 1 ? 1 : samples;
+        if (!renderer || !renderer->create_render_target_3d(width, height, samples, texture, framebuffer))
         {
             detail::set_error("3D surfaces are not supported by the active graphics backend");
             return nullptr;
@@ -59,7 +63,13 @@ namespace sl
         bitmap->fbo = framebuffer;
         Surface3D *surface = new Surface3D;
         surface->bitmap = bitmap;
+        surface->samples = samples;
         return surface;
+    }
+
+    int surface_3d_samples(const Surface3D *surface)
+    {
+        return surface ? surface->samples : 1;
     }
 
     void destroy_surface_3d(Surface3D *surface)
@@ -174,10 +184,10 @@ namespace sl
         {
             const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
             const glm::vec3 centre = face.normal * h;
-            vertices.push_back(make_vertex(centre - (face.u + face.v) * h, face.normal, colour));
-            vertices.push_back(make_vertex(centre + (face.u - face.v) * h, face.normal, colour));
-            vertices.push_back(make_vertex(centre + (face.u + face.v) * h, face.normal, colour));
-            vertices.push_back(make_vertex(centre + (face.v - face.u) * h, face.normal, colour));
+            vertices.push_back(make_vertex(centre - (face.u + face.v) * h, face.normal, colour, 0.0f, 1.0f));
+            vertices.push_back(make_vertex(centre + (face.u - face.v) * h, face.normal, colour, 1.0f, 1.0f));
+            vertices.push_back(make_vertex(centre + (face.u + face.v) * h, face.normal, colour, 1.0f, 0.0f));
+            vertices.push_back(make_vertex(centre + (face.v - face.u) * h, face.normal, colour, 0.0f, 0.0f));
             for (const std::uint32_t offset : {0u, 1u, 2u, 0u, 2u, 3u})
                 indices.push_back(base + offset);
         }
@@ -190,8 +200,8 @@ namespace sl
         const float hd = depth * 0.5f;
         const glm::vec3 up{0.0f, 1.0f, 0.0f};
         const std::vector<Vertex3D> vertices = {
-            make_vertex({-hw, 0.0f, hd}, up, colour), make_vertex({hw, 0.0f, hd}, up, colour),
-            make_vertex({hw, 0.0f, -hd}, up, colour), make_vertex({-hw, 0.0f, -hd}, up, colour)};
+            make_vertex({-hw, 0.0f, hd}, up, colour, 0.0f, 1.0f), make_vertex({hw, 0.0f, hd}, up, colour, 1.0f, 1.0f),
+            make_vertex({hw, 0.0f, -hd}, up, colour, 1.0f, 0.0f), make_vertex({-hw, 0.0f, -hd}, up, colour, 0.0f, 0.0f)};
         return create_mesh(vertices, {0, 1, 2, 0, 2, 3});
     }
 
@@ -211,7 +221,9 @@ namespace sl
             {
                 const float theta = 2.0f * glm::pi<float>() * static_cast<float>(segment) / static_cast<float>(segments);
                 const glm::vec3 normal{std::sin(phi) * std::cos(theta), std::cos(phi), std::sin(phi) * std::sin(theta)};
-                vertices.push_back(make_vertex(normal * radius, normal, colour));
+                vertices.push_back(make_vertex(normal * radius, normal, colour,
+                                                    static_cast<float>(segment) / static_cast<float>(segments),
+                                                    static_cast<float>(ring) / static_cast<float>(rings)));
             }
         }
         const std::uint32_t stride = static_cast<std::uint32_t>(segments + 1);
@@ -245,6 +257,16 @@ namespace sl
         for (int row = 0; row < 3; ++row)
             for (int column = 0; column < 3; ++column)
                 params.normal_rows[row][column] = normal_matrix[column][row];
+        if (material.texture)
+        {
+            if (!upload_bitmap(material.texture))
+            {
+                detail::set_error("Unable to upload mesh texture");
+                return false;
+            }
+            params.texture = material.texture->gpu_texture;
+        }
+        params.cull = material.cull;
         params.normal_rows[0][3] = material.tint.red / 255.0f;
         params.normal_rows[1][3] = material.tint.green / 255.0f;
         params.normal_rows[2][3] = material.tint.blue / 255.0f;

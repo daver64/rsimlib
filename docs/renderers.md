@@ -95,7 +95,7 @@ cmake --build build --target vulkan_shader_validation
 
 ## Surface3D
 
-The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL and Vulkan; D3D11/D3D12 return an "unsupported" error. Use the escape hatches below for raw access.
+The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL and Vulkan; D3D11/D3D12 return an "unsupported" error. Surfaces support true MSAA on both (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
 
 ## Direct 3D Escape Hatches
 

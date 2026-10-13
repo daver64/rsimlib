@@ -591,7 +591,7 @@ namespace sl::detail
 
     bool VulkanContext::begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
                                                     int width, int height,
-                                                    std::string &error)
+                                                    std::string &error, int samples)
     {
         if (!frame_active_ || framebuffer == VK_NULL_HANDLE)
         {
@@ -601,21 +601,36 @@ namespace sl::detail
         if (command_buffer_recording_ && render_pass_active_)
             vkCmdEndRenderPass(command_buffer_);
         render_pass_stack_.push_back({active_extent_, active_render_pass_, active_resume_render_pass_,
-                                      active_framebuffer_, offscreen_active_, active_offscreen_image_});
-        VkClearValue clears[2]{};
+                                      active_framebuffer_, offscreen_active_, active_offscreen_image_,
+                                      active_samples_});
+        VkRenderPass clear_pass = offscreen_render_pass_;
+        VkRenderPass resume_pass = resume_offscreen_render_pass_;
+        if (samples > 1)
+        {
+            if (!ensure_multisample_passes(samples, error))
+            {
+                render_pass_stack_.pop_back();
+                return false;
+            }
+            clear_pass = multisample_passes_[samples].clear;
+            resume_pass = multisample_passes_[samples].resume;
+        }
+        VkClearValue clears[3]{};
         clears[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
         clears[1].depthStencil = {1.0f, 0};
+        clears[2].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-        begin.renderPass = offscreen_render_pass_;
+        begin.renderPass = clear_pass;
         begin.framebuffer = framebuffer;
         begin.renderArea.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
-        begin.clearValueCount = 2;
+        begin.clearValueCount = samples > 1 ? 3 : 2;
         begin.pClearValues = clears;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_extent_ = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height)};
-        active_render_pass_ = offscreen_render_pass_;
-        active_resume_render_pass_ = resume_offscreen_render_pass_;
+        active_render_pass_ = clear_pass;
+        active_resume_render_pass_ = resume_pass;
         active_framebuffer_ = framebuffer;
+        active_samples_ = samples;
         render_pass_active_ = true;
         offscreen_active_ = true;
         active_offscreen_image_ = image.image;
@@ -646,14 +661,15 @@ namespace sl::detail
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_sampled);
         const RenderPassState previous = render_pass_stack_.back();
         render_pass_stack_.pop_back();
-        VkClearValue clear_values[2]{};
+        VkClearValue clear_values[3]{};
         clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         clear_values[1].depthStencil = {1.0f, 0};
+        clear_values[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         begin.renderPass = previous.resume_render_pass;
         begin.framebuffer = previous.framebuffer;
         begin.renderArea.extent = previous.extent;
-        begin.clearValueCount = 2;
+        begin.clearValueCount = previous.samples > 1 ? 3 : 2;
         begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_extent_ = previous.extent;
@@ -662,7 +678,96 @@ namespace sl::detail
         active_framebuffer_ = previous.framebuffer;
         offscreen_active_ = previous.offscreen;
         active_offscreen_image_ = previous.offscreen_image;
+        active_samples_ = previous.samples;
         render_pass_active_ = true;
+        return true;
+    }
+
+    int VulkanContext::clamp_msaa_samples(int requested) const
+    {
+        if (requested <= 1 || physical_device_ == VK_NULL_HANDLE)
+            return 1;
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physical_device_, &properties);
+        const VkSampleCountFlags supported = properties.limits.framebufferColorSampleCounts &
+                                             properties.limits.framebufferDepthSampleCounts;
+        for (int count = 16; count >= 2; count /= 2)
+        {
+            if (count <= requested && (supported & static_cast<VkSampleCountFlags>(count)) != 0)
+                return count;
+        }
+        return 1;
+    }
+
+    bool VulkanContext::ensure_multisample_passes(int samples, std::string &error)
+    {
+        if (multisample_passes_.count(samples) != 0)
+            return true;
+        VkAttachmentDescription attachments[3]{};
+        attachments[0].format = swapchain_format_;
+        attachments[0].samples = static_cast<VkSampleCountFlagBits>(samples);
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        attachments[1].format = depth_format_;
+        attachments[1].samples = static_cast<VkSampleCountFlagBits>(samples);
+        attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        // The single-sample resolve target is fully rewritten every time the pass ends.
+        attachments[2].format = swapchain_format_;
+        attachments[2].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[2].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[2].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference color_reference{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference depth_reference{1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        VkAttachmentReference resolve_reference{2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &color_reference;
+        subpass.pResolveAttachments = &resolve_reference;
+        subpass.pDepthStencilAttachment = &depth_reference;
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkRenderPassCreateInfo info{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+        info.attachmentCount = 3;
+        info.pAttachments = attachments;
+        info.subpassCount = 1;
+        info.pSubpasses = &subpass;
+        info.dependencyCount = 1;
+        info.pDependencies = &dependency;
+        MultisamplePasses passes;
+        if (vkCreateRenderPass(device_, &info, nullptr, &passes.clear) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan multisample render pass.";
+            return false;
+        }
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachments[2].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (vkCreateRenderPass(device_, &info, nullptr, &passes.resume) != VK_SUCCESS)
+        {
+            vkDestroyRenderPass(device_, passes.clear, nullptr);
+            error = "Unable to create Vulkan multisample resume render pass.";
+            return false;
+        }
+        multisample_passes_[samples] = passes;
         return true;
     }
 
@@ -699,14 +804,15 @@ namespace sl::detail
         vkCmdPipelineBarrier(command_buffer_, source_stage, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                              0, 0, nullptr, 0, nullptr, 1, &barrier);
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        VkClearValue clear_values[2]{};
+        VkClearValue clear_values[3]{};
         clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         clear_values[1].depthStencil = {1.0f, 0};
+        clear_values[2].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         begin.renderPass = active_resume_render_pass_;
         begin.framebuffer = active_framebuffer_;
         begin.renderArea.extent = active_extent_;
-        begin.clearValueCount = 2;
+        begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
         begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_render_pass_ = active_resume_render_pass_;
@@ -778,12 +884,13 @@ namespace sl::detail
 
     bool VulkanContext::record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                          VkBuffer vertex_buffer, VkBuffer index_buffer,
-                                         std::uint32_t index_count, const float *vertex_constants,
+                                         std::uint32_t index_count, VkDescriptorSet texture_descriptor,
+                                         const float *vertex_constants,
                                          const float *fragment_constants, std::string &error)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
-            !vertex_constants || !fragment_constants || index_count == 0)
+            texture_descriptor == VK_NULL_HANDLE || !vertex_constants || !fragment_constants || index_count == 0)
         {
             error = "Invalid Vulkan mesh draw state.";
             return false;
@@ -796,6 +903,8 @@ namespace sl::detail
         vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1,
+                                &texture_descriptor, 0, nullptr);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(float) * 28, vertex_constants);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
@@ -949,9 +1058,9 @@ namespace sl::detail
         begin.renderPass = active_resume_render_pass_;
         begin.framebuffer = active_framebuffer_;
         begin.renderArea.extent = active_extent_;
-        VkClearValue clear{};
-        begin.clearValueCount = 1;
-        begin.pClearValues = &clear;
+        VkClearValue clear_values[3]{};
+        begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
+        begin.pClearValues = clear_values;
         vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
         active_render_pass_ = active_resume_render_pass_;
         render_pass_active_ = true;
@@ -1127,9 +1236,9 @@ namespace sl::detail
             begin.renderPass = active_resume_render_pass_;
             begin.framebuffer = active_framebuffer_;
             begin.renderArea.extent = active_extent_;
-            VkClearValue clear{};
-            begin.clearValueCount = 1;
-            begin.pClearValues = &clear;
+            VkClearValue clear_values[3]{};
+            begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
+            begin.pClearValues = clear_values;
             vkCmdBeginRenderPass(command, &begin, VK_SUBPASS_CONTENTS_INLINE);
             active_render_pass_ = active_resume_render_pass_;
             render_pass_active_ = true;
@@ -1297,7 +1406,8 @@ namespace sl::detail
     }
 
     bool VulkanContext::create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
-                                     VulkanImage &result, std::string &error)
+                                     VulkanImage &result, std::string &error,
+                                     VkSampleCountFlagBits samples)
     {
         result = {};
         result.format = format;
@@ -1310,7 +1420,7 @@ namespace sl::detail
         image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
         image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         image_info.usage = usage;
-        image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+        image_info.samples = samples;
         image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         if (vkCreateImage(device_, &image_info, nullptr, &result.image) != VK_SUCCESS)
         {
@@ -1369,7 +1479,8 @@ namespace sl::detail
     bool VulkanContext::create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
                                                          int width, int height,
                                                          VkFramebuffer &framebuffer,
-                                                         std::string &error)
+                                                         std::string &error,
+                                                         const VulkanImage *multisample_color, int samples)
     {
         framebuffer = VK_NULL_HANDLE;
         if (render_pass_ == VK_NULL_HANDLE || image.view == VK_NULL_HANDLE || depth.view == VK_NULL_HANDLE)
@@ -1379,8 +1490,17 @@ namespace sl::detail
         }
         VkFramebufferCreateInfo info{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
         info.renderPass = offscreen_render_pass_;
-        const VkImageView attachments[] = {image.view, depth.view};
+        VkImageView attachments[] = {image.view, depth.view, VK_NULL_HANDLE};
         info.attachmentCount = 2;
+        if (samples > 1 && multisample_color)
+        {
+            if (!ensure_multisample_passes(samples, error))
+                return false;
+            info.renderPass = multisample_passes_[samples].clear;
+            attachments[0] = multisample_color->view;
+            attachments[2] = image.view;
+            info.attachmentCount = 3;
+        }
         info.pAttachments = attachments;
         info.width = static_cast<std::uint32_t>(width);
         info.height = static_cast<std::uint32_t>(height);
@@ -2128,7 +2248,9 @@ namespace sl::detail
                                                  bool three_dimensional,
                                                  bool premultiplied_alpha,
                                                  bool additive_blend,
-                                                 bool mesh_vertices)
+                                                 bool mesh_vertices,
+                                                 VkCullModeFlags cull_mode,
+                                                 int samples)
     {
         result = {};
         if (mesh_vertices)
@@ -2141,7 +2263,7 @@ namespace sl::detail
         if (three_dimensional)
         {
             const VkPushConstantRange ranges[] = {
-                {VK_SHADER_STAGE_VERTEX_BIT, 0, mesh_vertices ? sizeof(float) * 28 : sizeof(float) * 16},
+                {VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<std::uint32_t>(mesh_vertices ? sizeof(float) * 28 : sizeof(float) * 16)},
                 {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28, sizeof(float) * 4}};
             VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
             layout_info.setLayoutCount = 1;
@@ -2186,7 +2308,7 @@ namespace sl::detail
                          : three_dimensional ? sizeof(Vulkan3DVertex)
                                              : sizeof(Vertex2D);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        VkVertexInputAttributeDescription attributes[3] = {
+        VkVertexInputAttributeDescription attributes[4] = {
             {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
             {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
             {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
@@ -2196,6 +2318,7 @@ namespace sl::detail
             attributes[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, position))};
             attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, normal))};
             attributes[2] = {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, colour))};
+            attributes[3] = {3, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, uv))};
         }
         else if (three_dimensional)
         {
@@ -2205,7 +2328,7 @@ namespace sl::detail
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
         vertex_input.vertexBindingDescriptionCount = 1;
         vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = (three_dimensional && !mesh_vertices) ? 2u : 3u;
+        vertex_input.vertexAttributeDescriptionCount = mesh_vertices ? 4u : three_dimensional ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)
@@ -2231,11 +2354,11 @@ namespace sl::detail
         viewport.scissorCount = 1;
         VkPipelineRasterizationStateCreateInfo rasterization{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
         rasterization.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterization.cullMode = VK_CULL_MODE_NONE;
+        rasterization.cullMode = cull_mode;
         rasterization.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterization.lineWidth = 1.0f;
         VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
-        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisample.rasterizationSamples = static_cast<VkSampleCountFlagBits>(samples > 1 ? samples : 1);
         VkPipelineColorBlendAttachmentState blend_attachment{};
         blend_attachment.blendEnable = VK_TRUE;
         blend_attachment.srcColorBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE
@@ -2272,6 +2395,15 @@ namespace sl::detail
         pipeline_info.pDynamicState = &dynamic;
         pipeline_info.layout = result.layout;
         pipeline_info.renderPass = render_pass_;
+        if (samples > 1)
+        {
+            if (!ensure_multisample_passes(samples, error))
+            {
+                destroy_pipeline_layout(result.layout);
+                return false;
+            }
+            pipeline_info.renderPass = multisample_passes_[samples].clear;
+        }
         pipeline_info.subpass = 0;
         if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &result.pipeline) != VK_SUCCESS)
         {
@@ -2366,6 +2498,12 @@ namespace sl::detail
                 vkDestroyRenderPass(device_, offscreen_render_pass_, nullptr);
             if (resume_offscreen_render_pass_ != VK_NULL_HANDLE)
                 vkDestroyRenderPass(device_, resume_offscreen_render_pass_, nullptr);
+            for (auto &[count, passes] : multisample_passes_)
+            {
+                vkDestroyRenderPass(device_, passes.clear, nullptr);
+                vkDestroyRenderPass(device_, passes.resume, nullptr);
+            }
+            multisample_passes_.clear();
             render_pass_ = VK_NULL_HANDLE;
             resume_render_pass_ = VK_NULL_HANDLE;
             offscreen_render_pass_ = VK_NULL_HANDLE;

@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -71,6 +72,7 @@ namespace sl::detail
         float position[3];
         float normal[3];
         float colour[4];
+        float uv[2];
     };
 
     struct VulkanComputePipeline
@@ -98,7 +100,8 @@ namespace sl::detail
         bool frame_active() const { return frame_active_; }
         bool begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
                                          int width, int height,
-                                         std::string &error);
+                                         std::string &error, int samples = 1);
+        int clamp_msaa_samples(int requested) const;
         bool end_offscreen_render_pass(std::string &error);
         bool prepare_image_for_sampling(VulkanImage &image, std::string &error);
         bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
@@ -111,7 +114,7 @@ namespace sl::detail
         /** vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats. */
         bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
                               VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
-                              const float *vertex_constants, const float *fragment_constants,
+                              VkDescriptorSet texture_descriptor, const float *vertex_constants, const float *fragment_constants,
                               std::string &error);
         bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
@@ -143,11 +146,13 @@ namespace sl::detail
         bool download_swapchain_rgba(int width, int height,
                                      std::uint8_t *out_pixels, std::string &error);
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
-                          VulkanImage &result, std::string &error);
+                          VulkanImage &result, std::string &error,
+                          VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
         void destroy_image(VulkanImage &image);
         bool create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
                                               int width, int height,
-                                              VkFramebuffer &framebuffer, std::string &error);
+                                              VkFramebuffer &framebuffer, std::string &error,
+                                              const VulkanImage *multisample_color = nullptr, int samples = 1);
         void destroy_framebuffer(VkFramebuffer &framebuffer);
         bool load_shader_module(const std::filesystem::path &path, VulkanShaderModule &result,
                                 std::string &error);
@@ -223,7 +228,9 @@ namespace sl::detail
                                       bool three_dimensional = false,
                                       bool premultiplied_alpha = false,
                                       bool additive_blend = false,
-                                      bool mesh_vertices = false);
+                                      bool mesh_vertices = false,
+                                      VkCullModeFlags cull_mode = VK_CULL_MODE_NONE,
+                                      int samples = 1);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -270,6 +277,13 @@ namespace sl::detail
         VkRenderPass resume_render_pass_ = VK_NULL_HANDLE;
         VkRenderPass offscreen_render_pass_ = VK_NULL_HANDLE;
         VkRenderPass resume_offscreen_render_pass_ = VK_NULL_HANDLE;
+        struct MultisamplePasses
+        {
+            VkRenderPass clear = VK_NULL_HANDLE;
+            VkRenderPass resume = VK_NULL_HANDLE;
+        };
+        std::map<int, MultisamplePasses> multisample_passes_;
+        bool ensure_multisample_passes(int samples, std::string &error);
         std::vector<VkFramebuffer> framebuffers_;
         VulkanImage depth_image_{};
         VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
@@ -290,8 +304,10 @@ namespace sl::detail
             VkFramebuffer framebuffer = VK_NULL_HANDLE;
             bool offscreen = false;
             VkImage offscreen_image = VK_NULL_HANDLE;
+            int samples = 1;
         };
         std::vector<RenderPassState> render_pass_stack_;
+        int active_samples_ = 1;
         bool frame_active_ = false;
         bool command_buffer_recording_ = false;
         bool render_pass_active_ = false;

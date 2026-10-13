@@ -9,12 +9,13 @@
 namespace sl
 {
 
-    /** A mesh vertex: position, normal and RGBA colour (0-1 floats). */
+    /** A mesh vertex: position, normal, RGBA colour (0-1 floats) and texture coordinates (v = 0 is the top of the image). */
     struct Vertex3D
     {
         float position[3] = {0.0f, 0.0f, 0.0f};
         float normal[3] = {0.0f, 1.0f, 0.0f};
         float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        float uv[2] = {0.0f, 0.0f};
     };
 
     /** Indexed triangle mesh stored on the GPU. Create with create_mesh() or a primitive builder. */
@@ -25,12 +26,23 @@ namespace sl
         int index_count = 0;
     };
 
-    /** Surface appearance for draw_mesh(). The tint multiplies the mesh vertex colours. */
+    /** Which triangles draw_mesh() discards. Counter-clockwise triangles are front faces. */
+    enum class CullMode
+    {
+        back,  /**< Discard back faces (default). */
+        front, /**< Discard front faces; useful for inside-out hulls and skyboxes. */
+        none   /**< Draw both faces. */
+    };
+
+    /** Surface appearance for draw_mesh(). The tint and texture multiply the mesh vertex colours. */
     struct Material
     {
         Colour tint{255, 255, 255, 255};
         /** When false the mesh is drawn with its colours unchanged, ignoring the light. */
         bool lit = true;
+        /** Optional texture sampled with the mesh UVs and multiplied into the colour. */
+        Bitmap *texture = nullptr;
+        CullMode cull = CullMode::back;
     };
 
     /** A single directional light plus ambient term, used by lit materials. */
@@ -51,10 +63,16 @@ namespace sl
     struct Surface3D
     {
         Bitmap *bitmap = nullptr;
+        int samples = 1;
     };
 
-    /** Create a surface, or nullptr (see last_error()) if unsupported or allocation fails. */
-    Surface3D *create_surface_3d(int width, int height);
+    /**
+     * Create a surface, or nullptr (see last_error()) if unsupported or allocation fails.
+     * samples requests multisample anti-aliasing (e.g. 4); it is clamped to what the GPU supports.
+     */
+    Surface3D *create_surface_3d(int width, int height, int samples = 1);
+    /** The sample count actually in use (1 when MSAA is off or unsupported). */
+    int surface_3d_samples(const Surface3D *surface);
     void destroy_surface_3d(Surface3D *surface);
     /** The surface's colour image, for use with draw_sprite() and similar 2D calls. */
     Bitmap *surface_3d_bitmap(Surface3D *surface);
