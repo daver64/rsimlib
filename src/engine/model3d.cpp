@@ -505,7 +505,7 @@ namespace sl
                 return false;
             }
             for (std::size_t i = 0; i < count; ++i)
-                for (int c = 0; c < components; ++c)
+                for (size_t c = 0; c < components; ++c)
                     out[i * components + c] = read_component(&buffer[base + i * stride + c * size], type, normalized);
             return true;
         }
