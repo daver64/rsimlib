@@ -1,7 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style 2D game framework and rendering engine built on
-SDL2, with high-performance selectable OpenGL 4.3 and Vulkan backends. It combines immediate-mode simplicity with modern game development machinery: auto-batched hardware sprite and primitive rendering, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, offscreen 3D surfaces with MSAA and model loading, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3 and Vulkan backends (plus Direct3D 11/12 on Windows). It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -61,7 +60,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, and dynamic polygon soft shadows.
-- ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and 3D escape hatches.
+- ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and direct 3D rendering APIs.
 - 🧊 **[3D Surfaces & Model Loading](docs/api_reference.md#3d-surfaces-includesurface3dh)** — Offscreen MSAA 3D targets, camera perspective, directional lighting, OBJ/glTF/GLB models, and seamless 2D HUD compositing.
 - 🧱 **[Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh)** — 16x16x16 chunk rendering, hidden-face culling into GPU vertex buffers, texture atlas mapping, multi-chunk coordination, and 3D DDA raycasting for Minecraft-style worlds.
 - 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper, simple particle/AABB entity physics, and Lua physics bindings.
@@ -148,9 +147,9 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## 3D Surfaces & Model Rendering
+## 3D Graphics: Surfaces, Models & Voxel Worlds
 
-While `simlib` is fundamentally designed for fast, immediate-mode 2D games, it provides high-level offscreen 3D drawing via `sl::Surface3D` ([include/surface3d.h](include/surface3d.h)) on both the OpenGL and Vulkan backends. You can create an offscreen colour+depth surface with optional multisample anti-aliasing (MSAA), direct drawing commands to it using a 3D `Camera` and directional `Light3D`, draw built-in primitive meshes (cubes, planes, spheres) or loaded models (Wavefront `.obj` with `.mtl` materials, plus `.gltf` and `.glb` assets), draw 2D overlays (HUD, text, and sprites) directly on top of the 3D scene, and then composite the completed surface into your main 2D frame with `sl::draw_sprite(sl::surface_3d_bitmap(surface), x, y)`.
+`simlib` includes both a high-level 3D drawing API and lower-level ways to build renderer-specific scenes. The backend-neutral `sl::Surface3D` API ([include/surface3d.h](include/surface3d.h)) is implemented for OpenGL and Vulkan. Create an offscreen colour-and-depth surface with optional multisample anti-aliasing (MSAA), draw with a 3D `Camera` and directional `Light3D`, render built-in primitive meshes or loaded Wavefront `.obj`/`.mtl`, `.gltf`, and `.glb` models, add 2D overlays such as HUD text and sprites, and composite the result into a 2D frame.
 
 ```cpp
 // Create an offscreen 3D surface with 4x MSAA
@@ -172,6 +171,8 @@ if (sl::begin_surface_3d(surface, camera))
 // Composite the 3D surface bitmap into your 2D scene
 sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
 ```
+
+For block-based worlds, the voxel API provides chunk rendering, hidden-face culling, texture-atlas mapping, and 3D raycasting; see [Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh). For renderer-specific control, the [3D examples](docs/renderers.md#direct-3d-escape-hatches) demonstrate direct OpenGL, Vulkan, Direct3D 11, and Direct3D 12 rendering. `Surface3D` currently supports OpenGL and Vulkan; Direct3D examples use their direct-rendering APIs.
 
 ---
 
