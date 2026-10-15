@@ -36,8 +36,10 @@ namespace sl
     /** Return a human-readable name for the selected graphics backend (e.g. "OpenGL", "Vulkan"). */
     std::string graphics_backend_name();
 
-    /** Create a window (windowed or desktop fullscreen) and initialize the drawing screen using the selected backend. */
-    bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
+    /** Create a window (windowed or desktop fullscreen) and initialize the drawing screen using the selected backend.
+     * For fullscreen mode, width and height may both be omitted to use the primary display's desktop resolution.
+     */
+    bool set_gfx_mode(int driver, int width = 0, int height = 0, int virtualWidth = 0, int virtualHeight = 0);
     /** Apply window-related SDL events, including resize events. */
     void display_handle_event(const Event &event);
     /** Set the window title. */

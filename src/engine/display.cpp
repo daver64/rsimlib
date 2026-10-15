@@ -112,8 +112,10 @@ namespace sl
                       int requestedWidth, int requestedHeight,
                       int virtualWidth, int virtualHeight)
     {
+        const bool use_desktop_resolution =
+            driver == GFX_AUTODETECT_FULLSCREEN && requestedWidth == 0 && requestedHeight == 0;
         if ((driver != GFX_AUTODETECT_WINDOWED && driver != GFX_AUTODETECT_FULLSCREEN) ||
-            requestedWidth <= 0 || requestedHeight <= 0)
+            (!use_desktop_resolution && (requestedWidth <= 0 || requestedHeight <= 0)))
         {
             sl::detail::set_error("Invalid graphics mode or dimensions");
             return false;
@@ -124,6 +126,19 @@ namespace sl
         {
             sl::detail::set_error(SDL_GetError());
             return false;
+        }
+
+        if (use_desktop_resolution)
+        {
+            SDL_DisplayMode desktop_mode{};
+            if (SDL_GetDesktopDisplayMode(0, &desktop_mode) != 0)
+            {
+                sl::detail::set_error(SDL_GetError());
+                SDL_Quit();
+                return false;
+            }
+            requestedWidth = desktop_mode.w;
+            requestedHeight = desktop_mode.h;
         }
 
         if (TTF_Init() != 0)

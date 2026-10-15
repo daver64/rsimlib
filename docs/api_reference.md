@@ -97,12 +97,12 @@ int main(int argc, char **argv) {
 
 #### `set_gfx_mode(driver, width, height, virtualWidth = 0, virtualHeight = 0)`
 ```cpp
-bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
+bool set_gfx_mode(int driver, int width = 0, int height = 0, int virtualWidth = 0, int virtualHeight = 0);
 ```
 - **Description**: Creates the main application window, initializes the selected graphics context, and constructs the primary display framebuffer (`sl::screen`).
 - **Parameters**:
   - `driver` (`int`): Driver selection (`sl::GFX_AUTODETECT_WINDOWED` or `sl::GFX_AUTODETECT_FULLSCREEN`).
-  - `width` (`int`): Window width in pixels.
+  - `width` (`int`): Window width in pixels; both `width` and `height` may be omitted for fullscreen mode to use the primary display's desktop resolution.
   - `height` (`int`): Window height in pixels.
   - `virtualWidth` (`int`, optional): Logical drawing canvas width (0 defaults to `width`).
   - `virtualHeight` (`int`, optional): Logical drawing canvas height (0 defaults to `height`).
