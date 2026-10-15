@@ -13,6 +13,8 @@ namespace sl
 
     /** Select the windowed auto-detected graphics driver. */
     constexpr int GFX_AUTODETECT_WINDOWED = 1;
+    /** Select the auto-detected desktop fullscreen graphics driver. */
+    constexpr int GFX_AUTODETECT_FULLSCREEN = 2;
 
     /** Rendering backends understood by the engine. */
     enum class GraphicsBackend
@@ -34,7 +36,7 @@ namespace sl
     /** Return a human-readable name for the selected graphics backend (e.g. "OpenGL", "Vulkan"). */
     std::string graphics_backend_name();
 
-    /** Create a window and initialize the drawing screen using the selected backend. */
+    /** Create a window (windowed or desktop fullscreen) and initialize the drawing screen using the selected backend. */
     bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int virtualHeight = 0);
     /** Apply window-related SDL events, including resize events. */
     void display_handle_event(const Event &event);

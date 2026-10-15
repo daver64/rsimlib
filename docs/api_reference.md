@@ -64,7 +64,8 @@ The display subsystem handles window creation, graphics backend selection (OpenG
 ### Types & Enumerations
 
 - `enum class GraphicsBackend { opengl, vulkan, d3d11, d3d12 }`: Selects the hardware rendering backend.
-- `constexpr int GFX_AUTODETECT_WINDOWED = 1`: Default windowed driver mode.
+- `constexpr int GFX_AUTODETECT_WINDOWED = 1`: Auto-detected windowed driver mode.
+- `constexpr int GFX_AUTODETECT_FULLSCREEN = 2`: Auto-detected desktop fullscreen driver mode.
 
 ### Functions
 
@@ -100,7 +101,7 @@ bool set_gfx_mode(int driver, int width, int height, int virtualWidth = 0, int v
 ```
 - **Description**: Creates the main application window, initializes the selected graphics context, and constructs the primary display framebuffer (`sl::screen`).
 - **Parameters**:
-  - `driver` (`int`): Driver selection (typically `sl::GFX_AUTODETECT_WINDOWED`).
+  - `driver` (`int`): Driver selection (`sl::GFX_AUTODETECT_WINDOWED` or `sl::GFX_AUTODETECT_FULLSCREEN`).
   - `width` (`int`): Window width in pixels.
   - `height` (`int`): Window height in pixels.
   - `virtualWidth` (`int`, optional): Logical drawing canvas width (0 defaults to `width`).
@@ -970,4 +971,3 @@ namespace sl {
 ---
 
 [← Back to README](../README.md)
-

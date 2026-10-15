@@ -112,7 +112,8 @@ namespace sl
                       int requestedWidth, int requestedHeight,
                       int virtualWidth, int virtualHeight)
     {
-        if (driver != GFX_AUTODETECT_WINDOWED || requestedWidth <= 0 || requestedHeight <= 0)
+        if ((driver != GFX_AUTODETECT_WINDOWED && driver != GFX_AUTODETECT_FULLSCREEN) ||
+            requestedWidth <= 0 || requestedHeight <= 0)
         {
             sl::detail::set_error("Invalid graphics mode or dimensions");
             return false;
@@ -144,6 +145,8 @@ namespace sl
         }
         renderer->configure_window();
         uint32_t windowflags = renderer->window_flags();
+        if (driver == GFX_AUTODETECT_FULLSCREEN)
+            windowflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
         window = SDL_CreateWindow(
             "simlib",
             SDL_WINDOWPOS_CENTERED,

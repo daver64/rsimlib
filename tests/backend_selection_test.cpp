@@ -4,6 +4,7 @@
 
 int main()
 {
+    assert(sl::GFX_AUTODETECT_WINDOWED != sl::GFX_AUTODETECT_FULLSCREEN);
     assert(sl::graphics_backend() == sl::GraphicsBackend::opengl);
     assert(sl::graphics_backend_available(sl::GraphicsBackend::opengl));
     assert(sl::graphics_backend_available(sl::GraphicsBackend::vulkan));
