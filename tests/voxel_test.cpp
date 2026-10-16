@@ -334,6 +334,54 @@ void test_world_management_and_raycast()
     }
 }
 
+void test_propagated_voxel_lighting()
+{
+    std::cout << "Testing propagated sky and RGB block lighting..." << std::endl;
+
+    sl::BlockDefinition torch;
+    torch.light_emission = 15;
+    torch.light_colour = {255, 80, 20, 255};
+    sl::register_block_definition(42, torch);
+
+    sl::BlockDefinition glass;
+    glass.is_transparent = true;
+    sl::register_block_definition(43, glass);
+
+    sl::VoxelWorld cave;
+    for (int z = 0; z < sl::CHUNK_SIZE; ++z)
+    {
+        for (int x = 0; x < sl::CHUNK_SIZE; ++x)
+            cave.set_block(x, 8, z, 1);
+    }
+    cave.set_block(15, 7, 2, 42);
+    cave.set_block(16, 7, 2, 1);
+    cave.update_lighting();
+
+    const sl::VoxelLight sunlit = cave.get_light(4, 9, 4);
+    assert(sunlit.sky == 15);
+    assert(cave.get_light(4, 7, 4).sky == 0);
+    assert(cave.get_light(32, 7, 4).sky == 15);
+
+    const sl::VoxelLight across_chunk = cave.get_light(16, 7, 3);
+    assert(across_chunk.red == 13);
+    assert(across_chunk.green == 2);
+    assert(across_chunk.blue == 0);
+
+    cave.set_block(15, 7, 2, sl::BLOCK_AIR);
+    cave.update_lighting();
+    const sl::VoxelLight after_torch_removal = cave.get_light(16, 7, 3);
+    assert(after_torch_removal.red == 0);
+    assert(after_torch_removal.green == 0);
+    assert(after_torch_removal.blue == 0);
+
+    sl::VoxelWorld transparent_path;
+    transparent_path.set_block(4, 4, 4, 42);
+    transparent_path.set_block(5, 4, 4, 43);
+    transparent_path.update_lighting();
+    assert(transparent_path.get_light(5, 4, 4).red == 14);
+    assert(transparent_path.get_light(6, 4, 4).red == 13);
+}
+
 void test_graphics_mesh_if_available()
 {
     std::cout << "Testing GPU mesh creation if graphics backend is available..." << std::endl;
@@ -385,6 +433,7 @@ int main()
     test_face_culling();
     test_world_coordinates();
     test_world_management_and_raycast();
+    test_propagated_voxel_lighting();
     test_graphics_mesh_if_available();
 
     std::cout << "All voxel unit tests passed successfully!" << std::endl;

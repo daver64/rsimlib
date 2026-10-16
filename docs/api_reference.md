@@ -721,7 +721,8 @@ See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF came
 - `CHUNK_SIZE = 16`: Dimensions along X, Y, and Z axes (4,096 voxels per chunk).
 - `BlockId = std::uint8_t`: 8-bit block identifier (`BLOCK_AIR = 0`).
 - `VoxelFace`: Cube faces `top` (+Y), `bottom` (-Y), `north` (+Z), `south` (-Z), `east` (+X), `west` (-X).
-- `BlockDefinition`: Defines block properties (`is_solid`, `is_transparent`, per-face `tiles[6]`, `tint`).
+- `BlockDefinition`: Defines block properties (`is_solid`, `is_transparent`, per-face `tiles[6]`, `tint`), emitted RGB block light (`light_emission` in `[0..15]`, `light_colour`), and light attenuation (`light_opacity` in `[0..15]`; 255 infers a default from solidity/transparency).
+- `VoxelLight`: Per-voxel sky level and propagated RGB block-light levels, each in `[0..15]`.
 - `VoxelAtlas`: Grid texture atlas helper converting tile coordinates `(x, y)` to normalized UV coordinates `[u0, v0, u1, v1]`.
 - `VoxelRaycastResult`: Stores raycast intersection results (`hit`, `hit_block`, `place_block`, `hit_face`, `hit_pos`, `distance`).
 
@@ -730,17 +731,33 @@ See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF came
 - `get_block(x, y, z)` / `set_block(x, y, z, id)`: Local block access in `[0..15]`.
 - `fill(id)`: Fills entire chunk with a block ID.
 - `count_visible_faces(lookup)`: Counts visible faces after hidden-face culling without allocating GPU memory.
-- `rebuild_mesh(atlas, lookup)`: Generates an indexed GPU `Mesh*` with culled quads, directional shading, and UV mapping.
+- `rebuild_mesh(atlas, lookup)`: Generates an indexed GPU `Mesh*` with culled quads, propagated vertex lighting, directional shading, and UV mapping.
 - `mesh()` / `vertex_count()` / `triangle_count()`: Inspect generated mesh.
 - `draw(material)`: Renders the chunk mesh at its world origin into the active 3D surface.
 
 ### `sl::VoxelWorld`
 - Multi-chunk manager coordinating chunk storage, cross-boundary culling, and dirty chunk updating.
 - `world_to_chunk(x, y, z)` / `world_to_local(x, y, z)`: Coordinate conversion helpers handling negative coordinates correctly.
-- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Query and set blocks at arbitrary world coordinates. Automatically marks affected chunks (and border neighbors) dirty.
-- `update_dirty_chunks(atlas)`: Rebuilds meshes for all modified chunks.
+- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Query and set blocks at arbitrary world coordinates. Automatically marks affected chunks (and border neighbors) dirty and schedules lighting updates.
+- `get_light(x, y, z)`: Query propagated sky and RGB block-light levels.
+- `update_lighting()`: Recompute direct sky light and neighbor-propagated sky/block light after block or emitter changes; call this to refresh light levels before querying them.
+- `update_dirty_chunks(atlas)`: Recomputes pending lighting and rebuilds meshes for chunks affected by block or lighting changes.
 - `raycast(origin, direction, max_distance)`: Fast Voxel Traversal (3D DDA) through world blocks.
 - `draw(material)`: Draws all chunk meshes.
+
+By default, air and transparent blocks pass propagated light with one level of attenuation per neighboring voxel, while opaque blocks stop it. `light_opacity` can customize that behavior (0 passes without attenuation; 15 blocks light). Emission color propagates per RGB channel. Direct sky light remains at full strength through open air above the highest opaque voxel in each world column, then spreads into caves with neighbor attenuation. Block-light propagation and cave light spread are limited to allocated chunks; unallocated cells can still report direct sky light when unobstructed.
+
+```cpp
+sl::BlockDefinition torch;
+torch.light_emission = 15;
+torch.light_colour = {255, 170, 90, 255};
+sl::register_block_definition(TORCH_BLOCK_ID, torch);
+
+world.set_block(x, y, z, TORCH_BLOCK_ID);
+world.update_lighting();
+world.update_dirty_chunks();
+sl::VoxelLight light = world.get_light(x + 1, y, z);
+```
 
 See `src/examples/exvoxel` for an interactive demo with procedural terrain generation, pixel-art texture atlas, first-person camera, and block break/place mechanics.
 

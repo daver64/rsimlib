@@ -20,6 +20,7 @@ namespace
     constexpr sl::BlockId BLOCK_BEDROCK = 8;
     constexpr sl::BlockId BLOCK_SAND = 9;
     constexpr sl::BlockId BLOCK_GLASS = 10;
+    constexpr sl::BlockId BLOCK_TORCH = 11;
 
     struct BlockTypeInfo
     {
@@ -38,6 +39,7 @@ namespace
         {BLOCK_BRICK, "Brick", {180, 80, 60, 255}},
         {BLOCK_SAND, "Sand", {220, 210, 140, 255}},
         {BLOCK_GLASS, "Glass", {180, 220, 240, 160}},
+        {BLOCK_TORCH, "Torch", {255, 170, 60, 255}},
     };
     constexpr int PALETTE_SIZE = static_cast<int>(sizeof(PALETTE) / sizeof(PALETTE[0]));
 
@@ -197,6 +199,23 @@ namespace
                     set_tile_pixel(bitmap, 10, 0, x, y, {180, 220, 250, 80});
             }
 
+        // Tile (11, 0): Torch
+        for (int y = 0; y < 16; ++y)
+        {
+            for (int x = 0; x < 16; ++x)
+            {
+                sl::Colour colour{65, 42, 28, 255};
+                if (x >= 6 && x <= 9 && y >= 7 && y <= 13)
+                    colour = {125, 76, 38, 255};
+                if ((x >= 6 && x <= 9 && y >= 3 && y <= 6) ||
+                    (x >= 5 && x <= 10 && y == 5))
+                    colour = {255, 116, 24, 255};
+                if ((x == 7 || x == 8) && y >= 3 && y <= 5)
+                    colour = {255, 224, 72, 255};
+                set_tile_pixel(bitmap, 11, 0, x, y, colour);
+            }
+        }
+
         bitmap->ram_dirty = true;
         return bitmap;
     }
@@ -266,6 +285,16 @@ namespace
         for (int f = 0; f < 6; ++f)
             glass.tiles[f] = {10, 0};
         sl::register_block_definition(BLOCK_GLASS, glass);
+
+        // 11. Torch: warm RGB emitter.
+        sl::BlockDefinition torch;
+        torch.is_solid = true; // solid so raycasts can target it for breaking/placing against
+        torch.is_transparent = true;
+        torch.light_emission = 15;
+        torch.light_colour = {255, 150, 55, 255};
+        for (int f = 0; f < 6; ++f)
+            torch.tiles[f] = {11, 0};
+        sl::register_block_definition(BLOCK_TORCH, torch);
     }
 
     void generate_terrain(sl::VoxelWorld &world)
@@ -324,6 +353,31 @@ namespace
                 }
             }
         }
+
+        const auto carve_cave = [&world](int center_x, int center_y, int center_z,
+                                         int radius_x, int radius_y, int radius_z)
+        {
+            for (int z = -radius_z; z <= radius_z; ++z)
+            {
+                for (int y = -radius_y; y <= radius_y; ++y)
+                {
+                    for (int x = -radius_x; x <= radius_x; ++x)
+                    {
+                        const float dx = static_cast<float>(x) / radius_x;
+                        const float dy = static_cast<float>(y) / radius_y;
+                        const float dz = static_cast<float>(z) / radius_z;
+                        if (dx * dx + dy * dy + dz * dz <= 1.0f && center_y + y > 1)
+                            world.set_block(center_x + x, center_y + y, center_z + z, sl::BLOCK_AIR);
+                    }
+                }
+            }
+        };
+
+        carve_cave(0, 5, 0, 4, 2, 4);
+        world.set_block(0, 5, 0, BLOCK_TORCH);
+
+        carve_cave(-12, 5, -10, 3, 2, 3);
+        world.set_block(-12, 5, -10, BLOCK_TORCH);
     }
 } // namespace
 
@@ -433,6 +487,7 @@ int main(int argc, char *argv[])
                 else if (event.key() == sl::Event::Key::digit_7) selected_palette_index = 6;
                 else if (event.key() == sl::Event::Key::digit_8) selected_palette_index = 7;
                 else if (event.key() == sl::Event::Key::digit_9 && PALETTE_SIZE >= 9) selected_palette_index = 8;
+                else if (event.key() == sl::Event::Key::digit_0 && PALETTE_SIZE >= 10) selected_palette_index = 9;
             }
             sl::display_handle_event(event);
         }
@@ -553,7 +608,7 @@ int main(int argc, char *argv[])
         sl::line(sl::screen, cx, cy - 8.0f, cx, cy + 8.0f, crosshair_col);
 
         // 2D HUD: Palette bar at bottom
-        constexpr float bar_w = 460.0f;
+        constexpr float bar_w = 510.0f;
         constexpr float bar_h = 44.0f;
         const float bar_x = (screen_w - bar_w) * 0.5f;
         const float bar_y = screen_h - bar_h - 12.0f;
@@ -601,7 +656,7 @@ int main(int argc, char *argv[])
         // Controls help
         sl::gprintf_center(static_cast<int>(bar_y - 18.0f), {200, 210, 220},
                            mouse_captured
-                               ? "[WASD] Move  [Space/C] Up/Down  [L-Click] Break  [R-Click] Place  [Tab/Esc] Free cursor  [1-9] Block"
+                               ? "[WASD] Move  [Space/C] Up/Down  [L-Click] Break  [R-Click] Place  [Tab/Esc] Free cursor  [1-9,0] Block"
                                : "[Click Window/Tab] Lock mouse & look  [WASD] Move  [Esc] Exit  [1-9] Block");
 
         sl::show_video_bitmap();
