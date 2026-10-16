@@ -5,6 +5,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <random>
+#include <utility>
 #include <vector>
 
 namespace
@@ -21,6 +24,12 @@ namespace
     constexpr sl::BlockId BLOCK_SAND = 9;
     constexpr sl::BlockId BLOCK_GLASS = 10;
     constexpr sl::BlockId BLOCK_TORCH = 11;
+    constexpr sl::BlockId BLOCK_BASALT = 12;
+    constexpr sl::BlockId BLOCK_REGOLITH = 13;
+    constexpr sl::BlockId BLOCK_IRON_ORE = 14;
+    constexpr sl::BlockId BLOCK_GOLD_ORE = 15;
+    constexpr sl::BlockId BLOCK_CRYSTAL = 16;
+    constexpr sl::BlockId BLOCK_ICE = 17;
 
     struct BlockTypeInfo
     {
@@ -30,25 +39,61 @@ namespace
     };
 
     const BlockTypeInfo PALETTE[] = {
-        {BLOCK_GRASS, "Grass", {100, 180, 60, 255}},
-        {BLOCK_DIRT, "Dirt", {130, 90, 50, 255}},
-        {BLOCK_STONE, "Stone", {140, 140, 140, 255}},
-        {BLOCK_COBBLE, "Cobblestone", {110, 110, 110, 255}},
-        {BLOCK_WOOD, "Wood Plank", {170, 120, 70, 255}},
-        {BLOCK_LEAVES, "Leaves", {60, 150, 40, 220}},
-        {BLOCK_BRICK, "Brick", {180, 80, 60, 255}},
-        {BLOCK_SAND, "Sand", {220, 210, 140, 255}},
+        {BLOCK_REGOLITH, "Regolith", {150, 145, 138, 255}},
+        {BLOCK_STONE, "Chondrite", {140, 140, 140, 255}},
+        {BLOCK_BASALT, "Basalt", {60, 64, 80, 255}},
+        {BLOCK_IRON_ORE, "Iron Ore", {190, 110, 70, 255}},
+        {BLOCK_GOLD_ORE, "Gold Ore", {235, 200, 60, 255}},
+        {BLOCK_CRYSTAL, "Crystal", {90, 220, 255, 255}},
+        {BLOCK_ICE, "Ice", {190, 225, 245, 255}},
+        {BLOCK_BRICK, "Hull Plate", {180, 80, 60, 255}},
         {BLOCK_GLASS, "Glass", {180, 220, 240, 160}},
         {BLOCK_TORCH, "Torch", {255, 170, 60, 255}},
     };
     constexpr int PALETTE_SIZE = static_cast<int>(sizeof(PALETTE) / sizeof(PALETTE[0]));
 
+    enum class GameplayEventType
+    {
+        block_destroyed,
+        block_placed,
+        player_collision
+    };
+
+    struct GameplayEvent
+    {
+        GameplayEventType type;
+        glm::ivec3 block_position;
+        sl::BlockId block_id;
+    };
+
+    class GameplayEventDispatcher
+    {
+    public:
+        using Callback = std::function<void(const GameplayEvent &)>;
+
+        void add_listener(Callback callback)
+        {
+            callbacks_.push_back(std::move(callback));
+        }
+
+        void dispatch(const GameplayEvent &event) const
+        {
+            for (const Callback &callback : callbacks_)
+                callback(event);
+        }
+
+    private:
+        std::vector<Callback> callbacks_;
+    };
+
     // Simple pseudo-random hash for procedural texture generation
     inline float noise2d(int x, int y, int seed)
     {
-        int n = x + y * 57 + seed * 131;
-        n = (n << 13) ^ n;
-        return 1.0f - static_cast<float>((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0f;
+        std::uint32_t h = static_cast<std::uint32_t>(x) * 374761393u + static_cast<std::uint32_t>(y) * 668265263u +
+                          static_cast<std::uint32_t>(seed) * 2246822519u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        h ^= h >> 16;
+        return static_cast<float>(h & 0xffffu) / 32767.5f - 1.0f;
     }
 
     void set_tile_pixel(sl::Bitmap *atlas, int tx, int ty, int px, int py, sl::Colour colour)
@@ -216,6 +261,42 @@ namespace
             }
         }
 
+        // Asteroid rock tiles: base colour with noise, optionally speckled with ore blobs
+        const auto rock_tile = [&](int tx, sl::Colour base, float amp, int seed,
+                                   bool ore, sl::Colour ore_colour)
+        {
+            for (int y = 0; y < 16; ++y)
+                for (int x = 0; x < 16; ++x)
+                {
+                    const float n = noise2d(x, y, seed) * amp;
+                    sl::Colour c{clamp_u8(base.red + n), clamp_u8(base.green + n), clamp_u8(base.blue + n), 255};
+                    if (ore && noise2d(x / 2, y / 2, seed + 7) > 0.2f)
+                    {
+                        const float m = noise2d(x, y, seed + 13) * 18.0f;
+                        c = {clamp_u8(ore_colour.red + m), clamp_u8(ore_colour.green + m), clamp_u8(ore_colour.blue + m), 255};
+                    }
+                    set_tile_pixel(bitmap, tx, 0, x, y, c);
+                }
+        };
+        rock_tile(12, {58, 62, 78, 255}, 30.0f, 1201, false, {});
+        rock_tile(13, {150, 145, 138, 255}, 28.0f, 1301, false, {});
+        rock_tile(14, {120, 118, 116, 255}, 24.0f, 1401, true, {196, 108, 62, 255});
+        rock_tile(15, {120, 118, 116, 255}, 24.0f, 1501, true, {240, 205, 60, 255});
+
+        // Tile (16, 0): Crystal - bright cyan facets
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; ++x)
+            {
+                const bool facet = ((x + y) % 6 == 0) || ((x - y + 16) % 8 == 0);
+                const float n = noise2d(x, y, 1601) * 25.0f;
+                if (facet)
+                    set_tile_pixel(bitmap, 16, 0, x, y, {200, 250, 255, 255});
+                else
+                    set_tile_pixel(bitmap, 16, 0, x, y, {clamp_u8(70.0f + n), clamp_u8(200.0f + n), clamp_u8(245.0f + n * 0.3f), 255});
+            }
+
+        rock_tile(17, {185, 220, 242, 255}, 22.0f, 1701, false, {});
+
         bitmap->ram_dirty = true;
         return bitmap;
     }
@@ -295,89 +376,240 @@ namespace
         for (int f = 0; f < 6; ++f)
             torch.tiles[f] = {11, 0};
         sl::register_block_definition(BLOCK_TORCH, torch);
+
+        const auto simple_block = [](int tile)
+        {
+            sl::BlockDefinition def;
+            for (int f = 0; f < 6; ++f)
+                def.tiles[f] = {tile, 0};
+            return def;
+        };
+        sl::register_block_definition(BLOCK_BASALT, simple_block(12));
+        sl::register_block_definition(BLOCK_REGOLITH, simple_block(13));
+        sl::register_block_definition(BLOCK_IRON_ORE, simple_block(14));
+        sl::register_block_definition(BLOCK_GOLD_ORE, simple_block(15));
+
+        // Crystal is decorative only; torches are the sole block light source
+        sl::BlockDefinition crystal = simple_block(16);
+        sl::register_block_definition(BLOCK_CRYSTAL, crystal);
+
+        sl::register_block_definition(BLOCK_ICE, simple_block(17));
     }
 
-    void generate_terrain(sl::VoxelWorld &world)
+    // Asteroid extents (block coordinates, centred on the origin)
+    constexpr float ASTEROID_RADIUS_X = 28.0f;
+    constexpr float ASTEROID_RADIUS_Y = 20.0f;
+    constexpr float ASTEROID_RADIUS_Z = 24.0f;
+
+    void carve_sphere(sl::VoxelWorld &world, float cx, float cy, float cz, float radius)
     {
-        sl::Generator noise(42);
-        noise.set_frequency(0.04f);
-
-        constexpr int world_min_x = -24;
-        constexpr int world_max_x = 24;
-        constexpr int world_min_z = -24;
-        constexpr int world_max_z = 24;
-
-        for (int z = world_min_z; z <= world_max_z; ++z)
-        {
-            for (int x = world_min_x; x <= world_max_x; ++x)
-            {
-                const float n = (noise.get(static_cast<float>(x), static_cast<float>(z)) + 1.0f) * 0.5f;
-                const int height = 8 + static_cast<int>(n * 10.0f);
-
-                // Bedrock at y=0
-                world.set_block(x, 0, z, BLOCK_BEDROCK);
-
-                // Stone layer
-                for (int y = 1; y < height - 3; ++y)
-                    world.set_block(x, y, z, BLOCK_STONE);
-
-                // Dirt layer
-                for (int y = std::max(1, height - 3); y < height; ++y)
-                    world.set_block(x, y, z, BLOCK_DIRT);
-
-                // Top surface: grass or sand near water level
-                if (height <= 9)
-                    world.set_block(x, height, z, BLOCK_SAND);
-                else
-                    world.set_block(x, height, z, BLOCK_GRASS);
-
-                // Scatter occasional trees
-                if (x % 11 == 0 && z % 11 == 0 && height > 9 && height < 20)
+        const int r = static_cast<int>(std::ceil(radius));
+        for (int z = -r; z <= r; ++z)
+            for (int y = -r; y <= r; ++y)
+                for (int x = -r; x <= r; ++x)
                 {
-                    const int trunk_base = height + 1;
-                    for (int ty = 0; ty < 4; ++ty)
-                        world.set_block(x, trunk_base + ty, z, BLOCK_WOOD);
-
-                    for (int lx = -1; lx <= 1; ++lx)
-                    {
-                        for (int lz = -1; lz <= 1; ++lz)
-                        {
-                            for (int ly = 2; ly <= 4; ++ly)
-                            {
-                                if (lx == 0 && lz == 0 && ly < 4)
-                                    continue;
-                                world.set_block(x + lx, trunk_base + ly, z + lz, BLOCK_LEAVES);
-                            }
-                        }
-                    }
+                    if (static_cast<float>(x * x + y * y + z * z) > radius * radius)
+                        continue;
+                    const int bx = static_cast<int>(std::floor(cx)) + x;
+                    const int by = static_cast<int>(std::floor(cy)) + y;
+                    const int bz = static_cast<int>(std::floor(cz)) + z;
+                    if (world.get_block(bx, by, bz) != sl::BLOCK_AIR)
+                        world.set_block(bx, by, bz, sl::BLOCK_AIR);
                 }
-            }
-        }
+    }
 
-        const auto carve_cave = [&world](int center_x, int center_y, int center_z,
-                                         int radius_x, int radius_y, int radius_z)
-        {
-            for (int z = -radius_z; z <= radius_z; ++z)
-            {
-                for (int y = -radius_y; y <= radius_y; ++y)
+    void generate_asteroid(sl::VoxelWorld &world)
+    {
+        sl::Generator shape(42);
+        shape.set_frequency(0.07f);
+        sl::Generator rock(7);
+        rock.set_frequency(0.06f);
+        sl::Generator iron(11);
+        iron.set_frequency(0.22f);
+        sl::Generator gold(23);
+        gold.set_frequency(0.3f);
+        sl::Generator crystal(31);
+        crystal.set_frequency(0.28f);
+        sl::Generator ice(47);
+        ice.set_frequency(0.18f);
+        sl::Generator tunnel_a(59);
+        tunnel_a.set_frequency(0.08f);
+        sl::Generator tunnel_b(61);
+        tunnel_b.set_frequency(0.08f);
+
+        constexpr int ex = 36, ey = 28, ez = 32;
+        for (int z = -ez; z <= ez; ++z)
+            for (int y = -ey; y <= ey; ++y)
+                for (int x = -ex; x <= ex; ++x)
                 {
-                    for (int x = -radius_x; x <= radius_x; ++x)
+                    const float fx = static_cast<float>(x), fy = static_cast<float>(y), fz = static_cast<float>(z);
+                    const float dx = fx / ASTEROID_RADIUS_X, dy = fy / ASTEROID_RADIUS_Y, dz = fz / ASTEROID_RADIUS_Z;
+                    const float d = std::sqrt(dx * dx + dy * dy + dz * dz);
+                    const float limit = 1.0f + 0.22f * shape.get(fx, fy, fz);
+                    if (d >= limit)
+                        continue;
+
+                    const float depth = limit - d;
+                    sl::BlockId block = sl::BLOCK_AIR;
+                    if (depth < 0.06f)
+                        block = BLOCK_REGOLITH;
+                    else if (rock.get(fx, fy, fz) > 0.2f)
+                        block = BLOCK_BASALT;
+                    else
+                        block = BLOCK_STONE;
+
+                    if (depth > 0.04f)
                     {
-                        const float dx = static_cast<float>(x) / radius_x;
-                        const float dy = static_cast<float>(y) / radius_y;
-                        const float dz = static_cast<float>(z) / radius_z;
-                        if (dx * dx + dy * dy + dz * dz <= 1.0f && center_y + y > 1)
-                            world.set_block(center_x + x, center_y + y, center_z + z, sl::BLOCK_AIR);
+                        if (iron.get(fx, fy, fz) > 0.55f)
+                            block = BLOCK_IRON_ORE;
+                        else if (depth > 0.15f && gold.get(fx, fy, fz) > 0.62f)
+                            block = BLOCK_GOLD_ORE;
+                        else if (depth > 0.1f && ice.get(fx, fy, fz) > 0.6f)
+                            block = BLOCK_ICE;
+                        else if (depth > 0.1f && crystal.get(fx, fy, fz) > 0.64f)
+                            block = BLOCK_CRYSTAL;
                     }
+
+                    // Interconnected spaghetti tunnels where two noise fields are both near zero
+                    if (depth > 0.04f && std::fabs(tunnel_a.get(fx, fy, fz)) < 0.07f &&
+                        std::fabs(tunnel_b.get(fx, fy, fz)) < 0.07f)
+                        block = sl::BLOCK_AIR;
+
+                    if (block != sl::BLOCK_AIR)
+                        world.set_block(x, y, z, block);
                 }
-            }
+
+        std::mt19937 rng(2024);
+        const auto frand = [&rng](float lo, float hi)
+        {
+            return std::uniform_real_distribution<float>(lo, hi)(rng);
         };
 
-        carve_cave(0, 5, 0, 4, 2, 4);
-        world.set_block(0, 5, 0, BLOCK_TORCH);
+        // Winding shafts that start on the surface and burrow toward the interior
+        for (int i = 0; i < 18; ++i)
+        {
+            glm::vec3 dir = glm::normalize(glm::vec3(frand(-1, 1), frand(-1, 1), frand(-1, 1)));
+            glm::vec3 pos = dir * glm::vec3(ASTEROID_RADIUS_X, ASTEROID_RADIUS_Y, ASTEROID_RADIUS_Z) * 1.1f;
+            const float radius = frand(1.6f, 2.8f);
+            const int steps = 30 + static_cast<int>(frand(0, 25));
+            glm::vec3 heading = -dir;
+            for (int s = 0; s < steps; ++s)
+            {
+                carve_sphere(world, pos.x, pos.y, pos.z, radius);
+                heading = glm::normalize(heading + glm::vec3(frand(-0.35f, 0.35f), frand(-0.35f, 0.35f), frand(-0.35f, 0.35f)));
+                pos += heading * 1.2f;
+            }
+            carve_sphere(world, pos.x, pos.y, pos.z, radius + 2.0f);
+        }
 
-        carve_cave(-12, 5, -10, 3, 2, 3);
-        world.set_block(-12, 5, -10, BLOCK_TORCH);
+        // Large internal caverns
+        std::vector<glm::vec3> caverns;
+        for (int i = 0; i < 5; ++i)
+        {
+            const glm::vec3 c(frand(-10, 10), frand(-6, 6), frand(-10, 10));
+            carve_sphere(world, c.x, c.y, c.z, frand(3.5f, 5.5f));
+            caverns.push_back(c);
+        }
+
+        // Light the caves: torches on cavern/tunnel floors
+        int torches = 0;
+        for (int attempt = 0; attempt < 4000 && torches < 28; ++attempt)
+        {
+            const int x = static_cast<int>(frand(-24, 24));
+            const int y = static_cast<int>(frand(-14, 14));
+            const int z = static_cast<int>(frand(-20, 20));
+            if (world.get_block(x, y, z) == sl::BLOCK_AIR &&
+                world.get_block(x, y - 1, z) != sl::BLOCK_AIR &&
+                world.get_block(x, y - 1, z) != BLOCK_TORCH &&
+                (std::fabs(static_cast<float>(x)) < 20.0f && std::fabs(static_cast<float>(z)) < 18.0f) &&
+                std::sqrt(x * x / (ASTEROID_RADIUS_X * ASTEROID_RADIUS_X) + y * y / (ASTEROID_RADIUS_Y * ASTEROID_RADIUS_Y) +
+                          z * z / (ASTEROID_RADIUS_Z * ASTEROID_RADIUS_Z)) < 0.7f)
+            {
+                world.set_block(x, y, z, BLOCK_TORCH);
+                ++torches;
+            }
+        }
+    }
+
+    // True if any solid block overlaps the box [min, max)
+    bool box_collides(const sl::VoxelWorld &world, const glm::vec3 &min, const glm::vec3 &max,
+                      glm::ivec3 *colliding_block = nullptr)
+    {
+        for (int z = static_cast<int>(std::floor(min.z)); z <= static_cast<int>(std::floor(max.z - 1e-4f)); ++z)
+            for (int y = static_cast<int>(std::floor(min.y)); y <= static_cast<int>(std::floor(max.y - 1e-4f)); ++y)
+                for (int x = static_cast<int>(std::floor(min.x)); x <= static_cast<int>(std::floor(max.x - 1e-4f)); ++x)
+                {
+                    const sl::BlockId id = world.get_block(x, y, z);
+                    if (id != sl::BLOCK_AIR && sl::get_block_definition(id).is_solid)
+                    {
+                        if (colliding_block)
+                            *colliding_block = {x, y, z};
+                        return true;
+                    }
+                }
+        return false;
+    }
+
+    constexpr float PLAYER_HALF_WIDTH = 0.3f;
+    constexpr float PLAYER_HEIGHT = 1.8f;
+    constexpr float PLAYER_EYE = 1.6f;
+
+    bool player_collides(const sl::VoxelWorld &world, const glm::vec3 &eye,
+                         glm::ivec3 *colliding_block = nullptr)
+    {
+        const glm::vec3 feet(eye.x, eye.y - PLAYER_EYE, eye.z);
+        return box_collides(world,
+                            {feet.x - PLAYER_HALF_WIDTH, feet.y, feet.z - PLAYER_HALF_WIDTH},
+                            {feet.x + PLAYER_HALF_WIDTH, feet.y + PLAYER_HEIGHT, feet.z + PLAYER_HALF_WIDTH},
+                            colliding_block);
+    }
+
+    // Move the player along each axis in small steps, stopping on contact so it can slide along surfaces
+    void move_with_collision(const sl::VoxelWorld &world, glm::vec3 &eye, const glm::vec3 &delta,
+                             const GameplayEventDispatcher &events)
+    {
+        const int steps = std::max(1, static_cast<int>(std::ceil(glm::length(delta) / 0.2f)));
+        const glm::vec3 step = delta / static_cast<float>(steps);
+        std::vector<glm::ivec3> reported_collisions;
+        for (int i = 0; i < steps; ++i)
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                if (step[axis] == 0.0f)
+                    continue;
+                glm::vec3 next = eye;
+                next[axis] += step[axis];
+                glm::ivec3 colliding_block;
+                if (!player_collides(world, next, &colliding_block))
+                    eye = next;
+                else if (std::find(reported_collisions.begin(), reported_collisions.end(), colliding_block) == reported_collisions.end())
+                {
+                    reported_collisions.push_back(colliding_block);
+                    events.dispatch({GameplayEventType::player_collision, colliding_block,
+                                     world.get_block(colliding_block.x, colliding_block.y, colliding_block.z)});
+                }
+            }
+    }
+
+    // Procedural starfield, projected through the camera basis (alpha-less points drawn behind the scene)
+    struct Star
+    {
+        glm::vec3 dir;
+        std::uint8_t brightness;
+    };
+
+    std::vector<Star> make_stars(int count)
+    {
+        std::mt19937 rng(99);
+        std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+        std::vector<Star> stars;
+        for (int i = 0; i < count; ++i)
+        {
+            glm::vec3 d(u(rng), u(rng), u(rng));
+            if (glm::dot(d, d) < 0.01f)
+                continue;
+            stars.push_back({glm::normalize(d), static_cast<std::uint8_t>(110 + (rng() % 146))});
+        }
+        return stars;
     }
 } // namespace
 
@@ -412,22 +644,44 @@ int main(int argc, char *argv[])
     atlas.tiles_per_col = 16;
 
     sl::VoxelWorld world;
-    generate_terrain(world);
+    generate_asteroid(world);
     world.update_dirty_chunks(&atlas);
+
+    GameplayEventDispatcher gameplay_events;
+    gameplay_events.add_listener([](const GameplayEvent &event)
+    {
+        const char *name = "unknown";
+        switch (event.type)
+        {
+        case GameplayEventType::block_destroyed:
+            name = "block_destroyed";
+            break;
+        case GameplayEventType::block_placed:
+            name = "block_placed";
+            break;
+        case GameplayEventType::player_collision:
+            name = "player_collision";
+            break;
+        }
+        std::printf("[event] %s block=%u at (%d, %d, %d)\n", name,
+                    static_cast<unsigned int>(event.block_id),
+                    event.block_position.x, event.block_position.y, event.block_position.z);
+    });
 
     sl::Material voxel_material;
     voxel_material.texture = atlas_bitmap;
-    voxel_material.lit = true;
+    voxel_material.lit = false; // illumination is baked per-vertex (sky + block light), so caves stay dark
     voxel_material.cull = sl::CullMode::back;
 
-    sl::Light3D light;
-    light.direction = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.7f));
-    light.ambient = 0.4f;
-
     // Camera state
-    glm::vec3 cam_pos(0.0f, 18.0f, 15.0f);
+    // Spawn hovering above the asteroid's highest block at the origin column
+    int spawn_y = 40;
+    while (spawn_y > -40 && world.get_block(0, spawn_y, 0) == sl::BLOCK_AIR)
+        --spawn_y;
+    glm::vec3 cam_pos(0.0f, static_cast<float>(spawn_y) + 16.0f, 22.0f);
     float yaw = -glm::half_pi<float>();
-    float pitch = -0.35f;
+    float pitch = -0.7f;
+    const std::vector<Star> stars = make_stars(500);
 
     int selected_palette_index = 0;
     bool mouse_captured = true;
@@ -534,9 +788,9 @@ int main(int argc, char *argv[])
 
         glm::vec3 move_dir(0.0f);
         if (sl::key_down(sl::Key::letter_w))
-            move_dir += glm::vec3(forward.x, 0.0f, forward.z);
+            move_dir += forward;
         if (sl::key_down(sl::Key::letter_s))
-            move_dir -= glm::vec3(forward.x, 0.0f, forward.z);
+            move_dir -= forward;
         if (sl::key_down(sl::Key::letter_a))
             move_dir -= right;
         if (sl::key_down(sl::Key::letter_d))
@@ -547,7 +801,7 @@ int main(int argc, char *argv[])
             move_dir.y -= 1.0f;
 
         if (glm::length(move_dir) > 0.01f)
-            cam_pos += glm::normalize(move_dir) * move_speed * dt;
+            move_with_collision(world, cam_pos, glm::normalize(move_dir) * move_speed * dt, gameplay_events);
 
         // Block raycasting
         const sl::VoxelRaycastResult ray_hit = world.raycast(cam_pos, forward, 7.5f);
@@ -561,16 +815,34 @@ int main(int argc, char *argv[])
         // Left click in captured mode: break block
         if (mouse_captured && left_down && !prev_left_down && ray_hit.hit)
         {
-            world.set_block(ray_hit.hit_block.x, ray_hit.hit_block.y, ray_hit.hit_block.z, sl::BLOCK_AIR);
-            world.update_dirty_chunks(&atlas);
+            const sl::BlockId destroyed_block = world.get_block(ray_hit.hit_block.x, ray_hit.hit_block.y, ray_hit.hit_block.z);
+            if (destroyed_block != sl::BLOCK_AIR &&
+                world.set_block(ray_hit.hit_block.x, ray_hit.hit_block.y, ray_hit.hit_block.z, sl::BLOCK_AIR))
+            {
+                world.update_dirty_chunks(&atlas);
+                gameplay_events.dispatch({GameplayEventType::block_destroyed, ray_hit.hit_block, destroyed_block});
+            }
         }
 
         // Right click in captured mode: place block
         if (mouse_captured && right_down && !prev_right_down && ray_hit.hit)
         {
             const sl::BlockId new_block = PALETTE[selected_palette_index].id;
-            world.set_block(ray_hit.place_block.x, ray_hit.place_block.y, ray_hit.place_block.z, new_block);
-            world.update_dirty_chunks(&atlas);
+            const glm::vec3 pmin(static_cast<float>(ray_hit.place_block.x), static_cast<float>(ray_hit.place_block.y),
+                                 static_cast<float>(ray_hit.place_block.z));
+            const glm::vec3 feet(cam_pos.x, cam_pos.y - PLAYER_EYE, cam_pos.z);
+            const bool overlaps_player =
+                pmin.x < feet.x + PLAYER_HALF_WIDTH && pmin.x + 1.0f > feet.x - PLAYER_HALF_WIDTH &&
+                pmin.y < feet.y + PLAYER_HEIGHT && pmin.y + 1.0f > feet.y &&
+                pmin.z < feet.z + PLAYER_HALF_WIDTH && pmin.z + 1.0f > feet.z - PLAYER_HALF_WIDTH;
+            if (!overlaps_player || !sl::get_block_definition(new_block).is_solid)
+            {
+                if (world.set_block(ray_hit.place_block.x, ray_hit.place_block.y, ray_hit.place_block.z, new_block))
+                {
+                    world.update_dirty_chunks(&atlas);
+                    gameplay_events.dispatch({GameplayEventType::block_placed, ray_hit.place_block, new_block});
+                }
+            }
         }
 
         prev_left_down = left_down;
@@ -588,8 +860,7 @@ int main(int argc, char *argv[])
         // Render 3D scene
         if (sl::begin_surface_3d(surface, camera))
         {
-            sl::clear_surface_3d({135, 190, 235, 255}); // Sky blue
-            sl::set_light_3d(light);
+            sl::clear_surface_3d({0, 0, 0, 0}); // Transparent so the starfield shows through
 
             world.draw(voxel_material);
 
@@ -597,7 +868,18 @@ int main(int argc, char *argv[])
         }
 
         // Draw 3D surface to window screen
-        sl::clear_to_colour(sl::screen, {20, 20, 20});
+        sl::clear_to_colour(sl::screen, {2, 3, 8});
+        for (const Star &star : stars)
+        {
+            const float depth = glm::dot(star.dir, forward);
+            if (depth <= 0.05f)
+                continue;
+            const float focal = (static_cast<float>(screen_h) * 0.5f) / std::tan(glm::radians(65.0f) * 0.5f);
+            const int sx = static_cast<int>(screen_w * 0.5f + glm::dot(star.dir, right) / depth * focal);
+            const int sy = static_cast<int>(screen_h * 0.5f - glm::dot(star.dir, glm::cross(right, forward)) / depth * focal);
+            if (sx >= 0 && sx < screen_w && sy >= 0 && sy < screen_h)
+                sl::putpixel(sl::screen, sx, sy, {star.brightness, star.brightness, star.brightness, 255});
+        }
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
 
         // 2D HUD: Crosshair
@@ -638,7 +920,7 @@ int main(int argc, char *argv[])
         sl::rectfill(sl::screen, 12.0f, 12.0f, 12.0f + 340.0f, 12.0f + 96.0f, {15, 20, 28, 200});
         sl::rect(sl::screen, 12.0f, 12.0f, 12.0f + 340.0f, 12.0f + 96.0f, {60, 90, 130, 255}, 1.0f);
 
-        sl::gprintf(20, 18, {255, 255, 255}, "Simlib Voxel Demo (%s)",
+        sl::gprintf(20, 18, {255, 255, 255}, "Simlib Asteroid Miner (%s)",
                     sl::graphics_backend() == sl::GraphicsBackend::vulkan ? "Vulkan" : "OpenGL");
         sl::gprintf(20, 36, {160, 210, 255}, "Chunks: %zu | Triangles: %d",
                     world.chunk_count(), world.total_triangles());
@@ -656,7 +938,7 @@ int main(int argc, char *argv[])
         // Controls help
         sl::gprintf_center(static_cast<int>(bar_y - 18.0f), {200, 210, 220},
                            mouse_captured
-                               ? "[WASD] Move  [Space/C] Up/Down  [L-Click] Break  [R-Click] Place  [Tab/Esc] Free cursor  [1-9,0] Block"
+                               ? "[WASD] Fly  [Space/C] Up/Down  [L-Click] Break  [R-Click] Place  [Tab/Esc] Free cursor  [1-9,0] Block"
                                : "[Click Window/Tab] Lock mouse & look  [WASD] Move  [Esc] Exit  [1-9] Block");
 
         sl::show_video_bitmap();

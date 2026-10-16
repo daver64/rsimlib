@@ -158,6 +158,15 @@ namespace sl
             return definition.is_solid && !definition.is_transparent ? 15 : 1;
         }
 
+        // Block light is boosted well past 1.0 (the framebuffer clamps) so emitters read as bright sources
+        constexpr float BLOCK_LIGHT_GAIN = 2.0f;
+
+        // Perceptual curve so mid-range light levels stay readable instead of fading linearly to black
+        float light_curve(std::uint8_t level)
+        {
+            return std::pow(static_cast<float>(level) / 15.0f, 0.6f);
+        }
+
         std::uint8_t attenuate_light(std::uint8_t level, int opacity)
         {
             return level > opacity ? static_cast<std::uint8_t>(level - opacity) : 0;
@@ -391,9 +400,9 @@ namespace sl
                                                        world_base_y + ny,
                                                        world_base_z + nz);
                         }
-                        const float light_red = std::max(light.sky, light.red) / 15.0f;
-                        const float light_green = std::max(light.sky, light.green) / 15.0f;
-                        const float light_blue = std::max(light.sky, light.blue) / 15.0f;
+                        const float light_red = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.red));
+                        const float light_green = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.green));
+                        const float light_blue = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.blue));
                         const float r = (def.tint.red / 255.0f) * face.brightness * light_red;
                         const float g = (def.tint.green / 255.0f) * face.brightness * light_green;
                         const float b = (def.tint.blue / 255.0f) * face.brightness * light_blue;
