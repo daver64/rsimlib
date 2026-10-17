@@ -9,15 +9,14 @@ The window/context, presentation lifecycle, 2D texture and render-target resourc
 ## Backend Selection
 
 `simlib` supports selectable rendering backends:
-- **OpenGL 4.3** (Default)
+- **OpenGL 4.3** (default on Linux)
 - **Vulkan**
-- **Direct3D 11** (Windows only)
-- **Direct3D 12** (Windows only, boilerplate)
+- **Direct3D 12** (Windows only, default on Windows)
 
 Select the backend programmatically before calling `set_gfx_mode()`, or via command-line arguments:
 
 ```cpp
-// Option 1: Automatic command-line parsing (--gl, --vulkan, --d3d11, --d3d12)
+// Option 1: Automatic command-line parsing (--gl, --vulkan, --d3d12)
 sl::configure_graphics_backend_from_args(argc, argv);
 
 // Option 2: Explicit code selection
@@ -95,14 +94,13 @@ cmake --build build --target vulkan_shader_validation
 
 ## Surface3D
 
-The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL and Vulkan; D3D11/D3D12 return an "unsupported" error. Surfaces support true MSAA on both (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
+The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL and Vulkan; D3D12 returns an "unsupported" error. Surfaces support true MSAA on both (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
 
 ## Direct 3D Escape Hatches
 
 `simlib` provides examples demonstrating direct 3D graphics without imposing a rigid 3D engine layer:
 - **[`ex3d_gl`](../src/examples/ex3d_gl/ex3d_gl.cpp)**: Direct OpenGL 3D with VAO/VBOs, custom depth testing, and GLM camera matrices.
 - **[`ex3d_vulkan`](../src/examples/ex3d_vulkan/ex3d_vulkan.cpp)**: Direct Vulkan 3D using the engine's shared Vulkan device, swapchain, depth attachments, custom pipelines, and MVP push constants.
-- **[`ex3d_d3d11`](../src/examples/ex3d_d3d11/ex3d_d3d11.cpp)**: Direct3D 11 3D escape hatch.
 - **[`ex3d_d3d12`](../src/examples/ex3d_d3d12/ex3d_d3d12.cpp)**: Direct3D 12 3D escape hatch.
 
 ---

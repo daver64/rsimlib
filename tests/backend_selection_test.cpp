@@ -16,7 +16,6 @@ int main()
     assert(sl::graphics_backend() == sl::GraphicsBackend::vulkan);
 
 #ifndef _WIN32
-    assert(!sl::graphics_backend_available(sl::GraphicsBackend::d3d11));
     assert(!sl::graphics_backend_available(sl::GraphicsBackend::d3d12));
 #endif
     return 0;

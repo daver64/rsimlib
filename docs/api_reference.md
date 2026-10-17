@@ -63,7 +63,7 @@ The display subsystem handles window creation, graphics backend selection (OpenG
 
 ### Types & Enumerations
 
-- `enum class GraphicsBackend { opengl, vulkan, d3d11, d3d12 }`: Selects the hardware rendering backend.
+- `enum class GraphicsBackend { opengl, vulkan, d3d12 }`: Selects the hardware rendering backend.
 - `constexpr int GFX_AUTODETECT_WINDOWED = 1`: Auto-detected windowed driver mode.
 - `constexpr int GFX_AUTODETECT_FULLSCREEN = 2`: Auto-detected desktop fullscreen driver mode.
 
@@ -75,14 +75,14 @@ bool set_graphics_backend(GraphicsBackend backend);
 ```
 - **Description**: Explicitly selects the graphics rendering backend prior to window creation.
 - **Parameters**:
-  - `backend` (`GraphicsBackend`): The desired rendering backend (`opengl`, `vulkan`, `d3d11`, or `d3d12`).
+  - `backend` (`GraphicsBackend`): The desired rendering backend (`opengl`, `vulkan`, or `d3d12`).
 - **Returns**: `true` if the specified backend is available in the current build; `false` otherwise.
 
 #### `configure_graphics_backend_from_args(argc, argv)`
 ```cpp
 bool configure_graphics_backend_from_args(int argc, char *argv[]);
 ```
-- **Description**: Parses command-line arguments for backend flags (`--gl`, `--vulkan`, `--d3d11`, `--d3d12`) and configures the active backend accordingly. Defaults to OpenGL if no flag is supplied.
+- **Description**: Parses command-line arguments for backend flags (`--gl`, `--vulkan`, `--d3d12`) and configures the active backend accordingly. Defaults to D3D12 on Windows and OpenGL elsewhere if no flag is supplied.
 - **Parameters**:
   - `argc` (`int`): Count of command-line arguments.
   - `argv` (`char**`): Array of argument strings.

@@ -26,7 +26,12 @@ namespace sl
 
         SDL_Window *window = nullptr;
         std::unique_ptr<detail::Renderer> renderer;
-        GraphicsBackend selected_backend = GraphicsBackend::opengl;
+#ifdef _WIN32
+        constexpr GraphicsBackend default_backend = GraphicsBackend::d3d12;
+#else
+        constexpr GraphicsBackend default_backend = GraphicsBackend::opengl;
+#endif
+        GraphicsBackend selected_backend = default_backend;
         bool ttfInitialized = false;
         int width = 0;
         int height = 0;
@@ -56,7 +61,7 @@ namespace sl
 
     bool configure_graphics_backend_from_args(int argc, char *argv[])
     {
-        GraphicsBackend requested = GraphicsBackend::opengl;
+        GraphicsBackend requested = default_backend;
         for (int index = 1; index < argc; ++index)
         {
             const std::string_view argument(argv[index]);
@@ -64,8 +69,6 @@ namespace sl
                 requested = GraphicsBackend::opengl;
             else if (argument == "--vulkan")
                 requested = GraphicsBackend::vulkan;
-            else if (argument == "--d3d11")
-                requested = GraphicsBackend::d3d11;
             else if (argument == "--d3d12")
                 requested = GraphicsBackend::d3d12;
             else
@@ -81,7 +84,7 @@ namespace sl
     {
 #ifdef _WIN32
         return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan ||
-               backend == GraphicsBackend::d3d11 || backend == GraphicsBackend::d3d12;
+               backend == GraphicsBackend::d3d12;
 #else
         return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan;
 #endif
@@ -100,8 +103,6 @@ namespace sl
             return "OpenGL";
         case GraphicsBackend::vulkan:
             return "Vulkan";
-        case GraphicsBackend::d3d11:
-            return "D3D11";
         case GraphicsBackend::d3d12:
             return "D3D12";
         }

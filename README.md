@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3 and Vulkan backends (plus Direct3D 11/12 on Windows). It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3 and Vulkan backends (plus Direct3D 12 on Windows). It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -187,13 +187,13 @@ if (sl::begin_surface_3d(surface, camera))
 sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
 ```
 
-For block-based worlds, the voxel API provides chunk rendering, hidden-face culling, texture-atlas mapping, and 3D raycasting; see [Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh). For renderer-specific control, the [3D examples](docs/renderers.md#direct-3d-escape-hatches) demonstrate direct OpenGL, Vulkan, Direct3D 11, and Direct3D 12 rendering. `Surface3D` currently supports OpenGL and Vulkan; Direct3D examples use their direct-rendering APIs.
+For block-based worlds, the voxel API provides chunk rendering, hidden-face culling, texture-atlas mapping, and 3D raycasting; see [Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh). For renderer-specific control, the [3D examples](docs/renderers.md#direct-3d-escape-hatches) demonstrate direct OpenGL, Vulkan, and Direct3D 12 rendering. `Surface3D` currently supports OpenGL and Vulkan; Direct3D examples use their direct-rendering APIs.
 
 ---
 
 ## Running the Examples
 
-Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulkan` (on Windows, `--d3d11` and `--d3d12` are also available).
+Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only).
 
 ```bash
 ./build/exhello         # Minimal hello-world window and text
@@ -225,7 +225,6 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 ./build/exvoxel         # 16x16x16 voxel chunk rendering (Minecraft clone demo)
 ./build/ex3d_gl         # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
-./build/ex3d_d3d11      # Direct Direct3D 11 3D escape hatch
 ./build/ex3d_d3d12      # Direct Direct3D 12 3D escape hatch
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
 ./build/exspriteeditor  # Pixel sprite/animation editor (1x1-512x512, zoom, frames, PNG spritesheet I/O)
@@ -277,7 +276,6 @@ Every graphical example runs on OpenGL by default and accepts `--gl` or `--vulka
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
 - **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load.
 - **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — MPEG1/MP2 video decoding via `pl_mpeg` into a bitmap, with synced audio playback; see [Video Playback](#video-playback) below for the required source format.
-- **[`ex3d_d3d11`](src/examples/ex3d_d3d11/ex3d_d3d11.cpp)** — Direct3D 11 3D rendering escape hatch.
 - **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
 

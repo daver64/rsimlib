@@ -14,8 +14,6 @@ namespace
             return "OpenGL";
         case sl::GraphicsBackend::vulkan:
             return "Vulkan";
-        case sl::GraphicsBackend::d3d11:
-            return "D3D11";
         case sl::GraphicsBackend::d3d12:
             return "D3D12";
         }

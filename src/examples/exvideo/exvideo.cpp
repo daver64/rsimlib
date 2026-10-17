@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     {
         const std::string arg = argv[i];
 
-        if (arg == "--gl" || arg == "--vulkan" || arg == "--d3d11" || arg == "--d3d12")
+        if (arg == "--gl" || arg == "--vulkan" || arg == "--d3d12")
             backend_args.push_back(argv[i]);
         else if (arg == "--loop")
             loop = true;

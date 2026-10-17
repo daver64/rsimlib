@@ -290,8 +290,6 @@ add_library(simlib STATIC
 )
 if(WIN32)
     target_sources(simlib PRIVATE
-        src/engine/d3d11_context.cpp
-        src/engine/d3d11_renderer.cpp
         src/engine/d3d12_context.cpp
         src/engine/d3d12_renderer.cpp
     )
@@ -320,7 +318,7 @@ target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol
 target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
-    target_link_libraries(simlib PRIVATE d3d11 d3d12 dxgi d3dcompiler GLEW::GLEW)
+    target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler GLEW::GLEW)
 endif()
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
@@ -462,18 +460,10 @@ target_compile_definitions(ex3d_vulkan PRIVATE
 target_link_libraries(ex3d_vulkan PRIVATE simlib)
 
 if(WIN32)
-    add_executable(ex3d_d3d11 src/examples/ex3d_d3d11/ex3d_d3d11.cpp)
-    target_include_directories(ex3d_d3d11 PRIVATE src/engine)
-    target_link_libraries(ex3d_d3d11 PRIVATE simlib d3d11 dxgi d3dcompiler)
-
     add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
     target_include_directories(ex3d_d3d12 PRIVATE src/engine)
     target_link_libraries(ex3d_d3d12 PRIVATE simlib d3d12 dxgi d3dcompiler)
 else()
-    add_executable(ex3d_d3d11 src/examples/ex3d_d3d11/ex3d_d3d11.cpp)
-    target_include_directories(ex3d_d3d11 PRIVATE src/engine)
-    target_link_libraries(ex3d_d3d11 PRIVATE simlib)
-
     add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
     target_include_directories(ex3d_d3d12 PRIVATE src/engine)
     target_link_libraries(ex3d_d3d12 PRIVATE simlib)
