@@ -1,14 +1,19 @@
 /** @file
  * @brief Implements the OpenGL 4.3 Renderer backend.
  */
-#define GL_GLEXT_PROTOTYPES
 
 #include "gl_renderer.h"
 #include "gl_context.h"
 
-#include <SDL2/SDL.h>
+#ifdef _WIN32
+#include <GL/glew.h>
+#else
+#define GL_GLEXT_PROTOTYPES
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
+#endif
+
+#include <SDL2/SDL.h>
 
 #include <cstdint>
 #include <cstring>
@@ -269,6 +274,7 @@ namespace sl::detail
                 }
                 if (!create_texture({width, height, TextureFilter::linear}, texture))
                 {
+                    std::fprintf(stderr, "create_texture failed: GL error 0x%x\n", glGetError());
                     return false;
                 }
                 GLuint fbo = 0;

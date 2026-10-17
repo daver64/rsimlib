@@ -4,8 +4,6 @@
  * (Bloom, Vignette, CRTFilter, etc.) is implemented in its own graphics_fx_*.cpp file.
  */
 
-#define GL_GLEXT_PROTOTYPES
-
 #include "graphics_fx.h"
 #include "graphics_fx_internal.h"
 
@@ -14,8 +12,6 @@
 #include "gl2d.h"
 #include "renderer.h"
 
-#include <SDL2/SDL_opengl.h>
-#include <SDL2/SDL_opengl_glext.h>
 #include <SDL2/SDL.h>
 
 #include <filesystem>

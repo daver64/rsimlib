@@ -16,3 +16,8 @@ tags
 exvoxel
 ex3d_surface
 excafluid
+*.exe
+*.dll
+*.lib
+*.obj
+*.o

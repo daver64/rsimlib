@@ -122,6 +122,9 @@ namespace sl
         }
 
         display_shutdown();
+#ifdef _WIN32
+        SDL_SetMainReady();
+#endif
         if (SDL_Init(SDL_INIT_VIDEO) != 0)
         {
             sl::detail::set_error(SDL_GetError());

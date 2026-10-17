@@ -1,8 +1,12 @@
 #include "sl.h"
 #include "scene3d.h"
 
+#ifdef _WIN32
+#include <GL/glew.h>
+#else
 #define GL_GLEXT_PROTOTYPES
 #include <SDL2/SDL_opengl.h>
+#endif
 #include <glm/gtc/type_ptr.hpp>
 
 #include <cstdio>

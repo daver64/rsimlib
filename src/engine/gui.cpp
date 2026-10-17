@@ -20,6 +20,8 @@ namespace sl
     {
         VkDescriptorPool vulkan_descriptor_pool = VK_NULL_HANDLE;
         bool vulkan_gui_ready = false;
+        bool d3d12_gui_ready = false;
+        bool gui_ready = false;
     }
 
     void gui_init()
@@ -67,25 +69,47 @@ namespace sl
             }
             ImGui_ImplVulkan_CreateFontsTexture();
         }
+        else if (graphics_backend() == GraphicsBackend::d3d12)
+        {
+            if (detail::active_renderer() && ImGui_ImplSDL2_InitForD3D(get_window()) &&
+                detail::active_renderer()->gui_backend_init())
+            {
+                d3d12_gui_ready = true;
+            }
+            else
+            {
+                ImGui_ImplSDL2_Shutdown();
+                ImGui::DestroyContext();
+                return;
+            }
+        }
+        gui_ready = true;
     }
 
     void gui_handle_event(const Event &event)
     {
-        ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event *>(detail::event_handle(event)));
+        if (gui_ready)
+            ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event *>(detail::event_handle(event)));
     }
 
     void gui_new_frame()
     {
+        if (!gui_ready)
+            return;
         if (graphics_backend() == GraphicsBackend::opengl)
             ImGui_ImplOpenGL3_NewFrame();
         else if (graphics_backend() == GraphicsBackend::vulkan && vulkan_gui_ready)
             ImGui_ImplVulkan_NewFrame();
+        else if (d3d12_gui_ready)
+            detail::active_renderer()->gui_backend_new_frame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
     }
 
     void gui_render()
     {
+        if (!gui_ready)
+            return;
         detail::gl2d_flush();
         ImGui::Render();
         if (graphics_backend() == GraphicsBackend::opengl)
@@ -95,12 +119,21 @@ namespace sl
             if (detail::VulkanContext *context = detail::active_renderer()->vulkan_context())
                 ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), context->command_buffer());
         }
+        else if (d3d12_gui_ready)
+            detail::active_renderer()->gui_backend_render();
     }
 
     void gui_shutdown()
     {
+        if (!gui_ready)
+            return;
         if (graphics_backend() == GraphicsBackend::opengl)
             ImGui_ImplOpenGL3_Shutdown();
+        else if (d3d12_gui_ready)
+        {
+            detail::active_renderer()->gui_backend_shutdown();
+            d3d12_gui_ready = false;
+        }
         else if (graphics_backend() == GraphicsBackend::vulkan && vulkan_gui_ready)
         {
             if (detail::VulkanContext *context = detail::active_renderer()->vulkan_context())
@@ -112,6 +145,7 @@ namespace sl
         }
         ImGui_ImplSDL2_Shutdown();
         ImGui::DestroyContext();
+        gui_ready = false;
     }
 
     void gui_show_demo_window()

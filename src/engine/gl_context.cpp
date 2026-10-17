@@ -3,8 +3,13 @@
  */
 #include "gl_context.h"
 
-#include <SDL2/SDL.h>
+#ifdef _WIN32
+#include <GL/glew.h>
+#else
 #include <SDL2/SDL_opengl.h>
+#endif
+
+#include <SDL2/SDL.h>
 
 namespace sl::detail
 {
@@ -32,6 +37,25 @@ namespace sl::detail
             window_ = nullptr;
             return false;
         }
+#ifdef _WIN32
+        glewExperimental = GL_TRUE;
+        const GLenum glew_result = glewInit();
+        if (glew_result != GLEW_OK)
+        {
+            error = reinterpret_cast<const char *>(glewGetErrorString(glew_result));
+            shutdown();
+            return false;
+        }
+        if (!GLEW_VERSION_4_3)
+        {
+            const auto *version = glGetString(GL_VERSION);
+            error = "OpenGL 4.3 is required; the active driver provides " +
+                    std::string(version ? reinterpret_cast<const char *>(version) : "an unknown version") + ".";
+            shutdown();
+            return false;
+        }
+        glGetError();
+#endif
         return true;
     }
 

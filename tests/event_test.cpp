@@ -15,6 +15,9 @@ namespace
 
 int main()
 {
+#ifdef _WIN32
+    SDL_SetMainReady();
+#endif
     if (SDL_Init(SDL_INIT_EVENTS) != 0)
     {
         std::cerr << SDL_GetError() << '\n';

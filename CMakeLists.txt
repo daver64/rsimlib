@@ -134,6 +134,9 @@ find_package(SQLite3 REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(SDL2_ttf QUIET CONFIG)
+if(WIN32)
+    find_package(GLEW REQUIRED)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -161,6 +164,10 @@ target_include_directories(imgui PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/backends>
 )
 target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
+if(WIN32)
+    target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+    target_link_libraries(imgui PUBLIC d3d12 dxgi d3dcompiler)
+endif()
 
 FetchContent_Declare(
     lua
@@ -174,6 +181,7 @@ file(GLOB LUA_SOURCES ${lua_SOURCE_DIR}/*.c)
 list(REMOVE_ITEM LUA_SOURCES
     ${lua_SOURCE_DIR}/lua.c
     ${lua_SOURCE_DIR}/luac.c
+    ${lua_SOURCE_DIR}/onelua.c
 )
 add_library(lua STATIC ${LUA_SOURCES})
 target_include_directories(lua PUBLIC
@@ -312,7 +320,7 @@ target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol
 target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
-    target_link_libraries(simlib PRIVATE d3d11 d3d12 dxgi d3dcompiler)
+    target_link_libraries(simlib PRIVATE d3d11 d3d12 dxgi d3dcompiler GLEW::GLEW)
 endif()
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
@@ -321,11 +329,7 @@ if(TARGET vulkan_shader_validation)
     add_dependencies(simlib vulkan_shader_validation)
 endif()
 
-if(TARGET SDL2::SDL2main)
-    target_link_libraries(simlib PUBLIC SDL2::SDL2 SDL2::SDL2main)
-else()
-    target_link_libraries(simlib PUBLIC SDL2::SDL2)
-endif()
+target_link_libraries(simlib PUBLIC SDL2::SDL2)
 
 target_link_libraries(simlib PUBLIC ${SIMLIB_TTF_TARGET})
 
@@ -440,6 +444,9 @@ target_link_libraries(expostprocess PRIVATE simlib)
 
 add_executable(ex3d_gl src/examples/ex3d_gl/ex3d_gl.cpp)
 target_link_libraries(ex3d_gl PRIVATE simlib)
+if(WIN32)
+    target_link_libraries(ex3d_gl PRIVATE GLEW::GLEW)
+endif()
 
 add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
 target_link_libraries(ex3d_surface PRIVATE simlib)
@@ -519,27 +526,33 @@ target_link_libraries(exconfig PRIVATE simlib)
 if(BUILD_TESTING)
     add_executable(config_test tests/config_test.cpp)
     target_link_libraries(config_test PRIVATE simlib)
+    target_compile_definitions(config_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME config COMMAND config_test)
 
     add_executable(isometric_test tests/isometric_test.cpp)
     target_link_libraries(isometric_test PRIVATE simlib)
+    target_compile_definitions(isometric_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME isometric COMMAND isometric_test)
 
     add_executable(rdb_test tests/rdb_test.cpp)
     target_include_directories(rdb_test PRIVATE src/examples/exdb)
     target_link_libraries(rdb_test PRIVATE simlib lua sol2 SQLite::SQLite3)
+    target_compile_definitions(rdb_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME rdb COMMAND rdb_test)
 
     add_executable(backend_selection_test tests/backend_selection_test.cpp)
     target_link_libraries(backend_selection_test PRIVATE simlib)
+    target_compile_definitions(backend_selection_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME backend_selection COMMAND backend_selection_test)
 
     add_executable(event_test tests/event_test.cpp)
     target_link_libraries(event_test PRIVATE simlib)
+    target_compile_definitions(event_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME event COMMAND event_test)
 
     add_executable(lua_canvas_test tests/lua_canvas_test.cpp)
     target_link_libraries(lua_canvas_test PRIVATE simlib)
+    target_compile_definitions(lua_canvas_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME lua_canvas COMMAND lua_canvas_test)
 
     add_executable(resource_test
@@ -569,15 +582,41 @@ if(BUILD_TESTING)
 
     add_executable(physics_test tests/physics_test.cpp)
     target_link_libraries(physics_test PRIVATE simlib)
+    target_compile_definitions(physics_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME physics COMMAND physics_test)
 
     add_executable(renderer_test tests/renderer_test.cpp)
     target_link_libraries(renderer_test PRIVATE simlib)
+    target_compile_definitions(renderer_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME renderer COMMAND renderer_test)
 
     add_executable(voxel_test tests/voxel_test.cpp)
     target_link_libraries(voxel_test PRIVATE simlib)
+    target_compile_definitions(voxel_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME voxel COMMAND voxel_test)
+
+    if(WIN32)
+        add_executable(d3d12_renderer_test tests/d3d12_renderer_test.cpp)
+        target_link_libraries(d3d12_renderer_test PRIVATE simlib)
+        target_compile_definitions(d3d12_renderer_test PRIVATE SDL_MAIN_HANDLED)
+        add_test(NAME d3d12_renderer COMMAND d3d12_renderer_test)
+    endif()
+endif()
+
+if(WIN32 AND TARGET SDL2::SDL2main)
+    get_property(SIMLIB_TARGETS DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(SIMLIB_TARGET IN LISTS SIMLIB_TARGETS)
+        get_target_property(SIMLIB_TARGET_TYPE ${SIMLIB_TARGET} TYPE)
+        if(SIMLIB_TARGET_TYPE STREQUAL "EXECUTABLE")
+            get_target_property(SIMLIB_TARGET_SOURCES ${SIMLIB_TARGET} SOURCES)
+            foreach(SIMLIB_SOURCE IN LISTS SIMLIB_TARGET_SOURCES)
+                if(SIMLIB_SOURCE MATCHES "src/examples/")
+                    target_link_libraries(${SIMLIB_TARGET} PRIVATE SDL2::SDL2main)
+                    break()
+                endif()
+            endforeach()
+        endif()
+    endforeach()
 endif()
 
 find_package(Doxygen QUIET)

@@ -77,6 +77,7 @@ namespace sl::detail
         int width = 0;
         int height = 0;
         TextureFilter filter = TextureFilter::nearest;
+        bool render_target = false;
     };
 
     /** Per-draw data for Renderer::draw_mesh(). Matrices are column-major, as in GLM. */
@@ -225,6 +226,11 @@ namespace sl::detail
         virtual SDL_GLContext native_context() const = 0;
         /** Return the Vulkan context for internal Vulkan integrations, if active. */
         virtual VulkanContext *vulkan_context() { return nullptr; }
+        /** Dear ImGui rendering hooks for backends that own their ImGui renderer (D3D12). */
+        virtual bool gui_backend_init() { return false; }
+        virtual void gui_backend_new_frame() {}
+        virtual void gui_backend_render() {}
+        virtual void gui_backend_shutdown() {}
         /** Create an RGBA texture with backend-managed sampling state. */
         virtual bool create_texture(const TextureDesc &description, std::uint32_t &texture) = 0;
         /** Upload RGBA8 pixels into a texture. */

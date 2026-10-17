@@ -203,6 +203,11 @@ namespace sl::detail
         return true;
     }
 
+    bool D3D12Context::wait_idle()
+    {
+        return wait_for_gpu();
+    }
+
     bool D3D12Context::begin_frame()
     {
         if (!is_valid() || frame_open_)
@@ -216,11 +221,24 @@ namespace sl::detail
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         command_list_->ResourceBarrier(1, &barrier);
+        frame_open_ = true;
+        ++frame_serial_;
+        bind_backbuffer();
+        return true;
+    }
+
+    void D3D12Context::bind_backbuffer()
+    {
+        if (!frame_open_ || !rtv_heap_)
+            return;
         D3D12_CPU_DESCRIPTOR_HANDLE handle = rtv_heap_->GetCPUDescriptorHandleForHeapStart();
         handle.ptr += static_cast<SIZE_T>(frame_index_) * rtv_descriptor_size_;
         command_list_->OMSetRenderTargets(1, &handle, FALSE, nullptr);
-        frame_open_ = true;
-        return true;
+        D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(width_),
+                                static_cast<float>(height_), 0.0f, 1.0f};
+        D3D12_RECT scissor{0, 0, width_, height_};
+        command_list_->RSSetViewports(1, &viewport);
+        command_list_->RSSetScissorRects(1, &scissor);
     }
 
     void D3D12Context::present(bool vsync)

@@ -14,6 +14,7 @@ struct ID3D12DescriptorHeap;
 struct ID3D12Device;
 struct ID3D12Fence;
 struct ID3D12Resource;
+struct ID3D12DescriptorHeap;
 struct IDXGISwapChain3;
 
 namespace sl::detail
@@ -34,10 +35,18 @@ namespace sl::detail
         bool begin_frame();
         void present(bool vsync);
         void clear(float red, float green, float blue, float alpha);
+        bool wait_idle();
         bool is_valid() const;
+        bool frame_open() const { return frame_open_; }
+        std::uint64_t frame_serial() const { return frame_serial_; }
+        int width() const { return width_; }
+        int height() const { return height_; }
+        ID3D12Resource *back_buffer() const { return back_buffers_[frame_index_]; }
+        void bind_backbuffer();
 
         ID3D12Device *device() const { return device_; }
         ID3D12GraphicsCommandList *command_list() const { return command_list_; }
+        ID3D12CommandQueue *command_queue() const { return command_queue_; }
 
     private:
         bool create_backbuffers(std::string &error);
@@ -60,6 +69,7 @@ namespace sl::detail
         int width_ = 0;
         int height_ = 0;
         bool frame_open_ = false;
+        std::uint64_t frame_serial_ = 0;
     };
 }
 

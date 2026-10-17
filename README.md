@@ -86,6 +86,13 @@ sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
 
 Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's `FetchContent` — no manual setup required.
 
+On Windows, install GLEW with vcpkg and configure CMake with the vcpkg toolchain; GLEW loads the OpenGL 4.3 entry points used by the optional OpenGL backend:
+
+```powershell
+vcpkg install glew:x64-windows
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake"
+```
+
 ### Video Playback
 
 `sl::open_video()` (see [`exvideo`](src/examples/exvideo/exvideo.cpp)) decodes MPEG1 video and MP2 audio only
@@ -128,6 +135,14 @@ project(my_app LANGUAGES CXX)
 find_package(simlib CONFIG REQUIRED)
 add_executable(my_app src/main.cpp)
 target_link_libraries(my_app PRIVATE simlib::simlib)
+```
+
+On Windows, SDL's main shim is linked only by graphical executables, so add its target to the application:
+
+```cmake
+if(WIN32)
+    target_link_libraries(my_app PRIVATE SDL2::SDL2main)
+endif()
 ```
 
 Tell CMake where the local prefix is when configuring the application:

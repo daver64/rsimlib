@@ -920,8 +920,7 @@ int main(int argc, char *argv[])
         sl::rectfill(sl::screen, 12.0f, 12.0f, 12.0f + 340.0f, 12.0f + 96.0f, {15, 20, 28, 200});
         sl::rect(sl::screen, 12.0f, 12.0f, 12.0f + 340.0f, 12.0f + 96.0f, {60, 90, 130, 255}, 1.0f);
 
-        sl::gprintf(20, 18, {255, 255, 255}, "Simlib Asteroid Miner (%s)",
-                    sl::graphics_backend() == sl::GraphicsBackend::vulkan ? "Vulkan" : "OpenGL");
+        sl::gprintf(20, 18, {255, 255, 255}, "Simlib Asteroid Miner (%s)",sl::graphics_backend_name().c_str());
         sl::gprintf(20, 36, {160, 210, 255}, "Chunks: %zu | Triangles: %d",
                     world.chunk_count(), world.total_triangles());
         sl::gprintf(20, 54, {220, 220, 160}, "Pos: (%.1f, %.1f, %.1f)", cam_pos.x, cam_pos.y, cam_pos.z);
