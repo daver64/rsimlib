@@ -22,6 +22,7 @@
 #include <array>
 #include <climits>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1269,10 +1270,17 @@ namespace sl::detail
                 commands->ResourceBarrier(1, &barrier);
                 return true;
             }
+            // Like glUseProgram semantics: setting a uniform on a graphics program makes it the active 2D program.
+            bool activate_for_uniform(std::uint32_t handle, const ShaderProgram &program)
+            {
+                if (!program.compute)
+                    use_shader(handle);
+                return true;
+            }
             bool set_shader_int(std::uint32_t handle, const char *name, int value) override
             {
                 const auto found = programs_.find(handle);
-                if (found == programs_.end())
+                if (found == programs_.end() || !activate_for_uniform(handle, found->second))
                     return false;
                 if (set_sampler_unit(found->second, name, value))
                     return true;
@@ -1281,30 +1289,30 @@ namespace sl::detail
             bool set_shader_float(std::uint32_t handle, const char *name, float value) override
             {
                 const auto found = programs_.find(handle);
-                return found != programs_.end() && set_program_uniform(found->second, name, &value, sizeof(value));
+                return found != programs_.end() && activate_for_uniform(handle, found->second) && set_program_uniform(found->second, name, &value, sizeof(value));
             }
             bool set_shader_float2(std::uint32_t handle, const char *name, float x, float y) override
             {
                 const float values[2] = {x, y};
                 const auto found = programs_.find(handle);
-                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+                return found != programs_.end() && activate_for_uniform(handle, found->second) && set_program_uniform(found->second, name, values, sizeof(values));
             }
             bool set_shader_int2(std::uint32_t handle, const char *name, int x, int y) override
             {
                 const int values[2] = {x, y};
                 const auto found = programs_.find(handle);
-                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+                return found != programs_.end() && activate_for_uniform(handle, found->second) && set_program_uniform(found->second, name, values, sizeof(values));
             }
             bool set_shader_float3(std::uint32_t handle, const char *name, float x, float y, float z) override
             {
                 const float values[3] = {x, y, z};
                 const auto found = programs_.find(handle);
-                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+                return found != programs_.end() && activate_for_uniform(handle, found->second) && set_program_uniform(found->second, name, values, sizeof(values));
             }
             bool set_shader_mat4(std::uint32_t handle, const char *name, const float *matrix) override
             {
                 const auto found = programs_.find(handle);
-                return matrix && found != programs_.end() &&
+                return matrix && found != programs_.end() && activate_for_uniform(handle, found->second) &&
                        set_program_uniform(found->second, name, matrix, sizeof(float) * 16);
             }
 
