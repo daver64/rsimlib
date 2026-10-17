@@ -621,6 +621,14 @@ namespace sl
 		return true;
 	}
 
+	namespace detail
+	{
+		bool is_active_render_target(const Bitmap *bitmap)
+		{
+			return bitmap && !active_target_stack.empty() && active_target_stack.back() == bitmap;
+		}
+	} // namespace detail
+
 	/** Stop rendering to a target and restore drawing to the window. */
 	void end_render_target()
 	{

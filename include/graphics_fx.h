@@ -761,6 +761,8 @@ namespace sl
                const std::vector<ShadowCaster> &casters = {}) const;
 
     private:
+        void apply_via_scratch(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
+                               const std::vector<ShadowCaster> &casters) const;
         Shader shader_;
         Shader cullShader_;
         float ambient_ = 0.2f;
@@ -770,6 +772,8 @@ namespace sl
         mutable std::uint32_t shadowEdgesBuffer_ = 0;
         mutable int tileCountX_ = 0;
         mutable int tileCountY_ = 0;
+        /** D3D12 cannot sample the bound render target, so lighting is rendered here and copied back. */
+        mutable Bitmap *scratchTarget_ = nullptr;
     };
 
     /** Draws a solid-colour overlay over the whole screen, useful for fades and hit-flash feedback. */

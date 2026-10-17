@@ -100,7 +100,8 @@ namespace sl
 		  tileCountsBuffer_(std::exchange(other.tileCountsBuffer_, 0)),
 		  tileIndicesBuffer_(std::exchange(other.tileIndicesBuffer_, 0)),
 		  shadowEdgesBuffer_(std::exchange(other.shadowEdgesBuffer_, 0)),
-		  tileCountX_(other.tileCountX_), tileCountY_(other.tileCountY_)
+		  tileCountX_(other.tileCountX_), tileCountY_(other.tileCountY_),
+		  scratchTarget_(std::exchange(other.scratchTarget_, nullptr))
 	{
 	}
 
@@ -118,6 +119,7 @@ namespace sl
 			tileIndicesBuffer_ = std::exchange(other.tileIndicesBuffer_, 0);
 			tileCountX_ = other.tileCountX_;
 			tileCountY_ = other.tileCountY_;
+			scratchTarget_ = std::exchange(other.scratchTarget_, nullptr);
 		}
 		return *this;
 	}
@@ -144,6 +146,11 @@ namespace sl
 	void LightingPass::shutdown()
 	{
 		shader_.reset();
+		if (scratchTarget_)
+		{
+			destroy_bitmap(scratchTarget_);
+			scratchTarget_ = nullptr;
+		}
 		if (lightBuffer_ != 0)
 		{
 			detail::active_renderer()->destroy_storage_buffer(lightBuffer_);
@@ -188,6 +195,37 @@ namespace sl
 		apply(source, std::vector<Light>{light}, x, y, width, height, casters);
 	}
 
+	void LightingPass::apply_via_scratch(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width,
+										 int height, const std::vector<ShadowCaster> &casters) const
+	{
+		if (scratchTarget_ && (scratchTarget_->width != source->width || scratchTarget_->height != source->height))
+		{
+			destroy_bitmap(scratchTarget_);
+			scratchTarget_ = nullptr;
+		}
+		if (!scratchTarget_)
+		{
+			scratchTarget_ = create_render_target(source->width, source->height);
+		}
+		if (!scratchTarget_)
+		{
+			return;
+		}
+		const int regionWidth = width > 0 ? width : source->width;
+		const int regionHeight = height > 0 ? height : source->height;
+		// Ending the target turns the source into a sampleable texture; the lit result is copied back afterwards.
+		end_render_target();
+		if (begin_render_target(scratchTarget_))
+		{
+			apply(source, lights, x, y, regionWidth, regionHeight, casters);
+			end_render_target();
+		}
+		if (begin_render_target(source))
+		{
+			blit(scratchTarget_, source, x, y, static_cast<float>(x), static_cast<float>(y), regionWidth, regionHeight);
+		}
+	}
+
 	void LightingPass::apply(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
 							 const std::vector<ShadowCaster> &casters) const
 	{
@@ -207,6 +245,11 @@ namespace sl
 		}
 		if (width <= 0 || height <= 0)
 		{
+			return;
+		}
+		if (graphics_backend() == GraphicsBackend::d3d12 && detail::is_active_render_target(source))
+		{
+			apply_via_scratch(source, lights, x, y, width, height, casters);
 			return;
 		}
 		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;

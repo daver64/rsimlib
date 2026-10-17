@@ -308,6 +308,8 @@ namespace sl
         void resize_screen(int width, int height);
         /** Destroy the display-owned screen bitmap. */
         void destroy_screen();
+        /** Return whether the bitmap is the render target currently being drawn to. */
+        bool is_active_render_target(const Bitmap *bitmap);
 
     } // namespace detail
 
