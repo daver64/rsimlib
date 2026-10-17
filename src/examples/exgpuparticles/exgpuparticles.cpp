@@ -422,6 +422,7 @@ int main(int argc, char *argv[])
         sl::gprintf(10, 30, {180, 180, 200}, "%zu particles | %d active force sources | Glow: %s (B)", NUM_PARTICLES, force_count, use_glow ? "ON" : "OFF");
         sl::gprintf(10, 50, {180, 180, 200}, "Left Click/Drag: Gravity Well | Right Click: Explosion | Escape: Exit");
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

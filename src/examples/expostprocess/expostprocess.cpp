@@ -274,6 +274,7 @@ int main(int argc, char *argv[])
         sl::gprintf_center(100, {170, 185, 205}, "S: Shake  D: Dither %s  F: Grain %s  X: Shockwave",
                            use_dither ? "on" : "off", use_film_grain ? "on" : "off");
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
@@ -295,4 +296,5 @@ int main(int argc, char *argv[])
     sl::destroy_bitmap(scene);
     sl::destroy_bitmap(balloon);
     sl::shutdown();
+    return 0;
 }

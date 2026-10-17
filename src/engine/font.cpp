@@ -651,6 +651,20 @@ namespace sl
         draw_formatted_text(font, x, y, colour, buffer);     
     }
 
+    void draw_renderer_label()
+    {
+        if (!screen)
+            return;
+        Font *font = get_default_monospace_font();
+        if (!font)
+            return;
+        const std::string label = "Renderer = " + graphics_backend_name();
+        const int margin = 6;
+        const int x = screen->width - text_length(font, label) - margin;
+        const int y = screen->height - text_height(font) - margin;
+        draw_formatted_text(font, x, y, {200, 200, 200}, label);
+    }
+
     TextCache *create_text_cache()
     {
         return new TextCache();

@@ -83,6 +83,7 @@ int main(int argc, char **argv)
         sl::clear_to_colour(sl::screen, sl::Black);
         sl::draw_sprite_stretched(sl::video_bitmap(video), 0, 0, sl::screen_width(), sl::screen_height());
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

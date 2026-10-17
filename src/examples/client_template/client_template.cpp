@@ -33,4 +33,5 @@ int main(int argc, char *argv[])
     }
     sl::wait_for_graphics();
     sl::shutdown();
+    return 0;
 }

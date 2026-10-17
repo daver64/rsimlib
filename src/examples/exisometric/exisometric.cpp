@@ -618,6 +618,7 @@ int main(int argc, char *argv[])
             sl::gprintf(24, 92, muted, "Hovered Tile: None");
         }
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

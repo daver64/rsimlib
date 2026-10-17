@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         sl::gprintf_center(32, {232, 236, 244}, "OpenGL 3D example - Escape to exit");
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

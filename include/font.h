@@ -68,6 +68,9 @@ namespace sl
 
     
     
+    /** Draw "Renderer = <backend>" in the bottom-right corner of the screen with the default monospace font. */
+    void draw_renderer_label();
+
     /** Opaque cache holding one GPU text texture, rebuilt only when its text/font/colour change. */
     struct TextCache;
 

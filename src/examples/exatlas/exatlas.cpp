@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
             }
         }
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

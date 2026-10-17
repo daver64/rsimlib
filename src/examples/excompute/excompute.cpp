@@ -144,6 +144,7 @@ int main(int argc, char **argv)
             sl::textout(font, 10, 30, sl::Colour{180, 180, 200}, "1,000 particles updated via SSBO compute shader");
         }
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

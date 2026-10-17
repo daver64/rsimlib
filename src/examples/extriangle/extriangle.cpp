@@ -51,10 +51,12 @@ int main(int argc, char *argv[])
             texture);
     }
 
+    sl::draw_renderer_label();
     sl::show_video_bitmap();
     sl::end_frame();
     process_input();
     sl::wait_for_graphics();
     sl::destroy_bitmap(texture);
     sl::shutdown();
+    return 0;
 }

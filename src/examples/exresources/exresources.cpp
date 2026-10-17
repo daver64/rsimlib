@@ -51,6 +51,7 @@ namespace
             sl::gprintf(520, 220, {240, 130, 120}, "Texture entry unavailable");
         }
         sl::gprintf(24, 510, muted, "scene.lua preview: %s", script_preview.c_str());
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

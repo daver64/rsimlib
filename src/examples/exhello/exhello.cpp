@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 
     sl::gprintf_center(1 + fontheight, text_colour, "Hello, world!");
     sl::gprintf_center(3 + fontheight * 2, text_colour, "Backend = %s",sl::graphics_backend_name().c_str());
+    sl::draw_renderer_label();
     sl::show_video_bitmap();
     sl::end_frame();
     process_input();

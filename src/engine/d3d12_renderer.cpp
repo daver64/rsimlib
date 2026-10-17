@@ -5,11 +5,15 @@
 
 #include "d3d12_renderer.h"
 #include "d3d12_context.h"
+#include "d3d12_shader_translator.h"
 
 #include <d3d12.h>
 #include <d3dcompiler.h>
 #include <dxgi1_4.h>
 #include <windows.h>
+#ifdef SIMLIB_HAVE_DXC
+#include <dxcapi.h>
+#endif
 
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
@@ -35,6 +39,17 @@ namespace sl::detail
         constexpr std::size_t vertex_buffer_vertices = max_batch_vertices * 16;
         constexpr std::uint32_t descriptor_capacity = 4096;
         constexpr std::uint32_t render_target_capacity = 256;
+        // Shader-visible descriptors after the texture range, rewritten for each draw or dispatch.
+        constexpr std::uint32_t transient_descriptor_capacity = 8192;
+        constexpr std::size_t constant_buffer_bytes = 4 * 1024 * 1024;
+        constexpr std::uint32_t max_storage_bindings = 16;
+        constexpr std::uint32_t max_texture_units = 32;
+        // fxc (shader model 5) allows 16 samplers per shader; DXC (shader model 6) allows every texture unit.
+        constexpr std::uint32_t max_program_samplers_sm5 = 16;
+        constexpr std::uint32_t max_program_samplers_sm6 = max_texture_units;
+        // Shader-visible sampler descriptors after the texture range, rewritten for each draw or dispatch.
+        constexpr std::uint32_t transient_sampler_capacity = 1024;
+        constexpr std::uint32_t max_image_units = translated_max_images;
 
         struct Texture
         {
@@ -61,6 +76,57 @@ namespace sl::detail
             D3D12_INDEX_BUFFER_VIEW index_view{};
             UINT index_count = 0;
         };
+
+        struct StorageBuffer
+        {
+            ID3D12Resource *resource = nullptr;
+            std::size_t size = 0;
+        };
+
+        // Blend variants: 0 straight alpha, 1 premultiplied alpha, 2 additive.
+        constexpr std::size_t blend_variant_count = 3;
+        constexpr std::size_t primitive_pipeline_count = 3;
+
+        struct ShaderProgram
+        {
+            bool compute = false;
+            ID3DBlob *vertex_blob = nullptr;
+            ID3DBlob *pixel_blob = nullptr;
+            ID3DBlob *compute_blob = nullptr;
+            ID3D12RootSignature *root_signature = nullptr;
+            TranslatedShader vertex;
+            // For compute programs this holds the compute shader's reflection data.
+            TranslatedShader pixel;
+            std::vector<std::uint8_t> vertex_constants;
+            std::vector<std::uint8_t> pixel_constants;
+            std::vector<std::string> samplers;
+            std::vector<int> sampler_units;
+            std::uint32_t image_registers = 0;
+            int image_parameter = -1;
+            std::uint32_t storage_registers = 0;
+            int vertex_constants_parameter = -1;
+            int pixel_constants_parameter = -1;
+            int storage_parameter = -1;
+            int texture_parameter_base = -1;
+            int sampler_parameter_base = -1;
+            std::array<ID3D12PipelineState *, primitive_pipeline_count * blend_variant_count> pipelines{};
+            ID3D12PipelineState *compute_pipeline = nullptr;
+        };
+
+        D3D12_BLEND_DESC blend_description(std::size_t variant)
+        {
+            D3D12_BLEND_DESC desc{};
+            auto &blend = desc.RenderTarget[0];
+            blend.BlendEnable = TRUE;
+            blend.SrcBlend = variant == 0 ? D3D12_BLEND_SRC_ALPHA : D3D12_BLEND_ONE;
+            blend.DestBlend = variant == 2 ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
+            blend.BlendOp = D3D12_BLEND_OP_ADD;
+            blend.SrcBlendAlpha = D3D12_BLEND_ONE;
+            blend.DestBlendAlpha = variant == 2 ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
+            blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+            blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+            return desc;
+        }
 
         std::string load_shader(const char *name)
         {
@@ -90,6 +156,139 @@ namespace sl::detail
             if (messages)
                 messages->Release();
             return true;
+        }
+
+#ifdef SIMLIB_HAVE_DXC
+        // Shader model 6 compiler (DXC), loaded at runtime so the backend still works with fxc when it is absent.
+        class DxcCompiler
+        {
+        public:
+            static DxcCompiler &instance()
+            {
+                static DxcCompiler compiler;
+                return compiler;
+            }
+
+            bool available(ID3D12Device *device)
+            {
+                if (!tried_)
+                {
+                    tried_ = true;
+                    load(device);
+                }
+                return compiler_ != nullptr;
+            }
+
+            const wchar_t *model_suffix() const { return model_suffix_; }
+
+            bool compile(const std::string &source, const char *stage, ID3DBlob **blob, std::string &error)
+            {
+                std::wstring target;
+                for (const char *c = stage; *c; ++c)
+                    target.push_back(static_cast<wchar_t>(*c));
+                target += L"_";
+                target += model_suffix_;
+                const wchar_t *arguments[] = {L"-E", L"main", L"-T", target.c_str()};
+                DxcBuffer buffer{source.data(), source.size(), DXC_CP_UTF8};
+                IDxcResult *result = nullptr;
+                if (FAILED(compiler_->Compile(&buffer, arguments, 4, nullptr, IID_PPV_ARGS(&result))) || !result)
+                {
+                    error = "DXC failed to start compiling the D3D12 shader.";
+                    return false;
+                }
+                HRESULT status = E_FAIL;
+                result->GetStatus(&status);
+                if (FAILED(status))
+                {
+                    IDxcBlobUtf8 *messages = nullptr;
+                    result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&messages), nullptr);
+                    error = messages && messages->GetStringLength() > 0 ? std::string(messages->GetStringPointer())
+                                                                        : "DXC failed to compile the D3D12 shader.";
+                    if (messages)
+                        messages->Release();
+                    result->Release();
+                    return false;
+                }
+                IDxcBlob *object = nullptr;
+                result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&object), nullptr);
+                bool ok = false;
+                if (object && SUCCEEDED(D3DCreateBlob(object->GetBufferSize(), blob)))
+                {
+                    std::memcpy((*blob)->GetBufferPointer(), object->GetBufferPointer(), object->GetBufferSize());
+                    ok = true;
+                }
+                else
+                    error = "DXC produced no shader bytecode.";
+                if (object)
+                    object->Release();
+                result->Release();
+                return ok;
+            }
+
+        private:
+            void load(ID3D12Device *device)
+            {
+                // Highest shader model the device supports, capped at 6.6.
+                struct Model
+                {
+                    D3D_SHADER_MODEL model;
+                    const wchar_t *suffix;
+                };
+                const Model models[] = {{D3D_SHADER_MODEL_6_6, L"6_6"}, {D3D_SHADER_MODEL_6_5, L"6_5"},
+                                        {D3D_SHADER_MODEL_6_4, L"6_4"}, {D3D_SHADER_MODEL_6_3, L"6_3"},
+                                        {D3D_SHADER_MODEL_6_2, L"6_2"}, {D3D_SHADER_MODEL_6_1, L"6_1"},
+                                        {D3D_SHADER_MODEL_6_0, L"6_0"}};
+                for (const Model &candidate : models)
+                {
+                    D3D12_FEATURE_DATA_SHADER_MODEL support{candidate.model};
+                    if (device && SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &support,
+                                                                       sizeof(support))))
+                    {
+                        model_suffix_ = candidate.suffix;
+                        break;
+                    }
+                }
+                if (!model_suffix_)
+                    return;
+
+                HMODULE module = LoadLibraryW(L"dxcompiler.dll");
+#ifdef SIMLIB_DXC_DIR
+                // Load by full path so that dxil.dll (needed to sign DXIL) is found beside it.
+                if (!module)
+                    module = LoadLibraryExW(L"" SIMLIB_DXC_DIR L"\\dxcompiler.dll", nullptr,
+                                            LOAD_WITH_ALTERED_SEARCH_PATH);
+#endif
+                if (!module)
+                    return;
+                const auto create = reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(module, "DxcCreateInstance"));
+                if (!create || FAILED(create(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler_))))
+                    compiler_ = nullptr;
+            }
+
+            bool tried_ = false;
+            const wchar_t *model_suffix_ = nullptr;
+            IDxcCompiler3 *compiler_ = nullptr;
+        };
+
+        bool dxc_available(ID3D12Device *device) { return DxcCompiler::instance().available(device); }
+
+        bool dxc_compile(const std::string &source, const char *stage, ID3DBlob **blob, std::string &error)
+        {
+            return DxcCompiler::instance().compile(source, stage, blob, error);
+        }
+#else
+        bool dxc_available(ID3D12Device *) { return false; }
+
+        bool dxc_compile(const std::string &, const char *, ID3DBlob **, std::string &) { return false; }
+#endif
+
+        // Compiles translated HLSL with DXC (shader model 6) when available, otherwise fxc (shader model 5.1).
+        bool compile_program_shader(ID3D12Device *device, const std::string &source, const char *stage,
+                                    ID3DBlob **blob, std::string &error)
+        {
+            if (dxc_available(device))
+                return dxc_compile(source, stage, blob, error);
+            return compile_shader(source, "main", (std::string(stage) + "_5_1").c_str(), blob, error);
         }
 
         D3D12_HEAP_PROPERTIES heap_properties(D3D12_HEAP_TYPE type)
@@ -257,6 +456,23 @@ namespace sl::detail
                 for (auto &texture : retired_textures_)
                     release_texture(texture);
                 retired_textures_.clear();
+                release_retired_textures();
+                for (auto &[handle, program] : programs_)
+                    release_program(program);
+                programs_.clear();
+                for (auto &[handle, buffer] : storage_buffers_)
+                {
+                    if (buffer.resource)
+                        buffer.resource->Release();
+                }
+                storage_buffers_.clear();
+                if (constant_buffer_)
+                {
+                    constant_buffer_->Unmap(0, nullptr);
+                    constant_buffer_->Release();
+                }
+                constant_buffer_ = nullptr;
+                mapped_constants_ = nullptr;
                 if (sampler_heap_)
                     sampler_heap_->Release();
                 if (srv_heap_)
@@ -304,7 +520,7 @@ namespace sl::detail
             }
             bool begin_frame(std::string &error) override
             {
-                if (context_.begin_frame())
+                if (context_.frame_open() || context_.begin_frame())
                     return true;
                 error = "Unable to begin the D3D12 frame.";
                 return false;
@@ -338,8 +554,9 @@ namespace sl::detail
                 resource_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 resource_desc.SampleDesc.Count = 1;
                 resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-                resource_desc.Flags = description.render_target ? D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
-                                                                 : D3D12_RESOURCE_FLAG_NONE;
+                resource_desc.Flags = (description.render_target ? D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
+                                                                  : D3D12_RESOURCE_FLAG_NONE) |
+                                      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
                 Texture resource;
                 resource.descriptor = descriptor;
                 const D3D12_HEAP_PROPERTIES default_heap = heap_properties(D3D12_HEAP_TYPE_DEFAULT);
@@ -881,36 +1098,215 @@ namespace sl::detail
                     depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
                 return true;
             }
-            bool create_shader(const ShaderSource &, const ShaderSource &, std::uint32_t &,
-                               std::string &error) override
+            bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
+                               std::uint32_t &handle, std::string &error) override
             {
-                error = "D3D12 user shader compilation is not implemented yet.";
-                return false;
+                handle = 0;
+                if (vertex_source.language != ShaderLanguage::glsl || fragment_source.language != ShaderLanguage::glsl)
+                {
+                    error = "The D3D12 backend accepts GLSL shader sources only.";
+                    return false;
+                }
+                if (!context_.device() || !ensure_descriptor_heaps())
+                {
+                    error = "The D3D12 device is not ready for shader creation.";
+                    return false;
+                }
+                ShaderProgram program;
+                if (!translate_glsl_to_hlsl(vertex_source.text, TranslateStage::vertex, nullptr,
+                                            &program.samplers, program.vertex, error))
+                    return false;
+                if (!translate_glsl_to_hlsl(fragment_source.text, TranslateStage::fragment,
+                                            &program.vertex.varyings, &program.samplers, program.pixel, error))
+                    return false;
+                const std::uint32_t sampler_limit =
+                    dxc_available(context_.device()) ? max_program_samplers_sm6 : max_program_samplers_sm5;
+                if (program.samplers.size() > sampler_limit)
+                {
+                    error = "A D3D12 shader supports at most " + std::to_string(sampler_limit) +
+                            " samplers (install dxcompiler.dll for shader model 6 to raise the limit).";
+                    return false;
+                }
+                if (!compile_program_shader(context_.device(), program.vertex.hlsl, "vs", &program.vertex_blob, error) ||
+                    !compile_program_shader(context_.device(), program.pixel.hlsl, "ps", &program.pixel_blob, error))
+                {
+                    release_program(program);
+                    return false;
+                }
+                program.storage_registers =
+                    (std::max)(program.vertex.storage_registers, program.pixel.storage_registers);
+                for (const std::uint32_t binding : program.vertex.images)
+                    program.image_registers = (std::max)(program.image_registers, binding + 1);
+                for (const std::uint32_t binding : program.pixel.images)
+                    program.image_registers = (std::max)(program.image_registers, binding + 1);
+                if (!create_program_root_signature(program, error))
+                {
+                    release_program(program);
+                    return false;
+                }
+                return store_program(program, handle);
             }
-            bool create_compute_shader(const ShaderSource &, std::uint32_t &, std::string &error) override
+            bool create_compute_shader(const ShaderSource &source, std::uint32_t &handle,
+                                       std::string &error) override
             {
-                error = "D3D12 compute shaders are not implemented yet.";
-                return false;
+                handle = 0;
+                if (source.language != ShaderLanguage::glsl)
+                {
+                    error = "The D3D12 backend accepts GLSL shader sources only.";
+                    return false;
+                }
+                if (!context_.device() || !ensure_descriptor_heaps())
+                {
+                    error = "The D3D12 device is not ready for shader creation.";
+                    return false;
+                }
+                ShaderProgram program;
+                program.compute = true;
+                if (!translate_glsl_to_hlsl(source.text, TranslateStage::compute, nullptr, &program.samplers,
+                                            program.pixel, error))
+                    return false;
+                const std::uint32_t sampler_limit =
+                    dxc_available(context_.device()) ? max_program_samplers_sm6 : max_program_samplers_sm5;
+                if (program.samplers.size() > sampler_limit)
+                {
+                    error = "A D3D12 shader supports at most " + std::to_string(sampler_limit) +
+                            " samplers (install dxcompiler.dll for shader model 6 to raise the limit).";
+                    return false;
+                }
+                if (!compile_program_shader(context_.device(), program.pixel.hlsl, "cs", &program.compute_blob, error))
+                {
+                    release_program(program);
+                    return false;
+                }
+                program.storage_registers = program.pixel.storage_registers;
+                for (const std::uint32_t binding : program.pixel.images)
+                    program.image_registers = (std::max)(program.image_registers, binding + 1);
+                if (!create_program_root_signature(program, error))
+                {
+                    release_program(program);
+                    return false;
+                }
+                D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+                desc.pRootSignature = program.root_signature;
+                desc.CS = {program.compute_blob->GetBufferPointer(), program.compute_blob->GetBufferSize()};
+                if (FAILED(context_.device()->CreateComputePipelineState(&desc, IID_PPV_ARGS(&program.compute_pipeline))))
+                {
+                    error = "Unable to create the D3D12 compute pipeline state.";
+                    release_program(program);
+                    return false;
+                }
+                return store_program(program, handle);
             }
             bool create_shader_module(ShaderStage, const ShaderSource &, std::uint32_t &,
                                       std::string &error) override
             {
-                error = "D3D12 shader modules are not implemented yet.";
+                error = "The D3D12 renderer uses linked GLSL programs rather than standalone shader modules.";
                 return false;
             }
-            void destroy_shader(std::uint32_t) override {}
-            bool use_shader(std::uint32_t) override { return unsupported(); }
-            void stop_shader() override {}
-            bool dispatch_compute(std::uint32_t, unsigned int, unsigned int, unsigned int) override
+            void destroy_shader(std::uint32_t handle) override
             {
-                return unsupported();
+                const auto found = programs_.find(handle);
+                if (found == programs_.end())
+                    return;
+                if (active_program_ == handle)
+                {
+                    flush_2d();
+                    active_program_ = 0;
+                }
+                // The in-flight command list may still reference the program's pipeline objects.
+                retire_program(found->second);
+                programs_.erase(found);
             }
-            bool set_shader_int(std::uint32_t, const char *, int) override { return unsupported(); }
-            bool set_shader_float(std::uint32_t, const char *, float) override { return unsupported(); }
-            bool set_shader_float2(std::uint32_t, const char *, float, float) override { return unsupported(); }
-            bool set_shader_int2(std::uint32_t, const char *, int, int) override { return unsupported(); }
-            bool set_shader_float3(std::uint32_t, const char *, float, float, float) override { return unsupported(); }
-            bool set_shader_mat4(std::uint32_t, const char *, const float *) override { return unsupported(); }
+            bool use_shader(std::uint32_t handle) override
+            {
+                if (programs_.find(handle) == programs_.end())
+                    return false;
+                if (active_program_ != handle)
+                {
+                    flush_2d();
+                    active_program_ = handle;
+                }
+                return true;
+            }
+            void stop_shader() override
+            {
+                flush_2d();
+                active_program_ = 0;
+            }
+            bool dispatch_compute(std::uint32_t handle, unsigned int groups_x, unsigned int groups_y,
+                                  unsigned int groups_z) override
+            {
+                const auto found = programs_.find(handle);
+                if (found == programs_.end() || !found->second.compute)
+                {
+                    last_error_ = "The shader is not a D3D12 compute program.";
+                    return false;
+                }
+                if (!initialise_2d() || !ensure_frame())
+                    return false;
+                flush_2d();
+                ShaderProgram &program = found->second;
+                auto *commands = context_.command_list();
+                commands->SetComputeRootSignature(program.root_signature);
+                ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
+                commands->SetDescriptorHeaps(2, heaps);
+                commands->SetPipelineState(program.compute_pipeline);
+                if (program.pixel_constants_parameter >= 0)
+                {
+                    const D3D12_GPU_VIRTUAL_ADDRESS address =
+                        allocate_constants(program.pixel_constants.data(), program.pixel_constants.size());
+                    if (!address)
+                        return false;
+                    commands->SetComputeRootConstantBufferView(static_cast<UINT>(program.pixel_constants_parameter),
+                                                               address);
+                }
+                if (!bind_program_resources(program, false))
+                    return false;
+                commands->Dispatch(groups_x, groups_y, groups_z);
+                restore_image_textures();
+                D3D12_RESOURCE_BARRIER barrier{};
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                commands->ResourceBarrier(1, &barrier);
+                return true;
+            }
+            bool set_shader_int(std::uint32_t handle, const char *name, int value) override
+            {
+                const auto found = programs_.find(handle);
+                if (found == programs_.end())
+                    return false;
+                if (set_sampler_unit(found->second, name, value))
+                    return true;
+                return set_program_uniform(found->second, name, &value, sizeof(value));
+            }
+            bool set_shader_float(std::uint32_t handle, const char *name, float value) override
+            {
+                const auto found = programs_.find(handle);
+                return found != programs_.end() && set_program_uniform(found->second, name, &value, sizeof(value));
+            }
+            bool set_shader_float2(std::uint32_t handle, const char *name, float x, float y) override
+            {
+                const float values[2] = {x, y};
+                const auto found = programs_.find(handle);
+                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+            }
+            bool set_shader_int2(std::uint32_t handle, const char *name, int x, int y) override
+            {
+                const int values[2] = {x, y};
+                const auto found = programs_.find(handle);
+                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+            }
+            bool set_shader_float3(std::uint32_t handle, const char *name, float x, float y, float z) override
+            {
+                const float values[3] = {x, y, z};
+                const auto found = programs_.find(handle);
+                return found != programs_.end() && set_program_uniform(found->second, name, values, sizeof(values));
+            }
+            bool set_shader_mat4(std::uint32_t handle, const char *name, const float *matrix) override
+            {
+                const auto found = programs_.find(handle);
+                return matrix && found != programs_.end() &&
+                       set_program_uniform(found->second, name, matrix, sizeof(float) * 16);
+            }
 
             bool initialise_2d() override
             {
@@ -995,52 +1391,16 @@ namespace sl::detail
                     return false;
                 }
 
-                const D3D12_INPUT_ELEMENT_DESC elements[] = {
-                    {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex2D, x)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-                    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex2D, u)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-                    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-                D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
-                pipeline_desc.pRootSignature = root_signature_;
-                pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};
-                pipeline_desc.PS = {pixel_blob->GetBufferPointer(), pixel_blob->GetBufferSize()};
-                pipeline_desc.BlendState.AlphaToCoverageEnable = FALSE;
-                pipeline_desc.BlendState.IndependentBlendEnable = FALSE;
-                auto &blend = pipeline_desc.BlendState.RenderTarget[0];
-                blend.BlendEnable = TRUE;
-                blend.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-                blend.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-                blend.BlendOp = D3D12_BLEND_OP_ADD;
-                blend.SrcBlendAlpha = D3D12_BLEND_ONE;
-                blend.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-                blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-                blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-                pipeline_desc.SampleMask = UINT_MAX;
-                pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-                pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-                pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
-                pipeline_desc.DepthStencilState.DepthEnable = FALSE;
-                pipeline_desc.DepthStencilState.StencilEnable = FALSE;
-                pipeline_desc.InputLayout = {elements, static_cast<UINT>(std::size(elements))};
-                pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-                pipeline_desc.NumRenderTargets = 1;
-                pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-                pipeline_desc.SampleDesc.Count = 1;
-                for (std::size_t index = 0; index < pipelines_.size(); ++index)
+                default_vertex_blob_ = vertex_blob;
+                default_pixel_blob_ = pixel_blob;
+                for (std::size_t primitive = 0; primitive < primitive_pipeline_count; ++primitive)
                 {
-                    result = context_.device()->CreateGraphicsPipelineState(&pipeline_desc,
-                                                                            IID_PPV_ARGS(&pipelines_[index]));
-                    if (FAILED(result))
+                    if (!get_default_pipeline(primitive, 0))
+                    {
+                        result = E_FAIL;
                         break;
-                    if (index == 0)
-                        pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
-                    else if (index == 1)
-                        pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+                    }
                 }
-                vertex_blob->Release();
-                pixel_blob->Release();
                 if (FAILED(result))
                 {
                     last_error_ = "Unable to create the D3D12 2D pipeline states.";
@@ -1113,6 +1473,12 @@ namespace sl::detail
                         pipeline->Release();
                     pipeline = nullptr;
                 }
+                if (default_vertex_blob_)
+                    default_vertex_blob_->Release();
+                if (default_pixel_blob_)
+                    default_pixel_blob_->Release();
+                default_vertex_blob_ = nullptr;
+                default_pixel_blob_ = nullptr;
                 if (root_signature_)
                     root_signature_->Release();
                 root_signature_ = nullptr;
@@ -1144,9 +1510,42 @@ namespace sl::detail
                 return true;
             }
 
-            bool begin_shader_2d(std::uint32_t, int, int) override { return unsupported(); }
-            void set_premultiplied_alpha(bool) override {}
-            void set_blend_mode(BlendMode) override {}
+            bool begin_shader_2d(std::uint32_t program, int width, int height) override
+            {
+                if (width <= 0 || height <= 0 || !initialise_2d() || !ensure_frame())
+                    return false;
+                flush_2d();
+                const auto found = programs_.find(program);
+                if (found == programs_.end() || found->second.compute)
+                    return false;
+                active_program_ = program;
+                float projection[16] = {};
+                projection[0] = 2.0f / width;
+                projection[5] = -2.0f / height;
+                projection[10] = -1.0f;
+                projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
+                projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
+                projection[15] = 1.0f;
+                set_program_uniform(found->second, "uProjection", projection, sizeof(projection));
+                set_sampler_unit(found->second, "uTexture", 0);
+                return true;
+            }
+            void set_premultiplied_alpha(bool enabled) override
+            {
+                if (premultiplied_alpha_ != enabled)
+                {
+                    flush_2d();
+                    premultiplied_alpha_ = enabled;
+                }
+            }
+            void set_blend_mode(BlendMode mode) override
+            {
+                if (blend_mode_ != mode)
+                {
+                    flush_2d();
+                    blend_mode_ = mode;
+                }
+            }
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 if (!ensure_frame())
@@ -1189,16 +1588,6 @@ namespace sl::detail
                 std::memcpy(mapped_vertices_ + first_vertex, batch_vertices_.data(), sizeof(Vertex2D) * count);
                 vertex_offset_ += count;
 
-                auto texture = textures_.find(batch_texture_ != 0 ? batch_texture_ : white_texture_);
-                if (texture == textures_.end() ||
-                    texture->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-                    texture = textures_.find(white_texture_);
-                if (texture == textures_.end())
-                {
-                    batch_vertices_.clear();
-                    return;
-                }
-
                 auto *commands = context_.command_list();
                 std::size_t pipeline_index = 0;
                 D3D12_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1212,11 +1601,19 @@ namespace sl::detail
                     pipeline_index = 2;
                     topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
                 }
-                commands->SetPipelineState(pipelines_[pipeline_index]);
-                commands->SetGraphicsRootDescriptorTable(
-                    1, gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor));
+                const std::size_t variant = blend_mode_ == BlendMode::additive ? 2
+                                            : premultiplied_alpha_            ? 1
+                                                                              : 0;
+                const auto program = active_program_ != 0 ? programs_.find(active_program_) : programs_.end();
+                const bool bound = program != programs_.end() && !program->second.compute
+                                       ? bind_program_for_draw(program->second, pipeline_index, variant)
+                                       : bind_default_for_draw(pipeline_index, variant);
+                if (!bound)
+                {
+                    restore_image_textures();
+                    batch_vertices_.clear();
+                    return;
+                }
                 D3D12_VERTEX_BUFFER_VIEW vertex_view{};
                 vertex_view.BufferLocation =
                     vertex_buffer_->GetGPUVirtualAddress() + sizeof(Vertex2D) * first_vertex;
@@ -1225,6 +1622,7 @@ namespace sl::detail
                 commands->IASetVertexBuffers(0, 1, &vertex_view);
                 commands->IASetPrimitiveTopology(topology);
                 commands->DrawInstanced(static_cast<UINT>(count), 1, 0, 0);
+                restore_image_textures();
                 batch_vertices_.clear();
             }
 
@@ -1253,20 +1651,183 @@ namespace sl::detail
                                            actual_primitive, batch_vertices_);
             }
 
-            bool create_storage_buffer(std::size_t, std::uint32_t &) override { return unsupported(); }
-            void destroy_storage_buffer(std::uint32_t) override {}
-            bool upload_storage_buffer(std::uint32_t, std::size_t, const void *, bool) override
+            bool create_storage_buffer(std::size_t size, std::uint32_t &handle) override
             {
-                return unsupported();
+                handle = 0;
+                if (size == 0 || !context_.device())
+                    return false;
+                StorageBuffer buffer;
+                if (!create_storage_resource(size, buffer))
+                    return false;
+                handle = next_storage_buffer_++;
+                if (handle == 0)
+                    handle = next_storage_buffer_++;
+                storage_buffers_.emplace(handle, buffer);
+                return true;
             }
-            bool readback_storage_buffer(std::uint32_t, std::size_t, std::size_t, void *) override
+            void destroy_storage_buffer(std::uint32_t handle) override
             {
-                return unsupported();
+                const auto found = storage_buffers_.find(handle);
+                if (found == storage_buffers_.end())
+                    return;
+                for (std::uint32_t &bound : bound_storage_buffers_)
+                {
+                    if (bound == handle)
+                        bound = 0;
+                }
+                if (found->second.resource)
+                {
+                    if (context_.frame_open())
+                        retired_objects_.push_back(found->second.resource);
+                    else
+                    {
+                        context_.wait_idle();
+                        found->second.resource->Release();
+                    }
+                }
+                storage_buffers_.erase(found);
             }
-            void bind_storage_buffer(unsigned int, std::uint32_t) override {}
-            void bind_texture_unit(unsigned int, std::uint32_t) override {}
-            void bind_storage_texture(unsigned int, std::uint32_t) override {}
-            void storage_barrier() override {}
+            bool upload_storage_buffer(std::uint32_t handle, std::size_t size, const void *data,
+                                       bool preserve) override
+            {
+                const auto found = storage_buffers_.find(handle);
+                if (found == storage_buffers_.end() || size == 0 || (preserve && !data))
+                    return found != storage_buffers_.end();
+                if (!ensure_frame())
+                    return false;
+                flush_2d();
+                StorageBuffer &buffer = found->second;
+                if (size > buffer.size)
+                {
+                    StorageBuffer replacement;
+                    if (!create_storage_resource(size, replacement))
+                        return false;
+                    retired_objects_.push_back(buffer.resource);
+                    buffer = replacement;
+                }
+                if (!data)
+                    return true;
+
+                ID3D12Resource *staging = nullptr;
+                const D3D12_HEAP_PROPERTIES upload_heap = heap_properties(D3D12_HEAP_TYPE_UPLOAD);
+                const D3D12_RESOURCE_DESC staging_desc = buffer_description(size);
+                if (FAILED(context_.device()->CreateCommittedResource(
+                        &upload_heap, D3D12_HEAP_FLAG_NONE, &staging_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                        nullptr, IID_PPV_ARGS(&staging))))
+                    return false;
+                void *mapped = nullptr;
+                const D3D12_RANGE no_read{0, 0};
+                if (FAILED(staging->Map(0, &no_read, &mapped)))
+                {
+                    staging->Release();
+                    return false;
+                }
+                std::memcpy(mapped, data, size);
+                staging->Unmap(0, nullptr);
+                retired_objects_.push_back(staging);
+
+                auto *commands = context_.command_list();
+                transition_resource(commands, buffer.resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                    D3D12_RESOURCE_STATE_COPY_DEST);
+                commands->CopyBufferRegion(buffer.resource, 0, staging, 0, size);
+                transition_resource(commands, buffer.resource, D3D12_RESOURCE_STATE_COPY_DEST,
+                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                return true;
+            }
+            bool readback_storage_buffer(std::uint32_t handle, std::size_t offset, std::size_t size,
+                                         void *out_data) override
+            {
+                const auto found = storage_buffers_.find(handle);
+                if (found == storage_buffers_.end() || !out_data || size == 0 ||
+                    offset + size > found->second.size)
+                    return false;
+                if (context_.frame_open())
+                {
+                    flush_2d();
+                    suspend_active_render_target();
+                    context_.present(vsync_enabled_);
+                    release_retired_textures();
+                }
+                if (!context_.wait_idle())
+                    return false;
+
+                ID3D12Resource *readback = nullptr;
+                const D3D12_HEAP_PROPERTIES readback_heap = heap_properties(D3D12_HEAP_TYPE_READBACK);
+                const D3D12_RESOURCE_DESC readback_desc = buffer_description(size);
+                if (FAILED(context_.device()->CreateCommittedResource(
+                        &readback_heap, D3D12_HEAP_FLAG_NONE, &readback_desc, D3D12_RESOURCE_STATE_COPY_DEST,
+                        nullptr, IID_PPV_ARGS(&readback))))
+                    return false;
+                ID3D12CommandAllocator *allocator = nullptr;
+                ID3D12GraphicsCommandList *commands = nullptr;
+                HRESULT result = context_.device()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                                           IID_PPV_ARGS(&allocator));
+                if (SUCCEEDED(result))
+                    result = context_.device()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator,
+                                                                  nullptr, IID_PPV_ARGS(&commands));
+                if (SUCCEEDED(result))
+                {
+                    transition_resource(commands, found->second.resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                        D3D12_RESOURCE_STATE_COPY_SOURCE);
+                    commands->CopyBufferRegion(readback, 0, found->second.resource, offset, size);
+                    transition_resource(commands, found->second.resource, D3D12_RESOURCE_STATE_COPY_SOURCE,
+                                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    result = commands->Close();
+                }
+                if (SUCCEEDED(result))
+                {
+                    ID3D12CommandList *lists[] = {commands};
+                    context_.command_queue()->ExecuteCommandLists(1, lists);
+                    if (!context_.wait_idle())
+                        result = E_FAIL;
+                }
+                if (commands)
+                    commands->Release();
+                if (allocator)
+                    allocator->Release();
+                bool copied = false;
+                if (SUCCEEDED(result))
+                {
+                    void *mapped = nullptr;
+                    const D3D12_RANGE read_range{0, size};
+                    if (SUCCEEDED(readback->Map(0, &read_range, &mapped)))
+                    {
+                        std::memcpy(out_data, mapped, size);
+                        const D3D12_RANGE no_write{0, 0};
+                        readback->Unmap(0, &no_write);
+                        copied = true;
+                    }
+                }
+                readback->Release();
+                return copied;
+            }
+            void bind_storage_buffer(unsigned int binding, std::uint32_t handle) override
+            {
+                flush_2d();
+                if (binding < max_storage_bindings)
+                    bound_storage_buffers_[binding] = handle;
+            }
+            void bind_texture_unit(unsigned int unit, std::uint32_t texture) override
+            {
+                flush_2d();
+                if (unit < max_texture_units)
+                    bound_texture_units_[unit] = texture;
+            }
+            void bind_storage_texture(unsigned int unit, std::uint32_t texture) override
+            {
+                flush_2d();
+                if (unit < max_image_units)
+                    bound_image_units_[unit] = texture;
+            }
+            void storage_barrier() override
+            {
+                flush_2d();
+                if (!context_.frame_open())
+                    return;
+                D3D12_RESOURCE_BARRIER barrier{};
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                context_.command_list()->ResourceBarrier(1, &barrier);
+            }
 
         private:
             bool initialise_mesh_pipeline()
@@ -1637,12 +2198,13 @@ namespace sl::detail
                 if (srv_heap_ && sampler_heap_)
                     return true;
                 D3D12_DESCRIPTOR_HEAP_DESC desc{};
-                desc.NumDescriptors = descriptor_capacity;
+                desc.NumDescriptors = descriptor_capacity + transient_descriptor_capacity;
                 desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
                 desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
                 HRESULT result = context_.device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&srv_heap_));
                 if (FAILED(result))
                     return false;
+                desc.NumDescriptors = descriptor_capacity + transient_sampler_capacity;
                 desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
                 result = context_.device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&sampler_heap_));
                 if (FAILED(result))
@@ -1684,6 +2246,9 @@ namespace sl::detail
                 for (auto &texture : retired_textures_)
                     release_texture(texture);
                 retired_textures_.clear();
+                for (IUnknown *object : retired_objects_)
+                    object->Release();
+                retired_objects_.clear();
             }
 
             static D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor(ID3D12DescriptorHeap *heap,
@@ -1702,6 +2267,548 @@ namespace sl::detail
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = heap->GetGPUDescriptorHandleForHeapStart();
                 handle.ptr += static_cast<UINT64>(increment) * index;
                 return handle;
+            }
+
+            bool create_storage_resource(std::size_t size, StorageBuffer &buffer)
+            {
+                const std::size_t aligned = (size + 15) & ~static_cast<std::size_t>(15);
+                D3D12_RESOURCE_DESC desc = buffer_description(aligned);
+                desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+                const D3D12_HEAP_PROPERTIES default_heap = heap_properties(D3D12_HEAP_TYPE_DEFAULT);
+                ID3D12Resource *resource = nullptr;
+                if (FAILED(context_.device()->CreateCommittedResource(
+                        &default_heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        nullptr, IID_PPV_ARGS(&resource))))
+                {
+                    last_error_ = "Unable to create the D3D12 storage buffer.";
+                    return false;
+                }
+                buffer.resource = resource;
+                buffer.size = aligned;
+                return true;
+            }
+
+            void release_program(ShaderProgram &program)
+            {
+                for (ID3DBlob *blob : {program.vertex_blob, program.pixel_blob, program.compute_blob})
+                {
+                    if (blob)
+                        blob->Release();
+                }
+                for (ID3D12PipelineState *pipeline : program.pipelines)
+                {
+                    if (pipeline)
+                        pipeline->Release();
+                }
+                if (program.compute_pipeline)
+                    program.compute_pipeline->Release();
+                if (program.root_signature)
+                    program.root_signature->Release();
+                program = {};
+            }
+
+            void retire_program(ShaderProgram &program)
+            {
+                if (!context_.frame_open())
+                {
+                    context_.wait_idle();
+                    release_program(program);
+                    return;
+                }
+                for (ID3D12PipelineState *pipeline : program.pipelines)
+                {
+                    if (pipeline)
+                        retired_objects_.push_back(pipeline);
+                }
+                if (program.compute_pipeline)
+                    retired_objects_.push_back(program.compute_pipeline);
+                if (program.root_signature)
+                    retired_objects_.push_back(program.root_signature);
+                program.pipelines = {};
+                program.compute_pipeline = nullptr;
+                program.root_signature = nullptr;
+                release_program(program);
+            }
+
+            bool store_program(ShaderProgram &program, std::uint32_t &handle)
+            {
+                program.vertex_constants.assign((std::max)(static_cast<std::size_t>(program.vertex.uniform_bytes), std::size_t{16}), 0);
+                program.pixel_constants.assign((std::max)(static_cast<std::size_t>(program.pixel.uniform_bytes), std::size_t{16}), 0);
+                program.sampler_units.assign(program.samplers.size(), 0);
+                handle = next_program_++;
+                if (handle == 0)
+                    handle = next_program_++;
+                programs_.emplace(handle, program);
+                return true;
+            }
+
+            bool create_program_root_signature(ShaderProgram &program, std::string &error)
+            {
+                const D3D12_SHADER_VISIBILITY vertex_visibility =
+                    program.compute ? D3D12_SHADER_VISIBILITY_ALL : D3D12_SHADER_VISIBILITY_VERTEX;
+                const D3D12_SHADER_VISIBILITY pixel_visibility =
+                    program.compute ? D3D12_SHADER_VISIBILITY_ALL : D3D12_SHADER_VISIBILITY_PIXEL;
+                const std::size_t sampler_count = program.samplers.size();
+                std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
+                ranges.reserve(1 + sampler_count * 2);
+                std::vector<D3D12_ROOT_PARAMETER> parameters;
+
+                auto add_constants = [&](std::uint32_t reg, D3D12_SHADER_VISIBILITY visibility) -> int
+                {
+                    D3D12_ROOT_PARAMETER parameter{};
+                    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                    parameter.Descriptor.ShaderRegister = reg;
+                    parameter.ShaderVisibility = visibility;
+                    parameters.push_back(parameter);
+                    return static_cast<int>(parameters.size() - 1);
+                };
+                auto add_table = [&](D3D12_DESCRIPTOR_RANGE_TYPE type, UINT count, UINT reg,
+                                     D3D12_SHADER_VISIBILITY visibility, UINT space = 0) -> int
+                {
+                    D3D12_DESCRIPTOR_RANGE range{};
+                    range.RangeType = type;
+                    range.NumDescriptors = count;
+                    range.BaseShaderRegister = reg;
+                    range.RegisterSpace = space;
+                    range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    ranges.push_back(range);
+                    D3D12_ROOT_PARAMETER parameter{};
+                    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    parameter.DescriptorTable.NumDescriptorRanges = 1;
+                    parameter.DescriptorTable.pDescriptorRanges = nullptr;
+                    parameter.ShaderVisibility = visibility;
+                    parameters.push_back(parameter);
+                    return static_cast<int>(parameters.size() - 1);
+                };
+
+                if (!program.compute && program.vertex.uniform_bytes > 0)
+                    program.vertex_constants_parameter =
+                        add_constants(translated_vertex_constants_register, vertex_visibility);
+                if (program.pixel.uniform_bytes > 0)
+                    program.pixel_constants_parameter =
+                        add_constants(translated_pixel_constants_register, pixel_visibility);
+                if (program.storage_registers > 0)
+                    program.storage_parameter = add_table(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, program.storage_registers,
+                                                          0, D3D12_SHADER_VISIBILITY_ALL);
+                if (program.image_registers > 0)
+                    program.image_parameter = add_table(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, program.image_registers,
+                                                        translated_image_base_register, D3D12_SHADER_VISIBILITY_ALL);
+                if (sampler_count > 0)
+                {
+                    program.texture_parameter_base =
+                        add_table(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, static_cast<UINT>(sampler_count), 0,
+                                  D3D12_SHADER_VISIBILITY_ALL);
+                    program.sampler_parameter_base =
+                        add_table(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, static_cast<UINT>(sampler_count), 0,
+                                  D3D12_SHADER_VISIBILITY_ALL);
+                }
+                // Descriptor tables point at ranges stored in order; patch the pointers now that the vector is final.
+                std::size_t range_index = 0;
+                for (D3D12_ROOT_PARAMETER &parameter : parameters)
+                {
+                    if (parameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+                        parameter.DescriptorTable.pDescriptorRanges = &ranges[range_index++];
+                }
+
+                D3D12_ROOT_SIGNATURE_DESC signature_desc{};
+                signature_desc.NumParameters = static_cast<UINT>(parameters.size());
+                signature_desc.pParameters = parameters.data();
+                signature_desc.Flags = program.compute ? D3D12_ROOT_SIGNATURE_FLAG_NONE
+                                                       : D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+                ID3DBlob *serialized = nullptr;
+                ID3DBlob *messages = nullptr;
+                HRESULT result = D3D12SerializeRootSignature(&signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                                             &serialized, &messages);
+                if (FAILED(result))
+                {
+                    error = messages ? static_cast<const char *>(messages->GetBufferPointer())
+                                     : "Unable to serialize the D3D12 shader root signature.";
+                    if (messages)
+                        messages->Release();
+                    return false;
+                }
+                if (messages)
+                    messages->Release();
+                result = context_.device()->CreateRootSignature(0, serialized->GetBufferPointer(),
+                                                                serialized->GetBufferSize(),
+                                                                IID_PPV_ARGS(&program.root_signature));
+                serialized->Release();
+                if (FAILED(result))
+                {
+                    error = "Unable to create the D3D12 shader root signature.";
+                    return false;
+                }
+                return true;
+            }
+
+            bool set_program_uniform(ShaderProgram &program, const char *name, const void *data, std::size_t size)
+            {
+                if (!name || !data)
+                    return false;
+                flush_if_active(program);
+                bool found = false;
+                const auto vertex = program.vertex.uniforms.find(name);
+                if (vertex != program.vertex.uniforms.end())
+                {
+                    std::memcpy(program.vertex_constants.data() + vertex->second.offset, data,
+                                (std::min<std::size_t>)(size, vertex->second.size));
+                    found = true;
+                }
+                const auto pixel = program.pixel.uniforms.find(name);
+                if (pixel != program.pixel.uniforms.end())
+                {
+                    std::memcpy(program.pixel_constants.data() + pixel->second.offset, data,
+                                (std::min<std::size_t>)(size, pixel->second.size));
+                    found = true;
+                }
+                return found;
+            }
+
+            bool set_sampler_unit(ShaderProgram &program, const char *name, int unit)
+            {
+                if (!name)
+                    return false;
+                const auto &samplers = program.samplers;
+                const auto found = std::find(samplers.begin(), samplers.end(), std::string(name));
+                if (found == samplers.end())
+                    return false;
+                flush_if_active(program);
+                program.sampler_units[static_cast<std::size_t>(found - samplers.begin())] = unit;
+                return true;
+            }
+
+            void flush_if_active(const ShaderProgram &program)
+            {
+                if (active_program_ == 0 || batch_vertices_.empty())
+                    return;
+                const auto active = programs_.find(active_program_);
+                if (active != programs_.end() && &active->second == &program)
+                    flush_2d();
+            }
+
+            D3D12_GPU_VIRTUAL_ADDRESS allocate_constants(const void *data, std::size_t size)
+            {
+                if (!constant_buffer_)
+                {
+                    const D3D12_HEAP_PROPERTIES upload_heap = heap_properties(D3D12_HEAP_TYPE_UPLOAD);
+                    const D3D12_RESOURCE_DESC desc = buffer_description(constant_buffer_bytes);
+                    if (FAILED(context_.device()->CreateCommittedResource(
+                            &upload_heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                            nullptr, IID_PPV_ARGS(&constant_buffer_))))
+                        return 0;
+                    const D3D12_RANGE no_read{0, 0};
+                    if (FAILED(constant_buffer_->Map(0, &no_read, reinterpret_cast<void **>(&mapped_constants_))))
+                    {
+                        constant_buffer_->Release();
+                        constant_buffer_ = nullptr;
+                        return 0;
+                    }
+                }
+                if (constant_serial_ != context_.frame_serial())
+                {
+                    constant_serial_ = context_.frame_serial();
+                    constant_offset_ = 0;
+                }
+                const std::size_t aligned = (((std::max<std::size_t>)(size, 16)) + 255) & ~static_cast<std::size_t>(255);
+                if (constant_offset_ + aligned > constant_buffer_bytes)
+                {
+                    last_error_ = "The D3D12 shader constant buffer is full for this frame.";
+                    return 0;
+                }
+                std::memcpy(mapped_constants_ + constant_offset_, data, size);
+                const D3D12_GPU_VIRTUAL_ADDRESS address = constant_buffer_->GetGPUVirtualAddress() + constant_offset_;
+                constant_offset_ += aligned;
+                return address;
+            }
+
+            std::uint32_t allocate_transient_descriptors(std::uint32_t count)
+            {
+                if (transient_serial_ != context_.frame_serial())
+                {
+                    transient_serial_ = context_.frame_serial();
+                    transient_offset_ = 0;
+                }
+                if (transient_offset_ + count > transient_descriptor_capacity)
+                    return UINT_MAX;
+                const std::uint32_t base = descriptor_capacity + transient_offset_;
+                transient_offset_ += count;
+                return base;
+            }
+
+            std::uint32_t allocate_transient_samplers(std::uint32_t count)
+            {
+                if (transient_sampler_serial_ != context_.frame_serial())
+                {
+                    transient_sampler_serial_ = context_.frame_serial();
+                    transient_sampler_offset_ = 0;
+                }
+                if (transient_sampler_offset_ + count > transient_sampler_capacity)
+                    return UINT_MAX;
+                const std::uint32_t base = descriptor_capacity + transient_sampler_offset_;
+                transient_sampler_offset_ += count;
+                return base;
+            }
+
+            // Returns image textures bound for load/store to their previous resource state.
+            void restore_image_textures()
+            {
+                if (image_restores_.empty())
+                    return;
+                auto *commands = context_.command_list();
+                for (const ImageRestore &entry : image_restores_)
+                {
+                    const auto texture = textures_.find(entry.texture);
+                    if (texture == textures_.end() || texture->second.resource != entry.resource)
+                        continue;
+                    D3D12_RESOURCE_BARRIER barrier{};
+                    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+                    barrier.UAV.pResource = entry.resource;
+                    commands->ResourceBarrier(1, &barrier);
+                    if (entry.state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+                        transition_resource(commands, entry.resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                            entry.state);
+                    texture->second.state = entry.state;
+                }
+                image_restores_.clear();
+            }
+
+            bool bind_program_resources(ShaderProgram &program, bool graphics)
+            {
+                auto *commands = context_.command_list();
+                auto set_table = [&](int parameter, D3D12_GPU_DESCRIPTOR_HANDLE handle)
+                {
+                    if (graphics)
+                        commands->SetGraphicsRootDescriptorTable(static_cast<UINT>(parameter), handle);
+                    else
+                        commands->SetComputeRootDescriptorTable(static_cast<UINT>(parameter), handle);
+                };
+                if (program.storage_parameter >= 0)
+                {
+                    const std::uint32_t base = allocate_transient_descriptors(program.storage_registers);
+                    if (base == UINT_MAX)
+                    {
+                        last_error_ = "The D3D12 transient descriptor heap is full for this frame.";
+                        return false;
+                    }
+                    for (std::uint32_t index = 0; index < program.storage_registers; ++index)
+                    {
+                        D3D12_UNORDERED_ACCESS_VIEW_DESC view{};
+                        view.Format = DXGI_FORMAT_R32_TYPELESS;
+                        view.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+                        view.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+                        view.Buffer.NumElements = 1;
+                        ID3D12Resource *resource = nullptr;
+                        if (index < max_storage_bindings)
+                        {
+                            const auto buffer = storage_buffers_.find(bound_storage_buffers_[index]);
+                            if (buffer != storage_buffers_.end())
+                            {
+                                resource = buffer->second.resource;
+                                view.Buffer.NumElements = static_cast<UINT>(buffer->second.size / 4);
+                            }
+                        }
+                        context_.device()->CreateUnorderedAccessView(
+                            resource, nullptr, &view, cpu_descriptor(srv_heap_, srv_descriptor_size_, base + index));
+                    }
+                    set_table(program.storage_parameter, gpu_descriptor(srv_heap_, srv_descriptor_size_, base));
+                }
+                if (program.image_parameter >= 0)
+                {
+                    const std::uint32_t base = allocate_transient_descriptors(program.image_registers);
+                    if (base == UINT_MAX)
+                    {
+                        last_error_ = "The D3D12 transient descriptor heap is full for this frame.";
+                        return false;
+                    }
+                    for (std::uint32_t index = 0; index < program.image_registers; ++index)
+                    {
+                        D3D12_UNORDERED_ACCESS_VIEW_DESC view{};
+                        view.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                        view.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                        ID3D12Resource *resource = nullptr;
+                        const auto texture = textures_.find(bound_image_units_[index]);
+                        if (texture != textures_.end())
+                        {
+                            resource = texture->second.resource;
+                            const bool pending = std::any_of(
+                                image_restores_.begin(), image_restores_.end(),
+                                [&](const ImageRestore &entry) { return entry.resource == resource; });
+                            if (!pending)
+                            {
+                                image_restores_.push_back({resource, texture->second.state, texture->first});
+                                if (texture->second.state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+                                    transition_resource(commands, resource, texture->second.state,
+                                                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                                texture->second.state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+                            }
+                        }
+                        context_.device()->CreateUnorderedAccessView(
+                            resource, nullptr, &view, cpu_descriptor(srv_heap_, srv_descriptor_size_, base + index));
+                    }
+                    set_table(program.image_parameter, gpu_descriptor(srv_heap_, srv_descriptor_size_, base));
+                }
+                if (!program.samplers.empty())
+                {
+                    const std::uint32_t count = static_cast<std::uint32_t>(program.samplers.size());
+                    const std::uint32_t texture_base = allocate_transient_descriptors(count);
+                    const std::uint32_t sampler_base = allocate_transient_samplers(count);
+                    if (texture_base == UINT_MAX || sampler_base == UINT_MAX)
+                    {
+                        last_error_ = "The D3D12 transient descriptor heap is full for this frame.";
+                        return false;
+                    }
+                    for (std::uint32_t slot = 0; slot < count; ++slot)
+                    {
+                        const int unit = program.sampler_units[slot];
+                        std::uint32_t handle = 0;
+                        if (graphics && unit == 0)
+                            handle = batch_texture_;
+                        else if (unit >= 0 && static_cast<std::uint32_t>(unit) < max_texture_units)
+                            handle = bound_texture_units_[unit];
+                        auto texture = textures_.find(handle != 0 ? handle : white_texture_);
+                        if (texture == textures_.end() ||
+                            texture->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                            texture = textures_.find(white_texture_);
+                        if (texture == textures_.end())
+                            return false;
+                        context_.device()->CopyDescriptorsSimple(
+                            1, cpu_descriptor(srv_heap_, srv_descriptor_size_, texture_base + slot),
+                            cpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor),
+                            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                        context_.device()->CopyDescriptorsSimple(
+                            1, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, sampler_base + slot),
+                            cpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor),
+                            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+                    }
+                    set_table(program.texture_parameter_base,
+                              gpu_descriptor(srv_heap_, srv_descriptor_size_, texture_base));
+                    set_table(program.sampler_parameter_base,
+                              gpu_descriptor(sampler_heap_, sampler_descriptor_size_, sampler_base));
+                }
+                return true;
+            }
+
+            static D3D12_GRAPHICS_PIPELINE_STATE_DESC make_2d_pipeline_desc(
+                ID3D12RootSignature *root_signature, ID3DBlob *vertex, ID3DBlob *pixel, std::size_t primitive,
+                std::size_t variant, const D3D12_INPUT_ELEMENT_DESC *elements, UINT element_count)
+            {
+                D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
+                desc.pRootSignature = root_signature;
+                desc.VS = {vertex->GetBufferPointer(), vertex->GetBufferSize()};
+                desc.PS = {pixel->GetBufferPointer(), pixel->GetBufferSize()};
+                desc.BlendState = blend_description(variant);
+                desc.SampleMask = UINT_MAX;
+                desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+                desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+                desc.RasterizerState.DepthClipEnable = TRUE;
+                desc.DepthStencilState.DepthEnable = FALSE;
+                desc.DepthStencilState.StencilEnable = FALSE;
+                desc.InputLayout = {elements, element_count};
+                desc.PrimitiveTopologyType = primitive == 1   ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE
+                                             : primitive == 2 ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT
+                                                              : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+                desc.NumRenderTargets = 1;
+                desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+                desc.SampleDesc.Count = 1;
+                return desc;
+            }
+
+            ID3D12PipelineState *get_default_pipeline(std::size_t primitive, std::size_t variant)
+            {
+                ID3D12PipelineState *&slot = pipelines_[variant * primitive_pipeline_count + primitive];
+                if (slot)
+                    return slot;
+                static const D3D12_INPUT_ELEMENT_DESC elements[] = {
+                    {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, x)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, u)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+                const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
+                    make_2d_pipeline_desc(root_signature_, default_vertex_blob_, default_pixel_blob_, primitive,
+                                          variant, elements, static_cast<UINT>(std::size(elements)));
+                if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
+                    slot = nullptr;
+                return slot;
+            }
+
+            ID3D12PipelineState *get_program_pipeline(ShaderProgram &program, std::size_t primitive,
+                                                      std::size_t variant)
+            {
+                ID3D12PipelineState *&slot = program.pipelines[variant * primitive_pipeline_count + primitive];
+                if (slot)
+                    return slot;
+                // The translated vertex shaders read their inputs from locations 0 (position), 1 (uv), 2 (colour).
+                static const D3D12_INPUT_ELEMENT_DESC elements[] = {
+                    {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, x)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, u)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+                const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
+                    make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
+                                          primitive, variant, elements, static_cast<UINT>(std::size(elements)));
+                if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
+                {
+                    slot = nullptr;
+                    last_error_ = "Unable to create the D3D12 pipeline state for a user shader.";
+                }
+                return slot;
+            }
+
+            bool bind_default_for_draw(std::size_t primitive, std::size_t variant)
+            {
+                auto texture = textures_.find(batch_texture_ != 0 ? batch_texture_ : white_texture_);
+                if (texture == textures_.end() ||
+                    texture->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    texture = textures_.find(white_texture_);
+                ID3D12PipelineState *pipeline = get_default_pipeline(primitive, variant);
+                if (texture == textures_.end() || !pipeline)
+                    return false;
+                auto *commands = context_.command_list();
+                commands->SetGraphicsRootSignature(root_signature_);
+                ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
+                commands->SetDescriptorHeaps(2, heaps);
+                commands->SetGraphicsRoot32BitConstants(0, 16, projection_.data(), 0);
+                commands->SetPipelineState(pipeline);
+                commands->SetGraphicsRootDescriptorTable(
+                    1, gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor));
+                commands->SetGraphicsRootDescriptorTable(
+                    2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor));
+                return true;
+            }
+
+            bool bind_program_for_draw(ShaderProgram &program, std::size_t primitive, std::size_t variant)
+            {
+                ID3D12PipelineState *pipeline = get_program_pipeline(program, primitive, variant);
+                if (!pipeline)
+                    return false;
+                auto *commands = context_.command_list();
+                commands->SetGraphicsRootSignature(program.root_signature);
+                ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
+                commands->SetDescriptorHeaps(2, heaps);
+                commands->SetPipelineState(pipeline);
+                if (program.vertex_constants_parameter >= 0)
+                {
+                    const D3D12_GPU_VIRTUAL_ADDRESS address =
+                        allocate_constants(program.vertex_constants.data(), program.vertex_constants.size());
+                    if (!address)
+                        return false;
+                    commands->SetGraphicsRootConstantBufferView(
+                        static_cast<UINT>(program.vertex_constants_parameter), address);
+                }
+                if (program.pixel_constants_parameter >= 0)
+                {
+                    const D3D12_GPU_VIRTUAL_ADDRESS address =
+                        allocate_constants(program.pixel_constants.data(), program.pixel_constants.size());
+                    if (!address)
+                        return false;
+                    commands->SetGraphicsRootConstantBufferView(
+                        static_cast<UINT>(program.pixel_constants_parameter), address);
+                }
+                return bind_program_resources(program, true);
             }
 
             bool unsupported()
@@ -1726,7 +2833,35 @@ namespace sl::detail
             ID3D12DescriptorHeap *render_target_heap_ = nullptr;
             ID3D12DescriptorHeap *depth_stencil_heap_ = nullptr;
             ID3D12RootSignature *root_signature_ = nullptr;
-            std::array<ID3D12PipelineState *, 3> pipelines_{};
+            std::array<ID3D12PipelineState *, primitive_pipeline_count * blend_variant_count> pipelines_{};
+            ID3DBlob *default_vertex_blob_ = nullptr;
+            ID3DBlob *default_pixel_blob_ = nullptr;
+            std::unordered_map<std::uint32_t, ShaderProgram> programs_;
+            std::unordered_map<std::uint32_t, StorageBuffer> storage_buffers_;
+            std::uint32_t next_program_ = 1;
+            std::uint32_t next_storage_buffer_ = 1;
+            std::uint32_t active_program_ = 0;
+            std::array<std::uint32_t, max_storage_bindings> bound_storage_buffers_{};
+            std::array<std::uint32_t, max_texture_units> bound_texture_units_{};
+            std::array<std::uint32_t, max_image_units> bound_image_units_{};
+            struct ImageRestore
+            {
+                ID3D12Resource *resource;
+                D3D12_RESOURCE_STATES state;
+                std::uint32_t texture;
+            };
+            std::vector<ImageRestore> image_restores_;
+            std::vector<IUnknown *> retired_objects_;
+            ID3D12Resource *constant_buffer_ = nullptr;
+            std::uint8_t *mapped_constants_ = nullptr;
+            std::size_t constant_offset_ = 0;
+            std::uint64_t constant_serial_ = 0;
+            std::uint32_t transient_offset_ = 0;
+            std::uint32_t transient_sampler_offset_ = 0;
+            std::uint64_t transient_serial_ = 0;
+            std::uint64_t transient_sampler_serial_ = 0;
+            BlendMode blend_mode_ = BlendMode::normal;
+            bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
             std::array<ID3D12PipelineState *, 3> mesh_pipelines_{};
             ID3D12Resource *vertex_buffer_ = nullptr;

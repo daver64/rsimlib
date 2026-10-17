@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
         sl::circlefill(sl::screen, ball_position.x, ball_position.y, 24.0f, {92, 180, 240});
         sl::trianglefill(sl::screen, triangle_a.x, triangle_a.y, triangle_b.x, triangle_b.y,
                          triangle_c.x, triangle_c.y, {210, 150, 72});
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
@@ -85,4 +86,5 @@ int main(int argc, char *argv[])
     sl::destroy_physics_world(world);
     sl::wait_for_graphics();
     sl::shutdown();
+    return 0;
 }

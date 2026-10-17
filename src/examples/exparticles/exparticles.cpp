@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
                            use_blur ? "on" : "off", use_glow ? "on" : "off");
         sl::gprintf_center(104, {175, 190, 210}, "+/-: radius %.1f    Escape: exit", effect_radius);
         sl::gprintf(16, 570, {145, 160, 178}, "Live particles: %d", static_cast<int>(emitter.particle_count()));
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
@@ -149,4 +150,5 @@ int main(int argc, char *argv[])
     sl::destroy_bitmap(composite);
     sl::destroy_bitmap(scene);
     sl::shutdown();
+    return 0;
 }

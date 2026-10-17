@@ -126,6 +126,7 @@ namespace
             sl::gprintf_center(188, {218, 226, 235}, "Left/Right  volume: %d / 255", audio.volume);
             sl::gprintf_center(232, {145, 160, 178}, "Escape  exit");
         }
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

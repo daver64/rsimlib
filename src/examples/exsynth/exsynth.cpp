@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
             y += 28;
         }
         sl::gprintf_center(240, {145, 160, 178}, "Escape  exit");
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

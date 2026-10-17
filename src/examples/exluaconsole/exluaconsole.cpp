@@ -141,6 +141,7 @@ void update_and_render_lua_console()
         y += fontheight;
     }
     sl::textout_cached(input_cache, font, margin, y, text_colour, prompt + input_line + "_");
+    sl::draw_renderer_label();
     sl::show_video_bitmap();
     sl::end_frame();
 }
@@ -197,4 +198,5 @@ int main(int argc, char *argv[])
     sl::music_shutdown();
     sl::wait_for_graphics();
     sl::shutdown();
+    return 0;
 }

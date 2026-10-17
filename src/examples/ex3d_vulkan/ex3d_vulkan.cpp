@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
             context->record_3d_draw(pipeline.pipeline, pipeline.layout, vertex_buffer.buffer,
                                     36, glm::value_ptr(mvp), frame_error);
             sl::gprintf_center(32, {232, 236, 244}, "Vulkan 3D example - Escape to exit");
+            sl::draw_renderer_label();
             context->end_frame(frame_error);
         }
     }

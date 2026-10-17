@@ -336,6 +336,7 @@ int main(int argc, char *argv[])
         // Bottom status bar
         sl::gprintf(24, 600, status_colour, "Status: %s", status_message.c_str());
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

@@ -80,6 +80,7 @@ namespace
         sl::line(sl::screen, static_cast<float>(mouse_x), static_cast<float>(mouse_y) - 12.0f,
                  static_cast<float>(mouse_x), static_cast<float>(mouse_y) + 12.0f, {235, 220, 155});
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

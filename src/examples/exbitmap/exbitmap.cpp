@@ -1,21 +1,5 @@
 #include "sl.h"
 #include <iostream>
-void process_input()
-{
-    bool running = true;
-    while (running)
-    {
-        sl::Event event;
-
-        while (sl::poll_event(&event))
-        {
-            if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
-            {
-                running = false;
-            } // Handle input here
-        }
-    }
-}
 int main(int argc, char *argv[])
 {
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
@@ -30,13 +14,28 @@ int main(int argc, char *argv[])
         std::cerr << "Failed to load bitmap!" << std::endl;
         return -2;
     }
-    sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
-    sl::blit(bitmap, sl::screen, 0, 0, 100, 100, bitmap->width, bitmap->height);
+    sl::set_fps(60);
+    bool running = true;
+    while (running)
+    {
+        sl::Event event;
+        while (sl::poll_event(&event))
+        {
+            if (event.type() == sl::Event::Type::key_down || event.type() == sl::Event::Type::quit)
+            {
+                running = false;
+            }
+            sl::display_handle_event(event);
+        }
 
-    sl::show_video_bitmap();
-    sl::end_frame();
-    process_input();
+        sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
+        sl::blit(bitmap, sl::screen, 0, 0, 100, 100, bitmap->width, bitmap->height);
+        sl::draw_renderer_label();
+        sl::show_video_bitmap();
+        sl::end_frame();
+    }
     sl::wait_for_graphics();
+    sl::destroy_bitmap(bitmap);
     sl::shutdown();
     return 0;
 }

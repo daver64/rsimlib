@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
         sl::clear_to_colour(sl::screen, {45, 48, 56});
         sl::gprintf_center(32, {0, 255, 0}, "Rotating sprite - press Escape to exit");
         sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, angle_degrees);
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

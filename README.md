@@ -86,10 +86,10 @@ sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
 
 Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's `FetchContent` — no manual setup required.
 
-On Windows, install GLEW with vcpkg and configure CMake with the vcpkg toolchain; GLEW loads the OpenGL 4.3 entry points used by the optional OpenGL backend:
+On Windows, install GLEW, libpng, and zlib with vcpkg, then configure CMake with the vcpkg toolchain. GLEW loads the OpenGL 4.3 entry points used by the optional OpenGL backend; libpng and zlib are required by PNG export:
 
 ```powershell
-vcpkg install glew:x64-windows
+vcpkg install glew:x64-windows libpng:x64-windows zlib:x64-windows glslang:x64-windows spirv-cross:x64-windows directx-dxc:x64-windows
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake"
 ```
 

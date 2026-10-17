@@ -1,6 +1,7 @@
 #include "sl.h"
 
 #include <cmath>
+#include <cstdio>
 #include <string_view>
 #include <vector>
 
@@ -34,6 +35,7 @@ int main(int argc, char *argv[])
     sl::LightingPass lighting;
     if (!scene || !lighting.initialise())
     {
+        std::fprintf(stderr, "lighting init failed: %s\n", lighting.error().c_str());
         sl::destroy_bitmap(scene);
         sl::destroy_bitmap(balloon);
         sl::shutdown();
@@ -90,6 +92,7 @@ int main(int argc, char *argv[])
         const std::vector<sl::Light> lights = {warm_light, cool_light};
         lighting.apply(scene, lights, 0, 0, 800, 600,
                        disable_shadows ? std::vector<sl::ShadowCaster>{} : casters);
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

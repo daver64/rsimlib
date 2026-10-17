@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
         if (show_metrics)
             sl::gui_show_metrics_window(show_metrics);
         sl::gui_render();
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

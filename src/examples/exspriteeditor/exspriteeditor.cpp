@@ -1478,6 +1478,7 @@ int main(int argc, char **argv)
         app.render_gui();
         sl::gui_render();
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

@@ -110,6 +110,7 @@ namespace
 			y += 24;
 		}
 
+		sl::draw_renderer_label();
 		sl::show_video_bitmap();
 		sl::end_frame();
 	}

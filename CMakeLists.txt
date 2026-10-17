@@ -292,6 +292,7 @@ if(WIN32)
     target_sources(simlib PRIVATE
         src/engine/d3d12_context.cpp
         src/engine/d3d12_renderer.cpp
+        src/engine/d3d12_shader_translator.cpp
     )
 endif()
 target_include_directories(simlib PUBLIC
@@ -319,6 +320,50 @@ target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
     target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler GLEW::GLEW)
+    # The D3D12 backend translates GLSL to HLSL (glslang -> SPIR-V -> SPIRV-Cross) at runtime.
+    # Install with: vcpkg install glslang:x64-windows spirv-cross:x64-windows
+    find_package(glslang CONFIG QUIET)
+    set(_sc_prefix "")
+    if(DEFINED _VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        set(_sc_prefix "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    endif()
+    find_path(SPIRV_CROSS_INCLUDE_DIR spirv_cross/spirv_hlsl.hpp HINTS "${_sc_prefix}/include")
+    set(_sc_found TRUE)
+    set(_sc_libs "")
+    foreach(_sc_name spirv-cross-hlsl spirv-cross-glsl spirv-cross-core)
+        find_library(SPIRV_CROSS_${_sc_name}_RELEASE NAMES ${_sc_name} HINTS "${_sc_prefix}/lib" NO_DEFAULT_PATH)
+        find_library(SPIRV_CROSS_${_sc_name}_DEBUG NAMES ${_sc_name}d HINTS "${_sc_prefix}/debug/lib" NO_DEFAULT_PATH)
+        if(NOT SPIRV_CROSS_${_sc_name}_RELEASE)
+            set(_sc_found FALSE)
+        else()
+            if(NOT SPIRV_CROSS_${_sc_name}_DEBUG)
+                set(SPIRV_CROSS_${_sc_name}_DEBUG "${SPIRV_CROSS_${_sc_name}_RELEASE}")
+            endif()
+            list(APPEND _sc_libs optimized "${SPIRV_CROSS_${_sc_name}_RELEASE}" debug "${SPIRV_CROSS_${_sc_name}_DEBUG}")
+        endif()
+    endforeach()
+    if(TARGET glslang::glslang AND TARGET glslang::SPIRV AND SPIRV_CROSS_INCLUDE_DIR AND _sc_found)
+        target_compile_definitions(simlib PRIVATE SIMLIB_D3D12_SHADER_TRANSLATION=1)
+        target_include_directories(simlib PRIVATE "${SPIRV_CROSS_INCLUDE_DIR}")
+        target_link_libraries(simlib PRIVATE glslang::glslang glslang::SPIRV
+                              glslang::glslang-default-resource-limits ${_sc_libs})
+    else()
+        message(WARNING "glslang/spirv-cross not found: D3D12 user shaders and effects will be unavailable. "
+                        "Run: vcpkg install glslang:x64-windows spirv-cross:x64-windows")
+    endif()
+    find_package(directx-dxc CONFIG QUIET)
+    find_path(DXC_INCLUDE_DIR dxcapi.h HINTS "${_sc_prefix}/include" PATH_SUFFIXES directx-dxc)
+    if(DXC_INCLUDE_DIR)
+        target_include_directories(simlib PRIVATE "${DXC_INCLUDE_DIR}")
+        target_compile_definitions(simlib PRIVATE SIMLIB_HAVE_DXC=1)
+        if(_sc_prefix)
+            target_compile_definitions(simlib PRIVATE
+                "SIMLIB_DXC_DIR=\"$<IF:$<CONFIG:Debug>,${_sc_prefix}/debug/bin,${_sc_prefix}/bin>\"")
+        endif()
+    else()
+        message(WARNING "directx-dxc not found: D3D12 shaders will use shader model 5.1 (16 samplers). "
+                        "Run: vcpkg install directx-dxc:x64-windows")
+    endif()
 endif()
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
@@ -696,3 +741,4 @@ configure_package_config_file(
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )
+

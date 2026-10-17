@@ -1143,6 +1143,7 @@ int main(int argc, char *argv[])
                     grid.count_elements(ElementType::Fire),
                     paused ? "PAUSED" : "RUNNING");
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

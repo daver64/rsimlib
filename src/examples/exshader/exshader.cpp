@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
         sl::gprintf_center(160, ready ? sl::Colour{130, 220, 150} : sl::Colour{240, 130, 120},
                            ready ? "Tint shader is drawing the balloon" : "shader or texture loading failed");
         sl::gprintf_center(200, {160, 175, 195}, "Press Escape to exit");
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }

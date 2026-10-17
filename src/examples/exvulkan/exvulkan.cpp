@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
             bloom.apply(scene, 0, 0, sl::screen_width(), sl::screen_height());
         }
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
@@ -68,4 +69,5 @@ int main(int argc, char *argv[])
     bloom.shutdown();
     sl::destroy_bitmap(balloon);
     sl::shutdown();
+    return 0;
 }

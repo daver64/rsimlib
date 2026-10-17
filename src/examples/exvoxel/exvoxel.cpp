@@ -940,6 +940,7 @@ int main(int argc, char *argv[])
                                ? "[WASD] Fly  [Space/C] Up/Down  [L-Click] Break  [R-Click] Place  [Tab/Esc] Free cursor  [1-9,0] Block"
                                : "[Click Window/Tab] Lock mouse & look  [WASD] Move  [Esc] Exit  [1-9] Block");
 
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
 

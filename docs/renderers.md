@@ -90,6 +90,14 @@ cmake --build build --target shader_validation
 cmake --build build --target vulkan_shader_validation
 ```
 
+### D3D12 shaders
+
+The D3D12 backend translates GLSL to HLSL (glslang, then SPIR-V, then SPIRV-Cross) and compiles it with DXC to
+shader model 6.x (up to 6.6, as supported by the device). It supports user shaders, compute, storage buffers,
+`image2D` storage textures, vertex-stage samplers and up to 32 samplers per shader. If `dxcompiler.dll` and
+`dxil.dll` are missing (`vcpkg install directx-dxc:x64-windows`), it falls back to fxc at shader model 5.1,
+limited to 16 samplers per shader. Ship both DLLs next to your executable.
+
 ---
 
 ## Surface3D

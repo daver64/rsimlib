@@ -107,8 +107,7 @@ int main(int argc, char *argv[])
             sl::rectfill(sl::surface_3d_bitmap(surface), 16.0f, 16.0f, 250.0f, 68.0f, {15, 20, 35, 200});
             sl::rect(sl::surface_3d_bitmap(surface), 16.0f, 16.0f, 250.0f, 68.0f, {80, 160, 240, 255}, 1.5f);
             sl::gprintf(26, 24, {255, 255, 255}, "MSAA %dx Surface3D", sl::surface_3d_samples(surface));
-            sl::gprintf(26, 42, {160, 200, 255}, "2D HUD on %s",
-                        sl::graphics_backend() == sl::GraphicsBackend::vulkan ? "Vulkan" : "OpenGL");
+            sl::gprintf(26, 42, {160, 200, 255}, "2D HUD on %s", sl::graphics_backend_name().c_str());
 
             sl::end_surface_3d();
         }
@@ -116,6 +115,7 @@ int main(int argc, char *argv[])
         sl::clear_to_colour(sl::screen, {40, 40, 40});
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
         sl::gprintf_center(32, {232, 236, 244}, "Surface3D example - Escape to exit");
+        sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
 
