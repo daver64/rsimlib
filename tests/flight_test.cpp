@@ -236,6 +236,23 @@ namespace
         check(world.set_group_level(id, "pitch_up", 0.5) && b->thrusters[1].level == 0.5, "named group level");
         check(!world.set_group_level(id, "nonsense", 1.0), "unknown group rejected");
         check(!world.add_group(id, "bad", {7}), "bad thruster index rejected");
+
+        // A main and retro engine share translation groups with the RCS; RCS commands must not zero them.
+        sl::FlightWorld ship_world;
+        const int ship = ship_world.create_body("ship");
+        sl::FlightBody *s = ship_world.body(ship);
+        sl::Thruster main;
+        main.max_thrust = 1000.0;
+        main.direction = {0, 0, -1};
+        s->thrusters.push_back(main);
+        main.direction = {0, 0, 1};
+        s->thrusters.push_back(main);
+        ship_world.build_standard_groups(ship);
+        ship_world.set_group_level(ship, "main", 0.8);
+        ship_world.set_group_level(ship, "retro", 0.3);
+        ship_world.set_rcs_rotation(ship, 1.0, 0.0, 0.0);
+        ship_world.set_rcs_translation(ship, 0.0, 0.0, 0.0);
+        check(s->thrusters[0].level == 0.8 && s->thrusters[1].level == 0.3, "RCS commands leave main and retro engines alone");
     }
 
     double wing_lift(double alpha)

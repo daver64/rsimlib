@@ -468,11 +468,19 @@ namespace sl
             {"yaw_right", 1, -1, true}, {"roll_left", 2, 1, true}, {"roll_right", 2, -1, true},
             {"x+", 0, 1, false}, {"x-", 0, -1, false}, {"y+", 1, 1, false},
             {"y-", 1, -1, false}, {"z+", 2, 1, false}, {"z-", 2, -1, false}};
+        // Main and retro engines are driven by their own throttle, not by RCS commands, even though their
+        // direction also places them in the z translation groups.
+        std::vector<bool> engine(b.thrusters.size(), false);
+        for (const ThrusterGroup &g : b.groups)
+            if (g.name == "main" || g.name == "retro")
+                for (int index : g.thrusters)
+                    engine[index] = true;
         for (const Binding &bind : bindings)
             for (const ThrusterGroup &g : b.groups)
                 if (g.name == bind.name)
                     for (int index : g.thrusters)
-                        b.thrusters[index].level = 0.0;
+                        if (!engine[index])
+                            b.thrusters[index].level = 0.0;
         for (const Binding &bind : bindings)
         {
             const double command = bind.rotation ? b.rcs_rotation[bind.axis] : b.rcs_translation[bind.axis];
@@ -482,7 +490,8 @@ namespace sl
             for (const ThrusterGroup &g : b.groups)
                 if (g.name == bind.name)
                     for (int index : g.thrusters)
-                        b.thrusters[index].level = std::max(b.thrusters[index].level, level);
+                        if (!engine[index])
+                            b.thrusters[index].level = std::max(b.thrusters[index].level, level);
         }
     }
 

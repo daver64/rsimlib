@@ -316,7 +316,10 @@ namespace sl
          * "yaw_left", "yaw_right", "roll_left", "roll_right". Existing groups with those names are replaced.
          */
         void build_standard_groups(int id);
-        /** Drive the RCS rotation groups with values from -1 to 1 (pitch up, yaw left, roll left positive). */
+        /**
+         * Drive the RCS rotation groups with values from -1 to 1 (pitch up, yaw left, roll left positive). RCS
+         * commands never change thrusters in the "main" or "retro" groups.
+         */
         void set_rcs_rotation(int id, double pitch, double yaw, double roll);
         /** Drive the RCS translation groups with values from -1 to 1 along body X, Y and Z. */
         void set_rcs_translation(int id, double x, double y, double z);

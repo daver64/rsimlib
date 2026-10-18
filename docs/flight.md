@@ -35,7 +35,7 @@ Mass is `dry_mass` plus propellant in `tanks`; `dry_inertia` scales with the cur
 ## Forces and vehicle parts
 
 - **Thrusters** (`Thruster`): position, direction, `max_thrust`, `isp`, `tank` and `level` (0-1). Propellant use is `thrust / (isp * g0)`; an empty tank gives no thrust. `air_breathing` thrusters fade with air density.
-- **Thruster groups**: `add_group`, `set_group_level`, and `build_standard_groups(id)`, which builds `main`, `retro`, `hover`, translation groups (`x+`, `x-`, `y+`, `y-`, `z+`, `z-`) and rotation groups (`pitch_up`, `pitch_down`, `yaw_left`, `yaw_right`, `roll_left`, `roll_right`). `set_rcs_rotation` and `set_rcs_translation` drive them with -1..1 inputs.
+- **Thruster groups**: `add_group`, `set_group_level`, and `build_standard_groups(id)`, which builds `main`, `retro`, `hover`, translation groups (`x+`, `x-`, `y+`, `y-`, `z+`, `z-`) and rotation groups (`pitch_up`, `pitch_down`, `yaw_left`, `yaw_right`, `roll_left`, `roll_right`). `set_rcs_rotation` and `set_rcs_translation` drive them with -1..1 inputs; thrusters in the `main` and `retro` groups are never changed by RCS commands, so engine throttle and RCS can be used together.
 - **Lifting surfaces** (`LiftingSurface`): linear lift slope to a stall angle then a flat-plate blend, with `cl0`, `cd0` and induced drag. `control_name` and `control_gain` make a surface a control surface; set it with `set_control(id, name, value)`. Stalls, trim and control authority emerge from the coefficients.
 - **Landing gear** (`GearContact`): spring/damper against flat ground or a planet surface, with lateral friction, rolling resistance and brakes (`set_brakes`). `compression` reports the last step.
 - **Parasitic drag**: `drag_area` (Cd * A) and `angular_damping`.

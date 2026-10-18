@@ -12,6 +12,7 @@
 //
 //   Z/X: full / cut main engine    Shift/Ctrl: raise / lower throttle    B: retro engines
 //   W/S: pitch   A/D: yaw   Q/E: roll   Arrow keys: RCS translation X/Y   T: rotation damping (SAS)
+//   O: toggle orbit line (shown when zoomed out)
 //   , / . : time warp (slows to 1x while thrusting)   Right-drag: look around   [ / ]: zoom   R: reset   Esc: exit
 
 namespace
@@ -152,6 +153,7 @@ int main(int argc, char **argv)
     double cam_distance = 40.0; // metres
     int warp = 0;
     bool sas = false;
+    bool show_orbit = true;
     bool running = true;
     int last_mouse_x = 0, last_mouse_y = 0;
     std::uint32_t last_time = sl::time_ms();
@@ -180,6 +182,8 @@ int main(int argc, char **argv)
                 }
                 else if (key == sl::Event::Key::letter_t)
                     sas = !sas;
+                else if (key == sl::Event::Key::letter_o)
+                    show_orbit = !show_orbit;
                 else if (key == sl::Event::Key::letter_z)
                     world.set_group_level(scenario.ship, "main", 1.0);
                 else if (key == sl::Event::Key::letter_x)
@@ -285,16 +289,29 @@ int main(int argc, char **argv)
         sl::OrbitElements elements;
         const bool have_orbit = world.orbit_of(scenario.ship, scenario.earth, elements);
         const glm::mat4 view_proj = camera.projection_matrix(static_cast<float>(screen_w) / screen_h) * camera.view_matrix();
-        if (have_orbit)
+        // At close range the orbit is a straight line through the ship, so only draw it once zoomed out.
+        if (have_orbit && show_orbit && cam_distance > 5.0e3)
         {
-            const std::vector<sl::dvec3> path = sl::orbit_path(earth_gm, elements, 240, 2.0e9);
+            const std::vector<sl::dvec3> path = sl::orbit_path(earth_gm, elements, 360, 2.0e9);
+            const glm::vec3 eye = camera.position;
+            const float earth_r = static_cast<float>(earth_radius / km);
             bool have_previous = false;
             float px = 0.0f, py = 0.0f;
             for (const sl::dvec3 &point : path)
             {
+                const glm::vec3 p = to_km(point + earth.position - ship.position);
+                // Hide the part of the orbit that Earth covers from the camera.
+                const glm::vec3 ray = p - eye;
+                const float ray_length = glm::length(ray);
+                const glm::vec3 dir = ray / ray_length;
+                const glm::vec3 to_centre = earth_p - eye;
+                const float along = glm::dot(to_centre, dir);
+                const bool hidden = along > 0.0f && along < ray_length &&
+                                    glm::length(to_centre - dir * along) < earth_r * 0.999f;
                 float x = 0.0f, y = 0.0f;
-                const bool visible = project(view_proj, to_km(point + earth.position - ship.position), screen_w, screen_h, x, y);
-                if (visible && have_previous && std::fabs(x) < 1.0e5f && std::fabs(y) < 1.0e5f)
+                const bool visible = !hidden && project(view_proj, p, screen_w, screen_h, x, y) &&
+                                     std::fabs(x) < 1.0e4f && std::fabs(y) < 1.0e4f;
+                if (visible && have_previous)
                     sl::line(sl::screen, px, py, x, y, {80, 255, 120});
                 have_previous = visible;
                 px = x;
@@ -319,7 +336,7 @@ int main(int argc, char **argv)
                     glm::degrees(ship.angular_velocity.x), glm::degrees(ship.angular_velocity.y),
                     glm::degrees(ship.angular_velocity.z));
         sl::gprintf_center(screen_h - 22, {200, 210, 220},
-                           "[Z/X] Main  [Shift/Ctrl] Throttle  [B] Retro  [WASDQE] Rotate  [Arrows] Translate  [T] SAS  [,/.] Warp  [R-drag] Look  [ [ ] ] Zoom");
+                           "[Z/X] Main  [Shift/Ctrl] Throttle  [B] Retro  [WASDQE] Rotate  [Arrows] Translate  [T] SAS  [O] Orbit  [,/.] Warp  [R-drag] Look  [ [ ] ] Zoom");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
