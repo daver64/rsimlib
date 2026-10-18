@@ -276,6 +276,7 @@ add_library(simlib STATIC
     src/engine/config.cpp
     src/engine/noise.cpp
     src/engine/fluid.cpp
+    src/engine/fluid3d.cpp
     src/engine/gui.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
@@ -498,6 +499,9 @@ target_link_libraries(ex3d_surface PRIVATE simlib)
 add_executable(exvoxel src/examples/exvoxel/exvoxel.cpp)
 target_link_libraries(exvoxel PRIVATE simlib)
 
+add_executable(exfluid3d src/examples/exfluid3d/exfluid3d.cpp)
+target_link_libraries(exfluid3d PRIVATE simlib)
+
 add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
 target_include_directories(ex3d_vulkan PRIVATE src/engine)
 target_compile_definitions(ex3d_vulkan PRIVATE
@@ -652,6 +656,11 @@ if(BUILD_TESTING)
     target_compile_definitions(voxel_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME voxel COMMAND voxel_test)
 
+    add_executable(fluid3d_test tests/fluid3d_test.cpp)
+    target_link_libraries(fluid3d_test PRIVATE simlib)
+    target_compile_definitions(fluid3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME fluid3d COMMAND fluid3d_test)
+
     if(WIN32)
         add_executable(d3d12_renderer_test tests/d3d12_renderer_test.cpp)
         target_link_libraries(d3d12_renderer_test PRIVATE simlib)
@@ -663,7 +672,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)

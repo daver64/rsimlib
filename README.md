@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL, Vulkan and D3D12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, cellular automata fluid simulation, Perlin/Simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL, Vulkan and D3D12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, 2D and 3D (voxel-integrated) cellular automata fluid simulation, Perlin/Simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -250,6 +250,7 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
 ./build/exisometric     # 2.5D isometric projection, tile picking, elevation, and 2D lighting
 ./build/ex3d_surface    # Offscreen 3D surface with MSAA, models (OBJ/glTF/GLB), and 2D HUD
+./build/exfluid3d       # 3D fluid simulation on a voxel world (water, lava, fire, sand...)
 ./build/exvoxel         # 16x16x16 voxel chunk rendering (Minecraft clone demo)
 ./build/ex3d_gl         # Direct OpenGL 3D escape hatch
 ./build/ex3d_vulkan     # Direct Vulkan 3D escape hatch
@@ -303,6 +304,7 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB), directional lighting, and 2D HUD compositing.
+- **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool.
 - **[`exvoxel`](src/examples/exvoxel/exvoxel.cpp)** — Minecraft clone demo: 16x16x16 voxel chunk rendering, hidden-face culling, procedural terrain (FastNoiseLite), pixel-art texture atlas, first-person camera, and 3D DDA block break/place raycasting.
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.

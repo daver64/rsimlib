@@ -20,6 +20,7 @@
 #include "event.h"
 #include "font.h"
 #include "fluid.h"
+#include "fluid3d.h"
 #include "graphics_fx.h"
 #include "gamepad.h"
 #include "gui.h"

@@ -25,6 +25,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 16. [Isometric Math & Projection](#isometric-math--projection-isometrich)
 17. [JSON Configuration](#json-configuration-configh)
 18. [Tile Maps](#tile-maps-tilemaph)
+19. [3D Fluid Simulation](#3d-fluid-simulation-fluid3dh)
 
 ---
 
@@ -1012,3 +1013,32 @@ Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled 
 - `draw_sprite_region_flipped()` (in `draw.h`) draws a bitmap region with horizontal, vertical and diagonal flips.
 
 See [`extilemap`](../src/examples/extilemap/extilemap.cpp) for a scrolling map with collision and animation.
+
+---
+
+## 3D Fluid Simulation ([include/fluid3d.h](../include/fluid3d.h))
+
+A 3D version of the cellular automata simulation that works hand in hand with the voxel engine. It is a separate type from the 2D `CAFluidGrid`; the 2D API is unchanged. It simulates a bounded active region, reads solids from a `VoxelWorld` and writes fluid cells back as fluid blocks.
+
+```cpp
+FluidSimulation3D *create_fluid_simulation_3d(int width, int height, int depth);
+void destroy_fluid_simulation_3d(FluidSimulation3D *sim);
+void fluid3d_step(FluidSimulation3D *sim);
+bool fluid3d_set_cell(FluidSimulation3D *sim, int x, int y, int z, FluidElement type, float mass = 1.0f);
+FluidCell fluid3d_get_cell(const FluidSimulation3D *sim, int x, int y, int z);
+
+// Voxel bridge
+void fluid3d_register_blocks(const FluidVoxelBlocks &blocks = {});   // block ids 200-212, one per element
+void fluid3d_import_from_voxels(FluidSimulation3D *sim, const VoxelWorld &world, const FluidVoxelBlocks &blocks = {});
+size_t fluid3d_export_to_voxels(FluidSimulation3D *sim, VoxelWorld &world, const FluidVoxelBlocks &blocks = {});
+void fluid3d_move_region(FluidSimulation3D *sim, VoxelWorld &world, int ox, int oy, int oz, const FluidVoxelBlocks &blocks = {});
+```
+
+Typical loop: `fluid3d_import_from_voxels` once, then each frame `fluid3d_step`, `fluid3d_export_to_voxels` (only changed voxels are written) and `world.update_dirty_chunks()`.
+
+Notes:
+- The outermost layer of cells is read-only context (solid boundary); keep the area of interest inside it.
+- Simulation is performed in 8x8x8 blocks that sleep when nothing changes. `max_blocks_per_step` caps the work per step; blocks are visited with a rotating cursor.
+- Use `fluid3d_move_region` to make the region follow the player: it exports, moves the origin and re-imports. Fluid outside the region stays frozen as blocks.
+- Differences from 2D: no mass-based pressure model (liquids level by sliding sideways), and only water quenches fire.
+- See the `exfluid3d` example.
