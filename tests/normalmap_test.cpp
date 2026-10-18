@@ -15,10 +15,10 @@ int main(int argc, char *argv[])
         std::printf("no display available, skipping\n");
         return 0;
     }
-    // Render-target readback after a lighting pass is only reliable on OpenGL.
-    if (sl::graphics_backend() != sl::GraphicsBackend::opengl)
+    // Render-target readback after a lighting pass is not reliable on Vulkan.
+    if (sl::graphics_backend() == sl::GraphicsBackend::vulkan)
     {
-        std::printf("not OpenGL, skipping\n");
+        std::printf("Vulkan, skipping\n");
         sl::shutdown();
         return 0;
     }

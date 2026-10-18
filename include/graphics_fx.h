@@ -759,7 +759,7 @@ namespace sl
         /**
          * Like the batch overload below, but lights surfaces using a normal buffer rendered between
          * begin_normal_pass() and end_normal_pass(). Pixels the normal buffer did not write are lit as before.
-         * Normal-mapped lighting is available on OpenGL and Vulkan only.
+         * Normal-mapped lighting is available on OpenGL, Vulkan, and D3D12.
          */
         void apply(Bitmap *source, Bitmap *normals, const std::vector<Light> &lights, int x = 0, int y = 0,
                    int width = 0, int height = 0,
@@ -774,7 +774,8 @@ namespace sl
                const std::vector<ShadowCaster> &casters = {}) const;
 
     private:
-        void apply_via_scratch(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
+        void apply_via_scratch(Bitmap *source, Bitmap *normals, const std::vector<Light> &lights,
+                               int x, int y, int width, int height,
                                const std::vector<ShadowCaster> &casters) const;
         Shader shader_;
         Shader cullShader_;

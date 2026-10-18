@@ -200,8 +200,8 @@ namespace sl
 		apply(source, std::vector<Light>{light}, x, y, width, height, casters);
 	}
 
-	void LightingPass::apply_via_scratch(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width,
-										 int height, const std::vector<ShadowCaster> &casters) const
+	void LightingPass::apply_via_scratch(Bitmap *source, Bitmap *normals, const std::vector<Light> &lights, int x, int y,
+										 int width, int height, const std::vector<ShadowCaster> &casters) const
 	{
 		if (scratchTarget_ && (scratchTarget_->width != source->width || scratchTarget_->height != source->height))
 		{
@@ -222,7 +222,7 @@ namespace sl
 		end_render_target();
 		if (begin_render_target(scratchTarget_))
 		{
-			apply(source, lights, x, y, regionWidth, regionHeight, casters);
+			apply(source, normals, lights, x, y, regionWidth, regionHeight, casters);
 			end_render_target();
 		}
 		if (begin_render_target(source))
@@ -258,10 +258,10 @@ namespace sl
 		{
 			return;
 		}
-		const bool useNormals = normals && graphics_backend() != GraphicsBackend::d3d12 && upload_bitmap(normals);
+		const bool useNormals = normals && upload_bitmap(normals);
 		if (graphics_backend() == GraphicsBackend::d3d12 && detail::is_active_render_target(source))
 		{
-			apply_via_scratch(source, lights, x, y, width, height, casters);
+			apply_via_scratch(source, normals, lights, x, y, width, height, casters);
 			return;
 		}
 		const bool sourceFlipVertical = graphics_backend() == GraphicsBackend::vulkan ? false : flipVertical;
