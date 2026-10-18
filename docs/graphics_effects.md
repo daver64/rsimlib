@@ -11,7 +11,7 @@
 Post-processing effects operate on render targets and bitmaps. [`expostprocess`](../src/examples/expostprocess/expostprocess.cpp) shows how to compose them with `PingPongBuffer`, including an interactive Shockwave triggered from the mouse position.
 
 ### Lifecycle Note
-Effects that own GPU resources must be initialized after `set_gfx_mode()` and shut down before the display is destroyed. After the final frame, call `wait_for_graphics()` once before releasing GPU-backed effects, render targets, bitmaps, or ImGui resources; call `shutdown()` last.
+Effects that own GPU resources must be initialised after `set_gfx_mode()` and shut down before the display is destroyed. After the final frame, call `wait_for_graphics()` once before releasing GPU-backed effects, render targets, bitmaps, or ImGui resources; call `shutdown()` last.
 
 ### Available Effects
 
@@ -27,7 +27,7 @@ Effects that own GPU resources must be initialized after `set_gfx_mode()` and sh
 | `Pixelate` | `initialise`, `set_pixel_size`, `apply`, `shutdown` | Reduce a bitmap to configurable screen-space colour blocks. |
 | `RadialBlur` | `initialise`, `set_centre`, `set_strength`, `set_samples`, `apply`, `shutdown` | Blur along rays from a focal point. |
 | `HeatHaze` | `initialise`, `set_strength`, `set_frequency`, `set_time`, `apply`, `shutdown` | Apply animated sinusoidal UV distortion. |
-| `Shockwave` | `initialise`, `set_centre`, `set_radius`, `set_width`, `set_strength`, `apply`, `shutdown` | Push pixels outward along an expanding ring centered on a focal point. |
+| `Shockwave` | `initialise`, `set_centre`, `set_radius`, `set_width`, `set_strength`, `apply`, `shutdown` | Push pixels outward along an expanding ring centred on a focal point. |
 | `CRTFilter` | `initialise`, `set_pixel_size`, `set_scanline_strength`, `set_curvature`, `apply`, `shutdown` | Combine scanlines, light curvature, and pixelation for a CRT look. |
 | `DitherFilter` | `initialise`, `set_pixel_size`, `set_levels`, `apply`, `shutdown` | Apply ordered Bayer dithering to reduce colour depth. |
 | `FilmGrain` | `initialise`, `set_strength`, `set_time`, `apply`, `shutdown` | Add animated monochrome film grain with configurable intensity. |

@@ -6,7 +6,7 @@ https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
 
 `excafluid` ([src/examples/excafluid/excafluid.cpp](../src/examples/excafluid/excafluid.cpp)) is an interactive sandbox simulation combining a multi-material **Cellular Automata (CA)** fluid engine ([src/engine/fluid.cpp](../src/engine/fluid.cpp)) with **Box2D rigid-body physics** and **2D dynamic spotlight illumination**.
 
-It implements the compressible fluid and physical modeling principles described in Tom Forsyth's *Cellular Automata for Physical Modelling*, supporting 14 distinct materials, thermodynamic heat conduction, chemical phase changes, Archimedes buoyancy coupling, explosive pressure waves, and dynamic lighting.
+It implements the compressible fluid and physical modelling principles described in Tom Forsyth's *Cellular Automata for Physical Modelling*, supporting 14 distinct materials, thermodynamic heat conduction, chemical phase changes, Archimedes buoyancy coupling, explosive pressure waves, and dynamic lighting.
 
 ---
 
@@ -97,7 +97,7 @@ The engine simulates a grid of cells ($200 \times 150$ scaled $4\times$ to $800 
 
    - Wooden crates ($\rho = 0.45$) float stably on water and oil.
    - Metal barrels ($\rho = 2.4$) sink in water and float only in dense lava.
-   - Crates bob and equalize realistically in U-tube channels.
+   - Crates bob and equalise realistically in U-tube channels.
 
 3. **Fluid Drag & Displacement**:
    - Moving rigid bodies apply opposing drag forces proportional to velocity and submersion.
@@ -109,7 +109,7 @@ The engine simulates a grid of cells ($200 \times 150$ scaled $4\times$ to $800 
 
 Press **`P`** to cycle through 5 scenarios:
 
-- **Scenario 1: U-Tube Hydraulic Equalization**: Compressible water and floating oil layers demonstrate hydrostatic pressure equalization across communicating vessels with floating wooden crates.
+- **Scenario 1: U-Tube Hydraulic Equalisation**: Compressible water and floating oil layers demonstrate hydrostatic pressure equalisation across communicating vessels with floating wooden crates.
 - **Scenario 2: Volcano & Steam Geysers**: Molten lava crater overflowing into a mountain lake, turning water into rising steam and burning wooden bridges.
 - **Scenario 3: Bomb Testing Ground & TNT**: Multi-level wooden fortress packed with gunpowder caches, oil reservoirs, and TNT crates ready for chain reactions.
 - **Scenario 4: Hydroelectric Pump & Seesaw**: Upper hopper draining water across a balanced rigid seesaw, collected in a lower catch basin.

@@ -49,7 +49,7 @@ flowchart TD
 | **`simlib`** | Hardware rendering, event polling, 2D tile lighting, font atlases, and frame pacing | SDL2, OpenGL/Vulkan |
 | **`recs`** | Header-only Entity Component System (entities, components, archetype memory, systems) | Standard C++17 only |
 | **`rworld`** | Header-only procedural overworld and biome generation | Standard C++17 only |
-| **`game_types.h/.cpp`** | Data structures, tile/grid structs, lighting systems, color palettes, and random helpers | C++17, `simlib`, `recs`, `rworld` |
+| **`game_types.h/.cpp`** | Data structures, tile/grid structs, lighting systems, colour palettes, and random helpers | C++17, `simlib`, `recs`, `rworld` |
 | **`world_gen.h/.cpp`** | Procedural regional overworld generation (`rworld`), dungeon sector carving, and connectivity guarantees | C++17, `rworld` |
 | **`game_logic.h/.cpp`** | Turn progression, Bresenham line-of-sight FOV, stair travel, actor combat, and light collection | C++17, `simlib` |
 | **`render.h/.cpp`** | Font atlas ASCII cell drawing, map rendering, UI headers, and real-time environment HUD panel | C++17, `simlib` |

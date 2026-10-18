@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-`slpaint` ([src/examples/slpaint/slpaint.cpp](../src/examples/slpaint/slpaint.cpp)) is a self-contained, immediate-mode pixel art and graphics editor built on `simlib`. It demonstrates RAM-to-GPU bitmap synchronization, multi-level undo/redo, floating selection buffers, interactive shape previews, and responsive software-assisted drawing tools.
+`slpaint` ([src/examples/slpaint/slpaint.cpp](../src/examples/slpaint/slpaint.cpp)) is a self-contained, immediate-mode pixel art and graphics editor built on `simlib`. It demonstrates RAM-to-GPU bitmap synchronisation, multi-level undo/redo, floating selection buffers, interactive shape previews, and responsive software-assisted drawing tools.
 
 ---
 
@@ -29,14 +29,14 @@ flowchart TD
 ## Component Walkthrough
 
 ### 1. Canvas & Bitmap Memory Model
-- **`canvas` (`sl::Bitmap*`)**: A dedicated $800 \times 600$ RAM/GPU bitmap. Drawing tools modify RAM pixels directly or rasterize shapes onto the bitmap, and `sl::upload_bitmap(canvas)` synchronizes modifications to the GPU for rendering.
+- **`canvas` (`sl::Bitmap*`)**: A dedicated $800 \times 600$ RAM/GPU bitmap. Drawing tools modify RAM pixels directly or rasterise shapes onto the bitmap, and `sl::upload_bitmap(canvas)` synchronises modifications to the GPU for rendering.
 - **Coordinate Space Conversion**: `screen_to_canvas(mx, my, cx, cy)` maps screen window coordinates into canvas-relative pixel coordinates ($0 \le cx < 800, 0 \le cy < 600$).
 
-### 2. Tools & Rasterization Pipeline
+### 2. Tools & Rasterisation Pipeline
 
 | Tool | Implementation & Drawing Logic |
 | --- | --- |
-| **Pencil (`Tool::Pencil`)** | Direct single-pixel Bresenham line rasterization (`sl::line`) across consecutive mouse samples. |
+| **Pencil (`Tool::Pencil`)** | Direct single-pixel Bresenham line rasterisation (`sl::line`) across consecutive mouse samples. |
 | **Brush (`Tool::Brush`)** | Variable-thickness disc stamping along interpolated lines (`sl::circlefill` at `brush_size * 0.5f`). |
 | **Eraser (`Tool::Eraser`)** | Discs stamped using the current background colour. |
 | **Line (`Tool::Line`)** | Interactive preview while dragging; commits a line with thickness (`sl::line`) on mouse release. |

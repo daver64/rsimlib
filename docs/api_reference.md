@@ -33,7 +33,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 
 ## Error Handling ([include/error.h](../include/error.h))
 
-`simlib` records thread-local error messages when subsystem initialization, file loading, or GPU resource allocation fails.
+`simlib` records thread-local error messages when subsystem initialisation, file loading, or GPU resource allocation fails.
 
 ### Functions
 
@@ -103,14 +103,14 @@ int main(int argc, char **argv) {
 ```cpp
 bool set_gfx_mode(int driver, int width = 0, int height = 0, int virtualWidth = 0, int virtualHeight = 0);
 ```
-- **Description**: Creates the main application window, initializes the selected graphics context, and constructs the primary display framebuffer (`sl::screen`).
+- **Description**: Creates the main application window, initialises the selected graphics context, and constructs the primary display framebuffer (`sl::screen`).
 - **Parameters**:
   - `driver` (`int`): Driver selection (`sl::GFX_AUTODETECT_WINDOWED` or `sl::GFX_AUTODETECT_FULLSCREEN`).
   - `width` (`int`): Window width in pixels; both `width` and `height` may be omitted for fullscreen mode to use the primary display's desktop resolution.
   - `height` (`int`): Window height in pixels.
   - `virtualWidth` (`int`, optional): Logical drawing canvas width (0 defaults to `width`).
   - `virtualHeight` (`int`, optional): Logical drawing canvas height (0 defaults to `height`).
-- **Returns**: `true` on successful initialization; `false` on failure.
+- **Returns**: `true` on successful initialisation; `false` on failure.
 
 #### `display_handle_event(event)`
 ```cpp
@@ -144,7 +144,7 @@ bool toggle_fullscreen();
 ```cpp
 bool set_vsync(bool enabled);
 ```
-- **Description**: Configures vertical presentation synchronization.
+- **Description**: Configures vertical presentation synchronisation.
 - **Parameters**:
   - `enabled` (`bool`): `true` to lock presentation to the monitor refresh rate, `false` to disable vsync.
 - **Returns**: `true` if the swap interval was set successfully.
@@ -255,14 +255,14 @@ bool gamepad_init();
 int gamepad_count();
 bool gamepad_connected(int index);
 ```
-- **Description**: Initializes controller subsystems, counts active gamepads, and tests connection status by index.
+- **Description**: Initialises controller subsystems, counts active gamepads, and tests connection status by index.
 - **Parameters**: `index` (`int`): 0-based controller device index.
 
 #### `time_ms()`
 ```cpp
 std::uint64_t time_ms();
 ```
-- **Description**: Returns elapsed time in milliseconds since system initialization using SDL's monotonic timer.
+- **Description**: Returns elapsed time in milliseconds since system initialisation using SDL's monotonic timer.
 - **Returns**: 64-bit integer millisecond timestamp.
 
 #### `set_fps(fps)` / `get_fps()` / `get_frame_time()`
@@ -353,7 +353,7 @@ void clear_render_target(Colour colour);
 - **Description**: Redirects subsequent drawing commands (`rectfill`, `draw_sprite`, `textout`, etc.) to render into `target`. `end_render_target()` restores rendering back to the main window.
 - **Parameters**:
   - `target` (`Bitmap*`): Offscreen target created with `create_render_target()`.
-  - `colour` (`Colour`): Clear color for the render target.
+  - `colour` (`Colour`): Clear colour for the render target.
 - **Example**:
 ```cpp
 sl::Bitmap *rt = sl::create_render_target(256, 256);
@@ -379,7 +379,7 @@ void destroy_bitmap(Bitmap *bitmap);
 bool upload_bitmap(Bitmap *bitmap);
 bool download_bitmap(Bitmap *bitmap);
 ```
-- **Description**: Synchronizes pixel data from CPU RAM to the GPU texture (`upload_bitmap`) or reads GPU texture pixels back into CPU RAM (`download_bitmap`).
+- **Description**: Synchronises pixel data from CPU RAM to the GPU texture (`upload_bitmap`) or reads GPU texture pixels back into CPU RAM (`download_bitmap`).
 
 #### `putpixel(bitmap, x, y, colour)` / `getpixel(bitmap, x, y)` / `flood_fill(...)`
 ```cpp
@@ -422,7 +422,7 @@ void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY,
 void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
 void draw_sprite_v_flip(Bitmap *bitmap, float x, float y);
 ```
-- **Description**: Hardware-accelerated sprite rendering with positioning, scaling, center-point rotation (clockwise degrees), and horizontal/vertical flipping. Offscreen render targets are automatically orientation-corrected when drawn as sprites.
+- **Description**: Hardware-accelerated sprite rendering with positioning, scaling, centre-point rotation (clockwise degrees), and horizontal/vertical flipping. Offscreen render targets are automatically orientation-corrected when drawn as sprites.
 
 #### Shape Primitives & Curves
 ```cpp
@@ -442,7 +442,7 @@ void ellipsefill(Bitmap *bitmap, float x, float y, float radiusX, float radiusY,
 void triangle(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour, float thickness = 1.0f);
 void trianglefill(Bitmap *bitmap, float x1, float y1, float x2, float y2, float x3, float y3, Colour colour);
 ```
-- **Description**: Immediate-mode 2D shape, arc, and Bézier spline primitives with customizable line thickness. `calc_spline` computes interpolated $(x, y)$ coordinate arrays along a 4-point cubic Bézier curve.
+- **Description**: Immediate-mode 2D shape, arc, and Bézier spline primitives with customisable line thickness. `calc_spline` computes interpolated $(x, y)$ coordinate arrays along a 4-point cubic Bézier curve.
 
 #### Allegro-style Point-Plotter Callbacks (`do_*`)
 ```cpp
@@ -454,7 +454,7 @@ void do_ellipse(Bitmap *bitmap, int x, int y, int radiusX, int radiusY, int d, c
 void do_arc(Bitmap *bitmap, int x, int y, float startAngle, float endAngle, float radius, int d, const PixelProc &proc);
 void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc);
 ```
-- **Description**: Executes rasterization algorithms (Bresenham line, Midpoint circle/ellipse, Bézier curve) and invokes `proc(bitmap, x, y, d)` for every point along the shape. Enables custom pixel manipulation, collision tracing, and procedural geometry creation.
+- **Description**: Executes rasterisation algorithms (Bresenham line, Midpoint circle/ellipse, Bézier curve) and invokes `proc(bitmap, x, y, d)` for every point along the shape. Enables custom pixel manipulation, collision tracing, and procedural geometry creation.
 
 ---
 
@@ -499,7 +499,7 @@ void textout(Font *font, int x, int y, const Colour &colour, const std::string &
 - **Parameters**:
   - `font` (`Font*`): Loaded font handle.
   - `x`, `y` (`int`): Top-left text position in pixels.
-  - `colour` (`Colour`): Text color.
+  - `colour` (`Colour`): Text colour.
   - `text` (`const std::string&`): UTF-8 text string to render.
 
 #### `gprintf(x, y, colour, format, ...)` / `gprintf_center(y, colour, format, ...)`
@@ -507,7 +507,7 @@ void textout(Font *font, int x, int y, const Colour &colour, const std::string &
 void gprintf(int x, int y, const Colour &colour, const char *fmt, ...);
 void gprintf_center(int y, const Colour &colour, const char *fmt, ...);
 ```
-- **Description**: Convenience functions that format and render text using the default monospace font, positioned at `(x, y)` or horizontally centered on screen.
+- **Description**: Convenience functions that format and render text using the default monospace font, positioned at `(x, y)` or horizontally centred on screen.
 
 ---
 
@@ -651,7 +651,7 @@ public:
 
 ## Box2D Physics System ([include/physics.h](../include/physics.h))
 
-`simlib` provides an integrated Box2D rigid-body simulation wrapper operating directly in pixel coordinates (64 pixels = 1 meter).
+`simlib` provides an integrated Box2D rigid-body simulation wrapper operating directly in pixel coordinates (64 pixels = 1 metre).
 
 ### Functions
 
@@ -727,7 +727,7 @@ See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF came
 - `VoxelFace`: Cube faces `top` (+Y), `bottom` (-Y), `north` (+Z), `south` (-Z), `east` (+X), `west` (-X).
 - `BlockDefinition`: Defines block properties (`is_solid`, `is_transparent`, per-face `tiles[6]`, `tint`), emitted RGB block light (`light_emission` in `[0..15]`, `light_colour`), and light attenuation (`light_opacity` in `[0..15]`; 255 infers a default from solidity/transparency).
 - `VoxelLight`: Per-voxel sky level and propagated RGB block-light levels, each in `[0..15]`.
-- `VoxelAtlas`: Grid texture atlas helper converting tile coordinates `(x, y)` to normalized UV coordinates `[u0, v0, u1, v1]`.
+- `VoxelAtlas`: Grid texture atlas helper converting tile coordinates `(x, y)` to normalised UV coordinates `[u0, v0, u1, v1]`.
 - `VoxelRaycastResult`: Stores raycast intersection results (`hit`, `hit_block`, `place_block`, `hit_face`, `hit_pos`, `distance`).
 
 ### `sl::VoxelChunk`
@@ -742,14 +742,14 @@ See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF came
 ### `sl::VoxelWorld`
 - Multi-chunk manager coordinating chunk storage, cross-boundary culling, and dirty chunk updating.
 - `world_to_chunk(x, y, z)` / `world_to_local(x, y, z)`: Coordinate conversion helpers handling negative coordinates correctly.
-- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Query and set blocks at arbitrary world coordinates. Automatically marks affected chunks (and border neighbors) dirty and schedules lighting updates.
+- `get_block(x, y, z)` / `set_block(x, y, z, id)`: Query and set blocks at arbitrary world coordinates. Automatically marks affected chunks (and border neighbours) dirty and schedules lighting updates.
 - `get_light(x, y, z)`: Query propagated sky and RGB block-light levels.
-- `update_lighting()`: Recompute direct sky light and neighbor-propagated sky/block light after block or emitter changes; call this to refresh light levels before querying them.
+- `update_lighting()`: Recompute direct sky light and neighbour-propagated sky/block light after block or emitter changes; call this to refresh light levels before querying them.
 - `update_dirty_chunks(atlas)`: Recomputes pending lighting and rebuilds meshes for chunks affected by block or lighting changes.
 - `raycast(origin, direction, max_distance)`: Fast Voxel Traversal (3D DDA) through world blocks.
 - `draw(material)`: Draws all chunk meshes.
 
-By default, air and transparent blocks pass propagated light with one level of attenuation per neighboring voxel, while opaque blocks stop it. `light_opacity` can customize that behavior (0 passes without attenuation; 15 blocks light). Emission color propagates per RGB channel. Direct sky light remains at full strength through open air above the highest opaque voxel in each world column, then spreads into caves with neighbor attenuation. Block-light propagation and cave light spread are limited to allocated chunks; unallocated cells can still report direct sky light when unobstructed.
+By default, air and transparent blocks pass propagated light with one level of attenuation per neighbouring voxel, while opaque blocks stop it. `light_opacity` can customise that behaviour (0 passes without attenuation; 15 blocks light). Emission colour propagates per RGB channel. Direct sky light remains at full strength through open air above the highest opaque voxel in each world column, then spreads into caves with neighbour attenuation. Block-light propagation and cave light spread are limited to allocated chunks; unallocated cells can still report direct sky light when unobstructed.
 
 ```cpp
 sl::BlockDefinition torch;
@@ -821,7 +821,7 @@ void fluid_reset_bounds(CAFluidGrid *sim);
 
 ## Particle Systems & Emitters ([include/particles.h](../include/particles.h))
 
-Configurable 2D particle emitters with velocity spread, size scaling, color fading, and gravity.
+Configurable 2D particle emitters with velocity spread, size scaling, colour fading, and gravity.
 
 ```cpp
 struct EmitterConfig {
@@ -961,7 +961,7 @@ namespace sl {
 
 ## JSON Configuration ([include/config.h](../include/config.h))
 
-Provides a JSON-backed application configuration document with nested dotted-key path access, typed serialization, and fallback values.
+Provides a JSON-backed application configuration document with nested dotted-key path access, typed serialisation, and fallback values.
 
 ```cpp
 namespace sl {

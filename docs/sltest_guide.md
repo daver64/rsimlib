@@ -10,7 +10,7 @@
 
 ## Architecture Overview
 
-Game flow is organized around a simple `Mode` state machine. Each screen implements input handling and per-frame update/render functions:
+Game flow is organised around a simple `Mode` state machine. Each screen implements input handling and per-frame update/render functions:
 
 ```mermaid
 flowchart TD
@@ -28,7 +28,7 @@ flowchart TD
 
 - **[`main.cpp`](../src/examples/sltest/main.cpp)**: Executable entry point, game loop, and lifecycle orchestration.
 - **[`game.h`](../src/examples/sltest/game.h)**: Shared screen interface (`Mode::menu`, `Mode::playing`, `Mode::settings`, `Mode::lua_console`, etc.).
-- **[`game.cpp`](../src/examples/sltest/game.cpp)**: Window setup, audio initialization, event dispatching, and shutdown coordination.
+- **[`game.cpp`](../src/examples/sltest/game.cpp)**: Window setup, audio initialisation, event dispatching, and shutdown coordination.
 - **[`game_menu.cpp`](../src/examples/sltest/game_menu.cpp)**: Main menu navigation with Dear ImGui integration.
 - **[`game_playing.cpp`](../src/examples/sltest/game_playing.cpp)**: Main physics gameplay, particle emitters, lighting pass, and balloon entities.
 - **[`entity.cpp`](../src/examples/sltest/entity.cpp)**: Particle physics, integration, AABB/circle collision response, and rendering.
