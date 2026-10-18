@@ -27,6 +27,8 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 
 Check compiled support with `sl::graphics_backend_available(backend)`.
 
+**The backend is fixed for the life of the process.** Choose it once, before `set_gfx_mode()`, and keep it until `shutdown()`. Switching backends at runtime (for example calling `set_gfx_mode()` again after `set_graphics_backend()` with a different backend) is not supported. Bitmaps, render targets, meshes and other GPU resources are tied to the backend that created them and are not migrated, so handles from the old backend become invalid. To change backend, restart the application.
+
 ---
 
 ## Automatic Hardware Batching

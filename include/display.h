@@ -24,7 +24,11 @@ namespace sl
         d3d12
     };
 
-    /** Select a backend before set_gfx_mode(); D3D12 is Windows-only. Default: D3D12 on Windows, OpenGL elsewhere. */
+    /**
+     * Select a backend before set_gfx_mode(); D3D12 is Windows-only. Default: D3D12 on Windows, OpenGL elsewhere.
+     * The backend is fixed for the life of the process: switching at runtime is unsupported because GPU
+     * resources (bitmaps, render targets, meshes) are not migrated between backends.
+     */
     bool set_graphics_backend(GraphicsBackend backend);
     /** Select OpenGL, Vulkan, or D3D12 from command-line arguments (--gl, --vulkan, --d3d12). */
     bool configure_graphics_backend_from_args(int argc, char *argv[]);
