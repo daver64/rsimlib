@@ -48,13 +48,34 @@ int main(int argc, char *argv[])
     lighting.set_ambient(0.0f);
     lighting.set_light_height(24.0f);
 
-    sl::begin_render_target(scene);
-    sl::clear_render_target({0, 0, 0, 255});
-    sl::draw_sprite(colour, 96.0f, 96.0f);
-    sl::end_render_target();
-    assert(sl::begin_normal_pass(normals));
-    sl::draw_sprite(colour, 96.0f, 96.0f);
-    sl::end_normal_pass();
+    // The dome is symmetric, so rotating or flipping the sprite must not change which side the light hits.
+    auto draw_sprite = [&](int variant)
+    {
+        switch (variant)
+        {
+        case 1:
+            sl::draw_sprite_rotated(colour, 128.0f, 128.0f, 180.0f);
+            break;
+        case 2:
+            sl::draw_sprite_rotated(colour, 128.0f, 128.0f, 90.0f);
+            break;
+        case 3:
+            sl::draw_sprite_h_flip(colour, 96.0f, 96.0f);
+            break;
+        default:
+            sl::draw_sprite(colour, 96.0f, 96.0f);
+        }
+    };
+    auto render_scene = [&](int variant)
+    {
+        sl::begin_render_target(scene);
+        sl::clear_render_target({0, 0, 0, 255});
+        draw_sprite(variant);
+        sl::end_render_target();
+        assert(sl::begin_normal_pass(normals));
+        draw_sprite(variant);
+        sl::end_normal_pass();
+    };
 
     sl::Light light;
     light.x = 40.0f;
@@ -79,10 +100,14 @@ int main(int argc, char *argv[])
         return value;
     };
 
-    const float flat_ratio = brightness(false, 108) / std::max(brightness(false, 148), 1.0f);
-    const float normal_ratio = brightness(true, 108) / std::max(brightness(true, 148), 1.0f);
-    std::printf("left/right ratio flat=%.2f normal=%.2f\n", flat_ratio, normal_ratio);
-    assert(normal_ratio > flat_ratio * 1.5f);
+    for (int variant = 0; variant < 4; ++variant)
+    {
+        render_scene(variant);
+        const float flat_ratio = brightness(false, 108) / std::max(brightness(false, 148), 1.0f);
+        const float normal_ratio = brightness(true, 108) / std::max(brightness(true, 148), 1.0f);
+        std::printf("variant %d left/right ratio flat=%.2f normal=%.2f\n", variant, flat_ratio, normal_ratio);
+        assert(normal_ratio > flat_ratio * 1.5f);
+    }
 
     sl::wait_for_graphics();
     lighting.shutdown();

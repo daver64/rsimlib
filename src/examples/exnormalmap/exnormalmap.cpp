@@ -23,8 +23,8 @@ namespace
                 const float d2 = dx * dx + dy * dy;
                 if (d2 >= 1.0f)
                 {
-                    sl::putpixel(colour, x, y, {70, 60, 55, 255});
-                    sl::putpixel(normal, x, y, {128, 128, 255, 255});
+                    sl::putpixel(colour, x, y, {0, 0, 0, 0});
+                    sl::putpixel(normal, x, y, {128, 128, 255, 0});
                     continue;
                 }
                 // Dome surface: n = (dx, -dy_up, sqrt(1 - d2)); green points up the image.
@@ -93,6 +93,8 @@ int main(int argc, char *argv[])
                     sl::draw_sprite(brick, static_cast<float>(x), static_cast<float>(y));
                 }
             }
+            // A spinning sprite: its normals rotate with it, so the highlight stays on the lit side.
+            sl::draw_sprite_rotated(brick, 400.0f, 300.0f, static_cast<float>(sl::time_ms() % 6000) * 0.06f);
         };
 
         sl::begin_render_target(scene);

@@ -126,6 +126,32 @@ namespace sl
 		void draw_screen_thick_line(float x1, float y1, float x2, float y2, float thickness, Bitmap *texture, Colour colour);
 
 		bool normal_pass_active = false;
+		bool normal_pass_transforms = false;
+
+		/** Vertex colour for 2D draws; in a normal pass it encodes how the sprite's normals must be transformed. */
+		struct Tint
+		{
+			float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+		};
+
+		/**
+		 * Encode the orthogonal 2x2 matrix [a b; c d] (first column a, c) as a negative-alpha vertex colour that
+		 * the default 2D shaders read as "write transformed normals" (see default_2d.frag).
+		 */
+		Tint normal_tint(float a, float b, float c, float d)
+		{
+			if (!normal_pass_active || !normal_pass_transforms)
+			{
+				return {};
+			}
+			const float determinant = a * d - b * c;
+			return {a * 0.5f + 0.5f, c * 0.5f + 0.5f, determinant >= 0.0f ? 1.0f : 0.0f, -1.0f};
+		}
+
+		Tint rotation_tint(float cosine, float sine)
+		{
+			return normal_tint(cosine, -sine, sine, cosine);
+		}
 
 		/** Return the bitmap to sample: the paired normal map during a normal pass (nullptr = skip). */
 		Bitmap *pass_bitmap(Bitmap *bitmap)
@@ -157,11 +183,12 @@ namespace sl
 			const float textureTop = flipVertical ? bottomTexture : topTexture;
 			const float textureBottom = flipVertical ? topTexture : bottomTexture;
 
+			const Tint tint = normal_tint(flipHorizontal ? -1.0f : 1.0f, 0.0f, 0.0f, flipVertical ? -1.0f : 1.0f);
 			const detail::GLVertex vertices[4] = {
-				{x, y, textureLeft, textureTop, 1.0f, 1.0f, 1.0f, 1.0f},
-				{right, y, textureRight, textureTop, 1.0f, 1.0f, 1.0f, 1.0f},
-				{right, bottom, textureRight, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
-				{x, bottom, textureLeft, textureBottom, 1.0f, 1.0f, 1.0f, 1.0f},
+				{x, y, textureLeft, textureTop, tint.r, tint.g, tint.b, tint.a},
+				{right, y, textureRight, textureTop, tint.r, tint.g, tint.b, tint.a},
+				{right, bottom, textureRight, textureBottom, tint.r, tint.g, tint.b, tint.a},
+				{x, bottom, textureLeft, textureBottom, tint.r, tint.g, tint.b, tint.a},
 			};
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
@@ -195,11 +222,12 @@ namespace sl
 			detail::gl2d_begin(screen_width(), screen_height());
 			if (detail::Renderer *renderer = detail::active_renderer())
 				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
+			const Tint tint = rotation_tint(cosine, sine);
 			const detail::GLVertex vertices[4] = {
-				{topLeft.first, topLeft.second, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-				{topRight.first, topRight.second, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-				{bottomRight.first, bottomRight.second, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
-				{bottomLeft.first, bottomLeft.second, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+				{topLeft.first, topLeft.second, 0.0f, 0.0f, tint.r, tint.g, tint.b, tint.a},
+				{topRight.first, topRight.second, 1.0f, 0.0f, tint.r, tint.g, tint.b, tint.a},
+				{bottomRight.first, bottomRight.second, 1.0f, 1.0f, tint.r, tint.g, tint.b, tint.a},
+				{bottomLeft.first, bottomLeft.second, 0.0f, 1.0f, tint.r, tint.g, tint.b, tint.a},
 			};
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
@@ -238,11 +266,12 @@ namespace sl
 			detail::gl2d_begin(screen_width(), screen_height());
 			if (detail::Renderer *renderer = detail::active_renderer())
 				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
+			const Tint tint = rotation_tint(cosine, sine);
 			const detail::GLVertex vertices[4] = {
-				{topLeft.first, topLeft.second, leftTexture, topTexture, 1.0f, 1.0f, 1.0f, 1.0f},
-				{topRight.first, topRight.second, rightTexture, topTexture, 1.0f, 1.0f, 1.0f, 1.0f},
-				{bottomRight.first, bottomRight.second, rightTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
-				{bottomLeft.first, bottomLeft.second, leftTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+				{topLeft.first, topLeft.second, leftTexture, topTexture, tint.r, tint.g, tint.b, tint.a},
+				{topRight.first, topRight.second, rightTexture, topTexture, tint.r, tint.g, tint.b, tint.a},
+				{bottomRight.first, bottomRight.second, rightTexture, bottomTexture, tint.r, tint.g, tint.b, tint.a},
+				{bottomLeft.first, bottomLeft.second, leftTexture, bottomTexture, tint.r, tint.g, tint.b, tint.a},
 			};
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
@@ -289,11 +318,25 @@ namespace sl
 				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
 			const float x2 = x + destinationWidth;
 			const float y2 = y + destinationHeight;
+			// Normal transform = flipV * flipH * transpose, the same order as the texture coordinate swaps above.
+			float ma = flipDiagonal ? 0.0f : 1.0f, mb = flipDiagonal ? 1.0f : 0.0f;
+			float mc = mb, md = ma;
+			if (flipHorizontal)
+			{
+				ma = -ma;
+				mb = -mb;
+			}
+			if (flipVertical)
+			{
+				mc = -mc;
+				md = -md;
+			}
+			const Tint tint = normal_tint(ma, mb, mc, md);
 			const detail::GLVertex vertices[4] = {
-				{x, y, u[0], v[0], 1.0f, 1.0f, 1.0f, 1.0f},
-				{x2, y, u[1], v[1], 1.0f, 1.0f, 1.0f, 1.0f},
-				{x2, y2, u[2], v[2], 1.0f, 1.0f, 1.0f, 1.0f},
-				{x, y2, u[3], v[3], 1.0f, 1.0f, 1.0f, 1.0f},
+				{x, y, u[0], v[0], tint.r, tint.g, tint.b, tint.a},
+				{x2, y, u[1], v[1], tint.r, tint.g, tint.b, tint.a},
+				{x2, y2, u[2], v[2], tint.r, tint.g, tint.b, tint.a},
+				{x, y2, u[3], v[3], tint.r, tint.g, tint.b, tint.a},
 			};
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
@@ -655,6 +698,8 @@ namespace sl
 		// Alpha zero marks pixels with no normal data so lighting falls back to flat shading.
 		clear_render_target(Colour{128, 128, 255, 0});
 		normal_pass_active = true;
+		// Direct3D 12 has no lighting pass, so its default shader keeps plain colour output.
+		normal_pass_transforms = graphics_backend() != GraphicsBackend::d3d12;
 		return true;
 	}
 

@@ -183,7 +183,7 @@ namespace sl
     /**
      * Redirect drawing to a normal buffer (a render target) and clear it to "no data".
      * While active, every textured sprite/tile draw writes its paired normal map instead of its colour
-     * (rotation and flips are not applied to the normals), and bitmaps without a normal map are skipped.
+     * (rotation and flips are applied to the normals as well), and bitmaps without a normal map are skipped.
      * Redraw the scene's sprites between begin_normal_pass() and end_normal_pass(), then pass the buffer to
      * LightingPass::apply(). Only draw sprites and tiles inside a normal pass.
      */
