@@ -699,9 +699,9 @@ std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 
 ## 3D Surfaces ([include/surface3d.h](include/surface3d.h))
 
-A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL and Vulkan backends; other backends report an error from `create_surface_3d`.
+A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL, Vulkan and Direct3D 12 backends.
 
-- `create_surface_3d(w, h, samples = 1)` / `destroy_surface_3d(surface)`: `samples` requests MSAA (e.g. 4), clamped to GPU support; `surface_3d_samples(surface)` reports the count in use. Both 3D meshes and 2D elements (HUD, text, sprites) can be drawn into multisampled surfaces on OpenGL and Vulkan.
+- `create_surface_3d(w, h, samples = 1)` / `destroy_surface_3d(surface)`: `samples` requests MSAA (e.g. 4), clamped to GPU support; `surface_3d_samples(surface)` reports the count in use. Both 3D meshes and 2D elements (HUD, text, sprites) can be drawn into multisampled surfaces on OpenGL, Vulkan and Direct3D 12.
 - `begin_surface_3d(surface, camera)` / `end_surface_3d()`: bracket 3D drawing. Contents are undefined until `clear_surface_3d(colour)` is called.
 - `set_light_3d({direction, ambient})`: one directional light.
 - `create_cube_mesh`, `create_plane_mesh`, `create_sphere_mesh`, `create_mesh(vertices, indices)` / `destroy_mesh`

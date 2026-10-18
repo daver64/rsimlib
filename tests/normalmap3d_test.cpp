@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
         std::printf("no display available, skipping\n");
         return 0;
     }
-    sl::Surface3D *surface = sl::create_surface_3d(128, 128);
+    sl::Surface3D *surface = sl::create_surface_3d(128, 128, 4);
     sl::Mesh *cube = sl::create_cube_mesh(1.0f);
     assert(surface && cube);
     sl::Bitmap *maps[3] = {nullptr, solid_normal(245, 128, 218), solid_normal(10, 128, 218)};
@@ -52,7 +52,8 @@ int main(int argc, char *argv[])
         assert(sl::download_bitmap(image));
         brightness[i] = sl::getpixel(image, 64, 64).red;
     }
-    std::printf("flat %d, tilted %d / %d\n", brightness[0], brightness[1], brightness[2]);
+    std::printf("flat %d, tilted %d / %d (%dx MSAA)\n", brightness[0], brightness[1], brightness[2],
+                sl::surface_3d_samples(surface));
     const int high = brightness[1] > brightness[2] ? brightness[1] : brightness[2];
     const int low = brightness[1] > brightness[2] ? brightness[2] : brightness[1];
     assert(high > brightness[0] + 20);

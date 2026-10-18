@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
 
 namespace
 {
@@ -61,7 +60,6 @@ int main(int argc, char *argv[])
     camera.target = {0.0f, 0.0f, 0.0f};
 
     bool use_normals = true;
-    int frame_count = 0;
     bool running = true;
     while (running)
     {
@@ -97,12 +95,6 @@ int main(int argc, char *argv[])
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
-
-        ++frame_count;
-        if (const char *shot = std::getenv("RSIMLIB_SCREENSHOT"); shot && frame_count == 10)
-            sl::save_bitmap(sl::screen, shot);
-        if (const char *frames = std::getenv("RSIMLIB_FRAMES"); frames && frame_count >= std::atoi(frames))
-            running = false;
     }
 
     sl::wait_for_graphics();

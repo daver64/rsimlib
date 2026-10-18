@@ -65,6 +65,9 @@ namespace sl::detail
             std::uint32_t descriptor = 0;
             std::uint32_t depth_descriptor = render_target_capacity;
             ID3D12Resource *depth = nullptr;
+            // Multisampled colour buffer (always kept in the render-target state); resolved into the texture.
+            ID3D12Resource *msaa_colour = nullptr;
+            int samples = 1;
             int width = 0;
             int height = 0;
         };
@@ -87,6 +90,14 @@ namespace sl::detail
         // Blend variants: 0 straight alpha, 1 premultiplied alpha, 2 additive.
         constexpr std::size_t blend_variant_count = 3;
         constexpr std::size_t primitive_pipeline_count = 3;
+        // Pipelines are built per render-target sample count (1, 2, 4 or 8).
+        constexpr std::size_t sample_slot_count = 4;
+        constexpr std::size_t pipeline_set_size = primitive_pipeline_count * blend_variant_count;
+
+        inline std::size_t sample_slot(int samples)
+        {
+            return samples >= 8 ? 3 : samples >= 4 ? 2 : samples >= 2 ? 1 : 0;
+        }
 
         struct ShaderProgram
         {
@@ -110,7 +121,7 @@ namespace sl::detail
             int storage_parameter = -1;
             int texture_parameter_base = -1;
             int sampler_parameter_base = -1;
-            std::array<ID3D12PipelineState *, primitive_pipeline_count * blend_variant_count> pipelines{};
+            std::array<ID3D12PipelineState *, pipeline_set_size * sample_slot_count> pipelines{};
             ID3D12PipelineState *compute_pipeline = nullptr;
         };
 
@@ -446,6 +457,12 @@ namespace sl::detail
                 if (mesh_root_signature_)
                     mesh_root_signature_->Release();
                 mesh_root_signature_ = nullptr;
+                if (mesh_vertex_blob_)
+                    mesh_vertex_blob_->Release();
+                if (mesh_pixel_blob_)
+                    mesh_pixel_blob_->Release();
+                mesh_vertex_blob_ = nullptr;
+                mesh_pixel_blob_ = nullptr;
                 for (auto &[handle, texture] : textures_)
                     release_texture(texture);
                 textures_.clear();
@@ -453,6 +470,8 @@ namespace sl::detail
                 {
                     if (target.depth)
                         target.depth->Release();
+                    if (target.msaa_colour)
+                        target.msaa_colour->Release();
                 }
                 for (auto &texture : retired_textures_)
                     release_texture(texture);
@@ -792,6 +811,8 @@ namespace sl::detail
                     target->second.depth->Release();
                     free_depth_stencil_descriptors_.push_back(target->second.depth_descriptor);
                 }
+                if (target->second.msaa_colour)
+                    target->second.msaa_colour->Release();
                 render_targets_.erase(target);
                 destroy_texture(texture);
             }
@@ -809,7 +830,7 @@ namespace sl::detail
                     return false;
                 }
                 flush_2d();
-                if (texture->second.state != D3D12_RESOURCE_STATE_RENDER_TARGET)
+                if (target->second.samples == 1 && texture->second.state != D3D12_RESOURCE_STATE_RENDER_TARGET)
                 {
                     transition_resource(context_.command_list(), texture->second.resource,
                                         texture->second.state, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -860,7 +881,9 @@ namespace sl::detail
                     error = "The active D3D12 render-target texture no longer exists.";
                     return false;
                 }
-                if (texture->second.state == D3D12_RESOURCE_STATE_RENDER_TARGET)
+                if (target->second.samples > 1)
+                    resolve_render_target(target->second, texture->second);
+                else if (texture->second.state == D3D12_RESOURCE_STATE_RENDER_TARGET)
                     transition_resource(context_.command_list(), texture->second.resource,
                                         D3D12_RESOURCE_STATE_RENDER_TARGET,
                                         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -898,7 +921,7 @@ namespace sl::detail
             bool create_render_target_3d(int width, int height, int &samples,
                                          std::uint32_t &texture, std::uint32_t &framebuffer) override
             {
-                samples = 1;
+                samples = supported_sample_count(samples);
                 if (!create_render_target(width, height, texture, framebuffer))
                     return false;
                 if (!ensure_depth_stencil_heap())
@@ -923,7 +946,7 @@ namespace sl::detail
                 resource_desc.DepthOrArraySize = 1;
                 resource_desc.MipLevels = 1;
                 resource_desc.Format = DXGI_FORMAT_D32_FLOAT;
-                resource_desc.SampleDesc.Count = 1;
+                resource_desc.SampleDesc.Count = static_cast<UINT>(samples);
                 resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
                 resource_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
                 D3D12_CLEAR_VALUE clear_value{};
@@ -943,7 +966,8 @@ namespace sl::detail
                 }
                 D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc{};
                 dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
-                dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+                dsv_desc.ViewDimension = samples > 1 ? D3D12_DSV_DIMENSION_TEXTURE2DMS
+                                                      : D3D12_DSV_DIMENSION_TEXTURE2D;
                 context_.device()->CreateDepthStencilView(
                     depth, &dsv_desc,
                     cpu_descriptor(depth_stencil_heap_, depth_stencil_descriptor_size_, descriptor));
@@ -956,6 +980,33 @@ namespace sl::detail
                     texture = 0;
                     framebuffer = 0;
                     return false;
+                }
+                if (samples > 1)
+                {
+                    D3D12_RESOURCE_DESC colour_desc = resource_desc;
+                    colour_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    colour_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+                    D3D12_CLEAR_VALUE colour_clear{};
+                    colour_clear.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    ID3D12Resource *msaa_colour = nullptr;
+                    if (FAILED(context_.device()->CreateCommittedResource(
+                            &default_heap, D3D12_HEAP_FLAG_NONE, &colour_desc,
+                            D3D12_RESOURCE_STATE_RENDER_TARGET, &colour_clear, IID_PPV_ARGS(&msaa_colour))))
+                    {
+                        depth->Release();
+                        free_depth_stencil_descriptors_.push_back(descriptor);
+                        destroy_render_target(texture, framebuffer);
+                        texture = 0;
+                        framebuffer = 0;
+                        return false;
+                    }
+                    // Draws go to the multisampled buffer; the texture only receives the resolved image.
+                    context_.device()->CreateRenderTargetView(
+                        msaa_colour, nullptr,
+                        cpu_descriptor(render_target_heap_, render_target_descriptor_size_,
+                                       target->second.descriptor));
+                    target->second.msaa_colour = msaa_colour;
+                    target->second.samples = samples;
                 }
                 target->second.depth = depth;
                 target->second.depth_descriptor = descriptor;
@@ -1082,7 +1133,11 @@ namespace sl::detail
                     3, gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor));
                 commands->SetGraphicsRootDescriptorTable(
                     4, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor));
-                commands->SetPipelineState(mesh_pipelines_[static_cast<std::size_t>(params.cull)]);
+                ID3D12PipelineState *mesh_pipeline =
+                    get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples);
+                if (!mesh_pipeline)
+                    return false;
+                commands->SetPipelineState(mesh_pipeline);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 commands->IASetVertexBuffers(0, 1, &mesh->second.vertex_view);
                 commands->IASetIndexBuffer(&mesh->second.index_view);
@@ -1849,6 +1904,56 @@ namespace sl::detail
             }
 
         private:
+            int current_target_samples() const
+            {
+                if (active_render_target_ == 0)
+                    return 1;
+                const auto target = render_targets_.find(active_render_target_);
+                return target == render_targets_.end() ? 1 : target->second.samples;
+            }
+
+            int supported_sample_count(int requested) const
+            {
+                int count = 1;
+                while (count * 2 <= requested && count < 8)
+                    count *= 2;
+                for (; count > 1; count /= 2)
+                {
+                    bool supported = true;
+                    for (const DXGI_FORMAT format : {DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D32_FLOAT})
+                    {
+                        D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS levels{};
+                        levels.Format = format;
+                        levels.SampleCount = static_cast<UINT>(count);
+                        if (FAILED(context_.device()->CheckFeatureSupport(
+                                D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &levels, sizeof(levels))) ||
+                            levels.NumQualityLevels == 0)
+                            supported = false;
+                    }
+                    if (supported)
+                        return count;
+                }
+                return 1;
+            }
+
+            // Resolves the multisampled colour buffer into the target texture, leaving it shader-readable.
+            void resolve_render_target(RenderTarget &target, Texture &texture)
+            {
+                ID3D12GraphicsCommandList *commands = context_.command_list();
+                transition_resource(commands, target.msaa_colour, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                    D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+                if (texture.state != D3D12_RESOURCE_STATE_RESOLVE_DEST)
+                    transition_resource(commands, texture.resource, texture.state,
+                                        D3D12_RESOURCE_STATE_RESOLVE_DEST);
+                commands->ResolveSubresource(texture.resource, 0, target.msaa_colour, 0,
+                                             DXGI_FORMAT_R8G8B8A8_UNORM);
+                transition_resource(commands, texture.resource, D3D12_RESOURCE_STATE_RESOLVE_DEST,
+                                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                transition_resource(commands, target.msaa_colour, D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+                                    D3D12_RESOURCE_STATE_RENDER_TARGET);
+                texture.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            }
+
             bool initialise_mesh_pipeline()
             {
                 if (mesh_root_signature_)
@@ -1928,7 +2033,18 @@ namespace sl::detail
                     return false;
                 }
 
-                const D3D12_INPUT_ELEMENT_DESC elements[] = {
+                // Pipeline states are created on demand per cull mode and render-target sample count.
+                mesh_vertex_blob_ = vertex_blob;
+                mesh_pixel_blob_ = pixel_blob;
+                return true;
+            }
+
+            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples)
+            {
+                ID3D12PipelineState *&slot = mesh_pipelines_[sample_slot(samples) * 3 + cull];
+                if (slot)
+                    return slot;
+                static const D3D12_INPUT_ELEMENT_DESC elements[] = {
                     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex3D, position)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
@@ -1941,11 +2057,14 @@ namespace sl::detail
                      static_cast<UINT>(offsetof(Vertex3D, tangent)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
                 pipeline_desc.pRootSignature = mesh_root_signature_;
-                pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};
-                pipeline_desc.PS = {pixel_blob->GetBufferPointer(), pixel_blob->GetBufferSize()};
+                pipeline_desc.VS = {mesh_vertex_blob_->GetBufferPointer(), mesh_vertex_blob_->GetBufferSize()};
+                pipeline_desc.PS = {mesh_pixel_blob_->GetBufferPointer(), mesh_pixel_blob_->GetBufferSize()};
                 pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
                 pipeline_desc.SampleMask = UINT_MAX;
                 pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+                pipeline_desc.RasterizerState.CullMode =
+                    cull == 0 ? D3D12_CULL_MODE_BACK :
+                    cull == 1 ? D3D12_CULL_MODE_FRONT : D3D12_CULL_MODE_NONE;
                 pipeline_desc.RasterizerState.FrontCounterClockwise = TRUE;
                 pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
                 pipeline_desc.DepthStencilState.DepthEnable = TRUE;
@@ -1957,33 +2076,13 @@ namespace sl::detail
                 pipeline_desc.NumRenderTargets = 1;
                 pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
                 pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-                pipeline_desc.SampleDesc.Count = 1;
-                for (std::size_t index = 0; index < mesh_pipelines_.size(); ++index)
+                pipeline_desc.SampleDesc.Count = static_cast<UINT>(samples);
+                if (FAILED(context_.device()->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&slot))))
                 {
-                    pipeline_desc.RasterizerState.CullMode =
-                        index == 0 ? D3D12_CULL_MODE_BACK :
-                        index == 1 ? D3D12_CULL_MODE_FRONT : D3D12_CULL_MODE_NONE;
-                    result = context_.device()->CreateGraphicsPipelineState(
-                        &pipeline_desc, IID_PPV_ARGS(&mesh_pipelines_[index]));
-                    if (FAILED(result))
-                        break;
+                    slot = nullptr;
+                    last_error_ = "Unable to create the D3D12 mesh pipeline state.";
                 }
-                vertex_blob->Release();
-                pixel_blob->Release();
-                if (FAILED(result))
-                {
-                    last_error_ = "Unable to create the D3D12 mesh pipeline states.";
-                    for (ID3D12PipelineState *&pipeline : mesh_pipelines_)
-                    {
-                        if (pipeline)
-                            pipeline->Release();
-                        pipeline = nullptr;
-                    }
-                    mesh_root_signature_->Release();
-                    mesh_root_signature_ = nullptr;
-                    return false;
-                }
-                return true;
+                return slot;
             }
 
             static void release_mesh(Mesh &mesh)
@@ -2173,7 +2272,7 @@ namespace sl::detail
                 const auto texture = textures_.find(target->second.texture);
                 if (texture == textures_.end())
                     return false;
-                if (texture->second.state != D3D12_RESOURCE_STATE_RENDER_TARGET)
+                if (target->second.samples == 1 && texture->second.state != D3D12_RESOURCE_STATE_RENDER_TARGET)
                 {
                     transition_resource(context_.command_list(), texture->second.resource,
                                         texture->second.state, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -2205,8 +2304,14 @@ namespace sl::detail
                 if (target == render_targets_.end())
                     return;
                 const auto texture = textures_.find(target->second.texture);
-                if (texture != textures_.end() &&
-                    texture->second.state == D3D12_RESOURCE_STATE_RENDER_TARGET)
+                if (texture == textures_.end())
+                    return;
+                if (target->second.samples > 1)
+                {
+                    resolve_render_target(target->second, texture->second);
+                    return;
+                }
+                if (texture->second.state == D3D12_RESOURCE_STATE_RENDER_TARGET)
                 {
                     transition_resource(context_.command_list(), texture->second.resource,
                                         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -2712,7 +2817,7 @@ namespace sl::detail
 
             static D3D12_GRAPHICS_PIPELINE_STATE_DESC make_2d_pipeline_desc(
                 ID3D12RootSignature *root_signature, ID3DBlob *vertex, ID3DBlob *pixel, std::size_t primitive,
-                std::size_t variant, const D3D12_INPUT_ELEMENT_DESC *elements, UINT element_count)
+                std::size_t variant, const D3D12_INPUT_ELEMENT_DESC *elements, UINT element_count, int samples)
             {
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
                 desc.pRootSignature = root_signature;
@@ -2731,13 +2836,15 @@ namespace sl::detail
                                                               : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
                 desc.NumRenderTargets = 1;
                 desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-                desc.SampleDesc.Count = 1;
+                desc.SampleDesc.Count = static_cast<UINT>(samples);
                 return desc;
             }
 
             ID3D12PipelineState *get_default_pipeline(std::size_t primitive, std::size_t variant)
             {
-                ID3D12PipelineState *&slot = pipelines_[variant * primitive_pipeline_count + primitive];
+                const int samples = current_target_samples();
+                ID3D12PipelineState *&slot =
+                    pipelines_[sample_slot(samples) * pipeline_set_size + variant * primitive_pipeline_count + primitive];
                 if (slot)
                     return slot;
                 static const D3D12_INPUT_ELEMENT_DESC elements[] = {
@@ -2749,7 +2856,7 @@ namespace sl::detail
                      static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
                 const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(root_signature_, default_vertex_blob_, default_pixel_blob_, primitive,
-                                          variant, elements, static_cast<UINT>(std::size(elements)));
+                                          variant, elements, static_cast<UINT>(std::size(elements)), samples);
                 if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
                     slot = nullptr;
                 return slot;
@@ -2758,7 +2865,9 @@ namespace sl::detail
             ID3D12PipelineState *get_program_pipeline(ShaderProgram &program, std::size_t primitive,
                                                       std::size_t variant)
             {
-                ID3D12PipelineState *&slot = program.pipelines[variant * primitive_pipeline_count + primitive];
+                const int samples = current_target_samples();
+                ID3D12PipelineState *&slot =
+                    program.pipelines[sample_slot(samples) * pipeline_set_size + variant * primitive_pipeline_count + primitive];
                 if (slot)
                     return slot;
                 // The translated vertex shaders read their inputs from locations 0 (position), 1 (uv), 2 (colour).
@@ -2771,7 +2880,7 @@ namespace sl::detail
                      static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
                 const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
-                                          primitive, variant, elements, static_cast<UINT>(std::size(elements)));
+                                          primitive, variant, elements, static_cast<UINT>(std::size(elements)), samples);
                 if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
                 {
                     slot = nullptr;
@@ -2855,7 +2964,7 @@ namespace sl::detail
             ID3D12DescriptorHeap *render_target_heap_ = nullptr;
             ID3D12DescriptorHeap *depth_stencil_heap_ = nullptr;
             ID3D12RootSignature *root_signature_ = nullptr;
-            std::array<ID3D12PipelineState *, primitive_pipeline_count * blend_variant_count> pipelines_{};
+            std::array<ID3D12PipelineState *, pipeline_set_size * sample_slot_count> pipelines_{};
             ID3DBlob *default_vertex_blob_ = nullptr;
             ID3DBlob *default_pixel_blob_ = nullptr;
             std::unordered_map<std::uint32_t, ShaderProgram> programs_;
@@ -2885,7 +2994,9 @@ namespace sl::detail
             BlendMode blend_mode_ = BlendMode::normal;
             bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
-            std::array<ID3D12PipelineState *, 3> mesh_pipelines_{};
+            std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_pipelines_{};
+            ID3DBlob *mesh_vertex_blob_ = nullptr;
+            ID3DBlob *mesh_pixel_blob_ = nullptr;
             ID3D12Resource *vertex_buffer_ = nullptr;
             Vertex2D *mapped_vertices_ = nullptr;
             std::size_t vertex_capacity_ = 0;

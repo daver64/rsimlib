@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3,Vulkan and D3D12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3, Vulkan and Direct3D 12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -59,8 +59,8 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
-- 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, and dynamic polygon soft shadows.
-- ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and direct 3D rendering APIs.
+- 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, dynamic polygon soft shadows, and 2D/3D normal mapping.
+- ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D 12 backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and direct 3D rendering APIs.
 - 🧊 **[3D Surfaces & Model Loading](docs/api_reference.md#3d-surfaces-includesurface3dh)** — Offscreen MSAA 3D targets, camera perspective, directional lighting, OBJ/glTF/GLB models, and seamless 2D HUD compositing.
 - 🧱 **[Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh)** — 16x16x16 chunk rendering, hidden-face culling into GPU vertex buffers, texture atlas mapping, multi-chunk coordination, and 3D DDA raycasting for Minecraft-style worlds.
 - 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper, simple particle/AABB entity physics, and Lua physics bindings.
@@ -164,7 +164,7 @@ ctest --test-dir build --output-on-failure
 
 ## 3D Graphics: Surfaces, Models & Voxel Worlds
 
-`simlib` includes both a high-level 3D drawing API and lower-level ways to build renderer-specific scenes. The backend-neutral `sl::Surface3D` API ([include/surface3d.h](include/surface3d.h)) is implemented for OpenGL and Vulkan. Create an offscreen colour-and-depth surface with optional multisample anti-aliasing (MSAA), draw with a 3D `Camera` and directional `Light3D`, render built-in primitive meshes or loaded Wavefront `.obj`/`.mtl`, `.gltf`, and `.glb` models, add 2D overlays such as HUD text and sprites, and composite the result into a 2D frame.
+`simlib` includes both a high-level 3D drawing API and lower-level ways to build renderer-specific scenes. The backend-neutral `sl::Surface3D` API ([include/surface3d.h](include/surface3d.h)) is implemented for OpenGL, Vulkan and Direct3D 12. Create an offscreen colour-and-depth surface with optional multisample anti-aliasing (MSAA; supported on all three backends), draw with a 3D `Camera` and directional `Light3D`, render built-in primitive meshes or loaded Wavefront `.obj`/`.mtl`, `.gltf`, and `.glb` models, optionally shade them with tangent-space normal maps (`Material::normal_map`; tangents are generated automatically, and glTF `normalTexture` and MTL `norm`/`map_Bump` are loaded), add 2D overlays such as HUD text and sprites, and composite the result into a 2D frame.
 
 ```cpp
 // Create an offscreen 3D surface with 4x MSAA
@@ -187,7 +187,7 @@ if (sl::begin_surface_3d(surface, camera))
 sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
 ```
 
-For block-based worlds, the voxel API provides chunk rendering, hidden-face culling, texture-atlas mapping, and 3D raycasting; see [Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh). For renderer-specific control, the [3D examples](docs/renderers.md#direct-3d-escape-hatches) demonstrate direct OpenGL, Vulkan, and Direct3D 12 rendering. `Surface3D` currently supports OpenGL and Vulkan; Direct3D examples use their direct-rendering APIs.
+For block-based worlds, the voxel API provides chunk rendering, hidden-face culling, texture-atlas mapping, and 3D raycasting; see [Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh). For renderer-specific control, the [3D examples](docs/renderers.md#direct-3d-escape-hatches) demonstrate direct OpenGL, Vulkan, and Direct3D 12 rendering. Normal-mapped 2D sprites/tiles under `LightingPass` ([`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)) and normal-mapped 3D meshes ([`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)) work on all three backends; see [Graphics Effects](docs/graphics_effects.md).
 
 ---
 
@@ -208,6 +208,9 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/exshader        # Custom GLSL shader with runtime SPIR-V compilation
 ./build/exrendertarget  # Off-screen render-target composition
 ./build/exaudio         # Sound effect mixer and streamed music
+./build/exsynth         # Procedural audio synthesis into playable samples
+./build/exlua           # Sandboxed Lua scripting via sol2
+./build/exluaconsole    # Interactive Lua console
 ./build/exinput         # Keyboard, mouse, gamepad axes/buttons, and hotplugging
 ./build/exgui           # Dear ImGui widgets and integration
 ./build/exparticles     # Particle emitters, fades, and gravity
@@ -262,6 +265,7 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 - **[`exshader`](src/examples/exshader/exshader.cpp)** — File-based GLSL loading, runtime compilation, and textured quads.
 - **[`exrendertarget`](src/examples/exrendertarget/exrendertarget.cpp)** — Off-screen rendering, render-target lifetime, and compositing.
 - **[`exaudio`](src/examples/exaudio/exaudio.cpp)** — SDL_mixer sound effects, streamed music, pause/resume, and volume.
+- **[`exsynth`](src/examples/exsynth/exsynth.cpp)** — Procedural audio synthesis via `audio_synth.h`.
 - **[`exinput`](src/examples/exinput/exinput.cpp)** — Held keyboard state, mouse state, gamepad axes/buttons, and hotplugging.
 - **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialization, event forwarding, widgets, and rendering.
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.

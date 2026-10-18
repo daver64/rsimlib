@@ -102,7 +102,7 @@ limited to 16 samplers per shader. Ship both DLLs next to your executable.
 
 ## Surface3D
 
-The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL and Vulkan; D3D12 returns an "unsupported" error. Surfaces support true MSAA on both (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
+The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and D3D12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
 
 ## Direct 3D Escape Hatches
 
