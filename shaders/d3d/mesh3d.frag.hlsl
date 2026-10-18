@@ -22,12 +22,12 @@ struct PixelInput
 float4 main(PixelInput input) : SV_TARGET
 {
     float3 normal = normalize(input.normal);
+    float3 mapped = normal_value.Sample(normal_sampler, input.texcoord).xyz * 2.0 - 1.0;
     float3 tangent = input.tangent.xyz - normal * dot(normal, input.tangent.xyz);
     if (dot(tangent, tangent) > 1e-8)
     {
         tangent = normalize(tangent);
         float3 bitangent = cross(normal, tangent) * input.tangent.w;
-        float3 mapped = normal_value.Sample(normal_sampler, input.texcoord).xyz * 2.0 - 1.0;
         normal = normalize(tangent * mapped.x + bitangent * mapped.y + normal * mapped.z);
     }
     float diffuse = max(dot(normal, light.xyz), 0.0);

@@ -19,6 +19,10 @@
 #include <cstring>
 #include <filesystem>
 #include <cstdio>
+#include <exception>
+#include <limits>
+#include <memory>
+#include <new>
 #include <queue>
 #include <vector>
 
@@ -30,6 +34,21 @@ namespace sl
 	{
 
 		constexpr std::size_t bytes_per_pixel = 4;
+		Bitmap *cursorBitmap = nullptr;
+		int cursorOffsetX = 0;
+		int cursorOffsetY = 0;
+
+		bool pixel_buffer_size(int width, int height, std::size_t &size)
+		{
+			if (width <= 0 || height <= 0)
+				return false;
+			const std::size_t w = static_cast<std::size_t>(width);
+			const std::size_t h = static_cast<std::size_t>(height);
+			if (w > std::numeric_limits<std::size_t>::max() / bytes_per_pixel / h)
+				return false;
+			size = w * h * bytes_per_pixel;
+			return size <= std::vector<Uint8>().max_size();
+		}
 
 		/** Check whether a bitmap has usable dimensions. */
 		bool is_valid(const Bitmap *bitmap)
@@ -44,6 +63,13 @@ namespace sl
 		}
 
 		std::vector<Bitmap *> active_target_stack;
+		std::vector<Bitmap *> normal_map_sources;
+
+		void untrack_normal_map_source(Bitmap *bitmap)
+		{
+			normal_map_sources.erase(std::remove(normal_map_sources.begin(), normal_map_sources.end(), bitmap),
+							 normal_map_sources.end());
+		}
 
 		bool is_drawing_target(const Bitmap *bitmap)
 		{
@@ -82,7 +108,7 @@ namespace sl
 					return false;
 				}
 				bitmap->gpu_texture = texture;
-				bitmap->gpu_dirty = !bitmap->pixels.empty();
+				bitmap->gpu_dirty = false;
 			}
 			return true;
 		}
@@ -98,13 +124,24 @@ namespace sl
 			{
 				return download_bitmap(bitmap);
 			}
+			if (bitmap->gpu_dirty)
+				return download_bitmap(bitmap);
 			if (bitmap->pixels.empty())
 			{
-				bitmap->pixels.resize(static_cast<std::size_t>(bitmap->width) * bitmap->height * bytes_per_pixel);
-				if (bitmap->gpu_texture != 0 && !bitmap->gpu_dirty)
+				std::size_t size = 0;
+				if (!pixel_buffer_size(bitmap->width, bitmap->height, size))
+					return false;
+				try
 				{
-					return download_bitmap(bitmap);
+					bitmap->pixels.resize(size);
 				}
+				catch (const std::exception &)
+				{
+					sl::detail::set_error("Unable to allocate bitmap pixel buffer");
+					return false;
+				}
+				if (bitmap->gpu_texture != 0 && !bitmap->ram_dirty)
+					return download_bitmap(bitmap);
 			}
 			return true;
 		}
@@ -652,17 +689,31 @@ namespace sl
 	/** Create a RAM-backed bitmap. */
 	Bitmap *create_bitmap(int width, int height)
 	{
-		if (width <= 0 || height <= 0)
+		std::size_t size = 0;
+		if (!pixel_buffer_size(width, height, size))
 		{
-			sl::detail::set_error("Bitmap dimensions must be positive");
+			sl::detail::set_error("Invalid bitmap dimensions or pixel buffer size");
 			return nullptr;
 		}
-		Bitmap *bitmap = new Bitmap;
+		std::unique_ptr<Bitmap> bitmap(new (std::nothrow) Bitmap);
+		if (!bitmap)
+		{
+			sl::detail::set_error("Unable to allocate bitmap");
+			return nullptr;
+		}
 		bitmap->width = width;
 		bitmap->height = height;
-		bitmap->pixels.resize(static_cast<std::size_t>(width) * height * bytes_per_pixel);
+		try
+		{
+			bitmap->pixels.resize(size);
+		}
+		catch (const std::exception &)
+		{
+			sl::detail::set_error("Unable to allocate bitmap pixel buffer");
+			return nullptr;
+		}
 		bitmap->ram_dirty = true;
-		return bitmap;
+		return bitmap.release();
 	}
 
 	/** Create a GPU-backed bitmap. */
@@ -685,7 +736,10 @@ namespace sl
 	{
 		if (bitmap && bitmap != normal_map)
 		{
+			untrack_normal_map_source(bitmap);
 			bitmap->normal_map = normal_map;
+			if (normal_map)
+				normal_map_sources.push_back(bitmap);
 		}
 	}
 
@@ -728,12 +782,18 @@ namespace sl
 			return nullptr;
 		}
 
-		Bitmap *bitmap = new Bitmap;
+		std::unique_ptr<Bitmap> bitmap(new (std::nothrow) Bitmap);
+		if (!bitmap)
+		{
+			renderer->destroy_render_target(texture, fbo);
+			sl::detail::set_error("Unable to allocate render target bitmap");
+			return nullptr;
+		}
 		bitmap->width = width;
 		bitmap->height = height;
 		bitmap->gpu_texture = texture;
 		bitmap->fbo = fbo;
-		return bitmap;
+		return bitmap.release();
 	}
 
 	/** Redirect subsequent GPU drawing to a render target's framebuffer. */
@@ -744,6 +804,8 @@ namespace sl
 			return false;
 		}
 		detail::Renderer *renderer = detail::active_renderer();
+		if (target->ram_dirty && !upload_bitmap(target))
+			return false;
 		std::string error;
 		if (!renderer || !renderer->begin_render_target(target->fbo, target->width, target->height, error))
 		{
@@ -753,6 +815,7 @@ namespace sl
 		}
 		detail::set_render_target_size(target->width, target->height);
 		active_target_stack.push_back(target);
+		target->gpu_dirty = true;
 		return true;
 	}
 
@@ -791,6 +854,11 @@ namespace sl
 				static_cast<float>(colour.green) / 255.0f,
 				static_cast<float>(colour.blue) / 255.0f,
 				static_cast<float>(colour.alpha) / 255.0f);
+			if (!active_target_stack.empty())
+			{
+				active_target_stack.back()->ram_dirty = false;
+				active_target_stack.back()->gpu_dirty = true;
+			}
 		}
 	}
 
@@ -924,6 +992,32 @@ namespace sl
 		if (!bitmap || is_screen(bitmap))
 		{
 			return;
+		}
+		if (std::find(active_target_stack.begin(), active_target_stack.end(), bitmap) != active_target_stack.end())
+		{
+			sl::detail::set_error("Cannot destroy a bitmap while it is an active render target");
+			return;
+		}
+		if (cursorBitmap == bitmap)
+		{
+			cursorBitmap = nullptr;
+			detail::refresh_mouse_cursor();
+		}
+		for (auto source = normal_map_sources.begin(); source != normal_map_sources.end();)
+		{
+			if (*source == bitmap)
+			{
+				source = normal_map_sources.erase(source);
+			}
+			else if ((*source)->normal_map == bitmap)
+			{
+				(*source)->normal_map = nullptr;
+				source = normal_map_sources.erase(source);
+			}
+			else
+			{
+				++source;
+			}
 		}
 		detail::Renderer *renderer = detail::active_renderer();
 		if (renderer && bitmap->fbo != 0)
@@ -1834,10 +1928,24 @@ namespace sl
 		{
 			return false;
 		}
-		bitmap->pixels.resize(static_cast<std::size_t>(bitmap->width) * bitmap->height * bytes_per_pixel);
+		std::size_t size = 0;
+		if (!pixel_buffer_size(bitmap->width, bitmap->height, size))
+			return false;
+		const bool had_current_pixels = bitmap->pixels.size() == size && !bitmap->gpu_dirty;
+		try
+		{
+			bitmap->pixels.resize(size);
+		}
+		catch (const std::exception &)
+		{
+			sl::detail::set_error("Unable to allocate bitmap pixel buffer");
+			return false;
+		}
 		detail::Renderer *renderer = detail::active_renderer();
 		if (!renderer)
 		{
+			if (!had_current_pixels)
+				bitmap->pixels.clear();
 			return false;
 		}
 
@@ -1859,6 +1967,10 @@ namespace sl
 		{
 			bitmap->ram_dirty = false;
 			bitmap->gpu_dirty = false;
+		}
+		else if (!had_current_pixels)
+		{
+			bitmap->pixels.clear();
 		}
 		return success;
 	}
@@ -1883,13 +1995,6 @@ namespace sl
 		renderer->bind_texture_unit(unit, bitmap->gpu_texture);
 		return true;
 	}
-	namespace
-	{
-		Bitmap *cursorBitmap = nullptr;
-		int cursorOffsetX = 0;
-		int cursorOffsetY = 0;
-	} // namespace
-
 	void set_mouse_bitmap(Bitmap *mouse_bitmap, int offset_x, int offset_y)
 	{
 		cursorBitmap = mouse_bitmap;

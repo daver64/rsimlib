@@ -3,12 +3,23 @@
 #include <box2d/box2d.h>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace sl
 {
     namespace
     {
+        bool finite(Vec2 value)
+        {
+            return std::isfinite(value.x) && std::isfinite(value.y);
+        }
+
+        bool finite_fixture_properties(float density, float friction, float restitution)
+        {
+            return std::isfinite(density) && std::isfinite(friction) && std::isfinite(restitution);
+        }
+
         b2Vec2 to_box2d(Vec2 value)
         {
             return {value.x / physics_pixels_per_meter, value.y / physics_pixels_per_meter};
@@ -35,6 +46,7 @@ namespace sl
     }
 
     struct PhysicsWorld;
+    struct PhysicsBody;
 
     class ContactListener final : public b2ContactListener
     {
@@ -57,6 +69,7 @@ namespace sl
         b2World world;
         ContactListener listener;
         std::vector<PhysicsContact> contacts;
+        std::vector<PhysicsBody *> bodies;
     };
 
     struct PhysicsBody
@@ -75,14 +88,17 @@ namespace sl
             }
             b2Body *bodyA = contact->GetFixtureA()->GetBody();
             b2Body *bodyB = contact->GetFixtureB()->GetBody();
-            b2WorldManifold manifold;
-            contact->GetWorldManifold(&manifold);
             PhysicsContact event;
             event.type = type;
             event.body_a = reinterpret_cast<PhysicsBody *>(bodyA->GetUserData().pointer);
             event.body_b = reinterpret_cast<PhysicsBody *>(bodyB->GetUserData().pointer);
-            event.point = from_box2d(manifold.points[0]);
-            event.normal = {manifold.normal.x, manifold.normal.y};
+            if (contact->GetManifold()->pointCount > 0)
+            {
+                b2WorldManifold manifold;
+                contact->GetWorldManifold(&manifold);
+                event.point = from_box2d(manifold.points[0]);
+                event.normal = {manifold.normal.x, manifold.normal.y};
+            }
             world->contacts.push_back(event);
         }
     }
@@ -99,17 +115,22 @@ namespace sl
 
     PhysicsWorld *create_physics_world(Vec2 gravity)
     {
-        return new PhysicsWorld(gravity);
+        return finite(gravity) ? new PhysicsWorld(gravity) : nullptr;
     }
 
     void destroy_physics_world(PhysicsWorld *world)
     {
+        if (!world)
+            return;
+        world->world.SetContactListener(nullptr);
+        for (PhysicsBody *body : world->bodies)
+            delete body;
         delete world;
     }
 
     void step_physics_world(PhysicsWorld *world, float time_step, int velocity_iterations, int position_iterations)
     {
-        if (!world || time_step <= 0.0f)
+        if (!world || !std::isfinite(time_step) || time_step <= 0.0f)
         {
             return;
         }
@@ -129,7 +150,7 @@ namespace sl
 
     PhysicsBody *create_physics_body(PhysicsWorld *world, BodyType type, Vec2 position)
     {
-        if (!world)
+        if (!world || !finite(position))
         {
             return nullptr;
         }
@@ -145,6 +166,7 @@ namespace sl
             delete body;
             return nullptr;
         }
+        world->bodies.push_back(body);
         return body;
     }
 
@@ -154,16 +176,23 @@ namespace sl
         {
             return;
         }
-        if (body->owner && body->body)
+        if (body->owner)
         {
-            body->owner->world.DestroyBody(body->body);
+            PhysicsWorld *owner = body->owner;
+            if (body->body)
+                owner->world.DestroyBody(body->body);
+            owner->contacts.erase(std::remove_if(owner->contacts.begin(), owner->contacts.end(),
+                                                 [body](const PhysicsContact &contact)
+                                                 { return contact.body_a == body || contact.body_b == body; }),
+                                  owner->contacts.end());
+            owner->bodies.erase(std::remove(owner->bodies.begin(), owner->bodies.end(), body), owner->bodies.end());
         }
         delete body;
     }
 
     void set_physics_body_transform(PhysicsBody *body, Vec2 position, float angle)
     {
-        if (body && body->body)
+        if (body && body->body && finite(position) && std::isfinite(angle))
         {
             body->body->SetTransform(to_box2d(position), angle);
         }
@@ -186,7 +215,7 @@ namespace sl
 
     void set_physics_body_velocity(PhysicsBody *body, Vec2 velocity)
     {
-        if (body && body->body)
+        if (body && body->body && finite(velocity))
         {
             body->body->SetLinearVelocity(to_box2d(velocity));
         }
@@ -194,7 +223,7 @@ namespace sl
 
     void apply_physics_force(PhysicsBody *body, Vec2 force)
     {
-        if (body && body->body)
+        if (body && body->body && finite(force))
         {
             body->body->ApplyForceToCenter(to_box2d(force), true);
         }
@@ -202,7 +231,8 @@ namespace sl
 
     bool add_box_fixture(PhysicsBody *body, float width, float height, float density, float friction, float restitution)
     {
-        if (!body || !body->body || width <= 0.0f || height <= 0.0f)
+        if (!body || !body->body || !std::isfinite(width) || !std::isfinite(height) ||
+            !finite_fixture_properties(density, friction, restitution) || width <= 0.0f || height <= 0.0f)
         {
             return false;
         }
@@ -218,7 +248,8 @@ namespace sl
 
     bool add_circle_fixture(PhysicsBody *body, float radius, float density, float friction, float restitution)
     {
-        if (!body || !body->body || radius <= 0.0f)
+        if (!body || !body->body || !std::isfinite(radius) ||
+            !finite_fixture_properties(density, friction, restitution) || radius <= 0.0f)
         {
             return false;
         }
@@ -235,15 +266,33 @@ namespace sl
     bool add_polygon_fixture(PhysicsBody *body, const std::vector<Vec2> &vertices,
                              float density, float friction, float restitution)
     {
-        if (!body || !body->body || vertices.size() < 3 || vertices.size() > b2_maxPolygonVertices)
+        if (!body || !body->body || vertices.size() < 3 || vertices.size() > b2_maxPolygonVertices ||
+            !finite_fixture_properties(density, friction, restitution))
         {
             return false;
         }
         b2Vec2 points[b2_maxPolygonVertices];
         for (std::size_t index = 0; index < vertices.size(); ++index)
         {
+            if (!finite(vertices[index]))
+                return false;
             points[index] = to_box2d(vertices[index]);
         }
+        bool has_area = false;
+        for (std::size_t a = 0; a < vertices.size() && !has_area; ++a)
+            for (std::size_t b = a + 1; b < vertices.size() && !has_area; ++b)
+                for (std::size_t c = b + 1; c < vertices.size(); ++c)
+                {
+                    const float cross = (points[b].x - points[a].x) * (points[c].y - points[a].y) -
+                                        (points[b].y - points[a].y) * (points[c].x - points[a].x);
+                    if (std::abs(cross) > b2_linearSlop * b2_linearSlop)
+                    {
+                        has_area = true;
+                        break;
+                    }
+                }
+        if (!has_area)
+            return false;
         b2PolygonShape shape;
         shape.Set(points, static_cast<int32>(vertices.size()));
         b2FixtureDef fixture;

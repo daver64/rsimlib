@@ -176,6 +176,8 @@ namespace sl
 
     sol::state &LuaRuntime::state()
     {
+        if (!state_)
+            initialise();
         return *state_;
     }
 

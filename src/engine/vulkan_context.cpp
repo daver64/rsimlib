@@ -497,8 +497,7 @@ namespace sl::detail
         }
         if (frame_active_)
             return true;
-        if (vkWaitForFences(device_, 1, &in_flight_, VK_TRUE, UINT64_MAX) != VK_SUCCESS ||
-            vkResetFences(device_, 1, &in_flight_) != VK_SUCCESS)
+        if (vkWaitForFences(device_, 1, &in_flight_, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
         {
             error = "Unable to synchronize Vulkan frame fence.";
             return false;
@@ -510,6 +509,12 @@ namespace sl::detail
         if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
         {
             error = "Unable to acquire a Vulkan swapchain image.";
+            return false;
+        }
+        // Reset only after a successful acquire so a failed acquire can't leave the fence unsignaled forever.
+        if (vkResetFences(device_, 1, &in_flight_) != VK_SUCCESS)
+        {
+            error = "Unable to synchronize Vulkan frame fence.";
             return false;
         }
         vkResetCommandBuffer(command_buffer_, 0);

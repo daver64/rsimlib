@@ -405,6 +405,9 @@ namespace sl
             implementation_->clear_physics();
             implementation_->clear_compute();
             implementation_->commands.clear();
+            implementation_->background = {0, 0, 0};
+            implementation_->asset_root = "assets";
+            implementation_->runtime.reset();
         }
     }
 

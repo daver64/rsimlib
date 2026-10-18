@@ -13,6 +13,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 
 namespace sl
 {
@@ -37,14 +38,14 @@ namespace sl
             const auto info = set.tiles.find(local);
             if (info == set.tiles.end() || info->second.animation.empty())
                 return local;
-            int total = 0;
+            double total = 0.0;
             for (const TileAnimationFrame &frame : info->second.animation)
                 total += std::max(frame.duration_ms, 1);
-            int time = static_cast<int>(std::fmod(clock_ms, static_cast<double>(total)));
+            double time = std::fmod(clock_ms, total);
             for (const TileAnimationFrame &frame : info->second.animation)
             {
                 time -= std::max(frame.duration_ms, 1);
-                if (time < 0)
+                if (time < 0.0)
                     return frame.tile;
             }
             return local;
@@ -84,6 +85,18 @@ namespace sl
             for (const TileSet &set : map->tilesets)
                 result = std::max(result, set.atlas.tile_width);
             return result;
+        }
+
+        int pixel_to_tile(float coordinate, int tile_size)
+        {
+            if (std::isnan(coordinate))
+                return 0;
+            const double cell = std::floor(static_cast<double>(coordinate) / tile_size);
+            if (cell <= std::numeric_limits<int>::min())
+                return std::numeric_limits<int>::min();
+            if (cell >= std::numeric_limits<int>::max())
+                return std::numeric_limits<int>::max();
+            return static_cast<int>(cell);
         }
 
         IsometricTransform make_iso(const TileMap *map, float origin_x, float origin_y)
@@ -251,12 +264,16 @@ namespace sl
 
     bool tilemap_rect_blocked(const TileMap *map, float x, float y, float width, float height, int layer)
     {
-        if (!map || map->tile_width <= 0 || map->tile_height <= 0)
+        if (!map || map->tile_width <= 0 || map->tile_height <= 0 || width <= 0.0f || height <= 0.0f ||
+            !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(width) || !std::isfinite(height) ||
+            !std::isfinite(x + width) || !std::isfinite(y + height))
             return false;
-        const int first_column = static_cast<int>(std::floor(x / map->tile_width));
-        const int last_column = static_cast<int>(std::floor((x + width - 0.001f) / map->tile_width));
-        const int first_row = static_cast<int>(std::floor(y / map->tile_height));
-        const int last_row = static_cast<int>(std::floor((y + height - 0.001f) / map->tile_height));
+        const float right = std::nextafter(x + width, -std::numeric_limits<float>::infinity());
+        const float bottom = std::nextafter(y + height, -std::numeric_limits<float>::infinity());
+        const int first_column = pixel_to_tile(x, map->tile_width);
+        const int last_column = pixel_to_tile(right, map->tile_width);
+        const int first_row = pixel_to_tile(y, map->tile_height);
+        const int last_row = pixel_to_tile(bottom, map->tile_height);
         for (int row = first_row; row <= last_row; ++row)
         {
             for (int column = first_column; column <= last_column; ++column)
@@ -280,8 +297,8 @@ namespace sl
             row = cell.y;
             return;
         }
-        column = static_cast<int>(std::floor(x / map->tile_width));
-        row = static_cast<int>(std::floor(y / map->tile_height));
+        column = pixel_to_tile(x, map->tile_width);
+        row = pixel_to_tile(y, map->tile_height);
     }
 
     void tilemap_tile_to_world(const TileMap *map, int column, int row, float &x, float &y)
@@ -295,8 +312,8 @@ namespace sl
                                                       static_cast<float>(row) + 0.5f, 0.0f, x, y);
             return;
         }
-        x = static_cast<float>(column * map->tile_width);
-        y = static_cast<float>(row * map->tile_height);
+        x = static_cast<float>(column) * map->tile_width;
+        y = static_cast<float>(row) * map->tile_height;
     }
 
     void update_tilemap(TileMap *map, float dt_seconds)

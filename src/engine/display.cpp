@@ -306,11 +306,11 @@ namespace sl
     }
     bool set_vsync(bool enabled)
     {
-        return renderer->set_vsync(enabled);
+        return renderer && renderer->set_vsync(enabled);
     }
 	bool get_vsync()
 	{
-		return renderer->vsync_active();
+		return renderer && renderer->vsync_active();
 	}
     int screen_width()
     {

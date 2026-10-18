@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <unordered_map>
 
 namespace sl::detail
@@ -187,6 +188,14 @@ namespace sl::detail
                 {
                     return false;
                 }
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_texture = 0;
+                GLint previous_unpack_buffer = 0;
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
+                glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &previous_unpack_buffer);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
                 glBindTexture(GL_TEXTURE_2D, handle);
                 const GLint filter = description.filter == TextureFilter::linear ? GL_LINEAR : GL_NEAREST;
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
@@ -194,7 +203,11 @@ namespace sl::detail
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-                if (glGetError() != GL_NO_ERROR)
+                const bool created = glGetError() == GL_NO_ERROR;
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(previous_unpack_buffer));
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
+                if (!created)
                 {
                     glDeleteTextures(1, &handle);
                     return false;
@@ -217,10 +230,36 @@ namespace sl::detail
                 {
                     return false;
                 }
-                glBindTexture(GL_TEXTURE_2D, handle);
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_texture = 0;
+                GLint previous_unpack_alignment = 4;
+                GLint previous_unpack_row_length = 0;
+                GLint previous_unpack_skip_rows = 0;
+                GLint previous_unpack_skip_pixels = 0;
+                GLint previous_unpack_buffer = 0;
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
+                glGetIntegerv(GL_UNPACK_ALIGNMENT, &previous_unpack_alignment);
+                glGetIntegerv(GL_UNPACK_ROW_LENGTH, &previous_unpack_row_length);
+                glGetIntegerv(GL_UNPACK_SKIP_ROWS, &previous_unpack_skip_rows);
+                glGetIntegerv(GL_UNPACK_SKIP_PIXELS, &previous_unpack_skip_pixels);
+                glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &previous_unpack_buffer);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
                 glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+                glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+                glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+                glBindTexture(GL_TEXTURE_2D, handle);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
                                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(previous_unpack_buffer));
+                glPixelStorei(GL_UNPACK_ALIGNMENT, previous_unpack_alignment);
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, previous_unpack_row_length);
+                glPixelStorei(GL_UNPACK_SKIP_ROWS, previous_unpack_skip_rows);
+                glPixelStorei(GL_UNPACK_SKIP_PIXELS, previous_unpack_skip_pixels);
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }
 
@@ -231,11 +270,39 @@ namespace sl::detail
                 {
                     return false;
                 }
+                const auto size = texture_sizes_.find(static_cast<GLuint>(texture));
+                if (size == texture_sizes_.end() || width != size->second.first || height != size->second.second)
+                    return false;
                 flush_2d();
-                const GLuint handle = static_cast<GLuint>(texture);
-                glBindTexture(GL_TEXTURE_2D, handle);
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_texture = 0;
+                GLint previous_pack_alignment = 4;
+                GLint previous_pack_row_length = 0;
+                GLint previous_pack_skip_rows = 0;
+                GLint previous_pack_skip_pixels = 0;
+                GLint previous_pack_buffer = 0;
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture);
+                glGetIntegerv(GL_PACK_ALIGNMENT, &previous_pack_alignment);
+                glGetIntegerv(GL_PACK_ROW_LENGTH, &previous_pack_row_length);
+                glGetIntegerv(GL_PACK_SKIP_ROWS, &previous_pack_skip_rows);
+                glGetIntegerv(GL_PACK_SKIP_PIXELS, &previous_pack_skip_pixels);
+                glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &previous_pack_buffer);
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
                 glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+                glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+                glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
                 glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(previous_pack_buffer));
+                glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment);
+                glPixelStorei(GL_PACK_ROW_LENGTH, previous_pack_row_length);
+                glPixelStorei(GL_PACK_SKIP_ROWS, previous_pack_skip_rows);
+                glPixelStorei(GL_PACK_SKIP_PIXELS, previous_pack_skip_pixels);
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }
 
@@ -258,15 +325,14 @@ namespace sl::detail
             {
                 texture = 0;
                 framebuffer = 0;
-                GLint previous_framebuffer = 0;
-                GLint previous_viewport[4] = {};
-                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
-                glGetIntegerv(GL_VIEWPORT, previous_viewport);
+                GLint previous_draw_framebuffer = 0;
+                GLint previous_read_framebuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_draw_framebuffer);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_read_framebuffer);
                 const auto restore_state = [&]()
                 {
-                    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
-                    glViewport(previous_viewport[0], previous_viewport[1],
-                               previous_viewport[2], previous_viewport[3]);
+                    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(previous_draw_framebuffer));
+                    glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_read_framebuffer));
                 };
                 if (width <= 0 || height <= 0)
                 {
@@ -279,11 +345,17 @@ namespace sl::detail
                 }
                 GLuint fbo = 0;
                 glGenFramebuffers(1, &fbo);
+                if (fbo == 0)
+                {
+                    destroy_texture(texture);
+                    texture = 0;
+                    restore_state();
+                    return false;
+                }
                 glBindFramebuffer(GL_FRAMEBUFFER, fbo);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                                        static_cast<GLuint>(texture), 0);
                 const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-                glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 if (!complete)
                 {
                     destroy_texture(texture);
@@ -330,21 +402,34 @@ namespace sl::detail
             {
                 MultisampleTarget target;
                 target.samples = samples;
+                GLint previous_draw_framebuffer = 0;
+                GLint previous_read_framebuffer = 0;
+                GLint previous_renderbuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_draw_framebuffer);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_read_framebuffer);
+                glGetIntegerv(GL_RENDERBUFFER_BINDING, &previous_renderbuffer);
                 glGenFramebuffers(1, &target.framebuffer);
                 glGenRenderbuffers(1, &target.color);
                 glGenRenderbuffers(1, &target.depth);
+                if (target.framebuffer == 0 || target.color == 0 || target.depth == 0)
+                {
+                    glDeleteFramebuffers(1, &target.framebuffer);
+                    glDeleteRenderbuffers(1, &target.color);
+                    glDeleteRenderbuffers(1, &target.depth);
+                    return false;
+                }
                 glBindRenderbuffer(GL_RENDERBUFFER, target.color);
                 glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_RGBA8, width, height);
                 glBindRenderbuffer(GL_RENDERBUFFER, target.depth);
                 glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH_COMPONENT24, width, height);
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
-                GLint previous_framebuffer = 0;
-                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
                 glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer);
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, target.color);
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, target.depth);
                 const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(previous_draw_framebuffer));
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_read_framebuffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, static_cast<GLuint>(previous_renderbuffer));
                 if (!complete)
                 {
                     glDeleteFramebuffers(1, &target.framebuffer);
@@ -370,17 +455,22 @@ namespace sl::detail
                         return true;
                     samples = 1;
                 }
-                GLint previous_framebuffer = 0;
-                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_framebuffer);
+                GLint previous_draw_framebuffer = 0;
+                GLint previous_read_framebuffer = 0;
+                GLint previous_renderbuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_draw_framebuffer);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_read_framebuffer);
+                glGetIntegerv(GL_RENDERBUFFER_BINDING, &previous_renderbuffer);
                 GLuint depth = 0;
                 glGenRenderbuffers(1, &depth);
                 glBindRenderbuffer(GL_RENDERBUFFER, depth);
                 glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-                glBindRenderbuffer(GL_RENDERBUFFER, 0);
                 glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth);
                 const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous_framebuffer));
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(previous_draw_framebuffer));
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_read_framebuffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, static_cast<GLuint>(previous_renderbuffer));
                 if (!complete)
                 {
                     glDeleteRenderbuffers(1, &depth);
@@ -398,13 +488,27 @@ namespace sl::detail
                              std::uint32_t &handle) override
             {
                 handle = 0;
-                if (!vertices || !indices || vertex_count == 0 || index_count == 0)
+                if (!vertices || !indices || vertex_count == 0 || index_count == 0 ||
+                    index_count > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()) ||
+                    vertex_count > static_cast<std::size_t>(std::numeric_limits<GLsizeiptr>::max()) / sizeof(Vertex3D) ||
+                    index_count > static_cast<std::size_t>(std::numeric_limits<GLsizeiptr>::max()) / sizeof(std::uint32_t))
                     return false;
                 GLMesh mesh;
                 mesh.index_count = static_cast<GLsizei>(index_count);
                 glGenVertexArrays(1, &mesh.vao);
                 glGenBuffers(1, &mesh.vbo);
                 glGenBuffers(1, &mesh.ebo);
+                if (mesh.vao == 0 || mesh.vbo == 0 || mesh.ebo == 0)
+                {
+                    glDeleteVertexArrays(1, &mesh.vao);
+                    glDeleteBuffers(1, &mesh.vbo);
+                    glDeleteBuffers(1, &mesh.ebo);
+                    return false;
+                }
+                GLint previous_vertex_array = 0;
+                GLint previous_array_buffer = 0;
+                glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array);
+                glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_array_buffer);
                 glBindVertexArray(mesh.vao);
                 glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
                 glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex3D) * vertex_count, vertices, GL_STATIC_DRAW);
@@ -425,7 +529,8 @@ namespace sl::detail
                 glEnableVertexAttribArray(4);
                 glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
                                       reinterpret_cast<void *>(offsetof(Vertex3D, tangent)));
-                glBindVertexArray(0);
+                glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
+                glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_array_buffer));
                 handle = next_mesh_++;
                 meshes_[handle] = mesh;
                 return true;
@@ -445,10 +550,27 @@ namespace sl::detail
             bool clear_3d(float red, float green, float blue, float alpha) override
             {
                 flush_2d();
+                GLfloat previous_clear_color[4] = {};
+                GLdouble previous_clear_depth = 1.0;
+                GLboolean previous_color_mask[4] = {};
+                GLboolean previous_depth_mask = GL_TRUE;
+                const GLboolean scissor_was_enabled = glIsEnabled(GL_SCISSOR_TEST);
+                glGetFloatv(GL_COLOR_CLEAR_VALUE, previous_clear_color);
+                glGetDoublev(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+                glGetBooleanv(GL_COLOR_WRITEMASK, previous_color_mask);
+                glGetBooleanv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
+                glDisable(GL_SCISSOR_TEST);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
                 glDepthMask(GL_TRUE);
                 glClearColor(red, green, blue, alpha);
                 glClearDepth(1.0);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                glClearColor(previous_clear_color[0], previous_clear_color[1], previous_clear_color[2], previous_clear_color[3]);
+                glClearDepth(previous_clear_depth);
+                glColorMask(previous_color_mask[0], previous_color_mask[1], previous_color_mask[2], previous_color_mask[3]);
+                glDepthMask(previous_depth_mask);
+                if (scissor_was_enabled)
+                    glEnable(GL_SCISSOR_TEST);
                 return true;
             }
 
@@ -467,7 +589,25 @@ namespace sl::detail
                 }
                 flush_2d();
                 GLint previous_program = 0;
+                GLint previous_depth_func = GL_LESS;
+                GLint previous_depth_mask = GL_TRUE;
+                GLint previous_cull_mode = GL_BACK;
+                GLint previous_front_face = GL_CCW;
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_vertex_array = 0;
+                GLint previous_texture0 = 0;
+                GLint previous_texture1 = 0;
                 glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
+                glGetIntegerv(GL_DEPTH_FUNC, &previous_depth_func);
+                glGetIntegerv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
+                glGetIntegerv(GL_CULL_FACE_MODE, &previous_cull_mode);
+                glGetIntegerv(GL_FRONT_FACE, &previous_front_face);
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture0);
+                glActiveTexture(GL_TEXTURE1);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture1);
                 const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
                 glEnable(GL_DEPTH_TEST);
                 glDepthFunc(GL_LESS);
@@ -496,12 +636,25 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);
                 glBindVertexArray(found->second.vao);
                 glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
-                glBindVertexArray(0);
+                glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
-                if (!cull_was_enabled)
+                glDepthFunc(static_cast<GLenum>(previous_depth_func));
+                glDepthMask(static_cast<GLboolean>(previous_depth_mask));
+                glCullFace(static_cast<GLenum>(previous_cull_mode));
+                glFrontFace(static_cast<GLenum>(previous_front_face));
+                if (cull_was_enabled)
+                    glEnable(GL_CULL_FACE);
+                else
                     glDisable(GL_CULL_FACE);
-                if (!depth_was_enabled)
+                if (depth_was_enabled)
+                    glEnable(GL_DEPTH_TEST);
+                else
                     glDisable(GL_DEPTH_TEST);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture0));
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture1));
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &) override
@@ -512,7 +665,8 @@ namespace sl::detail
                 }
                 flush_2d();
                 RenderTargetState previous{};
-                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous.framebuffer);
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous.draw_framebuffer);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous.read_framebuffer);
                 glGetIntegerv(GL_VIEWPORT, previous.viewport);
                 GLuint draw_framebuffer = static_cast<GLuint>(framebuffer);
                 const auto multisample = multisample_targets_.find(draw_framebuffer);
@@ -546,9 +700,9 @@ namespace sl::detail
                     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, previous.resolve_framebuffer);
                     glBlitFramebuffer(0, 0, previous.width, previous.height, 0, 0, previous.width, previous.height,
                                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
-                    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
                 }
-                glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous.framebuffer));
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(previous.draw_framebuffer));
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous.read_framebuffer));
                 glViewport(previous.viewport[0], previous.viewport[1], previous.viewport[2], previous.viewport[3]);
                 return true;
             }
@@ -562,11 +716,30 @@ namespace sl::detail
                 }
                 flush_2d();
                 GLint previous_fbo = 0;
+                GLint previous_pack_alignment = 4;
+                GLint previous_pack_row_length = 0;
+                GLint previous_pack_skip_rows = 0;
+                GLint previous_pack_skip_pixels = 0;
+                GLint previous_pack_buffer = 0;
                 glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_fbo);
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+                glGetIntegerv(GL_PACK_ALIGNMENT, &previous_pack_alignment);
+                glGetIntegerv(GL_PACK_ROW_LENGTH, &previous_pack_row_length);
+                glGetIntegerv(GL_PACK_SKIP_ROWS, &previous_pack_skip_rows);
+                glGetIntegerv(GL_PACK_SKIP_PIXELS, &previous_pack_skip_pixels);
+                glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &previous_pack_buffer);
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
                 glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+                glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+                glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
                 glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_fbo));
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(previous_pack_buffer));
+                glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment);
+                glPixelStorei(GL_PACK_ROW_LENGTH, previous_pack_row_length);
+                glPixelStorei(GL_PACK_SKIP_ROWS, previous_pack_skip_rows);
+                glPixelStorei(GL_PACK_SKIP_PIXELS, previous_pack_skip_pixels);
 
                 // Flip rows vertically so origin is top-left
                 const std::size_t row_bytes = static_cast<std::size_t>(width) * 4;
@@ -726,7 +899,18 @@ namespace sl::detail
             bool clear_frame(float red, float green, float blue, float alpha) override
             {
                 flush_2d();
+                GLfloat previous_clear_color[4] = {};
+                GLboolean previous_color_mask[4] = {};
+                const GLboolean scissor_was_enabled = glIsEnabled(GL_SCISSOR_TEST);
+                glGetFloatv(GL_COLOR_CLEAR_VALUE, previous_clear_color);
+                glGetBooleanv(GL_COLOR_WRITEMASK, previous_color_mask);
+                glDisable(GL_SCISSOR_TEST);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
                 context_.clear(red, green, blue, alpha);
+                glClearColor(previous_clear_color[0], previous_clear_color[1], previous_clear_color[2], previous_clear_color[3]);
+                glColorMask(previous_color_mask[0], previous_color_mask[1], previous_color_mask[2], previous_color_mask[3]);
+                if (scissor_was_enabled)
+                    glEnable(GL_SCISSOR_TEST);
                 return true;
             }
 
@@ -987,7 +1171,8 @@ namespace sl::detail
         private:
             struct RenderTargetState
             {
-                GLint framebuffer = 0;
+                GLint draw_framebuffer = 0;
+                GLint read_framebuffer = 0;
                 GLint viewport[4] = {};
                 GLuint resolve_framebuffer = 0;
                 int width = 0;

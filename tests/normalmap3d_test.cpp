@@ -59,6 +59,10 @@ int main(int argc, char *argv[])
     assert(high > brightness[0] + 20);
     assert(low < brightness[0] - 20);
 
+    sl::destroy_surface_3d(surface);
+    sl::destroy_mesh(cube);
+    sl::destroy_bitmap(maps[1]);
+    sl::destroy_bitmap(maps[2]);
     sl::shutdown();
     std::printf("normalmap3d_test passed\n");
     return 0;

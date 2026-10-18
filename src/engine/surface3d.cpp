@@ -6,6 +6,7 @@
 #include <glm/gtc/constants.hpp>
 
 #include <cmath>
+#include <memory>
 
 namespace sl
 {
@@ -92,26 +93,25 @@ namespace sl
         /** 1x1 (128,128,255) texture used when a material has no normal map; rebuilt if the renderer changes. */
         Bitmap *flat_normal_bitmap()
         {
-            static Bitmap *bitmap = nullptr;
+            static std::unique_ptr<Bitmap> bitmap;
             static detail::Renderer *owner = nullptr;
             detail::Renderer *renderer = detail::active_renderer();
             if (bitmap && owner != renderer)
             {
                 // The old renderer (and its textures) is gone; only free the CPU-side object.
                 bitmap->gpu_texture = 0;
-                delete bitmap;
-                bitmap = nullptr;
+                bitmap.reset();
             }
             if (!bitmap)
             {
-                bitmap = create_bitmap(1, 1);
+                bitmap.reset(create_bitmap(1, 1));
                 if (bitmap)
                 {
-                    putpixel(bitmap, 0, 0, Colour{128, 128, 255, 255});
+                    putpixel(bitmap.get(), 0, 0, Colour{128, 128, 255, 255});
                     owner = renderer;
                 }
             }
-            return bitmap;
+            return bitmap.get();
         }
     } // namespace
 

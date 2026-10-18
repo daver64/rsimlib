@@ -6,6 +6,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
+#include <cerrno>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -200,6 +201,11 @@ namespace sl
                             continue;
                         }
                         long ids[3] = {0, 0, 0};
+                        if (std::count(token.begin(), token.end(), '/') > 2)
+                        {
+                            detail::set_error("Invalid OBJ face corner");
+                            return false;
+                        }
                         int slot = 0;
                         std::size_t start = 0;
                         while (slot < 3 && start <= token.size())
@@ -207,7 +213,17 @@ namespace sl
                             const std::size_t end = token.find('/', start);
                             const std::string part = token.substr(start, end == std::string::npos ? end : end - start);
                             if (!part.empty())
-                                ids[slot] = std::strtol(part.c_str(), nullptr, 10);
+                            {
+                                char *parsed_end = nullptr;
+                                errno = 0;
+                                const long parsed = std::strtol(part.c_str(), &parsed_end, 10);
+                                if (errno == ERANGE || parsed_end == part.c_str() || *parsed_end != '\0')
+                                {
+                                    detail::set_error("Invalid OBJ face index");
+                                    return false;
+                                }
+                                ids[slot] = parsed;
+                            }
                             ++slot;
                             if (end == std::string::npos)
                                 break;
@@ -223,19 +239,25 @@ namespace sl
                         if (ids[1] != 0)
                         {
                             const long ti = resolve(ids[1], uvs.size());
-                            if (ti >= 0 && ti < static_cast<long>(uvs.size()))
-                                uv = {uvs[ti].x, 1.0f - uvs[ti].y};
+                            if (ti < 0 || ti >= static_cast<long>(uvs.size()))
+                            {
+                                detail::set_error("OBJ face references a missing texture coordinate");
+                                return false;
+                            }
+                            uv = {uvs[ti].x, 1.0f - uvs[ti].y};
                         }
                         glm::vec3 normal{0.0f, 1.0f, 0.0f};
                         bool normal_given = false;
                         if (ids[2] != 0)
                         {
                             const long ni = resolve(ids[2], normals.size());
-                            if (ni >= 0 && ni < static_cast<long>(normals.size()))
+                            if (ni < 0 || ni >= static_cast<long>(normals.size()))
                             {
-                                normal = normals[ni];
-                                normal_given = true;
+                                detail::set_error("OBJ face references a missing normal");
+                                return false;
                             }
+                            normal = normals[ni];
+                            normal_given = true;
                         }
                         const std::uint32_t index = static_cast<std::uint32_t>(current->vertices.size());
                         current->vertices.push_back(make_vertex(positions[pi], normal, colour, uv.x, uv.y));
@@ -479,9 +501,22 @@ namespace sl
                 detail::set_error("Unsupported glTF accessor type");
                 return false;
             }
-            out.assign(count * components, 0.0);
+            const std::size_t element_size = static_cast<std::size_t>(components) * size;
+            if (count > out.max_size() / static_cast<std::size_t>(components))
+            {
+                detail::set_error("glTF accessor is too large");
+                return false;
+            }
+            if (accessor.contains("sparse"))
+            {
+                detail::set_error("Sparse glTF accessors are not supported");
+                return false;
+            }
             if (!accessor.contains("bufferView"))
-                return true;
+            {
+                detail::set_error("glTF accessor has no bufferView");
+                return false;
+            }
             const json &views = gltf.doc.value("bufferViews", json::array());
             const int view_index = accessor["bufferView"].get<int>();
             if (view_index < 0 || view_index >= static_cast<int>(views.size()))
@@ -497,15 +532,26 @@ namespace sl
                 return false;
             }
             const std::vector<std::uint8_t> &buffer = gltf.buffers[buffer_index];
-            const std::size_t stride = std::max<std::size_t>(view.value("byteStride", 0u),
-                                                             static_cast<std::size_t>(components) * size);
-            const std::size_t base = static_cast<std::size_t>(view.value("byteOffset", 0u)) +
-                                     static_cast<std::size_t>(accessor.value("byteOffset", 0u));
-            if (count > 0 && base + (count - 1) * stride + static_cast<std::size_t>(components) * size > buffer.size())
+            const std::size_t view_offset = view.value("byteOffset", 0u);
+            const std::size_t view_length = view.value("byteLength", 0u);
+            const std::size_t accessor_offset = accessor.value("byteOffset", 0u);
+            const std::size_t stride = view.value("byteStride", element_size);
+            if (view_offset > buffer.size() || view_length > buffer.size() - view_offset ||
+                accessor_offset > view_length || view_offset % size != 0 || accessor_offset % size != 0 ||
+                stride < element_size || (view.contains("byteStride") &&
+                                           (stride < 4 || stride > 252 || stride % 4 != 0)))
             {
-                detail::set_error("glTF accessor reads past the end of its buffer");
+                detail::set_error("Invalid glTF bufferView or accessor layout");
                 return false;
             }
+            const std::size_t available = view_length - accessor_offset;
+            if (count > 0 && (available < element_size || (count - 1) > (available - element_size) / stride))
+            {
+                detail::set_error("glTF accessor reads past the end of its bufferView");
+                return false;
+            }
+            out.assign(count * static_cast<std::size_t>(components), 0.0);
+            const std::size_t base = view_offset + accessor_offset;
             for (std::size_t i = 0; i < count; ++i)
                 for (size_t c = 0; c < components; ++c)
                     out[i * components + c] = read_component(&buffer[base + i * stride + c * size], type, normalized);
@@ -559,7 +605,7 @@ namespace sl
                         const std::size_t offset = views[v].value("byteOffset", 0u);
                         const std::size_t length = views[v].value("byteLength", 0u);
                         if (b >= 0 && b < static_cast<int>(gltf.buffers.size()) &&
-                            offset + length <= gltf.buffers[b].size())
+                            offset <= gltf.buffers[b].size() && length <= gltf.buffers[b].size() - offset)
                             bitmap = load_bitmap_from_memory(gltf.buffers[b].data() + offset, length);
                     }
                 }
@@ -580,18 +626,47 @@ namespace sl
             if (!read_accessor(gltf, attributes["POSITION"].get<int>(), positions, pc) || pc != 3)
                 return nullptr;
             const std::size_t count = positions.size() / 3;
-            const bool has_normals = attributes.contains("NORMAL") &&
-                                     read_accessor(gltf, attributes["NORMAL"].get<int>(), normals, nc) &&
-                                     nc == 3 && normals.size() == count * 3;
-            const bool has_uvs = attributes.contains("TEXCOORD_0") &&
-                                 read_accessor(gltf, attributes["TEXCOORD_0"].get<int>(), uvs, tc) &&
-                                 tc == 2 && uvs.size() == count * 2;
-            const bool has_colours = attributes.contains("COLOR_0") &&
-                                     read_accessor(gltf, attributes["COLOR_0"].get<int>(), colours, cc) &&
-                                     (cc == 3 || cc == 4) && colours.size() == count * cc;
-            const bool has_tangents = attributes.contains("TANGENT") &&
-                                      read_accessor(gltf, attributes["TANGENT"].get<int>(), tangents, gc) &&
-                                      gc == 4 && tangents.size() == count * 4;
+            bool has_normals = false, has_uvs = false, has_colours = false, has_tangents = false;
+            if (attributes.contains("NORMAL"))
+            {
+                if (!read_accessor(gltf, attributes["NORMAL"].get<int>(), normals, nc) ||
+                    nc != 3 || normals.size() != count * 3)
+                {
+                    detail::set_error("Invalid glTF NORMAL accessor");
+                    return nullptr;
+                }
+                has_normals = true;
+            }
+            if (attributes.contains("TEXCOORD_0"))
+            {
+                if (!read_accessor(gltf, attributes["TEXCOORD_0"].get<int>(), uvs, tc) ||
+                    tc != 2 || uvs.size() != count * 2)
+                {
+                    detail::set_error("Invalid glTF TEXCOORD_0 accessor");
+                    return nullptr;
+                }
+                has_uvs = true;
+            }
+            if (attributes.contains("COLOR_0"))
+            {
+                if (!read_accessor(gltf, attributes["COLOR_0"].get<int>(), colours, cc) ||
+                    (cc != 3 && cc != 4) || colours.size() != count * cc)
+                {
+                    detail::set_error("Invalid glTF COLOR_0 accessor");
+                    return nullptr;
+                }
+                has_colours = true;
+            }
+            if (attributes.contains("TANGENT"))
+            {
+                if (!read_accessor(gltf, attributes["TANGENT"].get<int>(), tangents, gc) ||
+                    gc != 4 || tangents.size() != count * 4)
+                {
+                    detail::set_error("Invalid glTF TANGENT accessor");
+                    return nullptr;
+                }
+                has_tangents = true;
+            }
             std::vector<Vertex3D> vertices(count);
             std::vector<bool> normal_flags(count, has_normals);
             for (std::size_t i = 0; i < count; ++i)
@@ -620,11 +695,27 @@ namespace sl
             {
                 std::vector<double> raw;
                 int ic = 0;
-                if (!read_accessor(gltf, primitive["indices"].get<int>(), raw, ic) || ic != 1)
+                const int accessor_index = primitive["indices"].get<int>();
+                const json &accessors = gltf.doc.value("accessors", json::array());
+                if (accessor_index < 0 || accessor_index >= static_cast<int>(accessors.size()))
+                {
+                    detail::set_error("glTF index accessor is out of range");
+                    return nullptr;
+                }
+                const json &index_accessor = accessors[accessor_index];
+                const int index_type = index_accessor.value("componentType", 0);
+                if (index_accessor.value("type", "") != "SCALAR" ||
+                    (index_type != 5121 && index_type != 5123 && index_type != 5125) ||
+                    index_accessor.value("normalized", false))
+                {
+                    detail::set_error("Invalid glTF index accessor type");
+                    return nullptr;
+                }
+                if (!read_accessor(gltf, accessor_index, raw, ic) || ic != 1)
                     return nullptr;
                 for (const double value : raw)
                 {
-                    if (value < 0 || value >= static_cast<double>(count))
+                    if (value < 0 || value >= static_cast<double>(count) || std::floor(value) != value)
                     {
                         detail::set_error("glTF index is out of range");
                         return nullptr;
@@ -637,7 +728,11 @@ namespace sl
                 for (std::size_t i = 0; i < count; ++i)
                     indices.push_back(static_cast<std::uint32_t>(i));
             }
-            indices.resize(indices.size() - indices.size() % 3);
+            if (indices.size() % 3 != 0)
+            {
+                detail::set_error("glTF triangle primitive has an incomplete triangle");
+                return nullptr;
+            }
             if (indices.empty())
                 return nullptr;
             generate_missing_normals(vertices, indices, normal_flags);

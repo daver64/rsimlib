@@ -471,12 +471,9 @@ namespace sl
         return {positive_mod(x, CHUNK_SIZE), positive_mod(y, CHUNK_SIZE), positive_mod(z, CHUNK_SIZE)};
     }
 
-    std::uint64_t VoxelWorld::chunk_key(int cx, int cy, int cz)
+    VoxelWorld::ChunkKey VoxelWorld::chunk_key(int cx, int cy, int cz)
     {
-        const std::uint64_t ux = static_cast<std::uint64_t>(static_cast<std::uint32_t>(cx)) & 0x3FFFFFu;
-        const std::uint64_t uy = static_cast<std::uint64_t>(static_cast<std::uint32_t>(cy)) & 0xFFFFFu;
-        const std::uint64_t uz = static_cast<std::uint64_t>(static_cast<std::uint32_t>(cz)) & 0x3FFFFFu;
-        return (ux << 42) | (uy << 22) | uz;
+        return {cx, cy, cz};
     }
 
     BlockId VoxelWorld::get_block(int x, int y, int z) const
@@ -548,7 +545,7 @@ namespace sl
 
     VoxelChunk &VoxelWorld::get_or_create_chunk(int cx, int cy, int cz)
     {
-        const std::uint64_t key = chunk_key(cx, cy, cz);
+        const ChunkKey key = chunk_key(cx, cy, cz);
         auto it = chunks_.find(key);
         if (it == chunks_.end())
         {
@@ -562,7 +559,7 @@ namespace sl
 
     void VoxelWorld::mark_chunk_dirty(int cx, int cy, int cz)
     {
-        const std::uint64_t key = chunk_key(cx, cy, cz);
+        const ChunkKey key = chunk_key(cx, cy, cz);
         if (chunks_.find(key) != chunks_.end())
         {
             dirty_chunks_.insert(key);
@@ -579,13 +576,13 @@ namespace sl
         };
 
         using LightArray = std::array<VoxelLight, CHUNK_VOLUME>;
-        std::vector<std::pair<std::uint64_t, LightArray>> previous_lights;
+        std::vector<std::pair<ChunkKey, LightArray>> previous_lights;
         previous_lights.reserve(chunks_.size());
         highest_opaque_by_column_.clear();
 
         for (auto &entry : chunks_)
         {
-            const std::uint64_t key = entry.first;
+            const ChunkKey key = entry.first;
             VoxelChunk &chunk = *entry.second;
             previous_lights.emplace_back(key, chunk.lights_);
             chunk.lights_.fill({});
@@ -838,7 +835,7 @@ namespace sl
             return this->get_light(wx, wy, wz);
         };
 
-        for (std::uint64_t key : dirty_chunks_)
+        for (const ChunkKey &key : dirty_chunks_)
         {
             auto it = chunks_.find(key);
             if (it != chunks_.end() && it->second)
@@ -853,14 +850,22 @@ namespace sl
     {
         VoxelRaycastResult result;
         const float len_sq = glm::dot(direction, direction);
-        if (len_sq < 1e-6f || max_distance <= 0.0f)
+        if (!std::isfinite(origin.x) || !std::isfinite(origin.y) || !std::isfinite(origin.z) ||
+            !std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z) ||
+            !std::isfinite(len_sq) || !std::isfinite(max_distance) || len_sq < 1e-6f || max_distance <= 0.0f)
             return result;
 
         const glm::vec3 dir = glm::normalize(direction);
-
-        int x = static_cast<int>(std::floor(origin.x));
-        int y = static_cast<int>(std::floor(origin.y));
-        int z = static_cast<int>(std::floor(origin.z));
+        const double floor_x = std::floor(static_cast<double>(origin.x));
+        const double floor_y = std::floor(static_cast<double>(origin.y));
+        const double floor_z = std::floor(static_cast<double>(origin.z));
+        if (floor_x < std::numeric_limits<int>::lowest() || floor_x > std::numeric_limits<int>::max() ||
+            floor_y < std::numeric_limits<int>::lowest() || floor_y > std::numeric_limits<int>::max() ||
+            floor_z < std::numeric_limits<int>::lowest() || floor_z > std::numeric_limits<int>::max())
+            return result;
+        int x = static_cast<int>(floor_x);
+        int y = static_cast<int>(floor_y);
+        int z = static_cast<int>(floor_z);
 
         // If the origin itself is inside a solid block
         const BlockId start_id = get_block(x, y, z);
@@ -916,6 +921,9 @@ namespace sl
             {
                 if (t_max_x < t_max_z)
                 {
+                    if ((step_x > 0 && x == std::numeric_limits<int>::max()) ||
+                        (step_x < 0 && x == std::numeric_limits<int>::lowest()))
+                        return result;
                     x += step_x;
                     dist = t_max_x;
                     t_max_x += t_delta_x;
@@ -923,6 +931,9 @@ namespace sl
                 }
                 else
                 {
+                    if ((step_z > 0 && z == std::numeric_limits<int>::max()) ||
+                        (step_z < 0 && z == std::numeric_limits<int>::lowest()))
+                        return result;
                     z += step_z;
                     dist = t_max_z;
                     t_max_z += t_delta_z;
@@ -933,6 +944,9 @@ namespace sl
             {
                 if (t_max_y < t_max_z)
                 {
+                    if ((step_y > 0 && y == std::numeric_limits<int>::max()) ||
+                        (step_y < 0 && y == std::numeric_limits<int>::lowest()))
+                        return result;
                     y += step_y;
                     dist = t_max_y;
                     t_max_y += t_delta_y;
@@ -940,6 +954,9 @@ namespace sl
                 }
                 else
                 {
+                    if ((step_z > 0 && z == std::numeric_limits<int>::max()) ||
+                        (step_z < 0 && z == std::numeric_limits<int>::lowest()))
+                        return result;
                     z += step_z;
                     dist = t_max_z;
                     t_max_z += t_delta_z;

@@ -48,7 +48,13 @@ namespace rdb
         {
             if (sqlite3_open(filename.c_str(), &db_) != SQLITE_OK)
             {
-                throw SQLiteException(sqlite3_errmsg(db_));
+                const std::string message = db_ ? sqlite3_errmsg(db_) : "Unable to open SQLite database";
+                if (db_)
+                {
+                    sqlite3_close_v2(db_);
+                    db_ = nullptr;
+                }
+                throw SQLiteException(message);
             }
         }
 
@@ -58,7 +64,7 @@ namespace rdb
         ~Database()
         {
             if (db_)
-                sqlite3_close(db_);
+                sqlite3_close_v2(db_);
         }
 
         Database(const Database &) = delete;
@@ -68,7 +74,7 @@ namespace rdb
         Database &operator=(Database &&other) noexcept
         {
             if (db_)
-                sqlite3_close(db_);
+                sqlite3_close_v2(db_);
             db_ = other.db_;
             other.db_ = nullptr;
             return *this;
@@ -123,7 +129,15 @@ namespace rdb
             ~Transaction()
             {
                 if (active_)
-                    db_.execute("ROLLBACK;");
+                {
+                    try
+                    {
+                        db_.execute("ROLLBACK;");
+                    }
+                    catch (...)
+                    {
+                    }
+                }
             }
             /**
              * @brief Commits the transaction.
@@ -163,7 +177,13 @@ namespace rdb
         {
             if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt_, nullptr) != SQLITE_OK)
             {
-                throw SQLiteException(sqlite3_errmsg(db));
+                const std::string message = sqlite3_errmsg(db);
+                if (stmt_)
+                {
+                    sqlite3_finalize(stmt_);
+                    stmt_ = nullptr;
+                }
+                throw SQLiteException(message);
             }
         }
 

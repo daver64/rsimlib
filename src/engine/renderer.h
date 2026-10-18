@@ -7,6 +7,7 @@
 #include "surface3d.h"
 
 #include <memory>
+#include <limits>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -114,13 +115,21 @@ namespace sl::detail
             if (count == 3)
                 return 3;
             if (count > 4)
+            {
+                if (count - 2 > std::numeric_limits<int>::max() / 3)
+                    return 0;
                 return (count - 2) * 3;
+            }
             return 0;
         }
         if (input_primitive == PrimitiveType::triangles)
             return count;
         if (input_primitive == PrimitiveType::line_loop)
-            return count > 1 ? count * 2 : 0;
+        {
+            if (count <= 1 || count > std::numeric_limits<int>::max() / 2)
+                return 0;
+            return count * 2;
+        }
         if (input_primitive == PrimitiveType::lines)
             return count;
         if (input_primitive == PrimitiveType::points)

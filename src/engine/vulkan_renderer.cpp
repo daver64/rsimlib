@@ -177,6 +177,15 @@ namespace sl::detail
                     context_.destroy_image(texture.image);
                 }
                 textures_.clear();
+                for (VulkanTexture &texture : retired_textures_)
+                {
+                    context_.destroy_sampler(texture.sampler);
+                    context_.destroy_image(texture.image);
+                }
+                retired_textures_.clear();
+                for (VulkanRenderTarget &target : retired_render_targets_)
+                    destroy_target_resources(target, false);
+                retired_render_targets_.clear();
                 for (auto &[handle, buffer] : storage_buffers_)
                     context_.destroy_buffer(buffer.buffer);
                 storage_buffers_.clear();
@@ -328,6 +337,9 @@ namespace sl::detail
                         context_.destroy_image(texture.image);
                     }
                     retired_textures_.clear();
+                    for (VulkanRenderTarget &target : retired_render_targets_)
+                        destroy_target_resources(target, true);
+                    retired_render_targets_.clear();
                 }
                 return frame_active_;
             }
@@ -405,6 +417,8 @@ namespace sl::detail
                     textures_.erase(iterator);
                     return;
                 }
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
                 context_.free_descriptor_set(descriptor_pool_, iterator->second.descriptor);
                 context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_image(iterator->second.image);
@@ -564,12 +578,29 @@ namespace sl::detail
                 const auto iterator = render_targets_.find(framebuffer);
                 if (iterator == render_targets_.end())
                     return;
-                context_.destroy_sampler(iterator->second.sampler);
-                context_.destroy_framebuffer(iterator->second.framebuffer);
-                context_.destroy_image(iterator->second.image);
-                context_.destroy_image(iterator->second.depth);
-                context_.destroy_image(iterator->second.multisample_color);
+                // The recording or in-flight frame may still reference the target.
+                if (frame_active_)
+                {
+                    retired_render_targets_.push_back(std::move(iterator->second));
+                }
+                else
+                {
+                    if (context_.device() != VK_NULL_HANDLE)
+                        vkDeviceWaitIdle(context_.device());
+                    destroy_target_resources(iterator->second, true);
+                }
                 render_targets_.erase(iterator);
+            }
+            template <typename Target>
+            void destroy_target_resources(Target &target, bool free_descriptor)
+            {
+                if (free_descriptor && target.descriptor != VK_NULL_HANDLE)
+                    context_.free_descriptor_set(descriptor_pool_, target.descriptor);
+                context_.destroy_sampler(target.sampler);
+                context_.destroy_framebuffer(target.framebuffer);
+                context_.destroy_image(target.image);
+                context_.destroy_image(target.depth);
+                context_.destroy_image(target.multisample_color);
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &error) override
             {
@@ -2450,6 +2481,7 @@ namespace sl::detail
             }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::vector<VulkanTexture> retired_textures_;
+            std::vector<VulkanRenderTarget> retired_render_targets_;
             std::map<std::uint32_t, VulkanRenderTarget> render_targets_;
             std::vector<std::uint32_t> active_render_targets_;
             std::uint32_t next_texture_ = 1;

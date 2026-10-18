@@ -22,6 +22,13 @@ int main(int argc, char *argv[])
         sl::shutdown();
         return 0;
     }
+    sl::Bitmap *paired = sl::create_bitmap(1, 1);
+    sl::Bitmap *paired_normal = sl::create_bitmap(1, 1);
+    sl::set_normal_map(paired, paired_normal);
+    sl::destroy_bitmap(paired_normal);
+    assert(paired->normal_map == nullptr);
+    sl::destroy_bitmap(paired);
+
     constexpr int size = 64;
     sl::Bitmap *colour = sl::create_bitmap(size, size);
     sl::Bitmap *normal = sl::create_bitmap(size, size);
@@ -111,6 +118,10 @@ int main(int argc, char *argv[])
 
     sl::wait_for_graphics();
     lighting.shutdown();
+    sl::destroy_bitmap(normals);
+    sl::destroy_bitmap(scene);
+    sl::destroy_bitmap(normal);
+    sl::destroy_bitmap(colour);
     sl::shutdown();
     return 0;
 }

@@ -146,7 +146,15 @@ namespace rdb
         SQLiteUnifiedStatement(sqlite3 *database, const std::string &sql) : statement_(nullptr)
         {
             if (sqlite3_prepare_v2(database, sql.c_str(), -1, &statement_, nullptr) != SQLITE_OK)
-                throw UnifiedException(sqlite3_errmsg(database));
+            {
+                const std::string message = sqlite3_errmsg(database);
+                if (statement_)
+                {
+                    sqlite3_finalize(statement_);
+                    statement_ = nullptr;
+                }
+                throw UnifiedException(message);
+            }
         }
         ~SQLiteUnifiedStatement()
         {

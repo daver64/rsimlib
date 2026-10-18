@@ -234,10 +234,33 @@ namespace sl
         int total_triangles() const;
 
     private:
-        static std::uint64_t chunk_key(int cx, int cy, int cz);
+        struct ChunkKey
+        {
+            int x;
+            int y;
+            int z;
 
-        std::unordered_map<std::uint64_t, std::unique_ptr<VoxelChunk>> chunks_;
-        std::unordered_set<std::uint64_t> dirty_chunks_;
+            bool operator==(const ChunkKey &other) const noexcept
+            {
+                return x == other.x && y == other.y && z == other.z;
+            }
+        };
+
+        struct ChunkKeyHash
+        {
+            std::size_t operator()(const ChunkKey &key) const noexcept
+            {
+                std::size_t hash = std::hash<int>{}(key.x);
+                hash ^= std::hash<int>{}(key.y) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+                hash ^= std::hash<int>{}(key.z) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+                return hash;
+            }
+        };
+
+        static ChunkKey chunk_key(int cx, int cy, int cz);
+
+        std::unordered_map<ChunkKey, std::unique_ptr<VoxelChunk>, ChunkKeyHash> chunks_;
+        std::unordered_set<ChunkKey, ChunkKeyHash> dirty_chunks_;
         std::unordered_map<std::uint64_t, int> highest_opaque_by_column_;
         bool lighting_dirty_ = true;
     };
