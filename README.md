@@ -53,6 +53,7 @@ Create the archive used by `exresources` from the repository root with:
 
 For in-depth guides and detailed API tables, see the documentation topics:
 
+- 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
 - 🗡️ **[`exroguelike` ASCII Roguelike Guide](docs/exroguelike_guide.md)** — Architectural walkthrough of the turn-based roguelike (512x512 procedural overworld, 3x3 sector dungeons, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`).
@@ -161,6 +162,27 @@ ctest --test-dir build --output-on-failure
 ```
 
 ---
+
+## Tile Maps & Tiled Import
+
+Load a map authored in the [Tiled](https://www.mapeditor.org/) editor (JSON `.tmj`/`.json`) and draw it with one call. Layers, tile flips, animated tiles, per-tile properties (a boolean `solid` property drives collision), object layers, and both orthogonal and isometric maps are supported. Drawing is culled and batched, and tiles take part in 2D lighting and normal mapping like any other sprite.
+
+```cpp
+sl::TileMap *map = sl::load_tiled_map("assets/level1.tmj");
+if (!map)
+    return -1; // sl::last_error() explains why
+
+const sl::TileObject *spawn = sl::tilemap_find_object(map, "player_spawn");
+
+// each frame
+sl::update_tilemap(map, dt);                        // advances tile animations
+bool blocked = sl::tilemap_rect_blocked(map, x, y, 16, 16); // collision against solid tiles
+sl::draw_tilemap(map, camera_x, camera_y);          // draws only the visible cells
+
+sl::destroy_tilemap(map);
+```
+
+Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Not supported yet: infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets (these report an error). See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-tilemaph).
 
 ## 3D Graphics: Surfaces, Models & Voxel Worlds
 
