@@ -52,6 +52,12 @@ physics.destroy_world(world) -- releases bodies automatically
 
 ---
 
+## 3D Flight & Orbital Dynamics
+
+For 3D rigid-body simulation (spacecraft, aircraft) see [Flight & Orbital Dynamics](flight.md) and `flight.h`.
+
+---
+
 ## Simple Entity Physics (`entity.h` in `sltest`)
 
 For lightweight games that do not need full rigid-body dynamics, `sltest` includes a simple particle/circle/AABB integrator:

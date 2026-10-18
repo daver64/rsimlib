@@ -28,6 +28,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 19. [JSON Configuration](#json-configuration-includeconfigh)
 20. [Tile Maps](#tile-maps-includetilemaph)
 21. [3D Fluid Simulation](#3d-fluid-simulation-includefluid3dh)
+22. [3D Flight & Orbital Dynamics](#3d-flight--orbital-dynamics-includeflighth)
 
 ---
 
@@ -1045,3 +1046,30 @@ Notes:
 - Use `fluid3d_move_region` to make the region follow the player: it exports, moves the origin and re-imports. Fluid outside the region stays frozen as blocks.
 - Differences from 2D: no mass-based pressure model (liquids level by sliding sideways), and only water quenches fire.
 - See the `exfluid3d` example.
+
+---
+
+## 3D Flight & Orbital Dynamics ([include/flight.h](../include/flight.h))
+
+`FlightWorld` is a double-precision 3D rigid-body simulation for Orbiter-style spaceflight and aircraft flight. See [Flight & Orbital Dynamics](flight.md) for the full guide.
+
+```cpp
+sl::FlightWorld world;
+world.integrator = sl::FlightIntegrator::rk4;   // euler, semi_implicit, verlet, rk4, rk6
+int earth = world.create_body("earth");
+sl::FlightBody &e = *world.body(earth);
+e.mode = sl::FlightBodyMode::kinematic;
+e.gm = 3.986004418e14;
+e.radius = 6.371e6;
+int ship = world.create_body("ship");
+// ... configure mass, thrusters, surfaces, gear ...
+world.step(dt);
+```
+
+Key types: `FlightWorld`, `FlightBody`, `Thruster`, `ThrusterGroup`, `PropellantTank`, `LiftingSurface`, `GearContact`, `Atmosphere`, `OrbitElements`.
+Free functions: `orbit_from_state`, `state_from_orbit`, `orbit_path`, `thruster_output`.
+Notes:
+- Coordinates are right-handed, Y up; the body frame is +X right, +Y up, -Z forward. Positions and velocities are `double` (`dvec3`); use `FlightWorld::render_matrix(id, origin)` to render with a floating origin.
+- `step` splits `dt` into substeps no larger than `max_substep` (capped by `max_substeps_per_step`), so large time warps stay stable.
+- Bodies in `rails` mode follow an analytic Kepler orbit and do not drift.
+- See the `exorbit` and `exflight` examples.
