@@ -98,6 +98,8 @@ namespace sl::detail
         void destroy_swapchain();
         bool begin_frame(std::string &error);
         bool end_frame(std::string &error);
+        // Submits the commands recorded so far without presenting, waits for them, and resumes recording.
+        bool submit_pending_work(std::string &error);
         bool frame_active() const { return frame_active_; }
         bool begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
                                          int width, int height,
@@ -311,6 +313,7 @@ namespace sl::detail
         std::vector<RenderPassState> render_pass_stack_;
         int active_samples_ = 1;
         bool frame_active_ = false;
+        bool image_available_consumed_ = false;
         bool command_buffer_recording_ = false;
         bool render_pass_active_ = false;
         bool offscreen_active_ = false;

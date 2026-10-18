@@ -70,6 +70,64 @@ int main()
         return 1;
     }
 
+    const sl::LuaScriptResult world_result = canvas.run_text(R"(
+        assert(fluid.create('f', 16, 16))
+        assert(not fluid.create('f', 16, 16))
+        assert(fluid.set_cell('f', 8, 2, 'water', 1.0))
+        assert(not fluid.set_cell('f', 8, 2, 'cheese'))
+        fluid.step('f', 20)
+        local cell = fluid.get_cell('f', 8, 2)
+        assert(cell and cell.element == 'empty')
+        assert(fluid.get_cell('f', 99, 99) == nil)
+        assert(fluid.destroy('f'))
+
+        assert(voxel.create_world('w'))
+        assert(voxel.define_block(1, {100, 100, 100}))
+        assert(voxel.fill('w', 0, 0, 0, 15, 0, 15, 1))
+        assert(not voxel.fill('w', 0, 0, 0, 5000, 5000, 5000, 1))
+        assert(voxel.get_block('w', 3, 0, 3) == 1)
+        local hit = voxel.raycast('w', 3.5, 5.5, 3.5, 0, -1, 0, 20)
+        assert(hit and hit.y == 0 and hit.place_y == 1)
+        assert(voxel.raycast('w', 3.5, 5.5, 3.5, 0, 1, 0, 20) == nil)
+
+        assert(fluid3d.create('s', 16, 12, 16, 0, 0, 0))
+        assert(fluid3d.import('s', 'w') == true)
+        assert(fluid3d.set_cell('s', 8, 6, 8, 'water'))
+        local before = fluid3d.count('s')
+        fluid3d.step('s', 30)
+        assert(fluid3d.count('s') == before)
+        local landed = false
+        for y = 0, 3 do
+            local c = fluid3d.get_cell('s', 8, y, 8)
+            if c and c.element == 'water' then landed = true end
+        end
+        assert(landed)
+        assert(fluid3d.export('s', 'w') > 0)
+        assert(tilemap.load('t', 'missing.tmj') == false)
+        assert(tilemap.get('nope', 0, 0, 0) == 0)
+        assert(fluid3d.destroy('s'))
+        assert(voxel.destroy_world('w'))
+    )");
+    if (!world_result.success)
+    {
+        std::cerr << "world bindings: " << world_result.error << '\n';
+        return 1;
+    }
+
+    sl::LuaLimits limits;
+    limits.max_instructions = 2'000'000;
+    limits.max_memory_bytes = 16u * 1024u * 1024u;
+    canvas.runtime().set_limits(limits);
+    const sl::LuaScriptResult loop_result = canvas.run_text("while true do end");
+    const sl::LuaScriptResult memory_result = canvas.run_text("local s = string.rep('x', 1024) for i = 1, 20 do s = s .. s end");
+    const sl::LuaScriptResult after_result = canvas.run_text("local n = 0 for i = 1, 1000 do n = n + i end assert(n == 500500)");
+    if (loop_result.success || memory_result.success || !after_result.success)
+    {
+        std::cerr << "Lua resource limits were not enforced: " << loop_result.error << " | " << memory_result.error
+                  << " | " << after_result.error << '\n';
+        return 1;
+    }
+
     sl::Bitmap *bitmap = sl::create_bitmap(8, 8);
     canvas.render(bitmap);
     const bool passed =

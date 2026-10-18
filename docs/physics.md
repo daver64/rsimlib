@@ -39,11 +39,14 @@ local floor = physics.create_body(world, "static", 400, 560)
 local ball = physics.create_body(world, "dynamic", 400, 100)
 physics.add_box(floor, 700, 32)
 physics.add_circle(ball, 24, 1.0, 0.3, 0.6)
+physics.add_polygon(ball, {{x = -10, y = -10}, {x = 10, y = -10}, {x = 0, y = 12}}) -- convex, optional density/friction/restitution
+physics.set_velocity(ball, 120, -300)
 
 -- Step simulation:
 physics.step(world, 1 / 60)
 local position = physics.position(ball)
 local events = physics.contacts(world)
+physics.destroy_body(ball)
 physics.destroy_world(world) -- releases bodies automatically
 ```
 

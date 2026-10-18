@@ -7,6 +7,7 @@
 #include "audio.h"
 #include "display.h"
 #include "graphics_fx.h"
+#include "lua_world.h"
 #include "physics.h"
 #include "system.h"
 
@@ -40,7 +41,10 @@ namespace sl
             sprite,
             sprite_stretched,
             sprite_rotated,
-            sprite_rotated_stretched
+            sprite_rotated_stretched,
+            tilemap,
+            fluid,
+            voxel_view
         };
 
         struct DrawingCommand
@@ -69,6 +73,7 @@ namespace sl
     struct LuaCanvas::Implementation
     {
         LuaRuntime runtime;
+        LuaWorld world;
         Colour background{0, 0, 0};
         std::vector<DrawingCommand> commands;
         std::filesystem::path asset_root{"assets"};
@@ -98,6 +103,22 @@ namespace sl
                 return std::nullopt;
             }
             return asset_root / asset_path;
+        }
+
+        // Each world object has at most one retained draw command, so repeated draw calls update the view.
+        void upsert_world_drawing(LuaWorldDraw kind, const std::string &id)
+        {
+            const DrawingType type = kind == LuaWorldDraw::tilemap ? DrawingType::tilemap
+                                     : kind == LuaWorldDraw::fluid ? DrawingType::fluid
+                                                                   : DrawingType::voxel_view;
+            for (const DrawingCommand &command : commands)
+            {
+                if (command.type == type && command.sprite_id == id)
+                    return;
+            }
+            DrawingCommand command{type};
+            command.sprite_id = id;
+            commands.push_back(command);
         }
 
         void add_drawing(
@@ -404,6 +425,7 @@ namespace sl
             implementation_->clear_audio();
             implementation_->clear_physics();
             implementation_->clear_compute();
+            implementation_->world.clear();
             implementation_->commands.clear();
             implementation_->background = {0, 0, 0};
             implementation_->asset_root = "assets";
@@ -431,6 +453,11 @@ namespace sl
 
         implementation_->runtime.initialise(std::move(output_handler));
         sol::table app = implementation_->runtime.state()["app"];
+        implementation_->world.bind(
+            implementation_->runtime.state(), [this](const std::string &path)
+            { return implementation_->resolve_asset_path(path); },
+            [this](LuaWorldDraw kind, const std::string &id)
+            { implementation_->upsert_world_drawing(kind, id); });
         app.set_function(
             "clear_screen",
             [this](int red, int green, int blue, sol::optional<int> alpha)
@@ -935,6 +962,15 @@ namespace sl
                     draw_sprite_rotated_stretched(sprite, command.x1, command.y1, command.x3, static_cast<int>(command.x2), static_cast<int>(command.y2));
                 break;
             }
+            case DrawingType::tilemap:
+                implementation_->world.draw(LuaWorldDraw::tilemap, command.sprite_id, target);
+                break;
+            case DrawingType::fluid:
+                implementation_->world.draw(LuaWorldDraw::fluid, command.sprite_id, target);
+                break;
+            case DrawingType::voxel_view:
+                implementation_->world.draw(LuaWorldDraw::voxel_view, command.sprite_id, target);
+                break;
             }
         }
     }

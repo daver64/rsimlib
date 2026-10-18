@@ -271,6 +271,7 @@ add_library(simlib STATIC
     src/engine/input.cpp
     src/engine/lua_canvas.cpp
     src/engine/lua_runtime.cpp
+    src/engine/lua_world.cpp
     src/engine/error.cpp
     src/engine/resource.cpp
     src/engine/config.cpp

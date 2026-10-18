@@ -1855,6 +1855,9 @@ namespace sl::detail
                 const auto iterator = storage_buffers_.find(buffer);
                 if (iterator == storage_buffers_.end())
                     return false;
+                // Compute work recorded this frame has not been submitted yet.
+                if (frame_active_ && !context_.submit_pending_work(last_error_))
+                    return false;
                 return context_.download_buffer(iterator->second.buffer, out_data, size, offset, last_error_);
             }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override

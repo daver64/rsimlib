@@ -808,13 +808,14 @@ void music_set_volume(int volume); // 0-255
 Multi-material Cellular Automata simulation combining fluids, falling sand, gases, fire, thermodynamics, and Box2D Archimedes buoyancy coupling.
 
 ```cpp
-CAFluidGrid *create_fluid_simulation(int width, int height);
-void destroy_fluid_simulation(CAFluidGrid *sim);
-void fluid_step(CAFluidGrid *sim);
-void fluid_set_cell(CAFluidGrid *sim, int x, int y, uint8_t element, float mass, float temp, uint8_t life, uint8_t variation);
-FluidCell fluid_get_cell(CAFluidGrid *sim, int x, int y);
-void fluid_clear(CAFluidGrid *sim);
-void fluid_reset_bounds(CAFluidGrid *sim);
+FluidSimulation *create_fluid_simulation(int width = 200, int height = 150);
+void destroy_fluid_simulation(FluidSimulation *sim);
+void fluid_step(FluidSimulation *sim);
+bool fluid_set_cell(FluidSimulation *sim, int x, int y, FluidElement type, float mass = 0.0f, float temp = 20.0f,
+                    uint8_t life = 0, int8_t variation = 0);
+FluidCell fluid_get_cell(const FluidSimulation *sim, int x, int y);
+void fluid_clear(FluidSimulation *sim);
+void fluid_reset_bounds(FluidSimulation *sim);
 ```
 
 ---
@@ -1020,10 +1021,10 @@ See [`extilemap`](../src/examples/extilemap/extilemap.cpp) for a scrolling map w
 
 ## 3D Fluid Simulation ([include/fluid3d.h](../include/fluid3d.h))
 
-A 3D version of the cellular automata simulation that works hand in hand with the voxel engine. It is a separate type from the 2D `CAFluidGrid`; the 2D API is unchanged. It simulates a bounded active region, reads solids from a `VoxelWorld` and writes fluid cells back as fluid blocks.
+A 3D version of the cellular automata simulation that works hand in hand with the voxel engine. It is a separate type from the 2D `FluidSimulation`; the 2D API is unchanged. It simulates a bounded active region, reads solids from a `VoxelWorld` and writes fluid cells back as fluid blocks.
 
 ```cpp
-FluidSimulation3D *create_fluid_simulation_3d(int width, int height, int depth);
+FluidSimulation3D *create_fluid_simulation_3d(int width = 48, int height = 48, int depth = 48);
 void destroy_fluid_simulation_3d(FluidSimulation3D *sim);
 void fluid3d_step(FluidSimulation3D *sim);
 bool fluid3d_set_cell(FluidSimulation3D *sim, int x, int y, int z, FluidElement type, float mass = 1.0f);

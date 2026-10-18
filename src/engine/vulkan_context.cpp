@@ -540,6 +540,7 @@ namespace sl::detail
         active_resume_render_pass_ = resume_render_pass_;
         active_framebuffer_ = framebuffers_[current_image_];
         frame_active_ = true;
+        image_available_consumed_ = false;
         render_pass_active_ = true;
         render_pass_stack_.clear();
         return true;
@@ -565,7 +566,7 @@ namespace sl::detail
         render_pass_stack_.clear();
         VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        submit.waitSemaphoreCount = 1;
+        submit.waitSemaphoreCount = image_available_consumed_ ? 0 : 1;
         submit.pWaitSemaphores = &image_available_;
         submit.pWaitDstStageMask = &wait_stage;
         submit.commandBufferCount = 1;
@@ -591,6 +592,55 @@ namespace sl::detail
             error = "Unable to present Vulkan swapchain image.";
             return false;
         }
+        return true;
+    }
+
+    bool VulkanContext::submit_pending_work(std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_)
+            return true;
+        if (render_pass_active_)
+            vkCmdEndRenderPass(command_buffer_);
+        render_pass_active_ = false;
+        if (vkEndCommandBuffer(command_buffer_) != VK_SUCCESS)
+        {
+            error = "Unable to end Vulkan command buffer.";
+            return false;
+        }
+        command_buffer_recording_ = false;
+        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.waitSemaphoreCount = image_available_consumed_ ? 0 : 1;
+        submit.pWaitSemaphores = &image_available_;
+        submit.pWaitDstStageMask = &wait_stage;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &command_buffer_;
+        if (vkQueueSubmit(graphics_queue_, 1, &submit, VK_NULL_HANDLE) != VK_SUCCESS)
+        {
+            error = "Unable to submit Vulkan command buffer.";
+            return false;
+        }
+        image_available_consumed_ = true;
+        vkQueueWaitIdle(graphics_queue_);
+        vkResetCommandBuffer(command_buffer_, 0);
+        VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        if (vkBeginCommandBuffer(command_buffer_, &begin_info) != VK_SUCCESS)
+        {
+            error = "Unable to begin Vulkan command buffer.";
+            frame_active_ = false;
+            return false;
+        }
+        command_buffer_recording_ = true;
+        VkClearValue clear_values[3]{};
+        VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        begin.renderPass = active_resume_render_pass_;
+        begin.framebuffer = active_framebuffer_;
+        begin.renderArea.extent = active_extent_;
+        begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
+        begin.pClearValues = clear_values;
+        vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_render_pass_ = active_resume_render_pass_;
+        render_pass_active_ = true;
         return true;
     }
 
