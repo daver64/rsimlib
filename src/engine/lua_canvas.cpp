@@ -600,8 +600,9 @@ namespace sl
                               { implementation_->lighting.enabled = false; });
         lighting.set_function("clear", [this]()
                               { implementation_->lighting.lights.clear(); });
-        lighting.set_function("add", [this](float x, float y, float radius, sol::optional<float> intensity,
-                                            sol::optional<int> red, sol::optional<int> green, sol::optional<int> blue)
+        lighting.set_function("add", [this, max_lua_lights](float x, float y, float radius,
+                                            sol::optional<float> intensity, sol::optional<int> red,
+                                            sol::optional<int> green, sol::optional<int> blue)
                               {
                                   auto &lights = implementation_->lighting.lights;
                                   if (lights.size() >= max_lua_lights)
