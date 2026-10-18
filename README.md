@@ -58,6 +58,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
 - 🗡️ **[`exroguelike` ASCII Roguelike Guide](docs/exroguelike_guide.md)** — Architectural walkthrough of the turn-based roguelike (512x512 procedural overworld, 3x3 sector dungeons, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`).
 - 🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
+- 🌊 **[3D Fluid Simulation](docs/api_reference.md#3d-fluid-simulation-fluid3dh)** — Cellular automata fluids, fire and sand in a bounded region that reads solids from and writes fluid blocks back to a `VoxelWorld` (see `exfluid3d`).
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, dynamic polygon soft shadows, and 2D/3D normal mapping.
@@ -161,6 +162,8 @@ Run the test suite:
 ctest --test-dir build --output-on-failure
 ```
 
+Test targets are built with assertions enabled even in Release builds.
+
 ---
 
 ## Tile Maps & Tiled Import
@@ -215,7 +218,7 @@ For block-based worlds, the voxel API provides chunk rendering, hidden-face cull
 
 ## Running the Examples
 
-Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only).
+Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only). The backend is chosen once at startup; switching renderers at runtime is not supported and leaves existing bitmaps, shaders and buffers invalid (see [Renderer Backends](docs/renderers.md)).
 
 ```bash
 ./build/exhello         # Minimal hello-world window and text
