@@ -131,11 +131,11 @@ namespace sl::detail
 
         std::string load_shader(const char *name)
         {
-            std::ifstream file(std::filesystem::path(SIMLIB_D3D_SHADER_DIR) / name);
+            std::ifstream file(std::filesystem::path(SIMLIB_BUILD_D3D_SHADER_DIR) / name);
             if (!file)
             {
                 file.clear();
-                file.open(std::filesystem::path(SIMLIB_BUILD_D3D_SHADER_DIR) / name);
+                file.open(std::filesystem::path(SIMLIB_D3D_SHADER_DIR) / name);
             }
             return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
         }

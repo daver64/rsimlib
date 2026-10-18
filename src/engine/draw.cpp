@@ -698,8 +698,7 @@ namespace sl
 		// Alpha zero marks pixels with no normal data so lighting falls back to flat shading.
 		clear_render_target(Colour{128, 128, 255, 0});
 		normal_pass_active = true;
-		// The D3D12 default shader does not decode the transform tint yet, so it keeps plain output there.
-		normal_pass_transforms = graphics_backend() != GraphicsBackend::d3d12;
+		normal_pass_transforms = true;
 		return true;
 	}
 

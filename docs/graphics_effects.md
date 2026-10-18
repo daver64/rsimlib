@@ -108,7 +108,7 @@ lighting.set_light_height(48.0f);
 lighting.apply(scene, normals, {light});
 ```
 
-Rotated sprites and horizontal, vertical and diagonal flips (including tile flips) transform their normals correctly on OpenGL and Vulkan, so highlights stay on the lit side; on Direct3D 12 normals are not yet rotated or flipped with the sprite. Only sprite and tile draws are supported inside a normal pass. Normal-mapped lighting works on OpenGL, Vulkan, and Direct3D 12. D3D12 effects require the GLSL-to-HLSL shader translation dependencies described in [D3D12 shaders](./renderers.md#d3d12-shaders). See `exnormalmap` for a runnable example.
+Rotated sprites and horizontal, vertical and diagonal flips (including tile flips) transform their normals correctly on OpenGL, Vulkan and Direct3D 12, so highlights stay on the lit side. Only sprite and tile draws are supported inside a normal pass. Normal-mapped lighting works on OpenGL, Vulkan, and Direct3D 12. D3D12 effects require the GLSL-to-HLSL shader translation dependencies described in [D3D12 shaders](./renderers.md#d3d12-shaders). See `exnormalmap` for a runnable example.
 
 ### Lighting Example
 
