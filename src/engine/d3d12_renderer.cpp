@@ -1874,21 +1874,22 @@ namespace sl::detail
                     return false;
                 }
 
-                D3D12_DESCRIPTOR_RANGE ranges[2]{};
-                ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-                ranges[0].NumDescriptors = 1;
-                ranges[0].BaseShaderRegister = 0;
-                ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-                ranges[1].NumDescriptors = 1;
-                ranges[1].BaseShaderRegister = 0;
-                ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                D3D12_ROOT_PARAMETER parameters[3]{};
+                // Tables 1-4: colour SRV t0, colour sampler s0, normal SRV t1, normal sampler s1.
+                D3D12_DESCRIPTOR_RANGE ranges[4]{};
+                for (UINT index = 0; index < 4; ++index)
+                {
+                    ranges[index].RangeType = index % 2 == 0 ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV
+                                                              : D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                    ranges[index].NumDescriptors = 1;
+                    ranges[index].BaseShaderRegister = index / 2;
+                    ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                }
+                D3D12_ROOT_PARAMETER parameters[5]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
                 parameters[0].Constants.Num32BitValues = 32;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-                for (UINT index = 0; index < 2; ++index)
+                for (UINT index = 0; index < 4; ++index)
                 {
                     parameters[index + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     parameters[index + 1].DescriptorTable.NumDescriptorRanges = 1;
