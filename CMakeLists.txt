@@ -560,6 +560,8 @@ add_executable(extilemap src/examples/extilemap/extilemap.cpp)
 target_link_libraries(extilemap PRIVATE simlib)
 add_executable(exnormalmap src/examples/exnormalmap/exnormalmap.cpp)
 target_link_libraries(exnormalmap PRIVATE simlib)
+add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)
+target_link_libraries(exnormalmap3d PRIVATE simlib)
 
 add_executable(exconfig src/examples/exconfig/exconfig.cpp)
 target_link_libraries(exconfig PRIVATE simlib)
