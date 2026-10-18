@@ -90,6 +90,8 @@ namespace sl::detail
         float light[4];
         /** Backend texture handle sampled by the mesh, or 0 for plain vertex colours. */
         std::uint32_t texture = 0;
+        /** Backend handle of the tangent-space normal map; a flat-normal texture when the material has none. */
+        std::uint32_t normal_texture = 0;
         CullMode cull = CullMode::back;
     };
 

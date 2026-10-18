@@ -16,6 +16,11 @@ namespace sl
         float normal[3] = {0.0f, 1.0f, 0.0f};
         float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float uv[2] = {0.0f, 0.0f};
+        /**
+         * Tangent-space +U direction (xyz) and bitangent handedness (w, +1 or -1), used by normal maps.
+         * Leave all zero to have create_mesh() generate tangents from the positions and UVs.
+         */
+        float tangent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     /** Indexed triangle mesh stored on the GPU. Create with create_mesh() or a primitive builder. */
@@ -42,6 +47,11 @@ namespace sl
         bool lit = true;
         /** Optional texture sampled with the mesh UVs and multiplied into the colour. */
         Bitmap *texture = nullptr;
+        /**
+         * Optional tangent-space normal map (RGB = XYZ, +Y up as in glTF) sampled with the mesh UVs.
+         * Needs mesh UVs; tangents are generated automatically. Not owned. Only applies to lit materials.
+         */
+        Bitmap *normal_map = nullptr;
         CullMode cull = CullMode::back;
     };
 

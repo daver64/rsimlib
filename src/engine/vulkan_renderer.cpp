@@ -520,33 +520,34 @@ namespace sl::detail
                 if (!pipelines)
                     return false;
                 flush_2d();
-                VkDescriptorSet descriptor = VK_NULL_HANDLE;
-                const std::uint32_t texture_handle = params.texture != 0 ? params.texture : white_texture_;
-                const auto texture_iterator = textures_.find(texture_handle);
-                if (texture_iterator != textures_.end())
+                const auto sampled_descriptor = [&](std::uint32_t handle, VkDescriptorSet &descriptor)
                 {
-                    if (!context_.prepare_image_for_sampling(texture_iterator->second.image, last_error_))
-                        return false;
-                    descriptor = texture_iterator->second.descriptor;
-                }
-                else
-                {
+                    const auto texture_iterator = textures_.find(handle);
+                    if (texture_iterator != textures_.end())
+                    {
+                        if (!context_.prepare_image_for_sampling(texture_iterator->second.image, last_error_))
+                            return false;
+                        descriptor = texture_iterator->second.descriptor;
+                        return true;
+                    }
                     for (auto &[framebuffer, target] : render_targets_)
                     {
-                        if (target.texture_handle == texture_handle)
+                        if (target.texture_handle == handle)
                         {
                             if (!context_.prepare_image_for_sampling(target.image, last_error_))
                                 return false;
                             descriptor = target.descriptor;
-                            break;
+                            return true;
                         }
                     }
-                }
-                if (descriptor == VK_NULL_HANDLE)
-                {
                     last_error_ = "Vulkan mesh texture handle is not registered.";
                     return false;
-                }
+                };
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+                VkDescriptorSet normal_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.texture != 0 ? params.texture : white_texture_, descriptor) ||
+                    !sampled_descriptor(params.normal_texture != 0 ? params.normal_texture : white_texture_, normal_descriptor))
+                    return false;
                 MeshDrawParams adjusted = params;
                 // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1].
                 for (int column = 0; column < 4; ++column)
@@ -554,7 +555,7 @@ namespace sl::detail
                 const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
-                                                 found->second.index_count, descriptor, adjusted.mvp, adjusted.light,
+                                                 found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
                                                  last_error_);
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override

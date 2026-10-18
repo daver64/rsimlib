@@ -73,6 +73,7 @@ namespace sl::detail
         float normal[3];
         float colour[4];
         float uv[2];
+        float tangent[4];
     };
 
     struct VulkanComputePipeline
@@ -114,7 +115,8 @@ namespace sl::detail
         /** vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats. */
         bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
                               VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
-                              VkDescriptorSet texture_descriptor, const float *vertex_constants, const float *fragment_constants,
+                              VkDescriptorSet texture_descriptor, VkDescriptorSet normal_descriptor,
+                              const float *vertex_constants, const float *fragment_constants,
                               std::string &error);
         bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,

@@ -272,6 +272,7 @@ namespace sl
         {
             Colour diffuse{255, 255, 255, 255};
             std::string texture;
+            std::string normal_texture;
         };
 
         std::map<std::string, MtlEntry> parse_mtl(const std::filesystem::path &path)
@@ -304,13 +305,14 @@ namespace sl
                     if (words >> r >> g >> b)
                         current->diffuse = {to_byte(r), to_byte(g), to_byte(b), 255};
                 }
-                else if (keyword == "map_Kd")
+                else if (keyword == "map_Kd" || keyword == "norm" || keyword == "map_Bump" ||
+                         keyword == "map_bump" || keyword == "bump")
                 {
                     // Options (e.g. -s 1 1 1) precede the file name, which is the final token.
                     std::string token, last;
                     while (words >> token)
                         last = token;
-                    current->texture = last;
+                    (keyword == "map_Kd" ? current->texture : current->normal_texture) = last;
                 }
             }
             return result;
@@ -573,8 +575,8 @@ namespace sl
                 !primitive["attributes"].contains("POSITION"))
                 return nullptr;
             const json &attributes = primitive["attributes"];
-            std::vector<double> positions, normals, uvs, colours;
-            int pc = 0, nc = 0, tc = 0, cc = 0;
+            std::vector<double> positions, normals, uvs, colours, tangents;
+            int pc = 0, nc = 0, tc = 0, cc = 0, gc = 0;
             if (!read_accessor(gltf, attributes["POSITION"].get<int>(), positions, pc) || pc != 3)
                 return nullptr;
             const std::size_t count = positions.size() / 3;
@@ -587,6 +589,9 @@ namespace sl
             const bool has_colours = attributes.contains("COLOR_0") &&
                                      read_accessor(gltf, attributes["COLOR_0"].get<int>(), colours, cc) &&
                                      (cc == 3 || cc == 4) && colours.size() == count * cc;
+            const bool has_tangents = attributes.contains("TANGENT") &&
+                                      read_accessor(gltf, attributes["TANGENT"].get<int>(), tangents, gc) &&
+                                      gc == 4 && tangents.size() == count * 4;
             std::vector<Vertex3D> vertices(count);
             std::vector<bool> normal_flags(count, has_normals);
             for (std::size_t i = 0; i < count; ++i)
@@ -603,6 +608,9 @@ namespace sl
                     v.uv[0] = static_cast<float>(uvs[i * 2]);
                     v.uv[1] = static_cast<float>(uvs[i * 2 + 1]);
                 }
+                if (has_tangents)
+                    for (int k = 0; k < 4; ++k)
+                        v.tangent[k] = static_cast<float>(tangents[i * 4 + k]);
                 if (has_colours)
                     for (int k = 0; k < cc; ++k)
                         v.colour[k] = static_cast<float>(colours[i * cc + k]);
@@ -688,6 +696,14 @@ namespace sl
                                         part.material.texture = load_gltf_image(model, gltf, textures[t]["source"].get<int>(),
                                                                                 image_cache);
                                 }
+                            }
+                            if (material.contains("normalTexture"))
+                            {
+                                const json &textures = gltf.doc.value("textures", json::array());
+                                const int t = material["normalTexture"].value("index", -1);
+                                if (t >= 0 && t < static_cast<int>(textures.size()) && textures[t].contains("source"))
+                                    part.material.normal_map = load_gltf_image(model, gltf, textures[t]["source"].get<int>(),
+                                                                               image_cache);
                             }
                         }
                         model.parts.push_back(std::move(part));
@@ -775,6 +791,19 @@ namespace sl
                                      .first;
                     }
                     part.material.texture = cached->second;
+                }
+                if (!entry->second.normal_texture.empty())
+                {
+                    auto cached = texture_cache.find(entry->second.normal_texture);
+                    if (cached == texture_cache.end())
+                    {
+                        std::string relative = entry->second.normal_texture;
+                        std::replace(relative.begin(), relative.end(), '\\', '/');
+                        cached = texture_cache.emplace(entry->second.normal_texture,
+                                                       add_texture(*model, load_bitmap((directory / relative).string())))
+                                     .first;
+                    }
+                    part.material.normal_map = cached->second;
                 }
             }
             model->parts.push_back(std::move(part));

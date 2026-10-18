@@ -1055,6 +1055,12 @@ namespace sl::detail
                     texture = textures_.find(white_texture_);
                 if (texture == textures_.end())
                     return false;
+                auto normal_map = textures_.find(params.normal_texture != 0 ? params.normal_texture : white_texture_);
+                if (normal_map == textures_.end() ||
+                    normal_map->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    normal_map = textures_.find(white_texture_);
+                if (normal_map == textures_.end())
+                    return false;
 
                 std::array<float, 32> constants{};
                 std::copy(std::begin(params.mvp), std::end(params.mvp), constants.begin());
@@ -1072,6 +1078,10 @@ namespace sl::detail
                     1, gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor));
                 commands->SetGraphicsRootDescriptorTable(
                     2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor));
+                commands->SetGraphicsRootDescriptorTable(
+                    3, gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor));
+                commands->SetGraphicsRootDescriptorTable(
+                    4, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor));
                 commands->SetPipelineState(mesh_pipelines_[static_cast<std::size_t>(params.cull)]);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 commands->IASetVertexBuffers(0, 1, &mesh->second.vertex_view);
@@ -1345,22 +1355,23 @@ namespace sl::detail
                     return false;
                 }
 
-                D3D12_DESCRIPTOR_RANGE ranges[2]{};
-                ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-                ranges[0].NumDescriptors = 1;
-                ranges[0].BaseShaderRegister = 0;
-                ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-                ranges[1].NumDescriptors = 1;
-                ranges[1].BaseShaderRegister = 0;
-                ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                D3D12_ROOT_PARAMETER parameters[3]{};
+                // Ranges: colour SRV t0, colour sampler s0, normal-map SRV t1, normal-map sampler s1.
+                D3D12_DESCRIPTOR_RANGE ranges[4]{};
+                for (UINT index = 0; index < 4; ++index)
+                {
+                    ranges[index].RangeType = (index % 2 == 0) ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV
+                                                               : D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                    ranges[index].NumDescriptors = 1;
+                    ranges[index].BaseShaderRegister = index / 2;
+                    ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                }
+                D3D12_ROOT_PARAMETER parameters[5]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
                 parameters[0].Constants.RegisterSpace = 0;
                 parameters[0].Constants.Num32BitValues = 16;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-                for (UINT index = 0; index < 2; ++index)
+                for (UINT index = 0; index < 4; ++index)
                 {
                     parameters[index + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     parameters[index + 1].DescriptorTable.NumDescriptorRanges = 1;
@@ -1924,7 +1935,9 @@ namespace sl::detail
                     {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex3D, colour)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex3D, uv)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+                     static_cast<UINT>(offsetof(Vertex3D, uv)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex3D, tangent)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
                 pipeline_desc.pRootSignature = mesh_root_signature_;
                 pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};

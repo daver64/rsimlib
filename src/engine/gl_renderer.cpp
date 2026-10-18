@@ -422,6 +422,9 @@ namespace sl::detail
                 glEnableVertexAttribArray(3);
                 glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
                                       reinterpret_cast<void *>(offsetof(Vertex3D, uv)));
+                glEnableVertexAttribArray(4);
+                glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, tangent)));
                 glBindVertexArray(0);
                 handle = next_mesh_++;
                 meshes_[handle] = mesh;
@@ -452,7 +455,7 @@ namespace sl::detail
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
             {
                 const auto found = meshes_.find(handle);
-                if (found == meshes_.end())
+                if (found == meshes_.end() || !initialise_2d())
                     return false;
                 if (mesh_program_ == 0)
                 {
@@ -482,8 +485,12 @@ namespace sl::detail
                 }
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.texture != 0 ? params.texture : white_texture_));
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.normal_texture != 0 ? params.normal_texture : white_texture_));
+                glActiveTexture(GL_TEXTURE0);
                 glUseProgram(mesh_program_);
                 glUniform1i(glGetUniformLocation(mesh_program_, "uTexture"), 0);
+                glUniform1i(glGetUniformLocation(mesh_program_, "uNormalMap"), 1);
                 glUniformMatrix4fv(glGetUniformLocation(mesh_program_, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uNormalRows"), 3, &params.normal_rows[0][0]);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);

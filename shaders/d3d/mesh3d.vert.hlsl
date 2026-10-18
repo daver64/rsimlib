@@ -11,6 +11,7 @@ struct VertexInput
     float3 normal : NORMAL;
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
+    float4 tangent : TANGENT;
 };
 
 struct VertexOutput
@@ -19,6 +20,7 @@ struct VertexOutput
     float3 normal : NORMAL;
     float3 color : COLOR0;
     float2 texcoord : TEXCOORD0;
+    float4 tangent : TEXCOORD1;
 };
 
 VertexOutput main(VertexInput input)
@@ -30,6 +32,9 @@ VertexOutput main(VertexInput input)
                            dot(normal_rows[1].xyz, input.normal),
                            dot(normal_rows[2].xyz, input.normal));
     output.color = input.color.rgb * float3(normal_rows[0].w, normal_rows[1].w, normal_rows[2].w);
+    output.tangent = float4(dot(normal_rows[0].xyz, input.tangent.xyz),
+                            dot(normal_rows[1].xyz, input.tangent.xyz),
+                            dot(normal_rows[2].xyz, input.tangent.xyz), input.tangent.w);
     output.texcoord = input.texcoord;
     return output;
 }

@@ -706,7 +706,7 @@ A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then 
 - `set_light_3d({direction, ambient})`: one directional light.
 - `create_cube_mesh`, `create_plane_mesh`, `create_sphere_mesh`, `create_mesh(vertices, indices)` / `destroy_mesh`
 - `load_obj_mesh(path, colour)` / `load_obj_mesh_from_memory(data, size, colour)`: Wavefront OBJ (v/vt/vn/f, polygons triangulated, negative indices); normals are generated when missing.
-- `load_model(path)` / `draw_model(model, transform)` / `destroy_model(model)`: loads `.obj` (with `.mtl`: `Kd` colour, `map_Kd` texture, one part per `usemtl`), `.gltf` and `.glb` (node hierarchy, base-colour factor/texture, `doubleSided`, POSITION/NORMAL/TEXCOORD_0/COLOR_0, triangle primitives). A `Model` owns its meshes and textures; each `ModelPart` has a `Material` and transform.
+- `load_model(path)` / `draw_model(model, transform)` / `destroy_model(model)`: loads `.obj` (with `.mtl`: `Kd` colour, `map_Kd` texture, `norm`/`map_Bump`/`bump` normal map, one part per `usemtl`), `.gltf` and `.glb` (node hierarchy, base-colour factor/texture, `normalTexture`, `doubleSided`, POSITION/NORMAL/TEXCOORD_0/COLOR_0, triangle primitives). A `Model` owns its meshes and textures; each `ModelPart` has a `Material` and transform.
 - `draw_mesh(mesh, model_matrix, {tint, lit, texture, cull})`: `texture` is an optional `Bitmap*` sampled with the vertex `uv` (v = 0 is the image top) and multiplied into the colour. `cull` is a `CullMode`: `back` (default; clockwise-wound faces are culled), `front`, or `none`.
 
 See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF cameras/lights are not yet supported.

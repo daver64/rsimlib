@@ -38,6 +38,81 @@ namespace sl
             vertex.uv[1] = v;
             return vertex;
         }
+
+        /** Accumulate per-triangle UV tangents into per-vertex tangents (Gram-Schmidt against the normal). */
+        void generate_tangents(std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices)
+        {
+            std::vector<glm::vec3> tangents(vertices.size(), glm::vec3(0.0f));
+            std::vector<glm::vec3> bitangents(vertices.size(), glm::vec3(0.0f));
+            const auto position = [&](std::uint32_t i)
+            { return glm::vec3(vertices[i].position[0], vertices[i].position[1], vertices[i].position[2]); };
+            for (std::size_t t = 0; t + 2 < indices.size(); t += 3)
+            {
+                const std::uint32_t a = indices[t], b = indices[t + 1], c = indices[t + 2];
+                const glm::vec3 e1 = position(b) - position(a);
+                const glm::vec3 e2 = position(c) - position(a);
+                const float du1 = vertices[b].uv[0] - vertices[a].uv[0], dv1 = vertices[b].uv[1] - vertices[a].uv[1];
+                const float du2 = vertices[c].uv[0] - vertices[a].uv[0], dv2 = vertices[c].uv[1] - vertices[a].uv[1];
+                const float determinant = du1 * dv2 - du2 * dv1;
+                if (std::fabs(determinant) < 1e-12f)
+                    continue;
+                const float inverse = 1.0f / determinant;
+                const glm::vec3 tangent = (e1 * dv2 - e2 * dv1) * inverse;
+                const glm::vec3 bitangent = (e2 * du1 - e1 * du2) * inverse;
+                for (const std::uint32_t i : {a, b, c})
+                {
+                    tangents[i] += tangent;
+                    bitangents[i] += bitangent;
+                }
+            }
+            for (std::size_t i = 0; i < vertices.size(); ++i)
+            {
+                const glm::vec3 normal(vertices[i].normal[0], vertices[i].normal[1], vertices[i].normal[2]);
+                glm::vec3 tangent = tangents[i] - normal * glm::dot(normal, tangents[i]);
+                if (glm::dot(tangent, tangent) < 1e-12f)
+                    continue;
+                tangent = glm::normalize(tangent);
+                // UV v runs down the image while normal-map green points up, so the handedness is flipped.
+                const float handedness = glm::dot(glm::cross(normal, tangent), bitangents[i]) < 0.0f ? 1.0f : -1.0f;
+                vertices[i].tangent[0] = tangent.x;
+                vertices[i].tangent[1] = tangent.y;
+                vertices[i].tangent[2] = tangent.z;
+                vertices[i].tangent[3] = handedness;
+            }
+        }
+
+        bool has_tangents(const std::vector<Vertex3D> &vertices)
+        {
+            for (const Vertex3D &vertex : vertices)
+                if (vertex.tangent[0] != 0.0f || vertex.tangent[1] != 0.0f || vertex.tangent[2] != 0.0f)
+                    return true;
+            return false;
+        }
+
+        /** 1x1 (128,128,255) texture used when a material has no normal map; rebuilt if the renderer changes. */
+        Bitmap *flat_normal_bitmap()
+        {
+            static Bitmap *bitmap = nullptr;
+            static detail::Renderer *owner = nullptr;
+            detail::Renderer *renderer = detail::active_renderer();
+            if (bitmap && owner != renderer)
+            {
+                // The old renderer (and its textures) is gone; only free the CPU-side object.
+                bitmap->gpu_texture = 0;
+                delete bitmap;
+                bitmap = nullptr;
+            }
+            if (!bitmap)
+            {
+                bitmap = create_bitmap(1, 1);
+                if (bitmap)
+                {
+                    putpixel(bitmap, 0, 0, Colour{128, 128, 255, 255});
+                    owner = renderer;
+                }
+            }
+            return bitmap;
+        }
     } // namespace
 
     Surface3D *create_surface_3d(int width, int height, int samples)
@@ -140,8 +215,16 @@ namespace sl
                 return nullptr;
             }
         }
+        std::vector<Vertex3D> with_tangents;
+        const std::vector<Vertex3D> *source = &vertices;
+        if (!has_tangents(vertices))
+        {
+            with_tangents = vertices;
+            generate_tangents(with_tangents, indices);
+            source = &with_tangents;
+        }
         std::uint32_t handle = 0;
-        if (!renderer || !renderer->create_mesh(vertices.data(), vertices.size(), indices.data(),
+        if (!renderer || !renderer->create_mesh(source->data(), source->size(), indices.data(),
                                                 indices.size(), handle))
         {
             detail::set_error("Unable to create mesh on the active graphics backend");
@@ -266,6 +349,15 @@ namespace sl
             }
             params.texture = material.texture->gpu_texture;
         }
+        Bitmap *normal_map = material.lit ? material.normal_map : nullptr;
+        if (!normal_map)
+            normal_map = flat_normal_bitmap();
+        if (!normal_map || !upload_bitmap(normal_map))
+        {
+            detail::set_error("Unable to upload mesh normal map");
+            return false;
+        }
+        params.normal_texture = normal_map->gpu_texture;
         params.cull = material.cull;
         params.normal_rows[0][3] = material.tint.red / 255.0f;
         params.normal_rows[1][3] = material.tint.green / 255.0f;
