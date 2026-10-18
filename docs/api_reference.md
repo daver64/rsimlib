@@ -7,29 +7,31 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 ---
 
 ## Table of Contents
-1. [Error Handling](#error-handling-errorh)
-2. [Application Lifecycle & Display](#application-lifecycle--display-displayh)
-3. [Events, Input & Timing](#events-input--timing-eventh-inputh-systemh-gamepadh)
-4. [Bitmaps, Offscreen Render Targets & Drawing](#bitmaps-offscreen-render-targets--drawing-drawh)
-5. [Typography & Text Rendering](#typography--text-rendering-fonth)
-6. [Shaders, Compute & Storage Buffers](#shaders-compute--storage-buffers-graphics_fxh)
-7. [Post-Processing Graphics Effects](#post-processing-graphics-effects-graphics_fxh)
-8. [2D Radial Lighting & Polygon Shadows](#2d-radial-lighting--polygon-shadows-graphics_fxh)
-9. [Box2D Physics System](#box2d-physics-system-physicsh)
-10. [Audio Subsystem (Samples & Streams)](#audio-subsystem-samples--streams-audioh)
-11. [Cellular Automata Fluid & Granular Simulation](#cellular-automata-fluid--granular-simulation-fluidh)
-12. [Particle Systems & Emitters](#particle-systems--emitters-particlesh)
-13. [Procedural FastNoise Generation](#procedural-fastnoise-generation-noiseh)
-14. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
-15. [Resource Archives](#resource-archives-resourceh)
-16. [Isometric Math & Projection](#isometric-math--projection-isometrich)
-17. [JSON Configuration](#json-configuration-configh)
-18. [Tile Maps](#tile-maps-tilemaph)
-19. [3D Fluid Simulation](#3d-fluid-simulation-fluid3dh)
+1. [Error Handling](#error-handling-includeerrorh)
+2. [Application Lifecycle & Display](#application-lifecycle--display-includedisplayh)
+3. [Events, Input & Timing](#events-input--timing-includeeventh-includeinputh-includesystemh-includegamepadh)
+4. [Bitmaps, Offscreen Render Targets & Drawing](#bitmaps-offscreen-render-targets--drawing-includedrawh)
+5. [Typography & Text Rendering](#typography--text-rendering-includefonth)
+6. [Shaders, Compute & Storage Buffers](#shaders-compute--storage-buffers-includegraphics_fxh)
+7. [Post-Processing Graphics Effects](#post-processing-graphics-effects-includegraphics_fxh)
+8. [2D Radial Lighting & Polygon Shadows](#2d-radial-lighting--polygon-shadows-includegraphics_fxh)
+9. [Box2D Physics System](#box2d-physics-system-includephysicsh)
+10. [3D Surfaces](#3d-surfaces-includesurface3dh)
+11. [Voxel Chunks & World](#voxel-chunks--world-includevoxelh)
+12. [Audio Subsystem (Samples & Streams)](#audio-subsystem-samples--streams-includeaudioh)
+13. [Cellular Automata Fluid & Granular Simulation](#cellular-automata-fluid--granular-simulation-includefluidh)
+14. [Particle Systems & Emitters](#particle-systems--emitters-includeparticlesh)
+15. [Procedural FastNoise Generation](#procedural-fastnoise-generation-includenoiseh)
+16. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
+17. [Resource Archives](#resource-archives-includeresourceh)
+18. [Isometric Math & Projection](#isometric-math--projection-includeisometrich)
+19. [JSON Configuration](#json-configuration-includeconfigh)
+20. [Tile Maps](#tile-maps-includetilemaph)
+21. [3D Fluid Simulation](#3d-fluid-simulation-includefluid3dh)
 
 ---
 
-## Error Handling ([include/error.h](include/error.h))
+## Error Handling ([include/error.h](../include/error.h))
 
 `simlib` records thread-local error messages when subsystem initialization, file loading, or GPU resource allocation fails.
 
@@ -59,7 +61,7 @@ void clear_error();
 
 ---
 
-## Application Lifecycle & Display ([include/display.h](include/display.h))
+## Application Lifecycle & Display ([include/display.h](../include/display.h))
 
 The display subsystem handles window creation, graphics backend selection (OpenGL 4.3, Vulkan, Direct3D), resolution configuration, vsync, and viewport management.
 
@@ -165,7 +167,7 @@ void restore_window_viewport();
 
 ---
 
-## Events, Input & Timing ([include/event.h](include/event.h), [include/input.h](include/input.h), [include/system.h](include/system.h), [include/gamepad.h](include/gamepad.h))
+## Events, Input & Timing ([include/event.h](../include/event.h), [include/input.h](../include/input.h), [include/system.h](../include/system.h), [include/gamepad.h](../include/gamepad.h))
 
 `simlib` abstracts window, keyboard, mouse, and gamepad events into unified event structures, alongside high-resolution frame pacing utilities.
 
@@ -290,7 +292,7 @@ void rest(std::uint32_t milliseconds);
 
 ---
 
-## Bitmaps, Offscreen Render Targets & Drawing ([include/draw.h](include/draw.h))
+## Bitmaps, Offscreen Render Targets & Drawing ([include/draw.h](../include/draw.h))
 
 Bitmaps represent 2D RGBA8 pixel buffers in RAM, on the GPU, or attached as offscreen framebuffer render targets.
 
@@ -456,7 +458,7 @@ void do_spline(Bitmap *bitmap, const int points[8], int d, const PixelProc &proc
 
 ---
 
-## Typography & Text Rendering ([include/font.h](include/font.h))
+## Typography & Text Rendering ([include/font.h](../include/font.h))
 
 The font subsystem provides TrueType/OpenType font loading, measurement, printf formatting, and high-performance persistent font atlases.
 
@@ -509,7 +511,7 @@ void gprintf_center(int y, const Colour &colour, const char *fmt, ...);
 
 ---
 
-## Shaders, Compute & Storage Buffers ([include/graphics_fx.h](include/graphics_fx.h))
+## Shaders, Compute & Storage Buffers ([include/graphics_fx.h](../include/graphics_fx.h))
 
 This subsystem encapsulates dynamic GLSL compilation, custom vertex/fragment/compute programs, shader uniform setting, and GPU Storage Buffers (SSBOs) across OpenGL and Vulkan.
 
@@ -587,7 +589,7 @@ bool dispatch_compute_for(const Shader &shader,
 
 ---
 
-## Post-Processing Graphics Effects ([include/graphics_fx.h](include/graphics_fx.h))
+## Post-Processing Graphics Effects ([include/graphics_fx.h](../include/graphics_fx.h))
 
 Post-processing effects process regions or full-screen bitmaps using pre-compiled GPU pipeline passes.
 
@@ -602,7 +604,7 @@ Post-processing effects process regions or full-screen bitmaps using pre-compile
 
 ---
 
-## 2D Radial Lighting & Polygon Shadows ([include/graphics_fx.h](include/graphics_fx.h))
+## 2D Radial Lighting & Polygon Shadows ([include/graphics_fx.h](../include/graphics_fx.h))
 
 Provides 2D soft-shadow light culling, spotlights, and polygonal shadow casting over rendered scenes.
 
@@ -647,7 +649,7 @@ public:
 
 ---
 
-## Box2D Physics System ([include/physics.h](include/physics.h))
+## Box2D Physics System ([include/physics.h](../include/physics.h))
 
 `simlib` provides an integrated Box2D rigid-body simulation wrapper operating directly in pixel coordinates (64 pixels = 1 meter).
 
@@ -698,7 +700,7 @@ std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 
 ---
 
-## 3D Surfaces ([include/surface3d.h](include/surface3d.h))
+## 3D Surfaces ([include/surface3d.h](../include/surface3d.h))
 
 A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL, Vulkan and Direct3D 12 backends.
 
@@ -714,7 +716,7 @@ See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF came
 
 ---
 
-## Voxel Chunks & World ([include/voxel.h](include/voxel.h))
+## Voxel Chunks & World ([include/voxel.h](../include/voxel.h))
 
 `simlib` provides basic voxel support designed for building Minecraft-style block worlds. Voxels are managed in 16x16x16 chunks using hidden-face culling to batch visible cube faces into indexed GPU `Mesh` buffers, directional face shading, texture atlas UV mapping, and 3D DDA raycasting for block picking and placement.
 
@@ -765,7 +767,7 @@ See `src/examples/exvoxel` for an interactive demo with procedural terrain gener
 
 ---
 
-## Audio Subsystem (Samples & Streams) ([include/audio.h](include/audio.h))
+## Audio Subsystem (Samples & Streams) ([include/audio.h](../include/audio.h))
 
 Handles SDL_mixer sample sound effects (0-255 Allegro volume/pan conventions) and music streams.
 
@@ -801,7 +803,7 @@ void music_set_volume(int volume); // 0-255
 
 ---
 
-## Cellular Automata Fluid & Granular Simulation ([include/fluid.h](include/fluid.h))
+## Cellular Automata Fluid & Granular Simulation ([include/fluid.h](../include/fluid.h))
 
 Multi-material Cellular Automata simulation combining fluids, falling sand, gases, fire, thermodynamics, and Box2D Archimedes buoyancy coupling.
 
@@ -817,7 +819,7 @@ void fluid_reset_bounds(CAFluidGrid *sim);
 
 ---
 
-## Particle Systems & Emitters ([include/particles.h](include/particles.h))
+## Particle Systems & Emitters ([include/particles.h](../include/particles.h))
 
 Configurable 2D particle emitters with velocity spread, size scaling, color fading, and gravity.
 
@@ -846,7 +848,7 @@ public:
 
 ---
 
-## Procedural FastNoise Generation ([include/noise.h](include/noise.h))
+## Procedural FastNoise Generation ([include/noise.h](../include/noise.h))
 
 A wrapper around FastNoiseLite for procedural terrain and texture generation.
 
@@ -899,7 +901,7 @@ namespace rdb {
 
 ---
 
-## Resource Archives ([include/resource.h](include/resource.h))
+## Resource Archives ([include/resource.h](../include/resource.h))
 
 Provides read-only ZIP asset archive support for loading images, fonts, audio samples, and scripts directly from compressed data packages.
 
@@ -917,7 +919,7 @@ public:
 
 ---
 
-## Isometric Math & Projection ([include/isometric.h](include/isometric.h))
+## Isometric Math & Projection ([include/isometric.h](../include/isometric.h))
 
 Provides pure mathematical transformations between 3D isometric world grid coordinates $(x, y, z)$ and 2D screen coordinates $(sx, sy)$, diamond vertex calculations, mouse tile picking, viewport culling, and depth sorting.
 
@@ -957,7 +959,7 @@ namespace sl {
 
 ---
 
-## JSON Configuration ([include/config.h](include/config.h))
+## JSON Configuration ([include/config.h](../include/config.h))
 
 Provides a JSON-backed application configuration document with nested dotted-key path access, typed serialization, and fallback values.
 
@@ -993,7 +995,7 @@ namespace sl {
 
 ---
 
-## Tile Maps ([include/tilemap.h](include/tilemap.h))
+## Tile Maps ([include/tilemap.h](../include/tilemap.h))
 
 Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled batched drawing, animated tiles, tile metadata and a Tiled JSON loader.
 

@@ -58,7 +58,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
 - 🗡️ **[`exroguelike` ASCII Roguelike Guide](docs/exroguelike_guide.md)** — Architectural walkthrough of the turn-based roguelike (512x512 procedural overworld, 3x3 sector dungeons, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`).
 - 🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
-- 🌊 **[3D Fluid Simulation](docs/api_reference.md#3d-fluid-simulation-fluid3dh)** — Cellular automata fluids, fire and sand in a bounded region that reads solids from and writes fluid blocks back to a `VoxelWorld` (see `exfluid3d`).
+- 🌊 **[3D Fluid Simulation](docs/api_reference.md#3d-fluid-simulation-includefluid3dh)** — Cellular automata fluids, fire and sand in a bounded region that reads solids from and writes fluid blocks back to a `VoxelWorld` (see `exfluid3d`).
 - 🖌️ **[`slpaint` Retro Paint Guide](docs/slpaint_guide.md)** — Architectural walkthrough of the paint app (drawing tools, undo/redo stack, floating selection, and preview overlays).
 - 🕹️ **[`sltest` Sample Game Guide](docs/sltest_guide.md)** — Structural walk-through of the sample game's state machines, entities, and UI.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, dynamic polygon soft shadows, and 2D/3D normal mapping.
@@ -185,7 +185,7 @@ sl::draw_tilemap(map, camera_x, camera_y);          // draws only the visible ce
 sl::destroy_tilemap(map);
 ```
 
-Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Not supported yet: infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets (these report an error). See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-tilemaph).
+Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Not supported yet: infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets (these report an error). See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-includetilemaph).
 
 ## 3D Graphics: Surfaces, Models & Voxel Worlds
 
