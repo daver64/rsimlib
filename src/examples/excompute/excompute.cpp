@@ -52,6 +52,50 @@ void main() {
 }
 )";
 
+static const char *compute_shader_src_vulkan = R"(#version 430 core
+layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
+
+struct Particle {
+    float x, y;
+    float vx, vy;
+    float r, g, b;
+    float life;
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+    Particle particles[];
+};
+
+layout(push_constant) uniform Params {
+    float uDeltaTime;
+    float uWidth;
+    float uHeight;
+} params;
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= particles.length()) return;
+
+    Particle p = particles[gid];
+    p.x += p.vx * params.uDeltaTime;
+    p.y += p.vy * params.uDeltaTime;
+
+    if (p.x < 0.0) { p.x = 0.0; p.vx = -p.vx; }
+    if (p.x > params.uWidth) { p.x = params.uWidth; p.vx = -p.vx; }
+    if (p.y < 0.0) { p.y = 0.0; p.vy = -p.vy; }
+    if (p.y > params.uHeight) { p.y = params.uHeight; p.vy = -p.vy; }
+
+    particles[gid] = p;
+}
+)";
+
+// Vulkan has no loose uniforms: they are passed as push constants with an explicit layout.
+static const std::vector<sl::ShaderUniform> compute_vulkan_uniforms = {
+    {"uDeltaTime", 0, 4},
+    {"uWidth", 4, 4},
+    {"uHeight", 8, 4},
+};
+
 int main(int argc, char **argv)
 {
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
@@ -91,7 +135,10 @@ int main(int argc, char **argv)
     }
 
     sl::Shader compute_shader;
-    if (!compute_shader.load_compute(compute_shader_src))
+    const bool compute_loaded = sl::graphics_backend() == sl::GraphicsBackend::vulkan
+        ? compute_shader.load_compute(compute_shader_src_vulkan, compute_vulkan_uniforms)
+        : compute_shader.load_compute(compute_shader_src);
+    if (!compute_loaded)
     {
         std::cerr << "Failed to load compute shader: " << compute_shader.error() << "\n";
         return -1;

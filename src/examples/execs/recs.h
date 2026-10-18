@@ -24,11 +24,29 @@ Design goals:
 #include <mutex>
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <new>
 
 #ifndef RECS_MAX_COMPONENTS
 #define RECS_MAX_COMPONENTS 64
+#endif
+
+// RECS_CHECK guards against API misuse and stays active in release builds; the checks sit on cold paths or cost a
+// single predictable branch. Define RECS_DISABLE_CHECKS to compile them out. Internal invariants use assert().
+#ifndef RECS_DISABLE_CHECKS
+#define RECS_CHECK(condition, message)                                                          \
+    do                                                                                          \
+    {                                                                                           \
+        if (!(condition))                                                                       \
+        {                                                                                       \
+            std::fprintf(stderr, "recs: %s (%s:%d)\n", message, __FILE__, __LINE__);            \
+            std::abort();                                                                       \
+        }                                                                                       \
+    } while (0)
+#else
+#define RECS_CHECK(condition, message) ((void)0)
 #endif
 
 namespace recs
@@ -53,7 +71,7 @@ namespace recs
     inline ComponentID next_component_id()
     {
         static ComponentID id = 0;
-        assert(id < RECS_MAX_COMPONENTS && "component_id exceeded RECS_MAX_COMPONENTS");
+        RECS_CHECK(id < RECS_MAX_COMPONENTS, "component_id exceeded RECS_MAX_COMPONENTS");
         return id++;
     }
 
@@ -552,7 +570,7 @@ namespace recs
             std::lock_guard<std::mutex> lock(world_mutex_);
             auto id = component_id<R>();
             auto it = resources_.find(id);
-            assert(it != resources_.end() && it->second.data && "resource not found");
+            RECS_CHECK(it != resources_.end() && it->second.data, "resource not found");
             return *static_cast<R *>(it->second.data);
         }
 
@@ -562,7 +580,7 @@ namespace recs
             std::lock_guard<std::mutex> lock(world_mutex_);
             auto id = component_id<R>();
             auto it = resources_.find(id);
-            assert(it != resources_.end() && it->second.data && "resource not found");
+            RECS_CHECK(it != resources_.end() && it->second.data, "resource not found");
             return *static_cast<R *>(it->second.data);
         }
 
@@ -719,7 +737,7 @@ namespace recs
         std::vector<C> *get_array(Archetype &arch)
         {
             auto &arr = arch.components[component_id<C>()];
-            assert(arr.data && "component array not initialized");
+            RECS_CHECK(arr.data, "component array not initialized");
             return static_cast<std::vector<C> *>(arr.data);
         }
 
@@ -727,7 +745,7 @@ namespace recs
         const std::vector<C> *get_array(const Archetype &arch) const
         {
             auto &arr = arch.components[component_id<C>()];
-            assert(arr.data && "component array not initialized");
+            RECS_CHECK(arr.data, "component array not initialized");
             return static_cast<std::vector<C> *>(arr.data);
         }
 

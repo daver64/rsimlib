@@ -882,6 +882,9 @@ namespace sl::detail
             bool dispatch_compute(std::uint32_t program, unsigned int groups_x, unsigned int groups_y, unsigned int groups_z) override
             {
                 flush_2d();
+                // Like drawing, a dispatch may be the first command of a frame.
+                if (!frame_active_ && !begin_frame(last_error_))
+                    return false;
                 if (program == cull_program_)
                 {
                     if (storage_descriptor_ == VK_NULL_HANDLE)
@@ -900,10 +903,13 @@ namespace sl::detail
                 std::vector<VkWriteDescriptorSet> writes;
                 // Reserved upfront: writes below store pointers into these vectors, which would be
                 // invalidated by a reallocation from a later push_back if capacity ran out.
-                buffer_infos.reserve(dynamic.bound_storage_buffers.size());
+                std::map<unsigned int, std::uint32_t> storage_bindings = global_storage_bindings_;
+                for (const auto &[binding, buffer_handle] : dynamic.bound_storage_buffers)
+                    storage_bindings[binding] = buffer_handle;
+                buffer_infos.reserve(storage_bindings.size());
                 image_infos.reserve(dynamic.bound_storage_textures.size());
 
-                for (const auto &[binding, buffer_handle] : dynamic.bound_storage_buffers)
+                for (const auto &[binding, buffer_handle] : storage_bindings)
                 {
                     auto buf_it = storage_buffers_.find(buffer_handle);
                     if (buf_it != storage_buffers_.end() && buf_it->second.buffer.buffer != VK_NULL_HANDLE)
@@ -1859,6 +1865,8 @@ namespace sl::detail
                     storage_handles_[binding - 2] = buffer;
                     update_storage_descriptor();
                 }
+                // Bindings are global like OpenGL's, so they apply to a program activated after the bind.
+                global_storage_bindings_[binding] = buffer;
                 const auto iterator = dynamic_compute_programs_.find(active_program_);
                 if (iterator != dynamic_compute_programs_.end())
                 {
@@ -2312,6 +2320,7 @@ namespace sl::detail
             std::array<float, 16> projection_{};
             std::uint32_t white_texture_ = 0;
             bool frame_active_ = false;
+            std::map<unsigned int, std::uint32_t> global_storage_bindings_;
             // Matches the VulkanContext default above.
             bool vsync_enabled_ = true;
             int drawable_width_ = 0;

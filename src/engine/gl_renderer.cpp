@@ -865,9 +865,10 @@ namespace sl::detail
                 projection[12] = -1.0f + 2.0f * detail::screen_offset_x() / width;
                 projection[13] = 1.0f - 2.0f * detail::screen_offset_y() / height;
                 projection[15] = 1.0f;
-                if (!set_shader_mat4(program, "uProjection", projection) ||
-                    !set_shader_int(program, "uTexture", 0))
+                if (!set_shader_mat4(program, "uProjection", projection))
                     return false;
+                // Custom shaders may name their main sampler differently, so a missing uTexture is not an error.
+                set_shader_int(program, "uTexture", 0);
                 glEnable(GL_BLEND);
                 apply_blend_func();
                 glActiveTexture(GL_TEXTURE0);

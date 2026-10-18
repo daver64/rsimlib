@@ -359,7 +359,9 @@ void test_propagated_voxel_lighting()
 
     const sl::VoxelLight sunlit = cave.get_light(4, 9, 4);
     assert(sunlit.sky == 15);
-    assert(cave.get_light(4, 7, 4).sky == 0);
+    // Under the roof, sky light only arrives sideways from the open chunk at x = 16 and loses one level per cell.
+    assert(cave.get_light(4, 7, 4).sky == 15 - 12);
+    assert(cave.get_light(4, 7, 4).sky < sunlit.sky);
     assert(cave.get_light(32, 7, 4).sky == 15);
 
     const sl::VoxelLight across_chunk = cave.get_light(16, 7, 3);

@@ -2148,6 +2148,9 @@ namespace sl::detail
             error = "Invalid Vulkan buffer download request.";
             return false;
         }
+        // Submitted GPU work (e.g. a compute dispatch) must finish before the host reads its results.
+        if (device_ != VK_NULL_HANDLE)
+            vkDeviceWaitIdle(device_);
         void *mapped = nullptr;
         if (vkMapMemory(device_, buffer.memory, static_cast<VkDeviceSize>(offset), static_cast<VkDeviceSize>(size), 0, &mapped) != VK_SUCCESS)
         {

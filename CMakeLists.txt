@@ -658,6 +658,20 @@ if(BUILD_TESTING)
         target_compile_definitions(d3d12_renderer_test PRIVATE SDL_MAIN_HANDLED)
         add_test(NAME d3d12_renderer COMMAND d3d12_renderer_test)
     endif()
+
+    # Tests rely on assert(); keep it active in Release builds, where NDEBUG would turn every check into a no-op.
+    foreach(SIMLIB_TEST_TARGET
+            config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
+            backend_selection_test event_test lua_canvas_test resource_test physics_test
+            renderer_test voxel_test d3d12_renderer_test)
+        if(TARGET ${SIMLIB_TEST_TARGET})
+            if(MSVC)
+                target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)
+            else()
+                target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE -UNDEBUG)
+            endif()
+        endif()
+    endforeach()
 endif()
 
 if(WIN32 AND TARGET SDL2::SDL2main)

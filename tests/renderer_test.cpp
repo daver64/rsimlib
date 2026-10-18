@@ -4,6 +4,16 @@
 #include <iostream>
 #include <vector>
 
+namespace
+{
+    // Vulkan records drawing into the frame's command buffer, so submit it before reading GPU images back.
+    void flush_frame()
+    {
+        sl::show_video_bitmap();
+        sl::end_frame();
+    }
+}
+
 void test_backend(sl::GraphicsBackend backend)
 {
     std::cout << "Testing graphics backend: "
@@ -44,6 +54,7 @@ void test_backend(sl::GraphicsBackend backend)
     sl::end_render_target();
 
     // 4. Test download / pixel readback from render target
+    flush_frame();
     assert(sl::download_bitmap(rt));
     assert(!rt->pixels.empty());
 
@@ -129,6 +140,7 @@ void test_backend(sl::GraphicsBackend backend)
         assert(multi_shader.set_texture("texB", 1, bmpB));
         assert(multi_shader.draw_textured_quad(bmpA, 0, 0, 32, 32));
         sl::end_render_target();
+        flush_frame();
 
         assert(sl::download_bitmap(multi_rt));
         sl::Colour combined = sl::getpixel(multi_rt, 16, 16);
@@ -167,6 +179,7 @@ void test_backend(sl::GraphicsBackend backend)
         assert(storage_buf.bind(0));
         assert(sl::dispatch_compute_for(comp_shader, 16, 1, 1, 16, 1, 1));
         sl::compute_barrier();
+        flush_frame();
 
         std::vector<float> output_data(16, 0.0f);
         assert(storage_buf.readback(output_data));
