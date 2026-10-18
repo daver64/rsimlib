@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3, Vulkan and Direct3D 12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL, Vulkan and Direct3D 12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
