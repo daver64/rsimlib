@@ -1,6 +1,6 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3 and Vulkan backends (plus Direct3D 12 on Windows). It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
+`simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL 4.3,Vulkan and D3D12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, ZIP asset archives, cellular automata fluid simulation, Perlin/simplex noise, integrated Box2D physics, and sandboxed Lua scripting via sol2.
 
 ## Quick start
 
@@ -213,6 +213,8 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/exparticles     # Particle emitters, fades, and gravity
 ./build/exresources     # Encrypted/compressed ZIP asset archive loading
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
+./build/exnormalmap     # Normal-mapped 2D lighting (Space toggles)
+./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
 ./build/excafluid       # Cellular automata fluid mechanics, thermodynamics, phase changes etc
@@ -264,6 +266,8 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
+- **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass.
+- **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading.
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.

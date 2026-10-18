@@ -750,7 +750,20 @@ namespace sl
 
         /** Set the minimum scene illumination, from 0 (black) to 1 (full brightness). */
         void set_ambient(float ambient);
+        /**
+         * Set the height, in screen pixels, of every light above the surface. It only matters for normal-mapped
+         * lighting: lower values give a more grazing, dramatic light. Default 64.
+         */
+        void set_light_height(float height);
 
+        /**
+         * Like the batch overload below, but lights surfaces using a normal buffer rendered between
+         * begin_normal_pass() and end_normal_pass(). Pixels the normal buffer did not write are lit as before.
+         * Normal-mapped lighting is available on OpenGL and Vulkan only.
+         */
+        void apply(Bitmap *source, Bitmap *normals, const std::vector<Light> &lights, int x = 0, int y = 0,
+                   int width = 0, int height = 0,
+                   const std::vector<ShadowCaster> &casters = {}) const;
         /** Apply ambient plus radial lighting and polygon shadows to a bitmap. */
         void apply(Bitmap *source, const Light &light, int x = 0, int y = 0,
                    int width = 0, int height = 0,
@@ -766,6 +779,7 @@ namespace sl
         Shader shader_;
         Shader cullShader_;
         float ambient_ = 0.2f;
+        float lightHeight_ = 64.0f;
         std::uint32_t lightBuffer_ = 0;
         mutable std::uint32_t tileCountsBuffer_ = 0;
         mutable std::uint32_t tileIndicesBuffer_ = 0;

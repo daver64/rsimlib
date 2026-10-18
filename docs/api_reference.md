@@ -24,6 +24,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 15. [Resource Archives](#resource-archives-resourceh)
 16. [Isometric Math & Projection](#isometric-math--projection-isometrich)
 17. [JSON Configuration](#json-configuration-configh)
+18. [Tile Maps](#tile-maps-tilemaph)
 
 ---
 
@@ -988,3 +989,26 @@ namespace sl {
 ---
 
 [← Back to README](../README.md)
+
+---
+
+## Tile Maps ([include/tilemap.h](include/tilemap.h))
+
+Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled batched drawing, animated tiles, tile metadata and a Tiled JSON loader.
+
+### Key Types
+- `sl::TileMap`: map size, tile size, `tilesets`, `layers` (`TileLayer`), `object_layers` (`ObjectLayer`) and an animation clock. Create with `create_tilemap()` or `load_tiled_map()` and free with `destroy_tilemap()` (which also frees bitmaps the loader created).
+- `sl::TileLayer`: row-major `cells`, plus `visible`, `offset_x/y` and `parallax_x/y`. A cell is a GID (0 = empty) OR-ed with `tile_flip_horizontal`, `tile_flip_vertical` and/or `tile_flip_diagonal`; mask with `tile_id_mask`.
+- `sl::TileSet` / `sl::TileInfo`: an atlas with its `first_gid`, and per-tile `solid`, `properties` and `animation` frames.
+
+### Functions
+- `tilemap_add_tileset(map, atlas, first_gid = 0)`, `tilemap_add_layer(map, name)`, `tilemap_layer()`, `tilemap_get()`, `tilemap_set()`.
+- `tilemap_set_solid()`, `tilemap_tile_info()`, `tilemap_tile_property()`, `tilemap_is_solid()`, `tilemap_rect_blocked()`: collision queries (out of bounds counts as solid).
+- `tilemap_world_to_tile()`, `tilemap_tile_to_world()`: coordinate conversion.
+- `update_tilemap(map, dt_seconds)`: advances tile animations.
+- `draw_tilemap(map, camera_x, camera_y, view_width = 0, view_height = 0, first_layer = 0, last_layer = -1)`: draws visible cells only. For isometric maps the camera is the screen offset of cell (0, 0).
+- `load_tiled_map(path)`: loads Tiled JSON (`.tmj`/`.json`) with embedded or external `.tsj` tilesets, CSV (array) layer data, group layers, flips, tile properties (a boolean `solid` property sets `TileInfo::solid`), animations and object layers. Infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets are rejected with an error.
+- `tilemap_find_object(map, name)`: look up a spawn point or trigger from an object layer.
+- `draw_sprite_region_flipped()` (in `draw.h`) draws a bitmap region with horizontal, vertical and diagonal flips.
+
+See [`extilemap`](../src/examples/extilemap/extilemap.cpp) for a scrolling map with collision and animation.

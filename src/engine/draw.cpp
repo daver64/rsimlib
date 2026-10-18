@@ -125,9 +125,18 @@ namespace sl
 		void draw_screen_rect(float left, float top, float right, float bottom, bool filled, Bitmap *texture, Colour colour, float thickness = 1.0f);
 		void draw_screen_thick_line(float x1, float y1, float x2, float y2, float thickness, Bitmap *texture, Colour colour);
 
+		bool normal_pass_active = false;
+
+		/** Return the bitmap to sample: the paired normal map during a normal pass (nullptr = skip). */
+		Bitmap *pass_bitmap(Bitmap *bitmap)
+		{
+			return normal_pass_active && bitmap ? bitmap->normal_map : bitmap;
+		}
+
 		/** Draw a bitmap region as a scaled and optionally flipped quad. */
 		void draw_textured_quad(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, int destinationWidth = -1, int destinationHeight = -1, bool flipHorizontal = false, bool flipVertical = false)
 		{
+			bitmap = pass_bitmap(bitmap);
 			if (!upload_bitmap(bitmap))
 			{
 				return;
@@ -160,6 +169,7 @@ namespace sl
 		/** Draw a bitmap as a scaled quad rotated around its screen-space centre. */
 		void draw_textured_quad_rotated(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int destinationWidth = -1, int destinationHeight = -1)
 		{
+			bitmap = pass_bitmap(bitmap);
 			if (!upload_bitmap(bitmap))
 			{
 				return;
@@ -197,6 +207,7 @@ namespace sl
 		/** Draw a bitmap region rotated clockwise around a pivot given in destination pixels, scaled to the destination size; (x, y) is the unrotated top-left. */
 		void draw_textured_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees)
 		{
+			bitmap = pass_bitmap(bitmap);
 			if (!upload_bitmap(bitmap))
 			{
 				return;
@@ -232,6 +243,57 @@ namespace sl
 				{topRight.first, topRight.second, rightTexture, topTexture, 1.0f, 1.0f, 1.0f, 1.0f},
 				{bottomRight.first, bottomRight.second, rightTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
 				{bottomLeft.first, bottomLeft.second, leftTexture, bottomTexture, 1.0f, 1.0f, 1.0f, 1.0f},
+			};
+			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
+		}
+
+		/** Draw a bitmap region into an axis-aligned rectangle with optional diagonal, horizontal and vertical flips. */
+		void draw_textured_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal)
+		{
+			bitmap = pass_bitmap(bitmap);
+			if (!upload_bitmap(bitmap))
+			{
+				return;
+			}
+
+			const float left = static_cast<float>(sourceX) / bitmap->width;
+			const float top = static_cast<float>(sourceY) / bitmap->height;
+			const float right = static_cast<float>(sourceX + width) / bitmap->width;
+			const float bottom = static_cast<float>(sourceY + height) / bitmap->height;
+			// Corner order: top-left, top-right, bottom-right, bottom-left.
+			float u[4] = {left, right, right, left};
+			float v[4] = {top, top, bottom, bottom};
+			// Same order as Tiled: diagonal (transpose) first, then horizontal, then vertical.
+			if (flipDiagonal)
+			{
+				std::swap(u[1], u[3]);
+				std::swap(v[1], v[3]);
+			}
+			if (flipHorizontal)
+			{
+				std::swap(u[0], u[1]);
+				std::swap(v[0], v[1]);
+				std::swap(u[2], u[3]);
+				std::swap(v[2], v[3]);
+			}
+			if (flipVertical)
+			{
+				std::swap(u[0], u[3]);
+				std::swap(v[0], v[3]);
+				std::swap(u[1], u[2]);
+				std::swap(v[1], v[2]);
+			}
+
+			detail::gl2d_begin(screen_width(), screen_height());
+			if (detail::Renderer *renderer = detail::active_renderer())
+				renderer->set_premultiplied_alpha(bitmap->fbo != 0);
+			const float x2 = x + destinationWidth;
+			const float y2 = y + destinationHeight;
+			const detail::GLVertex vertices[4] = {
+				{x, y, u[0], v[0], 1.0f, 1.0f, 1.0f, 1.0f},
+				{x2, y, u[1], v[1], 1.0f, 1.0f, 1.0f, 1.0f},
+				{x2, y2, u[2], v[2], 1.0f, 1.0f, 1.0f, 1.0f},
+				{x, y2, u[3], v[3], 1.0f, 1.0f, 1.0f, 1.0f},
 			};
 			detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4, bitmap->gpu_texture);
 		}
@@ -576,6 +638,35 @@ namespace sl
 	}
 
 	/** Create an offscreen render target: a GPU texture with a framebuffer attached. */
+	void set_normal_map(Bitmap *bitmap, Bitmap *normal_map)
+	{
+		if (bitmap && bitmap != normal_map)
+		{
+			bitmap->normal_map = normal_map;
+		}
+	}
+
+	bool begin_normal_pass(Bitmap *normal_buffer)
+	{
+		if (normal_pass_active || !begin_render_target(normal_buffer))
+		{
+			return false;
+		}
+		// Alpha zero marks pixels with no normal data so lighting falls back to flat shading.
+		clear_render_target(Colour{128, 128, 255, 0});
+		normal_pass_active = true;
+		return true;
+	}
+
+	void end_normal_pass()
+	{
+		if (normal_pass_active)
+		{
+			normal_pass_active = false;
+			end_render_target();
+		}
+	}
+
 	Bitmap *create_render_target(int width, int height)
 	{
 		if (width <= 0 || height <= 0)
@@ -1825,6 +1916,16 @@ namespace sl
 			return;
 		}
 		draw_textured_region_rotated(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, pivotX, pivotY, angleDegrees);
+	}
+
+	/** Draw a bitmap region scaled to a destination rectangle with optional flips (diagonal is applied first). */
+	void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal)
+	{
+		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
+		{
+			return;
+		}
+		draw_textured_region_flipped(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, flipHorizontal, flipVertical, flipDiagonal);
 	}
 
 	/** Draw a horizontally flipped bitmap. */

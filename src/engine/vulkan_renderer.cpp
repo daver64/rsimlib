@@ -124,7 +124,7 @@ namespace sl::detail
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_lighting.frag.spv", lighting_fragment_module_, error) ||
                     !context_.create_graphics_pipeline(lighting_vertex_module_, lighting_fragment_module_,
                                                        lighting_descriptor_layout_, PrimitiveType::triangle_fan, lighting_pipeline_, error,
-                                                       &storage_layout_, sizeof(int) * 4 + sizeof(float) + sizeof(int)))
+                                                       &storage_layout_, sizeof(int) * 6 + sizeof(float) * 2))
                     return false;
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_vignette.frag.spv", vignette_fragment_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_colour_adjust.frag.spv", colour_adjust_fragment_module_, error) ||
@@ -966,6 +966,8 @@ namespace sl::detail
                         lighting_constants_.shadow_light_count = value;
                     else if (std::strcmp(name, "flipVertical") == 0)
                         lighting_constants_.flip_vertical = value;
+                    else if (std::strcmp(name, "useNormals") == 0)
+                        lighting_constants_.use_normals = value;
                     else
                         return true;
                     return true;
@@ -982,6 +984,12 @@ namespace sl::detail
                 {
                     active_program_ = program;
                     lighting_constants_.ambient = value;
+                    return true;
+                }
+                if (program_kind(program) == BuiltinProgram::lighting && name && std::strcmp(name, "lightHeight") == 0)
+                {
+                    active_program_ = program;
+                    lighting_constants_.light_height = value;
                     return true;
                 }
                 if (program == vignette_effect_.program && name)
@@ -2294,6 +2302,8 @@ namespace sl::detail
                 int shadow_light_count = 0;
                 float ambient = 0.0f;
                 int flip_vertical = 0;
+                int use_normals = 0;
+                float light_height = 64.0f;
             } lighting_constants_;
             std::array<float, 16> lighting_projection_{};
             std::array<std::uint32_t, 9> lighting_textures_{};

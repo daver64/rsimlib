@@ -245,6 +245,7 @@ add_library(simlib STATIC
     src/engine/surface3d.cpp
     src/engine/model3d.cpp
     src/engine/atlas.cpp
+    src/engine/tilemap.cpp
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
     src/engine/graphics_fx_bloom.cpp
@@ -555,6 +556,11 @@ target_link_libraries(exroguelike PRIVATE simlib)
 add_executable(exisometric src/examples/exisometric/exisometric.cpp)
 target_link_libraries(exisometric PRIVATE simlib)
 
+add_executable(extilemap src/examples/extilemap/extilemap.cpp)
+target_link_libraries(extilemap PRIVATE simlib)
+add_executable(exnormalmap src/examples/exnormalmap/exnormalmap.cpp)
+target_link_libraries(exnormalmap PRIVATE simlib)
+
 add_executable(exconfig src/examples/exconfig/exconfig.cpp)
 target_link_libraries(exconfig PRIVATE simlib)
 
@@ -568,6 +574,16 @@ if(BUILD_TESTING)
     target_link_libraries(isometric_test PRIVATE simlib)
     target_compile_definitions(isometric_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME isometric COMMAND isometric_test)
+
+    add_executable(tilemap_test tests/tilemap_test.cpp)
+    target_link_libraries(tilemap_test PRIVATE simlib)
+    target_compile_definitions(tilemap_test PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME tilemap COMMAND tilemap_test)
+
+    add_executable(normalmap_test tests/normalmap_test.cpp)
+    target_link_libraries(normalmap_test PRIVATE simlib)
+    target_compile_definitions(normalmap_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME normalmap COMMAND normalmap_test)
 
     add_executable(rdb_test tests/rdb_test.cpp)
     target_include_directories(rdb_test PRIVATE src/examples/exdb)

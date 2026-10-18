@@ -149,6 +149,8 @@ namespace sl
         bool gpu_dirty = false;
         /** Distinguishes ordinary bitmaps from the display framebuffer. */
         BitmapKind kind = BitmapKind::Bitmap;
+        /** Optional non-owning normal map paired with this bitmap; see set_normal_map(). */
+        Bitmap *normal_map = nullptr;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */
@@ -171,6 +173,23 @@ namespace sl
     void end_render_target();
     /** Clear the currently bound render target (call between begin_render_target() and end_render_target()). */
     void clear_render_target(Colour colour);
+
+    /**
+     * Pair a bitmap (or atlas) with a tangent-space normal map of the same size and layout.
+     * The normal map is not owned; it must outlive any normal pass that draws the bitmap.
+     * Pass nullptr to remove the pairing.
+     */
+    void set_normal_map(Bitmap *bitmap, Bitmap *normal_map);
+    /**
+     * Redirect drawing to a normal buffer (a render target) and clear it to "no data".
+     * While active, every textured sprite/tile draw writes its paired normal map instead of its colour
+     * (rotation and flips are not applied to the normals), and bitmaps without a normal map are skipped.
+     * Redraw the scene's sprites between begin_normal_pass() and end_normal_pass(), then pass the buffer to
+     * LightingPass::apply(). Only draw sprites and tiles inside a normal pass.
+     */
+    bool begin_normal_pass(Bitmap *normal_buffer);
+    /** Finish the normal pass started with begin_normal_pass(). */
+    void end_normal_pass();
     /** Load an image file into a bitmap, or return nullptr on failure. */
     Bitmap *load_bitmap(const std::string &path);
     /** Load an image from memory. */
@@ -294,6 +313,8 @@ namespace sl
     void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int width, int height);
     /** Draw a bitmap region with its unrotated top-left at (x, y), rotated clockwise by angleDegrees around a pivot offset (in destination pixels) from that corner; the region is scaled to destinationWidth x destinationHeight. */
     void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees);
+    /** Draw a bitmap region scaled into a rectangle with optional flips; the diagonal flip (transpose) is applied first, as in Tiled. */
+    void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal = false);
     /** Draw a horizontally flipped bitmap. */
     void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
     /** Draw a vertically flipped bitmap. */

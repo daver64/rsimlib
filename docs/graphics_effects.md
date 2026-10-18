@@ -31,7 +31,7 @@ Effects that own GPU resources must be initialized after `set_gfx_mode()` and sh
 | `CRTFilter` | `initialise`, `set_pixel_size`, `set_scanline_strength`, `set_curvature`, `apply`, `shutdown` | Combine scanlines, light curvature, and pixelation for a CRT look. |
 | `DitherFilter` | `initialise`, `set_pixel_size`, `set_levels`, `apply`, `shutdown` | Apply ordered Bayer dithering to reduce colour depth. |
 | `FilmGrain` | `initialise`, `set_strength`, `set_time`, `apply`, `shutdown` | Add animated monochrome film grain with configurable intensity. |
-| `LightingPass` | `initialise`, `set_ambient`, `apply`, `shutdown` | Apply coloured radial lights and polygon-caster shadows to a bitmap. |
+| `LightingPass` | `initialise`, `set_ambient`, `set_light_height`, `apply`, `shutdown` | Apply coloured radial lights and polygon-caster shadows to a bitmap. |
 | `ScreenFade` | `set_colour`, `colour`, `apply` | Draw a solid colour overlay, including alpha, over the current screen. |
 | `ScreenShake` | `trigger`, `update`, `clear`, `active` | Apply a decaying camera offset to 2D projections. |
 
@@ -88,6 +88,27 @@ sl::draw_sprite(result, 0.0f, 0.0f);
 ### Shadow Casters
 
 `ShadowCaster` describes a polygon that blocks light. Its `vertices` are screen-space pixel coordinates using the top-left origin, ordered around the polygon perimeter. Use `make_rectangle_shadow_caster(left, top, right, bottom)` when a rectangle is the most convenient representation. The implementation projects polygon edges away from each light and supports soft shadow filtering through `shadow_softness`.
+
+### Normal Mapping
+
+Sprites and tiles can carry a tangent-space normal map (RGB = XYZ, green pointing up the image, as exported by most tools) so lights shade their surface detail.
+
+1. Pair each colour bitmap or atlas with a normal map of the **same size and layout** using `set_normal_map(bitmap, normal_map)`. The pairing is not owned; keep the normal map alive while it is used.
+2. Draw the scene to `scene` as usual.
+3. Redraw the same sprites/tiles between `begin_normal_pass(normals)` and `end_normal_pass()`, where `normals` is a render target the size of the scene. Inside the pass each draw writes its paired normal map instead of its colour; bitmaps without a normal map are skipped, and pixels left unwritten are lit as flat (so un-mapped content looks as it did before). Only draw sprites and tiles in a normal pass, so `draw_tilemap()` works directly.
+4. Light with `lighting.apply(scene, normals, lights, ...)`. `set_light_height()` sets how far, in pixels, lights sit above the surface (default 64); lower values give more dramatic shading.
+
+```cpp
+sl::set_normal_map(brick, brick_normal);
+// ... draw scene into `scene` ...
+sl::begin_normal_pass(normals);
+sl::draw_sprite(brick, x, y);          // writes brick_normal
+sl::end_normal_pass();
+lighting.set_light_height(48.0f);
+lighting.apply(scene, normals, {light});
+```
+
+Limitations: normals are not rotated or flipped with the sprite (flips and rotation only affect the position of the normal map pixels), so keep lit sprites unrotated or accept the error. Normal-mapped lighting works on OpenGL and Vulkan; the Direct3D 12 backend does not support `LightingPass` at all, so a normal buffer is ignored there. See `exnormalmap` for a runnable example.
 
 ### Lighting Example
 

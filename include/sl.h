@@ -11,6 +11,7 @@
 #include <string>
 
 #include "atlas.h"
+#include "tilemap.h"
 #include "audio.h"
 #include "config.h"
 #include "display.h"

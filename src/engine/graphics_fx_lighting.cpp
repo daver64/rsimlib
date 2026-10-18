@@ -189,6 +189,11 @@ namespace sl
 		ambient_ = std::clamp(ambient, 0.0f, 1.0f);
 	}
 
+	void LightingPass::set_light_height(float height)
+	{
+		lightHeight_ = std::max(height, 1.0f);
+	}
+
 	void LightingPass::apply(Bitmap *source, const Light &light, int x, int y, int width, int height,
 							 const std::vector<ShadowCaster> &casters) const
 	{
@@ -229,6 +234,12 @@ namespace sl
 	void LightingPass::apply(Bitmap *source, const std::vector<Light> &lights, int x, int y, int width, int height,
 							 const std::vector<ShadowCaster> &casters) const
 	{
+		apply(source, nullptr, lights, x, y, width, height, casters);
+	}
+
+	void LightingPass::apply(Bitmap *source, Bitmap *normals, const std::vector<Light> &lights, int x, int y,
+							 int width, int height, const std::vector<ShadowCaster> &casters) const
+	{
 		const bool flipVertical = graphics_backend() == GraphicsBackend::opengl;
 		if (!source || !is_valid() || !upload_bitmap(source))
 		{
@@ -247,6 +258,7 @@ namespace sl
 		{
 			return;
 		}
+		const bool useNormals = normals && graphics_backend() != GraphicsBackend::d3d12 && upload_bitmap(normals);
 		if (graphics_backend() == GraphicsBackend::d3d12 && detail::is_active_render_target(source))
 		{
 			apply_via_scratch(source, lights, x, y, width, height, casters);
@@ -333,6 +345,13 @@ namespace sl
 		shader_.set_uniform("tileCount", tileCountX_, tileCountY_);
 		shader_.set_uniform("ambient", ambient_);
 		shader_.set_uniform("flipVertical", sourceFlipVertical ? 1 : 0);
+		shader_.set_uniform("useNormals", useNormals ? 1 : 0);
+		shader_.set_uniform("lightHeight", lightHeight_);
+		if (useNormals)
+		{
+			renderer->bind_texture_unit(1, normals->gpu_texture);
+			shader_.set_uniform("normals", 1);
+		}
 		detail::gl2d_ortho_matrix(screen_width(), screen_height(), projection);
 		shader_.set_uniform_mat4("uProjection", projection);
 		submit_fullscreen_quad(x, y, width, height, source->gpu_texture, sourceFlipVertical);
