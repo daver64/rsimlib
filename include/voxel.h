@@ -214,6 +214,8 @@ namespace sl
 
         /** Mark a chunk as needing mesh regeneration. */
         void mark_chunk_dirty(int cx, int cy, int cz);
+        /** Queue every chunk for remeshing, e.g. after the texture atlas changes. */
+        void mark_all_dirty();
         /** Recalculate sky and RGB block light after world or light-emitter changes. */
         void update_lighting();
         /** Rebuild meshes for all dirty chunks. */

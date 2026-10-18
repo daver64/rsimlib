@@ -195,7 +195,32 @@ local stats = voxel.stats("w")                    -- {chunks, triangles}
 voxel.destroy_world("w")
 ```
 
-Blocks use flat tint colours (no texture atlas) in Lua. Fluid blocks 200-212 are registered by `fluid3d.create`.
+Blocks are tinted by their colour by default. Fluid blocks 200-212 are registered by `fluid3d.create`.
+
+### Texture Atlas
+
+```lua
+app.load_sprite("atlas", "blocks.png")            -- a grid of equally sized tiles
+app.load_sprite("atlas_n", "blocks_n.png")        -- optional normal atlas, same layout
+-- tile = every face; side, top and bottom override it. Tiles are {column, row}.
+voxel.define_block(1, {255, 255, 255}, {top = {0, 0}, side = {1, 0}, bottom = {2, 0}})
+voxel.set_atlas("w", "atlas", 4, 4, "atlas_n")    -- sprite, columns, rows [, normal sprite]; false if invalid
+```
+
+`set_atlas` remeshes the world. The atlas is resolved at draw time, so unloading the sprite falls back to flat tints.
+
+## Lighting & Normal Maps (`lighting`)
+
+```lua
+app.set_normal_map("hero", "hero_n")              -- pair a sprite with its normal map; nil unpairs
+lighting.enable(0.25, 50)                         -- ambient level 0-1, light height
+local i = lighting.add(x, y, radius, intensity, r, g, b)   -- 1-based index, up to 64 lights
+lighting.set(i, x, y)                              -- also (i, x, y, radius, intensity, r, g, b)
+lighting.clear()                                   -- remove lights
+lighting.disable()
+```
+
+Lighting applies only when rendering to the screen and needs at least one light. Only sprites carry normals: tile maps, fluids and voxel views are lit flat.
 
 ---
 

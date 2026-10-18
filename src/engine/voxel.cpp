@@ -566,6 +566,12 @@ namespace sl
         }
     }
 
+    void VoxelWorld::mark_all_dirty()
+    {
+        for (const auto &entry : chunks_)
+            dirty_chunks_.insert(entry.first);
+    }
+
     void VoxelWorld::update_lighting()
     {
         struct LightNode

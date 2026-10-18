@@ -123,7 +123,16 @@ namespace sl
         std::unordered_map<std::string, FluidSimulation *> fluids;
         std::unordered_map<std::string, FluidView> fluid_views;
         std::unordered_map<std::string, FluidSimulation3D *> fluids_3d;
+        struct WorldAtlas
+        {
+            std::string sprite;
+            std::string normal_sprite;
+            int columns = 16;
+            int rows = 16;
+        };
         std::unordered_map<std::string, std::unique_ptr<VoxelWorld>> worlds;
+        std::unordered_map<std::string, WorldAtlas> atlases;
+        BitmapResolver bitmaps;
         std::unordered_map<std::string, VoxelView> voxel_views;
         FluidVoxelBlocks fluid_blocks;
 
@@ -164,6 +173,7 @@ namespace sl
             fluids_3d.clear();
             voxel_views.clear();
             worlds.clear();
+            atlases.clear();
         }
 
         void bind_tilemap(sol::table table, const PathResolver &resolver, const DrawRequest &request);
@@ -429,6 +439,7 @@ namespace sl
         table.set_function("destroy_world", [this](const std::string &id)
                            {
             destroy_view(id);
+            atlases.erase(id);
             return worlds.erase(id) > 0; });
         table.set_function("define_block", [](int block, sol::table tint, sol::optional<sol::table> options)
                            {
@@ -441,8 +452,32 @@ namespace sl
                 definition.is_solid = options->get_or("solid", true);
                 definition.is_transparent = options->get_or("transparent", false);
                 definition.light_emission = static_cast<std::uint8_t>(std::clamp(options->get_or("emission", 0), 0, 15));
+                // Atlas tiles: `tile` sets every face, then `top`, `bottom` and `side` override. Each is {column, row}.
+                auto read_tile = [&](const char *key, std::initializer_list<int> faces)
+                {
+                    sol::optional<sol::table> tile = options->get<sol::optional<sol::table>>(key);
+                    if (!tile)
+                        return;
+                    const VoxelTile value{std::clamp(tile->get_or(1, 0), 0, 255), std::clamp(tile->get_or(2, 0), 0, 255)};
+                    for (const int face : faces)
+                        definition.tiles[face] = value;
+                };
+                read_tile("tile", {0, 1, 2, 3, 4, 5});
+                read_tile("side", {2, 3, 4, 5});
+                read_tile("top", {0});
+                read_tile("bottom", {1});
             }
             register_block_definition(static_cast<BlockId>(block), definition);
+            return true; });
+        table.set_function("set_atlas", [this](const std::string &id, const std::string &sprite, int columns, int rows,
+                                               sol::optional<std::string> normal_sprite)
+                           {
+            VoxelWorld *voxels = world(id);
+            if (!voxels || !bitmaps || !bitmaps(sprite) || columns < 1 || rows < 1 || columns > 256 || rows > 256 ||
+                (normal_sprite && !bitmaps(*normal_sprite)))
+                return false;
+            atlases[id] = {sprite, normal_sprite.value_or(""), columns, rows};
+            voxels->mark_all_dirty();
             return true; });
         table.set_function("set_block", [this](const std::string &id, int x, int y, int z, int block)
                            {
@@ -539,8 +574,9 @@ namespace sl
         delete implementation_;
     }
 
-    void LuaWorld::bind(sol::state &lua, PathResolver resolver, DrawRequest request)
+    void LuaWorld::bind(sol::state &lua, PathResolver resolver, DrawRequest request, BitmapResolver bitmaps)
     {
+        implementation_->bitmaps = std::move(bitmaps);
         implementation_->bind_tilemap(lua.create_named_table("tilemap"), resolver, request);
         implementation_->bind_fluid(lua.create_named_table("fluid"), request);
         implementation_->bind_fluid_3d(lua.create_named_table("fluid3d"));
@@ -597,12 +633,26 @@ namespace sl
                 voxel_view.surface = create_surface_3d(voxel_view.width, voxel_view.height);
             if (!voxel_view.surface)
                 break;
-            voxels->update_dirty_chunks();
+            Material material;
+            material.cull = CullMode::none;
+            VoxelAtlas atlas;
+            const auto atlas_entry = state.atlases.find(id);
+            if (atlas_entry != state.atlases.end() && state.bitmaps)
+            {
+                atlas.texture = state.bitmaps(atlas_entry->second.sprite);
+                atlas.tiles_per_row = atlas_entry->second.columns;
+                atlas.tiles_per_col = atlas_entry->second.rows;
+                if (atlas.texture)
+                {
+                    material.texture = atlas.texture;
+                    if (!atlas_entry->second.normal_sprite.empty())
+                        material.normal_map = state.bitmaps(atlas_entry->second.normal_sprite);
+                }
+            }
+            voxels->update_dirty_chunks(atlas.texture ? &atlas : nullptr);
             if (begin_surface_3d(voxel_view.surface, voxel_view.camera))
             {
                 clear_surface_3d(voxel_view.sky);
-                Material material;
-                material.cull = CullMode::none;
                 voxels->draw(material);
                 end_surface_3d();
                 draw_sprite(surface_3d_bitmap(voxel_view.surface), static_cast<float>(voxel_view.x),

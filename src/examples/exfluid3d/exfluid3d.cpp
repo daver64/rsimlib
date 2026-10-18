@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include "sl.h"
 
 #include <algorithm>
@@ -157,7 +156,6 @@ int main(int argc, char **argv)
     bool running = true;
     std::uint32_t last_time = sl::time_ms();
 
-    int frame_count = 0;
     while (running)
     {
         const std::uint32_t now = sl::time_ms();
@@ -259,12 +257,6 @@ int main(int argc, char **argv)
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
-
-        ++frame_count;
-        if (const char *shot = std::getenv("RSIMLIB_SCREENSHOT"); shot && frame_count == 100)
-            sl::save_bitmap(sl::screen, shot);
-        if (const char *frames = std::getenv("RSIMLIB_FRAMES"); frames && frame_count >= std::atoi(frames))
-            running = false;
     }
 
     sl::destroy_fluid_simulation_3d(sim);

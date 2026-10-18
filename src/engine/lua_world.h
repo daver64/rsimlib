@@ -28,6 +28,8 @@ namespace sl
     public:
         using PathResolver = std::function<std::optional<std::filesystem::path>(const std::string &)>;
         /** Called when a script requests drawing; the canvas keeps one retained command per kind and id. */
+        /** Finds a sprite or render target by script id; returns null when unknown. */
+        using BitmapResolver = std::function<Bitmap *(const std::string &)>;
         using DrawRequest = std::function<void(LuaWorldDraw kind, const std::string &id)>;
 
         LuaWorld();
@@ -37,7 +39,7 @@ namespace sl
         LuaWorld &operator=(const LuaWorld &) = delete;
 
         /** Register the tilemap, fluid, fluid3d and voxel tables. */
-        void bind(sol::state &lua, PathResolver resolver, DrawRequest request);
+        void bind(sol::state &lua, PathResolver resolver, DrawRequest request, BitmapResolver bitmaps);
         /** Draw one retained request using the parameters most recently set by the script. */
         void draw(LuaWorldDraw kind, const std::string &id, Bitmap *target) const;
         /** Destroy every object created by scripts. */
