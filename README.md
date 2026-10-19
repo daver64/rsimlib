@@ -271,15 +271,6 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/slunpack        # CLI asset-unpacking tool
 ```
 
-### Example Walkthrough Source Links
-- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`.
-- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
-- **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
-- **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
-- **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`.
-- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** ([Guide](docs/exgpuparticles_guide.md)) — 150k GPU compute particles with gravity wells, explosions, and cross-backend compute shader uniforms.
-- **[`sltest`](src/examples/sltest/main.cpp)** ([Guide](docs/sltest_guide.md)) — Sample game with main menu, physics playground, and embedded Lua REPL.
-
 
 ### Example Source Links
 - **[`exhello`](src/examples/exhello/exhello.cpp)** — Window setup, frame presentation, clearing, and basic text.
@@ -311,8 +302,6 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
 - **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.
-- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Entity Component System (ECS) integration, archetype chunk iteration, and parallel updates.
-- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Coloured ASCII roguelike combining `simlib`, `recs` (ECS), and `rworld` (world generation).
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB), directional lighting, and 2D HUD compositing.
 - **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool.
@@ -323,6 +312,16 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 - **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — MPEG1/MP2 video decoding via `pl_mpeg` into a bitmap, with synced audio playback; see [Video Playback](#video-playback) below for the required source format.
 - **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
+
+
+### Example Walkthrough Source Links
+- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`.
+- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
+- **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
+- **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
+- **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`.
+- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** ([Guide](docs/exgpuparticles_guide.md)) — 150k GPU compute particles with gravity wells, explosions, and cross-backend compute shader uniforms.
+- **[`sltest`](src/examples/sltest/main.cpp)** ([Guide](docs/sltest_guide.md)) — Sample game with main menu, physics playground, and embedded Lua REPL.
 
 ---
 
