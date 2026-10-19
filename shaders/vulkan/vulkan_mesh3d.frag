@@ -10,12 +10,31 @@ layout(set = 1, binding = 0) uniform sampler2D uNormalMap;
 layout(push_constant) uniform Light { layout(offset = 112) vec4 light; } lighting;
 layout(location = 0) out vec4 fragColor;
 
-// One layer of the 2x2 atlas, repeated by hand so there is no filtering across tile borders.
-vec3 layerColour(int layer, vec2 uv, vec2 inset, float scale)
+// The layer pyramid texture: level 0 is a 2x2 atlas of s0-pixel tiles at the origin, and each coarser level is a 2x2
+// atlas stacked in a column to its right. Every tile has a one texel wrapped border. Matches Terrain::set_layer_atlas.
+vec2 level_origin(int level, int s0)
 {
-    vec2 cell = vec2(float(layer & 1), float(layer >> 1)) * 0.5;
-    vec2 local = fract(uv * scale) * (0.5 - 2.0 * inset) + inset;
-    return textureGrad(uTexture, cell + local, dFdx(uv) * scale * 0.5, dFdy(uv) * scale * 0.5).rgb;
+    if (level == 0)
+        return vec2(0.0);
+    float y = 0.0;
+    for (int k = 1; k < level; ++k)
+        y += 2.0 * float((s0 >> k) + 2);
+    return vec2(2.0 * float(s0 + 2), y);
+}
+
+vec2 layer_uv(int layer, int level, vec2 tile, int s0, vec2 texel)
+{
+    int size = s0 >> level;
+    vec2 origin = level_origin(level, s0) + vec2(float(layer & 1), float(layer >> 1)) * float(size + 2);
+    return (origin + 1.0 + tile * float(size)) * texel;
+}
+
+// Mip level for a texture coordinate that repeats once per unit.
+float layer_lod(vec2 scaled_uv, int s0, int levels)
+{
+    vec2 dx = dFdx(scaled_uv) * float(s0);
+    vec2 dy = dFdy(scaled_uv) * float(s0);
+    return clamp(0.5 * log2(max(max(dot(dx, dx), dot(dy, dy)), 1e-8)), 0.0, float(levels - 1));
 }
 
 void main()
@@ -25,16 +44,67 @@ void main()
     if (vTerrain.x >= 0.0)
     {
         albedo = vColour.rgb;
-        if (vTerrain.y > 0.5)
+        int code = int(vTerrain.y + 0.5);
+        int levels = code & 15;
+        if (levels > 0)
         {
-            vec2 inset = vTerrain.zw;
+            bool has_normals = ((code >> 4) & 1) != 0;
+            int s0 = code >> 5;
+            vec2 texel = vTerrain.zw;
+            vec2 broad_uv = vUv * 0.137;
+            float detail_lod = layer_lod(vUv, s0, levels);
+            float broad_lod = layer_lod(broad_uv, s0, levels);
+            float fade = vTerrain.x;
+            // Screen-space tangent frame; the facing of the screen derivatives keeps it right whichever way the backend's
+            // screen y runs.
+            vec3 dp1 = dFdx(vTangent.xyz);
+            vec3 dp2 = dFdy(vTangent.xyz);
+            vec2 duv1 = dFdx(vUv);
+            vec2 duv2 = dFdy(vUv);
+            float handed = dot(cross(dp1, dp2), normal) < 0.0 ? -1.0 : 1.0;
+            vec3 dp2perp = cross(dp2, normal);
+            vec3 dp1perp = cross(normal, dp1);
+            vec3 tangent = (dp2perp * duv1.x + dp1perp * duv2.x) * handed;
+            vec3 bitangent = (dp2perp * duv1.y + dp1perp * duv2.y) * handed;
+            float frame_scale = inversesqrt(max(max(dot(tangent, tangent), dot(bitangent, bitangent)), 1e-20));
+            tangent *= frame_scale;
+            bitangent *= frame_scale;
+
             float weights[4] = float[4](vColour.r, vColour.g, vColour.b, vColour.a);
             albedo = vec3(0.0);
+            vec2 slope = vec2(0.0);
             for (int layer = 0; layer < 4; ++layer)
             {
-                vec3 detail = layerColour(layer, vUv, inset, 1.0);
-                vec3 broad = layerColour(layer, vUv, inset, 0.137);
-                albedo += weights[layer] * mix(detail, broad, vTerrain.x);
+                float weight = weights[layer];
+                if (weight < 0.004)
+                    continue;
+                for (int scale = 0; scale < 2; ++scale)
+                {
+                    float share = scale == 0 ? 1.0 - fade : fade;
+                    if (share < 0.001)
+                        continue;
+                    vec2 scaled = scale == 0 ? vUv : broad_uv;
+                    float lod = scale == 0 ? detail_lod : broad_lod;
+                    int level0 = int(floor(lod));
+                    int level1 = min(level0 + 1, levels - 1);
+                    float blend = lod - float(level0);
+                    vec2 tile = fract(scaled);
+                    vec2 uv0 = layer_uv(layer, level0, tile, s0, texel);
+                    vec2 uv1 = layer_uv(layer, level1, tile, s0, texel);
+                    albedo += weight * share * mix(textureLod(uTexture, uv0, 0.0).rgb, textureLod(uTexture, uv1, 0.0).rgb, blend);
+                    if (has_normals)
+                    {
+                        vec2 n0 = textureLod(uNormalMap, uv0, 0.0).xy;
+                        vec2 n1 = textureLod(uNormalMap, uv1, 0.0).xy;
+                        slope += weight * share * (mix(n0, n1, blend) * 2.0 - 1.0);
+                    }
+                }
+            }
+            if (has_normals)
+            {
+                // Only xy is stored, so averaged (shorter) mip normals flatten naturally with distance.
+                vec3 mapped = vec3(slope, sqrt(max(1.0 - dot(slope, slope), 0.0)));
+                normal = normalize(tangent * mapped.x - bitangent * mapped.y + normal * mapped.z);
             }
         }
     }

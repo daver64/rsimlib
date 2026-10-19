@@ -112,6 +112,28 @@ static void test_flat_chunks()
     CHECK(bad == 0);
 }
 
+static void test_layer_atlas()
+{
+    Terrain terrain(flat_config(), std::make_shared<NoiseSource>());
+    Bitmap *albedo = create_bitmap(32, 32);
+    Bitmap *normals = create_bitmap(32, 32);
+    Bitmap *wrong = create_bitmap(16, 16);
+    Bitmap *oblong = create_bitmap(32, 16);
+    CHECK(albedo && normals && wrong && oblong);
+    if (albedo && normals && wrong && oblong)
+    {
+        CHECK(terrain.set_layer_atlas(albedo, 100.0, 400.0));
+        CHECK(terrain.set_layer_atlas(albedo, 100.0, 400.0, normals));
+        CHECK(!terrain.set_layer_atlas(albedo, 100.0, 400.0, wrong));
+        CHECK(!terrain.set_layer_atlas(oblong));
+        CHECK(terrain.set_layer_atlas(nullptr));
+    }
+    destroy_bitmap(albedo);
+    destroy_bitmap(normals);
+    destroy_bitmap(wrong);
+    destroy_bitmap(oblong);
+}
+
 static void test_geomorph()
 {
     TerrainConfig c = flat_config();
@@ -283,6 +305,7 @@ int main()
     test_lod();
     test_flat_chunks();
     test_geomorph();
+    test_layer_atlas();
     test_queries();
     test_sphere();
     test_grid();

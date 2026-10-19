@@ -45,7 +45,7 @@ namespace sl
      * (r, g, b, a = layers 0-3) and a vertex position offset in the tangent xyz. The shader moves each vertex toward
      * its coarser-level position between morph_start and morph_end metres from the eye, so level changes do not pop.
      * When Material::texture is set it is a 2x2 atlas of the four layers (row major), repeated per UV unit.
-     * Normal maps are ignored.
+     * Material::texture and normal_map hold the layer pyramids built by Terrain; the tangent slot is not a tangent.
      */
     struct TerrainShading
     {
@@ -57,6 +57,12 @@ namespace sl
         /** Beyond fade_start the layers blend to a larger-scale copy of themselves, fully by fade_end (metres). */
         float fade_start = 0.0f;
         float fade_end = 0.0f;
+        /** Mip levels in the layer pyramid texture (see Terrain::set_layer_atlas); 0 means no atlas, use vertex colours. */
+        int atlas_levels = 0;
+        /** Pixels along one side of a level-0 layer tile. */
+        int layer_size = 0;
+        /** The material's normal_map holds the matching normal pyramid. */
+        bool normal_atlas = false;
     };
 
     /** Surface appearance for draw_mesh(). The tint and texture multiply the mesh vertex colours. */

@@ -1,6 +1,7 @@
 #include "terrain.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -423,6 +424,121 @@ namespace sl
         };
     } // namespace
 
+    namespace
+    {
+        // Lays out a 2x2 layer atlas with its mip chain in one texture, because the backends only guarantee
+        // clamped, unmipmapped samplers. Level 0 is the 2x2 atlas at the origin; each coarser level is a 2x2 atlas stacked
+        // down a column to its right. Every tile has a one texel wrapped border so bilinear filtering repeats seamlessly.
+        // The shader mirrors this layout (tile size S>>level, cell size +2).
+        struct Pyramid
+        {
+            Bitmap *bitmap = nullptr;
+            int levels = 0;
+            int layer_size = 0;
+        };
+
+        Pyramid build_pyramid(Bitmap *source)
+        {
+            Pyramid result;
+            if (!source || source->width < 8 || source->width != source->height || (source->width & 1))
+                return result;
+            if (source->pixels.empty())
+                download_bitmap(source);
+            const std::size_t needed = static_cast<std::size_t>(source->width) * source->height * 4;
+            if (source->pixels.size() < needed)
+                return result;
+            const int base = source->width / 2;
+            int levels = 1;
+            while (levels < 8 && (base >> levels) >= 2)
+                ++levels;
+
+            // tiles[level][layer] is a size x size RGBA tile.
+            std::vector<std::array<std::vector<Uint8>, 4>> tiles(static_cast<std::size_t>(levels));
+            for (int layer = 0; layer < 4; ++layer)
+            {
+                auto &tile = tiles[0][static_cast<std::size_t>(layer)];
+                tile.resize(static_cast<std::size_t>(base) * base * 4);
+                for (int y = 0; y < base; ++y)
+                    for (int x = 0; x < base; ++x)
+                    {
+                        const std::size_t from =
+                            (static_cast<std::size_t>((layer >> 1) * base + y) * source->width + (layer & 1) * base + x) * 4;
+                        std::copy_n(&source->pixels[from], 4, &tile[(static_cast<std::size_t>(y) * base + x) * 4]);
+                    }
+            }
+            for (int level = 1; level < levels; ++level)
+            {
+                const int from_size = base >> (level - 1);
+                const int size = base >> level;
+                for (int layer = 0; layer < 4; ++layer)
+                {
+                    const auto &from = tiles[static_cast<std::size_t>(level - 1)][static_cast<std::size_t>(layer)];
+                    auto &to = tiles[static_cast<std::size_t>(level)][static_cast<std::size_t>(layer)];
+                    to.resize(static_cast<std::size_t>(size) * size * 4);
+                    for (int y = 0; y < size; ++y)
+                        for (int x = 0; x < size; ++x)
+                            for (int c = 0; c < 4; ++c)
+                            {
+                                int sum = 0;
+                                for (int dy = 0; dy < 2; ++dy)
+                                    for (int dx = 0; dx < 2; ++dx)
+                                        sum += from[(static_cast<std::size_t>((2 * y + dy) % from_size) * from_size +
+                                                     (2 * x + dx) % from_size) * 4 + c];
+                                to[(static_cast<std::size_t>(y) * size + x) * 4 + c] = static_cast<Uint8>((sum + 2) / 4);
+                            }
+                }
+            }
+
+            const int cell0 = base + 2;
+            int width = 2 * cell0;
+            int column_height = 0;
+            if (levels > 1)
+            {
+                width += 2 * ((base >> 1) + 2);
+                for (int level = 1; level < levels; ++level)
+                    column_height += 2 * ((base >> level) + 2);
+            }
+            const int height = std::max(2 * cell0, column_height);
+            Bitmap *bitmap = create_bitmap(width, height);
+            if (!bitmap)
+                return result;
+            bitmap->smooth = true;
+            if (bitmap->pixels.size() < static_cast<std::size_t>(width) * height * 4)
+                bitmap->pixels.resize(static_cast<std::size_t>(width) * height * 4);
+            std::fill(bitmap->pixels.begin(), bitmap->pixels.end(), static_cast<Uint8>(0));
+
+            int column_y = 0;
+            for (int level = 0; level < levels; ++level)
+            {
+                const int size = base >> level;
+                const int cell = size + 2;
+                const int origin_x = level == 0 ? 0 : 2 * cell0;
+                const int origin_y = level == 0 ? 0 : column_y;
+                for (int layer = 0; layer < 4; ++layer)
+                {
+                    const auto &tile = tiles[static_cast<std::size_t>(level)][static_cast<std::size_t>(layer)];
+                    const int cell_x = origin_x + (layer & 1) * cell;
+                    const int cell_y = origin_y + (layer >> 1) * cell;
+                    for (int y = -1; y <= size; ++y)
+                        for (int x = -1; x <= size; ++x)
+                        {
+                            const int wrapped_x = (x + size) % size;
+                            const int wrapped_y = (y + size) % size;
+                            std::copy_n(&tile[(static_cast<std::size_t>(wrapped_y) * size + wrapped_x) * 4], 4,
+                                        &bitmap->pixels[(static_cast<std::size_t>(cell_y + y + 1) * width + cell_x + x + 1) * 4]);
+                        }
+                }
+                if (level > 0)
+                    column_y += 2 * cell;
+            }
+            bitmap->ram_dirty = true;
+            result.bitmap = bitmap;
+            result.levels = levels;
+            result.layer_size = base;
+            return result;
+        }
+    }
+
     struct Terrain::Impl
     {
         struct Node
@@ -466,6 +582,10 @@ namespace sl
             for (auto &entry : nodes)
                 if (entry.second.mesh)
                     destroy_mesh(entry.second.mesh);
+            if (atlas.bitmap)
+                destroy_bitmap(atlas.bitmap);
+            if (normal_atlas.bitmap)
+                destroy_bitmap(normal_atlas.bitmap);
         }
 
         TerrainConfig config;
@@ -477,7 +597,8 @@ namespace sl
         std::uint64_t frame = 0;
         TerrainStats stats;
 
-        Bitmap *atlas = nullptr;
+        Pyramid atlas;
+        Pyramid normal_atlas;
         std::atomic<bool> atlas_in_use{false};
         double fade_start = 0.0;
         double fade_end = 0.0;
@@ -920,20 +1041,48 @@ namespace sl
 
     void Terrain::update(const TerrainView &view) { impl_->update(view); }
 
-    void Terrain::set_layer_atlas(Bitmap *atlas, double fade_start, double fade_end)
+    bool Terrain::set_layer_atlas(Bitmap *atlas, double fade_start, double fade_end, Bitmap *normal_atlas)
     {
-        impl_->atlas = atlas;
-        impl_->fade_start = fade_start;
-        impl_->fade_end = fade_end;
-        if (impl_->atlas_in_use.exchange(atlas != nullptr) != (atlas != nullptr))
-            impl_->invalidate_all();
+        Impl &impl = *impl_;
+        if (impl.atlas.bitmap)
+            destroy_bitmap(impl.atlas.bitmap);
+        if (impl.normal_atlas.bitmap)
+            destroy_bitmap(impl.normal_atlas.bitmap);
+        impl.atlas = {};
+        impl.normal_atlas = {};
+        bool ok = true;
+        if (atlas)
+        {
+            impl.atlas = build_pyramid(atlas);
+            ok = impl.atlas.bitmap != nullptr;
+            if (ok && normal_atlas)
+            {
+                impl.normal_atlas = build_pyramid(normal_atlas);
+                if (impl.normal_atlas.bitmap && impl.normal_atlas.layer_size != impl.atlas.layer_size)
+                {
+                    destroy_bitmap(impl.normal_atlas.bitmap);
+                    impl.normal_atlas = {};
+                }
+                ok = impl.normal_atlas.bitmap != nullptr;
+            }
+        }
+        impl.fade_start = fade_start;
+        impl.fade_end = fade_end;
+        const bool in_use = impl.atlas.bitmap != nullptr;
+        if (impl.atlas_in_use.exchange(in_use) != in_use)
+            impl.invalidate_all();
+        return ok;
     }
 
     bool Terrain::draw(const dvec3 &origin, const Material &material) const
     {
         const Impl &impl = *impl_;
         Material shaded = material;
-        shaded.texture = impl.atlas;
+        shaded.texture = impl.atlas.bitmap;
+        shaded.normal_map = impl.normal_atlas.bitmap;
+        shaded.terrain.atlas_levels = impl.atlas.levels;
+        shaded.terrain.layer_size = impl.atlas.layer_size;
+        shaded.terrain.normal_atlas = impl.normal_atlas.bitmap != nullptr;
         shaded.terrain.enabled = true;
         shaded.terrain.fade_start = static_cast<float>(impl.fade_start);
         shaded.terrain.fade_end = static_cast<float>(impl.fade_end);

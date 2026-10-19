@@ -64,15 +64,25 @@ vertex colour instead. Texture coordinates are in tiles of `uv_tile_metres`.
 
 ### Splat atlas
 
-`Terrain::set_layer_atlas(bitmap, fade_start, fade_end)` textures the terrain with four tiling layers laid out as a
-2x2 atlas (layer 0 top left, 1 top right, 2 bottom left, 3 bottom right). The four layer weights travel in the
-vertex colour and the shader blends the layers per pixel, so it works the same on OpenGL, Vulkan and D3D12. Layers
-repeat every `uv_tile_metres`; beyond `fade_start` metres they cross-fade to a larger-scale copy (complete at
-`fade_end`) to hide repetition. Set `bitmap->smooth = true` for bilinear filtering. Pass `nullptr` to return to vertex
-colours. The call rebuilds the chunks, so make it at setup.
+`Terrain::set_layer_atlas(atlas, fade_start, fade_end, normal_atlas)` textures the terrain with four tiling layers laid
+out as a 2x2 atlas (layer 0 top left, 1 top right, 2 bottom left, 3 bottom right; square, even size, at least 8). The
+four layer weights travel in the vertex colour and the shader blends the layers per pixel, so it works the same on
+OpenGL, Vulkan and D3D12. Layers repeat every `uv_tile_metres`; beyond `fade_start` metres they cross-fade to a
+larger-scale copy (complete at `fade_end`) to hide repetition. Pass `nullptr` to return to vertex colours. The call
+rebuilds the chunks, so make it at setup, and returns false if an atlas is unusable.
 
-Limitations: textures have no mipmaps, so distant layers can shimmer (the fade only partly hides it), and layer normal
-maps are not used.
+The terrain copies the atlas into its own texture holding a full mip chain, with a wrapped one-texel border around
+every tile, and the shader picks and blends mip levels itself (trilinear). This is needed because the backends only
+guarantee clamped, unmipmapped samplers; it keeps distant layers from shimmering and repeats seamlessly. The copy is
+made once, so later edits to the atlas bitmap are not seen.
+
+### Normal maps
+
+`normal_atlas` is an optional tangent-space normal map per layer, in the same layout and size as the albedo atlas
+(green up, OpenGL style). Only the red and green channels are used and the blue is rebuilt, so the shorter normals
+that mip averaging produces flatten the bumps naturally with distance. The tangent frame comes from screen-space
+derivatives of the position and texture coordinates, so terrain needs no tangent data (the tangent vertex slot carries
+the geomorph offset). Layers blend their normals by weight, with the same distance fade as the colours.
 
 ### Geomorphing
 
@@ -94,7 +104,7 @@ terrain.create("t", {
 --          flat (height), grid (width, depth, world_width, world_depth, height), heightmap (sprite, min_height,
 --          max_height, world_width, world_depth, pack_16_bit). Also: shape "sphere" with radius; chunk_cells,
 --          max_level, max_screen_error, uv_tile_metres, origin.
-terrain.set_atlas("t", "atlas_sprite", 150, 600)      -- 2x2 layer atlas from a loaded sprite
+terrain.set_atlas("t", "atlas_sprite", 150, 600, "normals_sprite")  -- 2x2 layer atlas [, normal atlas]; false if unusable
 terrain.view("t", 0, 0, 800, 600, {x, y, z}, {tx, ty, tz}, {fov = 60, far = 20000, up = {0, 1, 0}, sky = {150, 185, 230}})
 local h   = terrain.height_at("t", x, z)               -- nil for an unknown terrain
 local n   = terrain.normal_at("t", x, z)               -- {x, y, z}

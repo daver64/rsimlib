@@ -60,6 +60,36 @@ namespace
         atlas->smooth = true;
         return atlas;
     }
+
+    // Tangent-space normals (green up) from the atlas brightness, wrapping within each tile.
+    sl::Bitmap *make_normal_atlas(const sl::Bitmap *albedo)
+    {
+        const int tile = albedo->width / 2;
+        sl::Bitmap *normals = sl::create_bitmap(albedo->width, albedo->height);
+        if (!normals)
+            return nullptr;
+        const float strength[4] = {4.0f, 6.0f, 14.0f, 5.0f};
+        auto height = [&](int layer, int x, int y)
+        {
+            x = (x + tile) % tile;
+            y = (y + tile) % tile;
+            const std::size_t at = (static_cast<std::size_t>((layer >> 1) * tile + y) * albedo->width + (layer & 1) * tile + x) * 4;
+            return (albedo->pixels[at] + albedo->pixels[at + 1] + albedo->pixels[at + 2]) / (3.0f * 255.0f);
+        };
+        for (int layer = 0; layer < 4; ++layer)
+            for (int y = 0; y < tile; ++y)
+                for (int x = 0; x < tile; ++x)
+                {
+                    // Image y runs down, so brightness increasing downward tilts the normal toward -green.
+                    const float dx = (height(layer, x + 1, y) - height(layer, x - 1, y)) * strength[layer];
+                    const float dy = (height(layer, x, y + 1) - height(layer, x, y - 1)) * strength[layer];
+                    const float length = std::sqrt(dx * dx + dy * dy + 1.0f);
+                    auto encode = [](float v) { return static_cast<std::uint8_t>(std::clamp(v * 127.5f + 127.5f, 0.0f, 255.0f)); };
+                    sl::putpixel(normals, (layer & 1) * tile + x, (layer >> 1) * tile + y,
+                                 {encode(-dx / length), encode(dy / length), encode(1.0f / length), 255});
+                }
+        return normals;
+    }
 }
 
 int main(int argc, char **argv)
@@ -96,6 +126,8 @@ int main(int argc, char **argv)
     }
 
     sl::Bitmap *atlas = make_layer_atlas();
+    sl::Bitmap *normal_atlas = atlas ? make_normal_atlas(atlas) : nullptr;
+    bool use_normals = true;
     int seed = 7;
     std::unique_ptr<sl::Terrain> terrain;
     auto build = [&]()
@@ -117,13 +149,12 @@ int main(int argc, char **argv)
         {
             config.size = 16384.0;
             config.origin = {-8192.0, 0.0, -8192.0};
-            noise.frequency = 1.0 / 3000.0;
-            noise.amplitude = 500.0;
-            noise.ridged = true;
+            noise.frequency = 1.0 / 4000.0;
+            noise.amplitude = 180.0;
             config.finest_cell_size = 1.0;
         }
         terrain = std::make_unique<sl::Terrain>(config, std::make_shared<sl::NoiseSource>(noise));
-        terrain->set_layer_atlas(atlas, 150.0, 700.0);
+        terrain->set_layer_atlas(atlas, 150.0, 700.0, use_normals ? normal_atlas : nullptr);
     };
     build();
 
@@ -153,6 +184,11 @@ int main(int argc, char **argv)
                 else if (key == sl::Event::Key::letter_r)
                 {
                     ++seed;
+                    build();
+                }
+                else if (key == sl::Event::Key::letter_n)
+                {
+                    use_normals = !use_normals;
                     build();
                 }
                 else if (key == sl::Event::Key::digit_1)
@@ -243,7 +279,7 @@ int main(int argc, char **argv)
         sl::gprintf(12, 28, {20, 20, 20}, "Altitude %.1f m   Speed %.0f m/s   Resident %d   Loading %d",
                     terrain->altitude_of(position), speed * boost, stats.resident_chunks, stats.pending_chunks);
         sl::gprintf_center(screen_h - 22, {20, 20, 20},
-                           "[WASD] Move  [Space/C] Up/Down  [Shift] Fast  [1-4] Speed  [R-drag] Look  [R] New seed");
+                           "[WASD] Move  [Space/C] Up/Down  [Shift] Fast  [1-4] Speed  [R-drag] Look  [R] New seed  [N] Normal maps");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
@@ -251,6 +287,7 @@ int main(int argc, char **argv)
 
     terrain.reset();
     sl::destroy_bitmap(atlas);
+    sl::destroy_bitmap(normal_atlas);
     sl::destroy_surface_3d(surface);
     sl::shutdown();
     return 0;

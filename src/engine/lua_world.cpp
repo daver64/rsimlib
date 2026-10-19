@@ -124,6 +124,8 @@ namespace sl
             std::unique_ptr<Terrain> terrain;
             std::shared_ptr<GridSource> grid;
             std::string atlas_sprite;
+            std::string normal_sprite;
+            Bitmap *normal_applied = nullptr;
             Bitmap *atlas_applied = nullptr;
             double fade_start = 150.0;
             double fade_end = 600.0;
@@ -717,17 +719,20 @@ namespace sl
             terrains.erase(it);
             return true; });
         table.set_function("set_atlas", [this](const std::string &id, sol::optional<std::string> sprite,
-                                               sol::optional<double> fade_start, sol::optional<double> fade_end)
+                                               sol::optional<double> fade_start, sol::optional<double> fade_end,
+                                               sol::optional<std::string> normal_sprite)
                            {
             TerrainEntry *entry = terrain(id);
             if (!entry || (sprite && !bitmaps))
                 return false;
-            if (sprite && !bitmaps(*sprite))
+            if ((sprite && !bitmaps(*sprite)) || (normal_sprite && (!bitmaps || !bitmaps(*normal_sprite))))
                 return false;
             entry->atlas_sprite = sprite.value_or("");
+            entry->normal_sprite = normal_sprite.value_or("");
             entry->fade_start = fade_start.value_or(entry->fade_start);
             entry->fade_end = fade_end.value_or(entry->fade_end);
             entry->atlas_applied = nullptr;
+            entry->normal_applied = nullptr;
             if (entry->atlas_sprite.empty())
                 entry->terrain->set_layer_atlas(nullptr);
             return true; });
@@ -963,10 +968,12 @@ namespace sl
             if (!entry->atlas_sprite.empty() && state.bitmaps)
             {
                 Bitmap *atlas = state.bitmaps(entry->atlas_sprite);
-                if (atlas != entry->atlas_applied)
+                Bitmap *normals = entry->normal_sprite.empty() ? nullptr : state.bitmaps(entry->normal_sprite);
+                if (atlas != entry->atlas_applied || normals != entry->normal_applied)
                 {
-                    entry->terrain->set_layer_atlas(atlas, entry->fade_start, entry->fade_end);
+                    entry->terrain->set_layer_atlas(atlas, entry->fade_start, entry->fade_end, normals);
                     entry->atlas_applied = atlas;
+                    entry->normal_applied = normals;
                 }
             }
             TerrainView view;

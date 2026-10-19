@@ -2,7 +2,7 @@ cbuffer MeshParameters : register(b0)
 {
     float4x4 mvp;
     // Normal-matrix rows; w holds the tint colour. A negative normal_rows[0].w selects terrain shading, where the
-    // rows carry: [0] xyz: use atlas, inset u, inset v. [1] xyz: eye (mesh space), w: morph start.
+    // rows carry: [0] xyz: atlas code (mip levels + 16 if a normal atlas + 32 * tile size, 0 for none), 1/width, 1/height. [1] xyz: eye (mesh space), w: morph start.
     // [2] x: morph end, y: fade start, z: fade end.
     float4 normal_rows[3];
     float4 light;
@@ -24,7 +24,7 @@ struct VertexOutput
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
     float4 tangent : TEXCOORD1;
-    // x: layer fade (-1 for ordinary meshes), y: atlas in use, zw: atlas inset.
+    // x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
     float4 terrain : TEXCOORD2;
 };
 
@@ -40,7 +40,7 @@ VertexOutput main(VertexInput input)
         output.position.z = output.position.z * 0.5 + output.position.w * 0.5;
         output.normal = input.normal;
         output.color = input.color;
-        output.tangent = float4(0.0, 0.0, 0.0, 0.0);
+        output.tangent = float4(input.position, 1.0);
         output.texcoord = input.texcoord;
         float fade = normal_rows[2].z > normal_rows[2].y
             ? smoothstep(normal_rows[2].y, normal_rows[2].z, distance(position, eye)) : 0.0;

@@ -399,12 +399,19 @@ namespace sl
         /**
          * Texture the terrain with four tiling layers laid out as a 2x2 atlas (row major: layer 0 top left, 1 top
          * right, 2 bottom left, 3 bottom right) and weighted per pixel by the layer weights, so splatting works
-         * the same on every backend. Each layer repeats every uv_tile_metres. Beyond `fade_start` metres the layers
-         * blend to a larger-scale copy to hide repetition, completely by `fade_end` (no fade when fade_end <=
-         * fade_start). Pass nullptr to go back to vertex colours. Set the atlas bitmap's `smooth` flag for bilinear
-         * filtering. Rebuilds the chunks, so call it at setup. The bitmap is not owned.
+         * the same on every backend. The atlas must be square with an even size of at least 8; each layer repeats
+         * every uv_tile_metres. The terrain copies the atlas into its own mipmapped, trilinearly filtered texture
+         * (later changes to the bitmap are not seen), so distant layers do not shimmer. Beyond `fade_start` metres the
+         * layers blend to a larger-scale copy to hide repetition, completely by `fade_end` (no fade when fade_end <=
+         * fade_start).
+         *
+         * `normal_atlas` optionally gives a tangent-space normal map per layer in the same layout and size (green up,
+         * OpenGL style; only the red and green channels are used). Pass nullptr for the atlas to go back to vertex
+         * colours. Returns false if the atlas is unusable (vertex colours stay in use) or the normal atlas is (the albedo atlas still applies). Rebuilds
+         * the chunks, so call it at setup. The bitmaps are not owned.
          */
-        void set_layer_atlas(Bitmap *atlas, double fade_start = 150.0, double fade_end = 600.0);
+        bool set_layer_atlas(Bitmap *atlas, double fade_start = 150.0, double fade_end = 600.0,
+                             Bitmap *normal_atlas = nullptr);
         /** Block until every chunk the last update() asked for has been built and uploaded (for loading screens). */
         void wait_until_ready(const TerrainView &view, int max_updates = 600);
 

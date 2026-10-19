@@ -368,10 +368,10 @@ namespace sl
             // Terrain is only translated, so the normal matrix is not needed and its slots carry the terrain
             // parameters. A negative tint red marks the mode for the shaders.
             const TerrainShading &t = material.terrain;
-            const float inset = material.texture && material.texture->width > 0 ? 1.0f / material.texture->width : 0.0f;
-            params.normal_rows[0][0] = material.texture ? 1.0f : 0.0f;
-            params.normal_rows[0][1] = inset;
-            params.normal_rows[0][2] = material.texture && material.texture->height > 0 ? 1.0f / material.texture->height : 0.0f;
+            const bool atlas = material.texture && t.atlas_levels > 0;
+            params.normal_rows[0][0] = atlas ? static_cast<float>(t.atlas_levels + (t.normal_atlas ? 16 : 0) + 32 * t.layer_size) : 0.0f;
+            params.normal_rows[0][1] = atlas && material.texture->width > 0 ? 1.0f / material.texture->width : 0.0f;
+            params.normal_rows[0][2] = atlas && material.texture->height > 0 ? 1.0f / material.texture->height : 0.0f;
             params.normal_rows[0][3] = -1.0f;
             params.normal_rows[1][0] = t.eye[0];
             params.normal_rows[1][1] = t.eye[1];

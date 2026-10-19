@@ -5,14 +5,14 @@ layout(location = 2) in vec4 aColour;
 layout(location = 3) in vec2 aUv;
 layout(location = 4) in vec4 aTangent;
 // Normal-matrix rows; w holds the tint colour. A negative normalRows[0].w selects terrain shading, where the rows
-// carry: [0] xyz: use atlas, inset u, inset v. [1] xyz: eye (mesh space), w: morph start.
+// carry: [0] xyz: atlas code (mip levels + 16 if a normal atlas + 32 * tile size, 0 for none), 1/width, 1/height. [1] xyz: eye (mesh space), w: morph start.
 // [2] x: morph end, y: fade start, z: fade end.
 layout(push_constant) uniform Transform { mat4 mvp; vec4 normalRows[3]; } transform;
 layout(location = 0) out vec3 vNormal;
 layout(location = 1) out vec4 vColour;
 layout(location = 2) out vec2 vUv;
 layout(location = 3) out vec4 vTangent;
-// x: layer fade (-1 for ordinary meshes), y: atlas in use, zw: atlas inset.
+// x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
 layout(location = 4) out vec4 vTerrain;
 void main()
 {
@@ -23,7 +23,7 @@ void main()
         vec3 position = aPosition + aTangent.xyz * morph;
         gl_Position = transform.mvp * vec4(position, 1.0);
         vNormal = aNormal;
-        vTangent = vec4(0.0);
+        vTangent = vec4(aPosition, 1.0);
         vColour = aColour;
         vUv = aUv;
         float fade = transform.normalRows[2].z > transform.normalRows[2].y
