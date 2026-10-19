@@ -73,7 +73,11 @@ namespace
         {
             x = (x + tile) % tile;
             y = (y + tile) % tile;
-            const std::size_t at = (static_cast<std::size_t>((layer >> 1) * tile + y) * albedo->width + (layer & 1) * tile + x) * 4;
+            const std::size_t row = static_cast<std::size_t>(layer >> 1) * static_cast<std::size_t>(tile) +
+                                    static_cast<std::size_t>(y);
+            const std::size_t column = static_cast<std::size_t>(layer & 1) * static_cast<std::size_t>(tile) +
+                                       static_cast<std::size_t>(x);
+            const std::size_t at = (row * static_cast<std::size_t>(albedo->width) + column) * 4;
             return (albedo->pixels[at] + albedo->pixels[at + 1] + albedo->pixels[at + 2]) / (3.0f * 255.0f);
         };
         for (int layer = 0; layer < 4; ++layer)
