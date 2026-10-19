@@ -212,7 +212,7 @@ voxel.set_atlas("w", "atlas", 4, 4, "atlas_n")    -- sprite, columns, rows [, no
 ## Terrain (`terrain`)
 
 Streaming chunked-LOD terrain (flat arena or planet) with noise, grid or heightmap sources, height/normal/raycast
-queries, editable grids and an optional splat atlas. See [terrain.md](terrain.md#lua) for the full API.
+queries, editable grids and an optional splat atlas (with mipmaps and normal maps). See [terrain.md](terrain.md#lua) for the full API.
 
 ```lua
 terrain.create("t", {size = 8192, source = {type = "noise", seed = 3, amplitude = 300}})
