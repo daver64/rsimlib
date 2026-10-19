@@ -272,8 +272,17 @@ namespace sl
         std::vector<TerrainLayer> layers;
         /** Optional override of layer weights per vertex; runs on worker threads, so it must be thread-safe. */
         std::function<void(const TerrainSample &sample, float weights[4])> weight_function;
-        /** Put the four layer weights in the vertex colour (for splat shaders) instead of the blended layer colours. */
+        /**
+         * Put the four layer weights in the vertex colour instead of the blended layer colours. Terrain::set_layer_atlas()
+         * turns this on by itself while an atlas is set.
+         */
         bool weights_in_vertex_colour = false;
+        /**
+         * Store, per vertex, the offset to the parent chunk's surface so the terrain shader can blend a chunk
+         * toward its coarser shape as the camera moves away, hiding level-change pops. Costs one extra grid of
+         * height samples per chunk build.
+         */
+        bool geomorph = true;
 
         /** Background threads that build chunks: -1 chooses automatically, 0 builds on the calling thread. */
         int worker_threads = -1;
@@ -309,6 +318,10 @@ namespace sl
         double bounding_radius = 0.0;
         double min_height = 0.0;
         double max_height = 0.0;
+        /**
+         * Vertex tangent xyz holds the offset (relative to the chunk center) to the parent chunk's surface, and w is 1.
+         * The terrain shader applies it by distance; ordinary materials would read it as a tangent.
+         */
         /** Vertices per side of the main grid (the skirt follows after the grid). */
         int grid_vertices = 0;
         std::vector<Vertex3D> vertices;
@@ -383,6 +396,15 @@ namespace sl
          * (camera.position = view.position - origin). The material's texture, tint and lighting apply to every chunk.
          */
         bool draw(const dvec3 &origin, const Material &material = {}) const;
+        /**
+         * Texture the terrain with four tiling layers laid out as a 2x2 atlas (row major: layer 0 top left, 1 top
+         * right, 2 bottom left, 3 bottom right) and weighted per pixel by the layer weights, so splatting works
+         * the same on every backend. Each layer repeats every uv_tile_metres. Beyond `fade_start` metres the layers
+         * blend to a larger-scale copy to hide repetition, completely by `fade_end` (no fade when fade_end <=
+         * fade_start). Pass nullptr to go back to vertex colours. Set the atlas bitmap's `smooth` flag for bilinear
+         * filtering. Rebuilds the chunks, so call it at setup. The bitmap is not owned.
+         */
+        void set_layer_atlas(Bitmap *atlas, double fade_start = 150.0, double fade_end = 600.0);
         /** Block until every chunk the last update() asked for has been built and uploaded (for loading screens). */
         void wait_until_ready(const TerrainView &view, int max_updates = 600);
 

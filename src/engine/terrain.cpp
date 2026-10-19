@@ -170,8 +170,7 @@ namespace sl
                 weights[i] /= sum;
         }
 
-        Vertex3D make_terrain_vertex(const dvec3 &relative, const dvec3 &normal, const float colour[4], float u, float v,
-                                     const dvec3 &tangent_axis)
+        Vertex3D make_terrain_vertex(const dvec3 &relative, const dvec3 &normal, const float colour[4], float u, float v)
         {
             Vertex3D vertex;
             vertex.position[0] = static_cast<float>(relative.x);
@@ -184,15 +183,9 @@ namespace sl
                 vertex.colour[i] = colour[i];
             vertex.uv[0] = u;
             vertex.uv[1] = v;
-            dvec3 tangent = tangent_axis - normal * glm::dot(normal, tangent_axis);
-            if (glm::dot(tangent, tangent) < 1.0e-12)
-                tangent = dvec3(1.0, 0.0, 0.0) - normal * normal.x;
-            tangent = glm::normalize(tangent);
-            vertex.tangent[0] = static_cast<float>(tangent.x);
-            vertex.tangent[1] = static_cast<float>(tangent.y);
-            vertex.tangent[2] = static_cast<float>(tangent.z);
-            // u x v == -n, so the bitangent (n x t) points against +v.
-            vertex.tangent[3] = -1.0f;
+            // Geomorph offset, filled in after the grid is complete. A non-zero w stops create_mesh generating tangents.
+            vertex.tangent[0] = vertex.tangent[1] = vertex.tangent[2] = 0.0f;
+            vertex.tangent[3] = 1.0f;
             return vertex;
         }
     } // namespace
@@ -250,7 +243,6 @@ namespace sl
         const double depth = std::max(config.skirt_scale, 0.0) * cell;
         const double tile = std::max(config.uv_tile_metres, 1.0e-3);
         const FaceBasis basis = face_basis(key.face);
-        const dvec3 tangent_axis = geo.sphere ? basis.u : dvec3(1.0, 0.0, 0.0);
 
         // Texture coordinates are in tile units; subtracting a whole number of tiles keeps them small and precise.
         auto uv_of = [&](const dvec3 &g, double a, double b, double &u, double &v)
@@ -307,9 +299,44 @@ namespace sl
                 double u, v;
                 uv_of(ground[index], geo.unit(key.level, key.x, i), geo.unit(key.level, key.y, j), u, v);
                 data.vertices.push_back(make_terrain_vertex(position[index] - data.center, normal, colour,
-                                                            static_cast<float>(u - u0), static_cast<float>(v - v0),
-                                                            tangent_axis));
+                                                            static_cast<float>(u - u0), static_cast<float>(v - v0)));
             }
+
+        if (config.geomorph && key.level > 0)
+        {
+            const int parent_x = key.x >> 1, parent_y = key.y >> 1;
+            std::vector<dvec3> parent(grid_count);
+            for (int j = 0; j < stride; ++j)
+                for (int i = 0; i < stride; ++i)
+                {
+                    const dvec3 g = geo.ground(key.face, geo.unit(key.level - 1, parent_x, i),
+                                               geo.unit(key.level - 1, parent_y, j));
+                    parent[static_cast<std::size_t>(j) * stride + i] = geo.position(g, geo.sample(g));
+                }
+            auto at = [&](int i, int j) { return parent[static_cast<std::size_t>(j) * stride + i]; };
+            for (int j = 0; j < stride; ++j)
+                for (int i = 0; i < stride; ++i)
+                {
+                    // A child vertex sits on a parent vertex, on a parent edge midpoint, or at a parent quad centre.
+                    const int si = i + cells * (key.x & 1), sj = j + cells * (key.y & 1);
+                    const int pi = si / 2, pj = sj / 2;
+                    const bool odd_i = (si & 1) != 0, odd_j = (sj & 1) != 0;
+                    dvec3 target;
+                    if (!odd_i && !odd_j)
+                        target = at(pi, pj);
+                    else if (odd_i && !odd_j)
+                        target = 0.5 * (at(pi, pj) + at(pi + 1, pj));
+                    else if (!odd_i && odd_j)
+                        target = 0.5 * (at(pi, pj) + at(pi, pj + 1));
+                    else
+                        target = 0.5 * (at(pi + 1, pj) + at(pi, pj + 1));
+                    const std::size_t index = static_cast<std::size_t>(j) * stride + i;
+                    const dvec3 delta = target - position[index];
+                    data.vertices[index].tangent[0] = static_cast<float>(delta.x);
+                    data.vertices[index].tangent[1] = static_cast<float>(delta.y);
+                    data.vertices[index].tangent[2] = static_cast<float>(delta.z);
+                }
+        }
 
         data.indices.reserve(static_cast<std::size_t>(cells) * cells * 6 + static_cast<std::size_t>(cells) * 4 * 6);
         auto grid = [&](int i, int j) { return static_cast<std::uint32_t>(j * stride + i); };
@@ -450,6 +477,13 @@ namespace sl
         std::uint64_t frame = 0;
         TerrainStats stats;
 
+        Bitmap *atlas = nullptr;
+        std::atomic<bool> atlas_in_use{false};
+        double fade_start = 0.0;
+        double fade_end = 0.0;
+        dvec3 view_position{0.0};
+        double pixel_scale = 1.0;
+
         int thread_count = 0;
         std::vector<std::thread> workers;
         std::mutex mutex;
@@ -458,6 +492,13 @@ namespace sl
         std::vector<Result> done;
         bool stop = false;
         int in_flight = 0;
+
+        TerrainChunkData build_chunk(const TerrainNodeKey &key) const
+        {
+            TerrainConfig local = config;
+            local.weights_in_vertex_colour = config.weights_in_vertex_colour || atlas_in_use.load();
+            return build_terrain_chunk(local, *source, key);
+        }
 
         void worker_loop()
         {
@@ -482,7 +523,7 @@ namespace sl
                 Result result;
                 result.key = key;
                 result.version = version;
-                result.data = build_terrain_chunk(config, *source, key);
+                result.data = build_chunk(key);
                 {
                     std::lock_guard<std::mutex> lock(mutex);
                     done.push_back(std::move(result));
@@ -758,7 +799,7 @@ namespace sl
                     Result result;
                     result.key = key;
                     result.version = job.version;
-                    result.data = build_terrain_chunk(config, *source, key);
+                    result.data = build_chunk(key);
                     if (upload(result))
                         --budget;
                 }
@@ -837,6 +878,8 @@ namespace sl
             if (source->take_dirty_region(x0, z0, x1, z1))
                 invalidate_region(x0, z0, x1, z1);
             const Frustum frustum = make_frustum(view);
+            view_position = view.position;
+            pixel_scale = frustum.pixel_scale;
             visible.clear();
             const double hmin = source->min_height();
             const double hmax = source->max_height();
@@ -877,16 +920,49 @@ namespace sl
 
     void Terrain::update(const TerrainView &view) { impl_->update(view); }
 
+    void Terrain::set_layer_atlas(Bitmap *atlas, double fade_start, double fade_end)
+    {
+        impl_->atlas = atlas;
+        impl_->fade_start = fade_start;
+        impl_->fade_end = fade_end;
+        if (impl_->atlas_in_use.exchange(atlas != nullptr) != (atlas != nullptr))
+            impl_->invalidate_all();
+    }
+
     bool Terrain::draw(const dvec3 &origin, const Material &material) const
     {
+        const Impl &impl = *impl_;
+        Material shaded = material;
+        shaded.texture = impl.atlas;
+        shaded.terrain.enabled = true;
+        shaded.terrain.fade_start = static_cast<float>(impl.fade_start);
+        shaded.terrain.fade_end = static_cast<float>(impl.fade_end);
         bool ok = true;
-        for (const TerrainNodeKey &key : impl_->visible)
+        for (const TerrainNodeKey &key : impl.visible)
         {
-            const auto it = impl_->nodes.find(key);
-            if (it == impl_->nodes.end() || !it->second.mesh)
+            const auto it = impl.nodes.find(key);
+            if (it == impl.nodes.end() || !it->second.mesh)
                 continue;
-            const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(it->second.center - origin));
-            ok = draw_mesh(it->second.mesh, model, material) && ok;
+            const dvec3 centre = it->second.center;
+            const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(centre - origin));
+            const dvec3 eye = impl.view_position - centre;
+            shaded.terrain.eye[0] = static_cast<float>(eye.x);
+            shaded.terrain.eye[1] = static_cast<float>(eye.y);
+            shaded.terrain.eye[2] = static_cast<float>(eye.z);
+            if (impl.config.geomorph && key.level > 0)
+            {
+                // A chunk becomes its parent's shape by the distance at which the parent would have been split.
+                const double split = 2.0 * impl.geo.cell_size(key.level) * impl.config.error_scale * impl.pixel_scale /
+                                     std::max(impl.config.max_screen_error, 1.0e-6);
+                shaded.terrain.morph_start = static_cast<float>(0.7 * split);
+                shaded.terrain.morph_end = static_cast<float>(split);
+            }
+            else
+            {
+                shaded.terrain.morph_start = 1.0e30f;
+                shaded.terrain.morph_end = 2.0e30f;
+            }
+            ok = draw_mesh(it->second.mesh, model, shaded) && ok;
         }
         return ok;
     }

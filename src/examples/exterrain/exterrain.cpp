@@ -11,6 +11,57 @@
 //   W/S/A/D: move   Space/C: up/down   Shift: fast   Right-drag: look
 //   1-4: speed presets   R: new seed   Esc: exit
 
+namespace
+{
+    // A 2x2 atlas of tiling layers (sand, grass, rock, snow) made from value noise that wraps every 64 pixels.
+    sl::Bitmap *make_layer_atlas()
+    {
+        constexpr int tile = 128;
+        sl::Bitmap *atlas = sl::create_bitmap(tile * 2, tile * 2);
+        if (!atlas)
+            return nullptr;
+        struct Layer
+        {
+            int base[3];
+            int variation;
+            int period;
+        };
+        const Layer layers[4] = {{{194, 178, 128}, 26, 16}, {{70, 120, 48}, 50, 8}, {{118, 112, 106}, 60, 32}, {{236, 240, 248}, 14, 32}};
+        auto lattice = [](int x, int y, int layer)
+        {
+            unsigned h = static_cast<unsigned>(x) * 374761393u + static_cast<unsigned>(y) * 668265263u + layer * 2246822519u;
+            h = (h ^ (h >> 13)) * 1274126177u;
+            return ((h ^ (h >> 16)) & 255u) / 255.0f;
+        };
+        for (int layer = 0; layer < 4; ++layer)
+            for (int y = 0; y < tile; ++y)
+                for (int x = 0; x < tile; ++x)
+                {
+                    float value = 0.0f, amplitude = 1.0f, total = 0.0f;
+                    for (int octave = 0; octave < 3; ++octave)
+                    {
+                        const int period = std::max(layers[layer].period >> octave, 2);
+                        const int cells = tile / period;
+                        const float fx = static_cast<float>(x) / period, fy = static_cast<float>(y) / period;
+                        const int x0 = static_cast<int>(fx), y0 = static_cast<int>(fy);
+                        const float tx = fx - x0, ty = fy - y0;
+                        auto at = [&](int a, int b) { return lattice(a % cells, b % cells, layer * 4 + octave); };
+                        const float a = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+                        const float b = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+                        value += (a * (1 - ty) + b * ty) * amplitude;
+                        total += amplitude;
+                        amplitude *= 0.5f;
+                    }
+                    const float shade = (value / total - 0.5f) * layers[layer].variation * 2.0f;
+                    auto channel = [&](int c) { return static_cast<std::uint8_t>(std::clamp(layers[layer].base[c] + shade, 0.0f, 255.0f)); };
+                    sl::putpixel(atlas, (layer & 1) * tile + x, (layer >> 1) * tile + y,
+                                 {channel(0), channel(1), channel(2), 255});
+                }
+        atlas->smooth = true;
+        return atlas;
+    }
+}
+
 int main(int argc, char **argv)
 {
     bool planet = false;
@@ -44,6 +95,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    sl::Bitmap *atlas = make_layer_atlas();
     int seed = 7;
     std::unique_ptr<sl::Terrain> terrain;
     auto build = [&]()
@@ -71,6 +123,7 @@ int main(int argc, char **argv)
             config.finest_cell_size = 1.0;
         }
         terrain = std::make_unique<sl::Terrain>(config, std::make_shared<sl::NoiseSource>(noise));
+        terrain->set_layer_atlas(atlas, 150.0, 700.0);
     };
     build();
 
@@ -197,6 +250,7 @@ int main(int argc, char **argv)
     }
 
     terrain.reset();
+    sl::destroy_bitmap(atlas);
     sl::destroy_surface_3d(surface);
     sl::shutdown();
     return 0;

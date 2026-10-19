@@ -112,6 +112,48 @@ static void test_flat_chunks()
     CHECK(bad == 0);
 }
 
+static void test_geomorph()
+{
+    TerrainConfig c = flat_config();
+    auto source = hills();
+    const TerrainNodeKey parent_key{0, 3, 2, 2};
+    const TerrainChunkData parent = build_terrain_chunk(c, *source, parent_key);
+    const int s = parent.grid_vertices;
+    const double parent_cell = c.size / 8.0 / (s - 1);
+    int bad = 0, nonzero = 0;
+    for (int cx = 0; cx < 2; ++cx)
+        for (int cy = 0; cy < 2; ++cy)
+        {
+            const TerrainChunkData child = build_terrain_chunk(c, *source, {0, 4, 4 + cx, 4 + cy});
+            for (int k = 0; k < s * s; ++k)
+            {
+                const Vertex3D &v = child.vertices[k];
+                CHECK(v.tangent[3] == 1.0f);
+                const double x = v.position[0] + child.center.x, z = v.position[2] + child.center.z;
+                // Parent surface at (x, z), interpolating its triangles (a,c,b) and (b,c,d).
+                const double lx = (x - (c.origin.x + parent_key.x * parent_cell * (s - 1))) / parent_cell;
+                const double lz = (z - (c.origin.z + parent_key.y * parent_cell * (s - 1))) / parent_cell;
+                const int i = std::min(static_cast<int>(std::floor(lx + 1e-9)), s - 2);
+                const int j = std::min(static_cast<int>(std::floor(lz + 1e-9)), s - 2);
+                const double fx = lx - i, fz = lz - j;
+                auto h = [&](int a, int b) { return parent.vertices[b * s + a].position[1] + parent.center.y; };
+                const double expected = fx + fz <= 1.0 ? h(i, j) + fx * (h(i + 1, j) - h(i, j)) + fz * (h(i, j + 1) - h(i, j))
+                                                       : h(i + 1, j + 1) + (1 - fx) * (h(i, j + 1) - h(i + 1, j + 1)) +
+                                                             (1 - fz) * (h(i + 1, j) - h(i + 1, j + 1));
+                nonzero += std::fabs(v.tangent[1]) > 1e-4f;
+                const double morphed = v.position[1] + child.center.y + v.tangent[1];
+                if (std::fabs(morphed - expected) > 2e-3 || std::fabs(v.tangent[0]) > 1e-3 || std::fabs(v.tangent[2]) > 1e-3)
+                    ++bad;
+            }
+        }
+    CHECK(bad == 0);
+    CHECK(nonzero > 0);
+    // Without geomorph the offsets are zero.
+    c.geomorph = false;
+    const TerrainChunkData flat_child = build_terrain_chunk(c, *source, {0, 4, 4, 4});
+    CHECK(flat_child.vertices[5].tangent[1] == 0.0f && flat_child.vertices[5].tangent[3] == 1.0f);
+}
+
 static void test_queries()
 {
     Terrain terrain(flat_config(), hills());
@@ -240,6 +282,7 @@ int main()
 {
     test_lod();
     test_flat_chunks();
+    test_geomorph();
     test_queries();
     test_sphere();
     test_grid();

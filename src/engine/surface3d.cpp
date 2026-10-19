@@ -85,7 +85,8 @@ namespace sl
         bool has_tangents(const std::vector<Vertex3D> &vertices)
         {
             for (const Vertex3D &vertex : vertices)
-                if (vertex.tangent[0] != 0.0f || vertex.tangent[1] != 0.0f || vertex.tangent[2] != 0.0f)
+                if (vertex.tangent[0] != 0.0f || vertex.tangent[1] != 0.0f || vertex.tangent[2] != 0.0f ||
+                    vertex.tangent[3] != 0.0f)
                     return true;
             return false;
         }
@@ -362,6 +363,25 @@ namespace sl
         params.normal_rows[0][3] = material.tint.red / 255.0f;
         params.normal_rows[1][3] = material.tint.green / 255.0f;
         params.normal_rows[2][3] = material.tint.blue / 255.0f;
+        if (material.terrain.enabled)
+        {
+            // Terrain is only translated, so the normal matrix is not needed and its slots carry the terrain
+            // parameters. A negative tint red marks the mode for the shaders.
+            const TerrainShading &t = material.terrain;
+            const float inset = material.texture && material.texture->width > 0 ? 1.0f / material.texture->width : 0.0f;
+            params.normal_rows[0][0] = material.texture ? 1.0f : 0.0f;
+            params.normal_rows[0][1] = inset;
+            params.normal_rows[0][2] = material.texture && material.texture->height > 0 ? 1.0f / material.texture->height : 0.0f;
+            params.normal_rows[0][3] = -1.0f;
+            params.normal_rows[1][0] = t.eye[0];
+            params.normal_rows[1][1] = t.eye[1];
+            params.normal_rows[1][2] = t.eye[2];
+            params.normal_rows[1][3] = t.morph_start;
+            params.normal_rows[2][0] = t.morph_end;
+            params.normal_rows[2][1] = t.fade_start;
+            params.normal_rows[2][2] = t.fade_end;
+            params.normal_rows[2][3] = 0.0f;
+        }
         if (material.lit)
         {
             const glm::vec3 to_light = -glm::normalize(current_light.direction);

@@ -19,10 +19,11 @@ namespace sl
     {
         tilemap,
         fluid,
-        voxel_view
+        voxel_view,
+        terrain_view
     };
 
-    /** Owns the tile maps, fluid grids and voxel worlds created by scripts, and the Lua tables that drive them. */
+    /** Owns the tile maps, fluid grids, voxel worlds and terrains created by scripts, and the Lua tables that drive them. */
     class LuaWorld
     {
     public:
@@ -38,7 +39,7 @@ namespace sl
         LuaWorld(const LuaWorld &) = delete;
         LuaWorld &operator=(const LuaWorld &) = delete;
 
-        /** Register the tilemap, fluid, fluid3d and voxel tables. */
+        /** Register the tilemap, fluid, fluid3d, voxel and terrain tables. */
         void bind(sol::state &lua, PathResolver resolver, DrawRequest request, BitmapResolver bitmaps);
         /** Draw one retained request using the parameters most recently set by the script. */
         void draw(LuaWorldDraw kind, const std::string &id, Bitmap *target) const;

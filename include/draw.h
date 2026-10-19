@@ -151,6 +151,8 @@ namespace sl
         BitmapKind kind = BitmapKind::Bitmap;
         /** Optional non-owning normal map paired with this bitmap; see set_normal_map(). */
         Bitmap *normal_map = nullptr;
+        /** Sample the texture with bilinear filtering instead of nearest. Read when the GPU texture is first created. */
+        bool smooth = false;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */

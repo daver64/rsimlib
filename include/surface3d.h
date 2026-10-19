@@ -18,7 +18,8 @@ namespace sl
         float uv[2] = {0.0f, 0.0f};
         /**
          * Tangent-space +U direction (xyz) and bitangent handedness (w, +1 or -1), used by normal maps.
-         * Leave all zero to have create_mesh() generate tangents from the positions and UVs.
+         * Leave all zero to have create_mesh() generate tangents from the positions and UVs; a non-zero w keeps
+         * the supplied tangent as is (terrain meshes store their geomorph offset here).
          */
         float tangent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
@@ -39,6 +40,25 @@ namespace sl
         none   /**< Draw both faces. */
     };
 
+    /**
+     * Terrain shading, used by Terrain::draw(). Meshes are expected to hold layer weights in the vertex colour
+     * (r, g, b, a = layers 0-3) and a vertex position offset in the tangent xyz. The shader moves each vertex toward
+     * its coarser-level position between morph_start and morph_end metres from the eye, so level changes do not pop.
+     * When Material::texture is set it is a 2x2 atlas of the four layers (row major), repeated per UV unit.
+     * Normal maps are ignored.
+     */
+    struct TerrainShading
+    {
+        bool enabled = false;
+        /** Eye position in the mesh's own coordinates. */
+        float eye[3] = {0.0f, 0.0f, 0.0f};
+        float morph_start = 0.0f;
+        float morph_end = 0.0f;
+        /** Beyond fade_start the layers blend to a larger-scale copy of themselves, fully by fade_end (metres). */
+        float fade_start = 0.0f;
+        float fade_end = 0.0f;
+    };
+
     /** Surface appearance for draw_mesh(). The tint and texture multiply the mesh vertex colours. */
     struct Material
     {
@@ -53,6 +73,7 @@ namespace sl
          */
         Bitmap *normal_map = nullptr;
         CullMode cull = CullMode::back;
+        TerrainShading terrain;
     };
 
     /** A single directional light plus ambient term, used by lit materials. */

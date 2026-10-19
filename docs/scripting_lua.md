@@ -209,6 +209,17 @@ voxel.set_atlas("w", "atlas", 4, 4, "atlas_n")    -- sprite, columns, rows [, no
 
 `set_atlas` remeshes the world. The atlas is resolved at draw time, so unloading the sprite falls back to flat tints.
 
+## Terrain (`terrain`)
+
+Streaming chunked-LOD terrain (flat arena or planet) with noise, grid or heightmap sources, height/normal/raycast
+queries, editable grids and an optional splat atlas. See [terrain.md](terrain.md#lua) for the full API.
+
+```lua
+terrain.create("t", {size = 8192, source = {type = "noise", seed = 3, amplitude = 300}})
+terrain.view("t", 0, 0, 800, 600, {4000, 400, 6000}, {4000, 300, 0}, {far = 20000})
+local ground = terrain.height_at("t", 4000, 6000)
+```
+
 ## Lighting & Normal Maps (`lighting`)
 
 ```lua

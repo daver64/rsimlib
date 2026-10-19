@@ -44,7 +44,8 @@ namespace sl
             sprite_rotated_stretched,
             tilemap,
             fluid,
-            voxel_view
+            voxel_view,
+            terrain_view
         };
 
         struct DrawingCommand
@@ -121,7 +122,8 @@ namespace sl
         {
             const DrawingType type = kind == LuaWorldDraw::tilemap ? DrawingType::tilemap
                                      : kind == LuaWorldDraw::fluid ? DrawingType::fluid
-                                                                   : DrawingType::voxel_view;
+                                     : kind == LuaWorldDraw::terrain_view ? DrawingType::terrain_view
+                                                                          : DrawingType::voxel_view;
             for (const DrawingCommand &command : commands)
             {
                 if (command.type == type && command.sprite_id == id)
@@ -1093,6 +1095,9 @@ namespace sl
                 break;
             case DrawingType::voxel_view:
                 world.draw(LuaWorldDraw::voxel_view, command.sprite_id, target);
+                break;
+            case DrawingType::terrain_view:
+                world.draw(LuaWorldDraw::terrain_view, command.sprite_id, target);
                 break;
             }
         }

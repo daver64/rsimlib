@@ -62,7 +62,51 @@ Layers (`TerrainLayer`, default sand/grass/rock/snow) are weighted by height and
 `weight_function`, and blended into the vertex colour. Set `weights_in_vertex_colour` to keep the four weights in the
 vertex colour instead. Texture coordinates are in tiles of `uv_tile_metres`.
 
-Not yet implemented: texture splatting shaders (texture samplers are still clamp-to-edge), geomorphing, and Lua
-bindings.
+### Splat atlas
+
+`Terrain::set_layer_atlas(bitmap, fade_start, fade_end)` textures the terrain with four tiling layers laid out as a
+2x2 atlas (layer 0 top left, 1 top right, 2 bottom left, 3 bottom right). The four layer weights travel in the
+vertex colour and the shader blends the layers per pixel, so it works the same on OpenGL, Vulkan and D3D12. Layers
+repeat every `uv_tile_metres`; beyond `fade_start` metres they cross-fade to a larger-scale copy (complete at
+`fade_end`) to hide repetition. Set `bitmap->smooth = true` for bilinear filtering. Pass `nullptr` to return to vertex
+colours. The call rebuilds the chunks, so make it at setup.
+
+Limitations: textures have no mipmaps, so distant layers can shimmer (the fade only partly hides it), and layer normal
+maps are not used.
+
+### Geomorphing
+
+With `TerrainConfig::geomorph` (default on) every vertex stores the offset to its parent chunk's surface, and the
+vertex shader blends it in as the chunk approaches the distance at which its parent would split, so level changes
+happen without visible pops. It costs one extra grid of height samples per chunk build. Normals are not morphed.
+
+Terrain meshes use the vertex tangent slot for the morph offset, so `Terrain::draw` always applies terrain shading;
+do not draw terrain chunk meshes with an ordinary material.
+
+## Lua
+
+```lua
+terrain.create("t", {
+  shape = "flat", size = 8192, finest_cell_size = 1, geomorph = true,
+  source = {type = "noise", seed = 3, amplitude = 300, ridged = true},
+})
+-- Sources: noise (seed, frequency, octaves, lacunarity, gain, amplitude, base_height, ridged, floor_height),
+--          flat (height), grid (width, depth, world_width, world_depth, height), heightmap (sprite, min_height,
+--          max_height, world_width, world_depth, pack_16_bit). Also: shape "sphere" with radius; chunk_cells,
+--          max_level, max_screen_error, uv_tile_metres, origin.
+terrain.set_atlas("t", "atlas_sprite", 150, 600)      -- 2x2 layer atlas from a loaded sprite
+terrain.view("t", 0, 0, 800, 600, {x, y, z}, {tx, ty, tz}, {fov = 60, far = 20000, up = {0, 1, 0}, sky = {150, 185, 230}})
+local h   = terrain.height_at("t", x, z)               -- nil for an unknown terrain
+local n   = terrain.normal_at("t", x, z)               -- {x, y, z}
+local alt = terrain.altitude_of("t", x, y, z)
+local hit = terrain.raycast("t", ox, oy, oz, dx, dy, dz, 5000)  -- {x, y, z, normal = {...}, distance} or nil
+terrain.raise("t", x, z, radius, amount)               -- grid sources only: raise, flatten, smooth, set_sample
+terrain.stats("t")                                     -- visible_chunks, visible_triangles, resident_chunks, ...
+terrain.destroy("t")
+```
+
+`terrain.view` is retained like `voxel.view`: the terrain streams and draws every frame the canvas renders. The eye is
+a world position in double precision. Lua states are not thread-safe, so Lua exposes data-defined sources only, not
+height callbacks.
 
 Example: `exterrain` (add `planet` to the command line for planet mode).
