@@ -29,6 +29,13 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 20. [Tile Maps](#tile-maps-includetilemaph)
 21. [3D Fluid Simulation](#3d-fluid-simulation-includefluid3dh)
 22. [3D Flight & Orbital Dynamics](#3d-flight--orbital-dynamics-includeflighth)
+23. [Chunked-LOD Terrain](#chunked-lod-terrain-includeterrainh)
+24. [Atlases & Animated Sprites](#atlases--animated-sprites-includeatlash-includeanimated_spriteh)
+25. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
+26. [Video Playback](#video-playback-includevideoh)
+27. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
+28. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
+29. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
 
 ---
 
@@ -1073,3 +1080,81 @@ Notes:
 - `step` splits `dt` into substeps no larger than `max_substep` (capped by `max_substeps_per_step`), so large time warps stay stable.
 - Bodies in `rails` mode follow an analytic Kepler orbit and do not drift.
 - See the `exorbit` and `exflight` examples.
+
+---
+
+## Chunked-LOD Terrain ([include/terrain.h](../include/terrain.h))
+
+`Terrain` streams a quadtree of mesh chunks for a flat arena or a cube-sphere planet. See [Terrain](terrain.md) for the full guide.
+
+```cpp
+sl::TerrainConfig config;
+config.size = 16384.0;                       // flat; or config.shape = TerrainShape::sphere with config.radius
+sl::NoiseParameters noise;
+noise.amplitude = 180.0;
+sl::Terrain terrain(config, std::make_shared<sl::NoiseSource>(noise));
+terrain.set_layer_atlas(atlas, 150.0, 600.0, normal_atlas);   // optional splat layers, mipmapped, optional normals
+terrain.update(view);                        // every frame: select chunks, stream, upload
+terrain.draw(origin);                        // inside begin_surface_3d / end_surface_3d
+double h = terrain.height_at(x, z);
+```
+
+- Sources: `NoiseSource`, `HeightmapSource`, `GridSource` (editable), or your own `TerrainSource`.
+- Queries: `height_at`, `normal_at`, `height_at_direction`, `normal_at_direction` and `raycast`.
+- Chunks are built on worker threads and uploaded a few per frame; `wait_until_ready(view)` blocks until the requested chunks are built, for loading screens.
+- Geomorphing hides LOD pops. Terrain meshes must be drawn through `Terrain::draw`, because they use the vertex tangent slot for the morph offset.
+- `FlightWorld` can use a terrain as ground. Lua scripts get a `terrain` table.
+
+---
+
+## Atlases & Animated Sprites ([include/atlas.h](../include/atlas.h), [include/animated_sprite.h](../include/animated_sprite.h))
+
+- `create_atlas(bitmap, tile_w, tile_h, spacing = 0, margin = 0)` / `load_atlas_from_file(path, tile_w, tile_h)`: slice a sprite sheet into numbered tiles. `atlas_tile_rect` returns a tile's pixel rectangle.
+- `atlas_blit`, `atlas_stretch_blit`, `atlas_rotate_sprite` and `atlas_rotate_stretch_sprite` draw tiles to a bitmap, with optional pivots.
+- `AnimatedSprite` plays a run of atlas tiles with a per-frame duration, optional one-shot playback and rotation. Create one with `create_animated_sprite(atlas, start_tile, frames, x, y, w, h, duration)` and draw it with `draw_animated_sprite` or `draw_rotated_animated_sprite`.
+- A sprite manager owns many sprites: `add_animated_sprite`, `update`, `draw_sprites`, `set_sprite_position`, `set_sprite_rotation`, `set_sprite_tiles`, `toggle_pause` and `remove_animated_sprite`.
+
+---
+
+## Procedural Audio Synthesis ([include/audio_synth.h](../include/audio_synth.h))
+
+`generate_sample(SynthParams)` renders signed 16-bit PCM into a `Sample` you can pass to `play_sample()`.
+
+- `SynthParams`: `sample_rate`, `channels`, `duration`, a list of `SynthOscillator`, an `Adsr` envelope and `noise_seed`.
+- `SynthOscillator`: `Waveform` (`sine`, `square`, `saw`, `triangle`, `noise`), `frequency`, `amplitude` and a `Pitch` sweep (`start` to `end` multipliers).
+- See `src/examples/exsynth`.
+
+---
+
+## Video Playback ([include/video.h](../include/video.h))
+
+MPEG1/MP2 playback into a bitmap.
+
+- `open_video(path, audio = true)` / `open_video_from_memory(data, size, audio = true)` / `destroy_video(video)`.
+- `update_video(video, dt_seconds)` decodes the next frames; draw `video_bitmap(video)` like any other sprite.
+- `video_width`, `video_height`, `video_duration`, `video_has_ended`, `set_video_loop` and `set_video_volume`.
+
+---
+
+## Dear ImGui Integration ([include/gui.h](../include/gui.h))
+
+`gui_init()`, `gui_handle_event(event)`, `gui_new_frame()`, `gui_render()` and `gui_shutdown()` wrap Dear ImGui for all three backends. `gui_show_demo_window()` and `gui_show_metrics_window(show)` are quick diagnostics. See `src/examples/exgui`.
+
+---
+
+## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
+
+A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it.
+
+- `Pathfinder::resize(columns, rows, tile_w, tile_h, blocked_fn)` sets up the grid; `update(player_col, player_row, player_moving)` rebuilds the chase field and updates scent and sound each frame.
+- `next_step(PathLayer, col, row, step)` returns the best neighbouring step: downhill on `PathLayer::chase`, uphill on `scent` or `sound`. Enemies read the field rather than searching.
+- `open(col, row)` and `value(layer, col, row)` inspect the grid.
+
+---
+
+## Sandboxed Lua Scripting ([include/lua_runtime.h](../include/lua_runtime.h), [include/lua_canvas.h](../include/lua_canvas.h))
+
+See [Sandboxed Lua Scripting & Canvas](scripting_lua.md) for the full script API.
+
+- `LuaRuntime`: a hardened sol2 sandbox. `set_limits(LuaLimits)`, `initialise(output_handler)`, `execute(script)`, `call(function, argument)`, `emit(event, ...)` and `reset()`. Each returns a `LuaScriptResult`.
+- `LuaCanvas`: scripted drawing on top of the runtime. `run_text`, `run_file`, `dispatch_keypress`, `set_asset_root`, `render(target)`, `clear` and `reset`.
