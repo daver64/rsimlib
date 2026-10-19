@@ -130,6 +130,7 @@ int main(int argc, char **argv)
     bool use_normals = true;
     bool use_atmosphere = true;
     bool use_clouds = true;
+    bool volumetric = false;
     double sun_elevation = 0.8;
     int seed = 7;
     bool use_clutter = true;
@@ -230,6 +231,8 @@ int main(int argc, char **argv)
                     use_atmosphere = !use_atmosphere;
                 else if (key == sl::Event::Key::letter_k)
                     use_clouds = !use_clouds;
+                else if (key == sl::Event::Key::letter_v)
+                    volumetric = !volumetric;
                 else if (key == sl::Event::Key::letter_t)
                     use_clutter = !use_clutter;
                 else if (key == sl::Event::Key::digit_1)
@@ -324,6 +327,7 @@ int main(int argc, char **argv)
             environment.clouds.altitude = 4500.0f;
         }
         environment.clouds.enabled = use_atmosphere && use_clouds;
+        environment.clouds.volumetric = volumetric;
 
         if (sl::begin_surface_3d(surface, camera))
         {
@@ -365,7 +369,7 @@ int main(int argc, char **argv)
                         cs.drawn_billboards, cs.drawn_meshes, cs.cached_cells);
         }
         sl::gprintf_center(screen_h - 22, {20, 20, 20},
-                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  T trees  Z/X sun");
+                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  V vol  T trees  Z/X sun");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();

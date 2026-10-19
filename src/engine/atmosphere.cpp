@@ -164,7 +164,7 @@ namespace sl
         {
             row_right = 0,       // xyz: camera right, w: tan(fov / 2) * aspect
             row_camera_up,       // xyz: camera up, w: tan(fov / 2)
-            row_forward,         // xyz: camera forward, w: flags (1 planet, 2 clouds)
+            row_forward,         // xyz: camera forward, w: flags (1 planet, 2 clouds, 4 volumetric)
             row_sun,             // xyz: toward the sun, w: intensity
             row_local_up,        // xyz: local vertical, w: camera altitude
             row_zenith,          // rgb: zenith colour, w: cos of the sun's angular radius
@@ -175,9 +175,10 @@ namespace sl
             row_cloud_extra,     // x: softness, yz: wind offset in metres
             row_camera_position, // xyz: camera world position
             row_ground,          // rgb: ground albedo
-            row_sun_colour       // rgb: sunlight colour after the atmosphere
+            row_sun_colour,      // rgb: sunlight colour after the atmosphere
+            row_volume           // x: slab thickness, y: extinction per metre, z: phase anisotropy
         };
-        static_assert(SkyRows::row_sun_colour + 1 == detail::SkyDrawParams::rows, "sky row count");
+        static_assert(SkyRows::row_volume + 1 == detail::SkyDrawParams::rows, "sky row count");
 
         void set_row(detail::SkyDrawParams &params, int row, const glm::vec3 &v, float w)
         {
@@ -273,7 +274,7 @@ namespace sl
         const float aspect = static_cast<float>(info.width) / static_cast<float>(std::max(info.height, 1));
 
         detail::SkyDrawParams params;
-        const int flags = (e.planet ? 1 : 0) | (e.clouds.enabled ? 2 : 0);
+        const int flags = (e.planet ? 1 : 0) | (e.clouds.enabled ? 2 : 0) | (e.clouds.enabled && e.clouds.volumetric ? 4 : 0);
         set_row(params, row_right, right, tan_y * aspect);
         set_row(params, row_camera_up, camera_up, tan_y);
         set_row(params, row_forward, forward, static_cast<float>(flags));
@@ -293,6 +294,8 @@ namespace sl
         set_row(params, row_camera_position, glm::vec3(e.camera_position), 0.0f);
         set_row(params, row_ground, e.ground_albedo, 0.0f);
         set_row(params, row_sun_colour, atmosphere_sun_colour(e), 0.0f);
+        const float thickness = std::max(e.clouds.thickness, 1.0f);
+        set_row(params, row_volume, glm::vec3(thickness, 5.0f * std::max(e.clouds.density, 0.05f) / thickness, 0.5f), 0.0f);
         if (!renderer->draw_sky(params))
         {
             detail::set_error("The active graphics backend cannot draw the sky");

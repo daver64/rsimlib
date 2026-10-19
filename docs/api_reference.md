@@ -1120,7 +1120,7 @@ clutter.update(view);                        // outside begin_surface_3d
 clutter.draw(origin);
 ```
 
-- `Environment3D`: gradient sky and exponential fog for flat worlds, Rayleigh/Mie scattering for planets, a 2D cloud layer.
+- `Environment3D`: gradient sky and exponential fog for flat worlds, Rayleigh/Mie scattering for planets, a 2D cloud layer or ray-marched volumetric clouds (`clouds.volumetric`).
 - `atmosphere_sun_colour`, `atmosphere_sky_colour`, `atmosphere_transmittance`: CPU mirrors of the shader maths.
 - `bake_instances`, `bake_impostor`, `bake_billboards`: merge copies of a mesh, or render view-dependent billboards.
 - `Material::alpha_cutoff` and `Material::fog` control cut-outs and fog per material.

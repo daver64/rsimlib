@@ -23,6 +23,14 @@ namespace sl
         float softness = 0.35f;
         /** Wind velocity along the layer in metres per second (x, z of the local horizontal plane). */
         glm::vec2 wind{12.0f, 4.0f};
+        /**
+         * Ray march a slab of real 3D cloud instead of the flat layer: puffy tops, flat bottoms, light through thin
+         * edges and dark cores. Costs more GPU time. The clouds are part of the sky, so terrain always hides them,
+         * and the camera can fly into the slab but nothing inside it is lit by it.
+         */
+        bool volumetric = false;
+        /** Vertical size of the volumetric slab in metres, above `altitude`. */
+        float thickness = 1500.0f;
     };
 
     /**

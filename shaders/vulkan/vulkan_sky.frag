@@ -3,7 +3,7 @@
 // Procedural sky: gradient or scattered-light atmosphere, sun disc and a 2D cloud layer. The row layout of uSky is
 // documented in src/engine/atmosphere.cpp (SkyRows) and must match.
 layout(location = 0) in vec2 vNdc;
-layout(set = 0, binding = 0) uniform SkyBlock { vec4 uSky[14]; };
+layout(set = 0, binding = 0) uniform SkyBlock { vec4 uSky[15]; };
 layout(location = 0) out vec4 fragColor;
 
 const float PI = 3.14159265;
@@ -206,12 +206,208 @@ float cloud_density(vec3 p, bool planet)
     return smoothstep(edge, edge + 0.05 + softness * 0.35, n);
 }
 
+
+// ---- Volumetric clouds -------------------------------------------------------------------------------------------
+// A slab of cloud between two heights (planes on flat worlds, shells on planets), ray marched with light marching
+// toward the sun. Rows 9, 10 and 14 of uSky hold the parameters.
+
+float cloud_fbm3_octaves(vec3 p, int octaves)
+{
+    float v = 0.0;
+    float a = 0.5;
+    float total = 0.0;
+    for (int i = 0; i < 5; ++i)
+    {
+        if (i >= octaves)
+            break;
+        v += a * value_noise3(p);
+        total += a;
+        p = p * 2.03 + vec3(17.1, 9.2, 31.7);
+        a *= 0.5;
+    }
+    return v / total * 0.97;
+}
+
+// Density 0-1 at the mapped point `c` (flat: horizontal plane coordinates and height; planet: world position), where
+// `h` runs 0 to 1 from the bottom to the top of the slab.
+float volume_density(vec3 c, float h, int octaves)
+{
+    float scale = uSky[9].w;
+    float coverage = uSky[9].y;
+    float softness = uSky[10].x;
+    vec3 wind = vec3(uSky[10].y, 0.0, uSky[10].z);
+    float profile = smoothstep(0.0, 0.16, h) * smoothstep(1.0, 0.6, h);
+    float n = cloud_fbm3_octaves(c / scale + wind / scale, octaves);
+    float edge = mix(0.78, 0.30, coverage) + (1.0 - profile) * 0.3;
+    return smoothstep(edge, edge + 0.06 + softness * 0.3, n);
+}
+
+float henyey_greenstein(float mu, float g)
+{
+    float g2 = g * g;
+    return (1.0 - g2) / pow(1.0 + g2 - 2.0 * g * mu, 1.5);
+}
+
+// Returns (colour added, transmittance) and the distance at which the cloud begins, used to fade it into the haze.
+vec4 volume_clouds(vec3 rd, bool planet, vec3 up, float altitude, vec3 sun, vec3 sun_colour, vec3 ambient, out float start)
+{
+    const int STEPS = 64;
+    const int LIGHT = 4;
+    float base = uSky[9].x;
+    float thick = max(uSky[14].x, 1.0);
+    float extinction = uSky[14].y;
+    float anisotropy = uSky[14].z;
+    vec3 camera = uSky[11].xyz;
+    float planet_radius = uSky[8].z;
+    float t0 = 0.0;
+    float t1 = 0.0;
+    start = 0.0;
+    bool valid = false;
+    float limit;
+    if (planet)
+    {
+        float r0 = planet_radius + altitude;
+        float ri = planet_radius + base;
+        float ro_ = ri + thick;
+        vec3 ro = up * r0;
+        float o0, o1, i0, i1, g0, g1;
+        bool hit_outer = ray_sphere(ro, rd, ro_, o0, o1);
+        bool hit_inner = ray_sphere(ro, rd, ri, i0, i1);
+        bool hit_ground = ray_sphere(ro, rd, planet_radius, g0, g1) && g0 > 0.0;
+        if (r0 < ri)
+        {
+            if (hit_inner && i1 > 0.0 && hit_outer && !hit_ground)
+            {
+                t0 = i1;
+                t1 = o1;
+                valid = true;
+            }
+        }
+        else if (r0 <= ro_)
+        {
+            if (hit_outer)
+            {
+                t1 = (hit_inner && i0 > 0.0) ? i0 : o1;
+                valid = true;
+                if (hit_ground)
+                    t1 = min(t1, g0);
+            }
+        }
+        else if (hit_outer && o0 > 0.0)
+        {
+            t0 = o0;
+            t1 = (hit_inner && i0 > 0.0) ? i0 : o1;
+            valid = true;
+        }
+        limit = 60000.0;
+    }
+    else
+    {
+        float elevation = dot(rd, up);
+        float top = base + thick;
+        if (abs(elevation) < 1.0e-4)
+        {
+            valid = altitude >= base && altitude <= top;
+            t1 = 1.0e9;
+        }
+        else
+        {
+            float ta = (base - altitude) / elevation;
+            float tb = (top - altitude) / elevation;
+            t0 = max(min(ta, tb), 0.0);
+            t1 = max(ta, tb);
+            valid = t1 > 0.0;
+        }
+        limit = 40000.0;
+    }
+    if (!valid)
+    {
+        start = 1.0e9;
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    t1 = min(t1, t0 + limit);
+    if (t1 <= t0)
+    {
+        start = 1.0e9;
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+    start = t0;
+
+    vec3 e1 = normalize(cross(up, abs(up.z) < 0.9 ? vec3(0, 0, 1) : vec3(1, 0, 0)));
+    vec3 e2 = cross(up, e1);
+    vec3 sun_flat = vec3(dot(sun, e1), dot(sun, e2), dot(sun, up));
+    float mu = dot(rd, sun);
+    float phase = mix(henyey_greenstein(mu, -0.2), henyey_greenstein(mu, anisotropy), 0.4);
+    float jitter = fract(sin(dot(vNdc, vec2(1103.7, 977.3))) * 43758.5453);
+    float dt = (t1 - t0) / float(STEPS);
+    float light_step = thick * 0.3;
+
+    vec3 colour = vec3(0.0);
+    float transmittance = 1.0;
+    for (int i = 0; i < STEPS; ++i)
+    {
+        float t = t0 + dt * (float(i) + jitter);
+        vec3 world = camera + rd * t;
+        vec3 mapped;
+        float h;
+        float local_sun = dot(up, sun);
+        if (planet)
+        {
+            vec3 p = up * (planet_radius + altitude) + rd * t;
+            h = (length(p) - (planet_radius + base)) / thick;
+            mapped = world;
+            local_sun = dot(normalize(p), sun);
+        }
+        else
+        {
+            float height = altitude + dot(rd, up) * t;
+            h = (height - base) / thick;
+            mapped = vec3(dot(world, e1), dot(world, e2), height * 3.0);
+        }
+        float d = volume_density(mapped, h, 5);
+        if (d < 0.004)
+            continue;
+
+        float depth = 0.0;
+        for (int k = 1; k <= LIGHT; ++k)
+        {
+            float l = light_step * float(k);
+            vec3 lm;
+            float lh;
+            if (planet)
+            {
+                vec3 p = up * (planet_radius + altitude) + rd * t + sun * l;
+                lh = (length(p) - (planet_radius + base)) / thick;
+                lm = world + sun * l;
+            }
+            else
+            {
+                lh = h + sun_flat.z * l / thick;
+                lm = vec3(mapped.xy + sun_flat.xy * l, mapped.z + sun_flat.z * l * 3.0);
+            }
+            depth += volume_density(lm, lh, 3) * extinction * light_step;
+        }
+        float lit = max(exp(-depth), 0.7 * exp(-depth * 0.25) * 0.5);
+        float sun_side = clamp(local_sun * 4.0 + 0.5, 0.0, 1.0);
+        vec3 radiance = sun_colour * 1.15 * lit * clamp(phase, 0.0, 1.5) * sun_side +
+                        ambient * mix(0.55, 1.1, clamp(h, 0.0, 1.0));
+        radiance = min(radiance, vec3(1.3));
+        float step_t = exp(-d * extinction * dt);
+        colour += transmittance * radiance * (1.0 - step_t);
+        transmittance *= step_t;
+        if (transmittance < 0.02)
+            break;
+    }
+    return vec4(colour, transmittance);
+}
+
 void main()
 {
     vec3 rd = normalize(uSky[0].xyz * (vNdc.x * uSky[0].w) + uSky[1].xyz * (vNdc.y * uSky[1].w) + uSky[2].xyz);
     int flags = int(uSky[2].w + 0.5);
     bool planet = (flags & 1) != 0;
     bool clouds = (flags & 2) != 0;
+    bool volumetric = (flags & 4) != 0;
     vec3 sun = uSky[3].xyz;
     float sun_intensity = uSky[3].w;
     vec3 up = uSky[4].xyz;
@@ -240,7 +436,16 @@ void main()
         sky = mix(sky, sun_colour * 4.0, smoothstep(cos_sun_radius - 0.00004, cos_sun_radius + 0.00002, mu) * step(0.0, elevation));
     }
 
-    if (clouds)
+    if (clouds && volumetric)
+    {
+        vec3 ambient = planet ? sky * 0.9 + 0.05 : mix(uSky[6].rgb, uSky[5].rgb, 0.5) * 0.75;
+        float start;
+        vec4 volume = volume_clouds(rd, planet, up, altitude, sun, sun_colour, ambient, start);
+        // Distant cloud thins into the haze.
+        float fade = exp(-start / (planet ? 120000.0 : 30000.0));
+        sky = mix(sky, sky * volume.a + volume.rgb, fade);
+    }
+    else if (clouds)
     {
         float cloud_altitude = uSky[9].x;
         float elevation = dot(rd, up);

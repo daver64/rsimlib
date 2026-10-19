@@ -2147,7 +2147,7 @@ namespace sl::detail
                         pixel_blob->Release();
                     return false;
                 }
-                // The 14 sky rows are the only root parameter (56 DWORDs).
+                // The 15 sky rows are the only root parameter (60 DWORDs).
                 D3D12_ROOT_PARAMETER parameter{};
                 parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameter.Constants.ShaderRegister = 0;

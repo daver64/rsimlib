@@ -22,6 +22,7 @@ light.colour = sl::atmosphere_sun_colour(env);   // reddens toward the horizon
 
 - **Flat worlds** use a zenith/horizon gradient and exponential fog that thins with altitude (`fog_height_falloff`).
 - **Planets** (`env.planet = true`, with `planet_radius`, `atmosphere_height`, `rayleigh`, `mie`) use Rayleigh/Mie scattering for the sky, sunsets and the haze on distant terrain. `haze_scale` tunes how quickly mountains fade.
+- **Volumetric clouds**: set `env.clouds.volumetric = true` (and `thickness`, default 1500 m) to ray march a real slab of cloud above `altitude`, with puffy tops, darker bases, lit edges and a silver lining toward the sun. It works on flat worlds and planets and you can fly into the slab. It costs more GPU time than the flat layer. The clouds are part of the sky, so terrain always hides them (distant mountains in front of cloud are right, cloud in front of a mountain is not), and meshes inside the slab are not shaded by it.
 - **Clouds** are a scrolling 2D layer (`env.clouds`: altitude, coverage, density, scale, softness, wind).
 - Materials fade into the fog unless `Material::fog` is false.
 - `atmosphere_sky_colour`, `atmosphere_sun_colour` and `atmosphere_transmittance` mirror the shader on the CPU.
@@ -58,4 +59,4 @@ clutter.draw(origin);                       // inside begin_surface_3d / end_sur
 - After editing the terrain, call `invalidate_region()` (flat) or `invalidate_all()`.
 - Impostors are lit once at bake time and drawn unlit; they still take the fog.
 
-See [exterrain](../src/examples/exterrain/exterrain.cpp): key `T` toggles trees and rocks, `H` the atmosphere, `K` the clouds, `Z`/`X` the sun.
+See [exterrain](../src/examples/exterrain/exterrain.cpp): key `T` toggles trees and rocks, `H` the atmosphere, `K` the clouds, `V` volumetric clouds, `Z`/`X` the sun.
