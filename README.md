@@ -52,9 +52,8 @@ Create the archive used by `exresources` from the repository root with:
 ## Documentation Guides
 
 For in-depth guides and detailed API tables, see the documentation topics:
-
-- 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
+- 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
 - 🗡️ **[`exroguelike` ASCII Roguelike Guide](docs/exroguelike_guide.md)** — Architectural walkthrough of the turn-based roguelike (512x512 procedural overworld, 3x3 sector dungeons, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`).
 - 🧪 **[`excafluid` Physics Sandbox Guide](docs/excafluid_guide.md)** — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
