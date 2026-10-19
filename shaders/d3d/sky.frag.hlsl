@@ -10,6 +10,7 @@ static float4 fragColor;
 
 struct SPIRV_Cross_Input
 {
+    float4 position : SV_Position;
     float2 vNdc : TEXCOORD0;
 };
 
