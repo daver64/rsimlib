@@ -283,6 +283,8 @@ add_library(simlib STATIC
     src/engine/particles.cpp
     src/engine/physics.cpp
     src/engine/flight.cpp
+    src/engine/terrain.cpp
+    src/engine/terrain_sources.cpp
     src/engine/renderer.cpp
     src/engine/gl_context.cpp
     src/engine/gl_renderer.cpp
@@ -445,6 +447,9 @@ target_link_libraries(exorbit PRIVATE simlib)
 
 add_executable(exflight src/examples/exflight/exflight.cpp)
 target_link_libraries(exflight PRIVATE simlib)
+
+add_executable(exterrain src/examples/exterrain/exterrain.cpp)
+target_link_libraries(exterrain PRIVATE simlib)
 
 add_executable(exvulkan src/examples/exvulkan/exvulkan.cpp)
 target_link_libraries(exvulkan PRIVATE simlib)
@@ -659,6 +664,11 @@ if(BUILD_TESTING)
     target_compile_definitions(flight_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME flight COMMAND flight_test)
 
+    add_executable(terrain_test tests/terrain_test.cpp)
+    target_link_libraries(terrain_test PRIVATE simlib)
+    target_compile_definitions(terrain_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME terrain COMMAND terrain_test)
+
     add_executable(renderer_test tests/renderer_test.cpp)
     target_link_libraries(renderer_test PRIVATE simlib)
     target_compile_definitions(renderer_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -685,7 +695,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test fluid3d_test flight_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test flight_test terrain_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)

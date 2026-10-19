@@ -1,5 +1,7 @@
 #pragma once
 
+#include "terrain.h"
+
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -211,6 +213,12 @@ namespace sl
         double radius = 0.0;
         /** Spin about +Y in rad/s. Drives the surface velocity used by the atmosphere and gear. */
         double spin_rate = 0.0;
+        /**
+         * Optional terrain for the surface of a body with a radius. Gear collides with its height and altitude
+         * is measured above it. The terrain's sphere settings (radius, source) are used; its origin is ignored,
+         * because the terrain follows the body. It does not spin with spin_rate. Not owned; must outlive the world.
+         */
+        const Terrain *terrain = nullptr;
         Atmosphere atmosphere;
 
         dvec3 position{0.0};
@@ -288,6 +296,11 @@ namespace sl
         /** Flat ground at the given height with an up normal of +Y. Gear collides with it. */
         bool flat_ground = false;
         double flat_ground_height = 0.0;
+        /**
+         * Optional terrain used instead of the flat plane when flat_ground is set: gear contacts, altitude and the
+         * flat atmosphere follow its height and slope. Not owned; must outlive the world.
+         */
+        const Terrain *flat_terrain = nullptr;
         /** Atmosphere above the flat ground. */
         Atmosphere flat_atmosphere;
         /** Steady wind in m/s relative to the ground. */

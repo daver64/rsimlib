@@ -569,14 +569,15 @@ namespace sl
         density = 0.0;
         velocity = wind;
         if (flat_atmosphere.surface_density > 0.0)
-            density = flat_atmosphere.density(point.y - flat_ground_height);
+            density = flat_atmosphere.density(point.y - (flat_terrain ? flat_terrain->height_at(point.x, point.z) : flat_ground_height));
         for (std::size_t j = 0; j < bodies_.size(); ++j)
         {
             const FlightBody &planet = bodies_[j];
             if (!planet.active || planet.atmosphere.surface_density <= 0.0 || planet.radius <= 0.0)
                 continue;
             const dvec3 d = point - kin[j].position;
-            const double rho = planet.atmosphere.density(glm::length(d) - planet.radius);
+            const double rho = planet.atmosphere.density(glm::length(d) - planet.radius -
+                                                         (planet.terrain ? planet.terrain->height_at_direction(d) : 0.0));
             if (rho > density)
             {
                 density = rho;
@@ -589,10 +590,16 @@ namespace sl
     {
         double best = std::numeric_limits<double>::infinity();
         if (flat_ground)
-            best = point.y - flat_ground_height;
+            best = point.y - (flat_terrain ? flat_terrain->height_at(point.x, point.z) : flat_ground_height);
         for (std::size_t j = 0; j < bodies_.size(); ++j)
             if (bodies_[j].active && bodies_[j].radius > 0.0)
-                best = std::min(best, glm::length(point - kin[j].position) - bodies_[j].radius);
+            {
+                const dvec3 d = point - kin[j].position;
+                double altitude = glm::length(d) - bodies_[j].radius;
+                if (bodies_[j].terrain)
+                    altitude -= bodies_[j].terrain->height_at_direction(d);
+                best = std::min(best, altitude);
+            }
         return best;
     }
 
@@ -853,7 +860,13 @@ namespace sl
                 torque_body += glm::cross(g.position, rot_t * f);
             };
             if (flat_ground)
-                contact(dvec3(0, 1, 0), point.y - flat_ground_height, dvec3(0.0));
+            {
+                if (flat_terrain)
+                    contact(flat_terrain->normal_at(point.x, point.z), point.y - flat_terrain->height_at(point.x, point.z),
+                            dvec3(0.0));
+                else
+                    contact(dvec3(0, 1, 0), point.y - flat_ground_height, dvec3(0.0));
+            }
             for (std::size_t j = 0; j < bodies_.size(); ++j)
             {
                 const FlightBody &planet = bodies_[j];
@@ -861,9 +874,10 @@ namespace sl
                     continue;
                 const dvec3 d = point - kin[j].position;
                 const double dist = glm::length(d);
-                if (dist <= 0.0 || dist - planet.radius >= 0.0)
+                const double ground = planet.radius + (planet.terrain ? planet.terrain->height_at_direction(d) : 0.0);
+                if (dist <= 0.0 || dist - ground >= 0.0)
                     continue;
-                contact(d / dist, dist - planet.radius,
+                contact(planet.terrain ? planet.terrain->normal_at_direction(d) : d / dist, dist - ground,
                         kin[j].velocity + glm::cross(dvec3(0.0, planet.spin_rate, 0.0), d));
             }
             if (record)

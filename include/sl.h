@@ -22,6 +22,7 @@
 #include "fluid.h"
 #include "fluid3d.h"
 #include "flight.h"
+#include "terrain.h"
 #include "graphics_fx.h"
 #include "gamepad.h"
 #include "gui.h"
