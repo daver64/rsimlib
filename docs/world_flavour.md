@@ -59,4 +59,6 @@ clutter.draw(origin);                       // inside begin_surface_3d / end_sur
 - After editing the terrain, call `invalidate_region()` (flat) or `invalidate_all()`.
 - Impostors are lit once at bake time and drawn unlit; they still take the fog.
 
+Lua: `terrain.add_clutter` and the `environment` view option, see [scripting_lua.md](scripting_lua.md#terrain-terrain).
+
 See [exterrain](../src/examples/exterrain/exterrain.cpp): key `T` toggles trees and rocks, `H` the atmosphere, `K` the clouds, `V` volumetric clouds, `Z`/`X` the sun.

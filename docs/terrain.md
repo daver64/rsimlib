@@ -119,4 +119,6 @@ terrain.destroy("t")
 a world position in double precision. Lua states are not thread-safe, so Lua exposes data-defined sources only, not
 height callbacks.
 
+Sky, fog, clouds and scattered objects: see [World Flavour](world_flavour.md) and the Lua notes in [scripting_lua.md](scripting_lua.md#terrain-terrain).
+
 Example: `exterrain` (add `planet` to the command line for planet mode).

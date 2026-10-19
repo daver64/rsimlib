@@ -4,10 +4,13 @@
 
 #include "lua_world.h"
 
+#include "atmosphere.h"
+#include "clutter.h"
 #include "draw.h"
 #include "fluid.h"
 #include "fluid3d.h"
 #include "surface3d.h"
+#include "system.h"
 #include "terrain.h"
 #include "tilemap.h"
 #include "voxel.h"
@@ -143,6 +146,11 @@ namespace sl
             float ambient = 0.3f;
             Colour sky{150, 185, 230, 255};
             Surface3D *surface = nullptr;
+            // Declared after `terrain` so it is destroyed first.
+            std::unique_ptr<ClutterLayer> clutter;
+            std::vector<ClutterSpecies> pending_species;
+            bool has_environment = false;
+            Environment3D environment;
         };
 
         std::unordered_map<std::string, TerrainEntry> terrains;
@@ -608,6 +616,36 @@ namespace sl
     {
         constexpr int max_terrain_grid = 4096;
 
+        Environment3D environment_from_table(const sol::table &t, Environment3D e)
+        {
+            e.fog_enabled = t.get_or("fog", e.fog_enabled);
+            e.fog_density = t.get_or("fog_density", e.fog_density);
+            e.fog_height_falloff = t.get_or("fog_height_falloff", e.fog_height_falloff);
+            e.fog_colour = colour_from_table(t.get<sol::optional<sol::table>>("fog_colour"), e.fog_colour);
+            e.sky_zenith = colour_from_table(t.get<sol::optional<sol::table>>("sky_zenith"), e.sky_zenith);
+            e.sky_horizon = colour_from_table(t.get<sol::optional<sol::table>>("sky_horizon"), e.sky_horizon);
+            e.sun_intensity = t.get_or("sun_intensity", e.sun_intensity);
+            e.sun_diameter = t.get_or("sun_diameter", e.sun_diameter);
+            e.planet = t.get_or("planet", e.planet);
+            e.planet_radius = t.get_or("planet_radius", e.planet_radius);
+            e.atmosphere_height = t.get_or("atmosphere_height", e.atmosphere_height);
+            e.haze_scale = t.get_or("haze_scale", e.haze_scale);
+            if (const auto clouds = t.get<sol::optional<sol::table>>("clouds"))
+            {
+                e.clouds.enabled = clouds->get_or("enabled", true);
+                e.clouds.volumetric = clouds->get_or("volumetric", e.clouds.volumetric);
+                e.clouds.altitude = clouds->get_or("altitude", e.clouds.altitude);
+                e.clouds.thickness = clouds->get_or("thickness", e.clouds.thickness);
+                e.clouds.coverage = std::clamp(clouds->get_or("coverage", e.clouds.coverage), 0.0f, 1.0f);
+                e.clouds.density = std::clamp(clouds->get_or("density", e.clouds.density), 0.0f, 1.0f);
+                e.clouds.scale = clouds->get_or("scale", e.clouds.scale);
+                e.clouds.softness = std::clamp(clouds->get_or("softness", e.clouds.softness), 0.0f, 1.0f);
+                if (const auto wind = clouds->get<sol::optional<sol::table>>("wind"))
+                    e.clouds.wind = {wind->get_or(1, e.clouds.wind.x), wind->get_or(2, e.clouds.wind.y)};
+            }
+            return e;
+        }
+
         dvec3 dvec3_from_table(sol::optional<sol::table> table, const dvec3 &fallback)
         {
             if (!table)
@@ -854,7 +892,57 @@ namespace sl
                 if (glm::dot(light, light) > 1e-18)
                     entry->light_direction = glm::vec3(glm::normalize(light));
             }
+            if (options)
+            {
+                const auto env = options->get<sol::optional<sol::table>>("environment");
+                if (env)
+                    entry->environment = environment_from_table(*env, entry->environment), entry->has_environment = true;
+                else if (options->get_or("clear_environment", false))
+                    entry->has_environment = false;
+            }
             request(LuaWorldDraw::terrain_view, id);
+            return true; });
+        // terrain.add_clutter(id, options): scatter trees or rocks over the terrain. Returns the species index or nil.
+        table.set_function("add_clutter", [this](const std::string &id, sol::table options) -> sol::optional<int>
+                           {
+            TerrainEntry *entry = terrain(id);
+            if (!entry)
+                return sol::nullopt;
+            ClutterSpecies species;
+            const std::string mesh = options.get_or<std::string>("mesh", "conifer");
+            const float size = options.get_or("size", mesh == "rock" ? 1.0f : 8.0f);
+            if (mesh == "rock")
+                species.mesh = make_rock_data(size, colour_from_table(options.get<sol::optional<sol::table>>("colour"), {120, 118, 112, 255}),
+                                              static_cast<std::uint32_t>(options.get_or("shape_seed", 1)));
+            else if (mesh == "conifer")
+                species.mesh = make_conifer_data(size, options.get_or("radius", size * 0.25f));
+            else
+                return sol::nullopt;
+            species.impostor = options.get_or("impostor", true);
+            species.density = std::clamp(options.get_or("density", species.density), 0.0f, 1.0f);
+            species.min_height = options.get_or("min_height", species.min_height);
+            species.max_height = options.get_or("max_height", species.max_height);
+            species.min_slope = options.get_or("min_slope", species.min_slope);
+            species.max_slope = options.get_or("max_slope", species.max_slope);
+            species.min_scale = std::max(0.01f, options.get_or("min_scale", species.min_scale));
+            species.max_scale = std::max(species.min_scale, options.get_or("max_scale", species.max_scale));
+            species.lean = options.get_or("lean", species.lean);
+            species.tint_variation = options.get_or("tint_variation", species.tint_variation);
+            species.near_distance = options.get_or("near_distance", species.near_distance);
+            species.far_distance = options.get_or("far_distance", species.far_distance);
+            species.seed = static_cast<std::uint32_t>(options.get_or("seed", static_cast<int>(entry->pending_species.size()) + 1));
+            // Built on the next draw, when a graphics context and no active surface are guaranteed.
+            entry->pending_species.push_back(std::move(species));
+            if (entry->clutter)
+                entry->clutter.reset();
+            return static_cast<int>(entry->pending_species.size()); });
+        table.set_function("clear_clutter", [this](const std::string &id)
+                           {
+            TerrainEntry *entry = terrain(id);
+            if (!entry)
+                return false;
+            entry->clutter.reset();
+            entry->pending_species.clear();
             return true; });
     }
 
@@ -985,6 +1073,15 @@ namespace sl
             view.viewport_height = entry->height;
             view.far_distance = entry->far_plane;
             entry->terrain->update(view);
+            if (!entry->pending_species.empty() && !entry->clutter)
+            {
+                // Species are baked here, outside any active surface.
+                entry->clutter = std::make_unique<ClutterLayer>(*entry->terrain);
+                for (const ClutterSpecies &species : entry->pending_species)
+                    entry->clutter->add_species(species);
+            }
+            if (entry->clutter)
+                entry->clutter->update(view);
 
             // The camera sits at the origin and the terrain is drawn relative to the eye to keep floats precise.
             Camera camera;
@@ -1000,8 +1097,27 @@ namespace sl
                 Light3D light;
                 light.direction = entry->light_direction;
                 light.ambient = entry->ambient;
+                if (entry->has_environment)
+                {
+                    Environment3D environment = entry->environment;
+                    environment.sun_direction = entry->light_direction;
+                    environment.up = glm::vec3(entry->up);
+                    environment.camera_position = entry->eye;
+                    environment.camera_altitude = static_cast<float>(entry->terrain->altitude_of(entry->eye));
+                    environment.time = time_ms() * 0.001;
+                    set_environment_3d(environment);
+                    draw_sky_3d();
+                    light.colour = atmosphere_sun_colour(environment);
+                }
+                else
+                {
+                    clear_environment_3d();
+                }
                 set_light_3d(light);
                 entry->terrain->draw(entry->eye, Material{});
+                if (entry->clutter)
+                    entry->clutter->draw(entry->eye);
+                clear_environment_3d();
                 end_surface_3d();
                 draw_sprite(surface_3d_bitmap(entry->surface), static_cast<float>(entry->x),
                             static_cast<float>(entry->y));

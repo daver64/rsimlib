@@ -220,6 +220,22 @@ terrain.view("t", 0, 0, 800, 600, {4000, 400, 6000}, {4000, 300, 0}, {far = 2000
 local ground = terrain.height_at("t", 4000, 6000)
 ```
 
+Sky, fog, clouds and scattered trees and rocks are set on the same terrain (see [world_flavour.md](world_flavour.md)):
+
+```lua
+terrain.add_clutter("t", {mesh = "conifer", size = 9, density = 0.004, max_height = 90, max_slope = 30,
+                          near_distance = 220, far_distance = 1400})   -- returns the species index; mesh "conifer" or "rock"
+terrain.clear_clutter("t")
+terrain.view("t", 0, 0, 800, 600, eye, target, {
+  light = {-0.4, -0.6, -0.5},                       -- the sun's direction of travel
+  environment = {fog_density = 1.4e-4, fog_colour = {175, 205, 235},
+                 clouds = {volumetric = true, coverage = 0.6, altitude = 2500, wind = {12, 4}},
+                 planet = false},                   -- planet = true adds scattering (planet_radius, haze_scale, sun_intensity)
+})
+```
+
+Other `environment` keys: `fog`, `fog_height_falloff`, `sky_zenith`, `sky_horizon`, `sun_diameter`, `atmosphere_height`; cloud keys `enabled`, `thickness`, `density`, `scale`, `softness`. Clutter keys: `radius`, `shape_seed`, `colour`, `impostor`, `min_height`, `min_slope`, `min_scale`, `max_scale`, `lean`, `tint_variation`, `seed`. Pass `clear_environment = true` in the view options to remove the environment.
+
 ## Lighting & Normal Maps (`lighting`)
 
 ```lua
