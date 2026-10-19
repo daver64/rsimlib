@@ -6,6 +6,10 @@ cbuffer MeshParameters : register(b0)
     // [2] x: morph end, y: fade start, z: fade end.
     float4 normal_rows[3];
     float4 light;
+    float4 light_colour;
+    float4 fog_colour;
+    float4 fog_beta;
+    float4 fog_view;
 };
 
 struct VertexInput
@@ -26,6 +30,8 @@ struct VertexOutput
     float4 tangent : TEXCOORD1;
     // x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
     float4 terrain : TEXCOORD2;
+    // View-space depth, for fog.
+    float view_depth : TEXCOORD3;
 };
 
 VertexOutput main(VertexInput input)
@@ -37,6 +43,7 @@ VertexOutput main(VertexInput input)
         float morph = smoothstep(normal_rows[1].w, normal_rows[2].x, distance(input.position, eye));
         float3 position = input.position + input.tangent.xyz * morph;
         output.position = mul(mvp, float4(position, 1.0));
+        output.view_depth = output.position.w;
         output.position.z = output.position.z * 0.5 + output.position.w * 0.5;
         output.normal = input.normal;
         output.color = input.color;
@@ -48,6 +55,7 @@ VertexOutput main(VertexInput input)
         return output;
     }
     output.position = mul(mvp, float4(input.position, 1.0));
+    output.view_depth = output.position.w;
     output.position.z = output.position.z * 0.5 + output.position.w * 0.5;
     output.normal = float3(dot(normal_rows[0].xyz, input.normal),
                            dot(normal_rows[1].xyz, input.normal),

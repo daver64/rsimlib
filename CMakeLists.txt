@@ -49,6 +49,8 @@ if(SIMLIB_VALIDATE_SHADERS)
             ex3d.frag
             mesh3d.vert
             mesh3d.frag
+            sky.vert
+            sky.frag
             lighting.frag
             light_cull.comp
         )
@@ -87,7 +89,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag vulkan_mesh3d.vert vulkan_mesh3d.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag vulkan_mesh3d.vert vulkan_mesh3d.frag vulkan_sky.vert vulkan_sky.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -283,6 +285,9 @@ add_library(simlib STATIC
     src/engine/particles.cpp
     src/engine/physics.cpp
     src/engine/flight.cpp
+    src/engine/atmosphere.cpp
+    src/engine/clutter.cpp
+    src/engine/clutter_layer.cpp
     src/engine/terrain.cpp
     src/engine/terrain_sources.cpp
     src/engine/renderer.cpp
@@ -669,6 +674,11 @@ if(BUILD_TESTING)
     target_compile_definitions(terrain_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME terrain COMMAND terrain_test)
 
+    add_executable(world_flavour_test tests/world_flavour_test.cpp)
+    target_link_libraries(world_flavour_test PRIVATE simlib)
+    target_compile_definitions(world_flavour_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME world_flavour COMMAND world_flavour_test)
+
     add_executable(renderer_test tests/renderer_test.cpp)
     target_link_libraries(renderer_test PRIVATE simlib)
     target_compile_definitions(renderer_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -695,7 +705,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test fluid3d_test flight_test terrain_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)

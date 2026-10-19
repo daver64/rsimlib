@@ -79,6 +79,13 @@ namespace sl
          */
         Bitmap *normal_map = nullptr;
         CullMode cull = CullMode::back;
+        /** Apply the environment's fog and haze (see set_environment_3d()). Turn off for sky domes and emissive effects. */
+        bool fog = true;
+        /**
+         * Discard pixels whose texture alpha (times the vertex alpha) is below this, 0-1; 0 draws everything.
+         * Gives hard-edged cut-outs for foliage cards and impostors without sorting. Not applied to terrain.
+         */
+        float alpha_cutoff = 0.0f;
         TerrainShading terrain;
     };
 
@@ -89,6 +96,8 @@ namespace sl
         glm::vec3 direction{-0.4f, -1.0f, -0.6f};
         /** Minimum brightness of lit surfaces, 0-1. */
         float ambient = 0.25f;
+        /** Colour of the directional light; atmosphere_sun_colour() gives a sunset-aware value. */
+        glm::vec3 colour{1.0f, 1.0f, 1.0f};
     };
 
     /**
@@ -121,6 +130,8 @@ namespace sl
     void clear_surface_3d(Colour colour);
     /** Set the light used by lit materials on subsequent draws. */
     void set_light_3d(const Light3D &light);
+    /** The light most recently passed to set_light_3d(). */
+    Light3D get_light_3d();
 
     /** Create a mesh from indexed triangles; returns nullptr on failure. */
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices);

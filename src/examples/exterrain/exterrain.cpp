@@ -128,10 +128,44 @@ int main(int argc, char **argv)
     sl::Bitmap *atlas = make_layer_atlas();
     sl::Bitmap *normal_atlas = atlas ? make_normal_atlas(atlas) : nullptr;
     bool use_normals = true;
+    bool use_atmosphere = true;
+    bool use_clouds = true;
+    double sun_elevation = 0.8;
     int seed = 7;
+    bool use_clutter = true;
     std::unique_ptr<sl::Terrain> terrain;
+    std::unique_ptr<sl::ClutterLayer> clutter;
+    auto build_clutter = [&]()
+    {
+        clutter = std::make_unique<sl::ClutterLayer>(*terrain);
+        const double tree_line = planet ? 1800.0 : 90.0;
+        sl::ClutterSpecies trees;
+        trees.mesh = sl::make_conifer_data(9.0f, 2.2f);
+        trees.density = 0.004f;
+        trees.max_height = static_cast<float>(tree_line);
+        trees.max_slope = 30.0f;
+        trees.min_scale = 0.7f;
+        trees.max_scale = 1.4f;
+        trees.near_distance = 220.0f;
+        trees.far_distance = 1400.0f;
+        trees.suitability = [tree_line](const sl::TerrainSample &s)
+        { return static_cast<float>(std::clamp(1.0 - s.height / tree_line, 0.1, 1.0)); };
+        clutter->add_species(trees);
+        sl::ClutterSpecies rocks;
+        rocks.mesh = sl::make_rock_data(1.0f, {118, 114, 108, 255}, 5);
+        rocks.density = 0.0015f;
+        rocks.max_slope = 55.0f;
+        rocks.min_scale = 0.5f;
+        rocks.max_scale = 2.2f;
+        rocks.lean = 0.5f;
+        rocks.near_distance = 120.0f;
+        rocks.far_distance = 500.0f;
+        rocks.seed = 2;
+        clutter->add_species(rocks);
+    };
     auto build = [&]()
     {
+        clutter.reset();
         sl::NoiseParameters noise;
         noise.seed = seed;
         sl::TerrainConfig config;
@@ -155,6 +189,7 @@ int main(int argc, char **argv)
         }
         terrain = std::make_unique<sl::Terrain>(config, std::make_shared<sl::NoiseSource>(noise));
         terrain->set_layer_atlas(atlas, 150.0, 700.0, use_normals ? normal_atlas : nullptr);
+        build_clutter();
     };
     build();
 
@@ -191,6 +226,12 @@ int main(int argc, char **argv)
                     use_normals = !use_normals;
                     build();
                 }
+                else if (key == sl::Event::Key::letter_h)
+                    use_atmosphere = !use_atmosphere;
+                else if (key == sl::Event::Key::letter_k)
+                    use_clouds = !use_clouds;
+                else if (key == sl::Event::Key::letter_t)
+                    use_clutter = !use_clutter;
                 else if (key == sl::Event::Key::digit_1)
                     speed = 20.0;
                 else if (key == sl::Event::Key::digit_2)
@@ -248,6 +289,8 @@ int main(int argc, char **argv)
         view.viewport_height = screen_h;
         view.far_distance = planet ? 3.0e6 : 30000.0;
         terrain->update(view);
+        if (use_clutter)
+            clutter->update(view);
 
         // The camera sits at the origin and the terrain is drawn relative to the eye, so floats stay precise.
         sl::Camera camera;
@@ -258,15 +301,52 @@ int main(int argc, char **argv)
         camera.near_plane = 0.5f;
         camera.far_plane = static_cast<float>(view.far_distance);
 
+        if (sl::key_down(sl::Key::letter_z))
+            sun_elevation = std::max(sun_elevation - dt * 0.4, -0.3);
+        if (sl::key_down(sl::Key::letter_x))
+            sun_elevation = std::min(sun_elevation + dt * 0.4, 1.5);
+        const sl::dvec3 to_sun = glm::normalize(std::cos(sun_elevation) * glm::normalize(north * 0.8 + east * 0.5) +
+                                                std::sin(sun_elevation) * up);
+
+        sl::Environment3D environment;
+        environment.sun_direction = glm::vec3(-to_sun);
+        environment.up = glm::vec3(up);
+        environment.camera_altitude = static_cast<float>(altitude);
+        environment.camera_position = position;
+        environment.time = now * 0.001;
+        environment.planet = planet;
+        environment.fog_enabled = use_atmosphere;
+        environment.fog_density = 1.4e-4f;
+        if (planet)
+        {
+            environment.sun_intensity = 20.0f;
+            environment.haze_scale = 0.35f;
+            environment.clouds.altitude = 4500.0f;
+        }
+        environment.clouds.enabled = use_atmosphere && use_clouds;
+
         if (sl::begin_surface_3d(surface, camera))
         {
             sl::clear_surface_3d({150, 185, 230, 255});
             sl::Light3D light;
-            light.direction = glm::normalize(glm::vec3(-0.5f, -0.8f, -0.3f));
+            light.direction = environment.sun_direction;
             light.ambient = 0.3f;
+            if (use_atmosphere)
+            {
+                sl::set_environment_3d(environment);
+                sl::draw_sky_3d();
+                light.colour = sl::atmosphere_sun_colour(environment);
+                light.ambient = 0.12f + 0.2f * std::clamp(static_cast<float>(std::sin(sun_elevation)) * 2.0f + 0.5f, 0.0f, 1.0f);
+            }
+            else
+            {
+                sl::clear_environment_3d();
+            }
             sl::set_light_3d(light);
             sl::Material material;
             terrain->draw(position, material);
+            if (use_clutter)
+                clutter->draw(position);
             sl::end_surface_3d();
         }
         sl::clear_to_colour(sl::screen, {150, 185, 230});
@@ -278,13 +358,20 @@ int main(int argc, char **argv)
                     terrain->max_level());
         sl::gprintf(12, 28, {20, 20, 20}, "Altitude %.1f m   Speed %.0f m/s   Resident %d   Loading %d",
                     terrain->altitude_of(position), speed * boost, stats.resident_chunks, stats.pending_chunks);
+        if (use_clutter)
+        {
+            const sl::ClutterStats cs = clutter->stats();
+            sl::gprintf(12, 46, {20, 20, 20}, "Trees/rocks: %d objects, %d billboards, %d draws, %d cells", cs.drawn_objects,
+                        cs.drawn_billboards, cs.drawn_meshes, cs.cached_cells);
+        }
         sl::gprintf_center(screen_h - 22, {20, 20, 20},
-                           "[WASD] Move  [Space/C] Up/Down  [Shift] Fast  [1-4] Speed  [R-drag] Look  [R] New seed  [N] Normal maps");
+                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  T trees  Z/X sun");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
 
+    clutter.reset();
     terrain.reset();
     sl::destroy_bitmap(atlas);
     sl::destroy_bitmap(normal_atlas);

@@ -14,6 +14,8 @@ layout(location = 2) out vec2 vUv;
 layout(location = 3) out vec4 vTangent;
 // x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
 layout(location = 4) out vec4 vTerrain;
+// View-space depth, for fog.
+layout(location = 5) out float vViewDepth;
 void main()
 {
     if (transform.normalRows[0].w < 0.0)
@@ -22,6 +24,7 @@ void main()
         float morph = smoothstep(transform.normalRows[1].w, transform.normalRows[2].x, distance(aPosition, eye));
         vec3 position = aPosition + aTangent.xyz * morph;
         gl_Position = transform.mvp * vec4(position, 1.0);
+        vViewDepth = gl_Position.w;
         vNormal = aNormal;
         vTangent = vec4(aPosition, 1.0);
         vColour = aColour;
@@ -32,6 +35,7 @@ void main()
         return;
     }
     gl_Position = transform.mvp * vec4(aPosition, 1.0);
+    vViewDepth = gl_Position.w;
     vNormal = vec3(dot(transform.normalRows[0].xyz, aNormal),
                    dot(transform.normalRows[1].xyz, aNormal),
                    dot(transform.normalRows[2].xyz, aNormal));

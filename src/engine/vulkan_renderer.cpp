@@ -165,6 +165,7 @@ namespace sl::detail
                 }
                 meshes_.clear();
                 destroy_mesh_pipelines();
+                destroy_sky_pipelines();
                 if (mesh_pipeline_ready_)
                 {
                     context_.destroy_shader_module(mesh_vertex_module_);
@@ -567,10 +568,24 @@ namespace sl::detail
                 for (int column = 0; column < 4; ++column)
                     adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
                 const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
+                // light_colour, fog_colour, fog_beta, fog_view: the std140 layout of the fragment Environment block.
+                float environment[16];
+                std::memcpy(environment, params.light_colour, sizeof(float) * 4);
+                std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
+                std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
+                std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
-                                                 last_error_);
+                                                 environment, last_error_);
+            }
+            bool draw_sky(const SkyDrawParams &params) override
+            {
+                const VulkanGraphicsPipeline *pipeline = ensure_sky_pipeline(current_target_samples());
+                if (!pipeline)
+                    return false;
+                flush_2d();
+                return context_.record_sky_draw(pipeline->pipeline, pipeline->layout, &params.data[0][0], last_error_);
             }
             void destroy_render_target(std::uint32_t texture, std::uint32_t framebuffer) override
             {
@@ -2490,6 +2505,48 @@ namespace sl::detail
                     }
                 }
                 return &(mesh_pipelines_[samples] = set);
+            }
+            std::map<int, VulkanGraphicsPipeline> sky_pipelines_; // Keyed by sample count.
+            VulkanShaderModule sky_vertex_module_;
+            VulkanShaderModule sky_fragment_module_;
+            bool sky_modules_ready_ = false;
+            void destroy_sky_pipelines()
+            {
+                for (auto &[samples, pipeline] : sky_pipelines_)
+                    context_.destroy_graphics_pipeline(pipeline);
+                sky_pipelines_.clear();
+                if (sky_modules_ready_)
+                {
+                    context_.destroy_shader_module(sky_vertex_module_);
+                    context_.destroy_shader_module(sky_fragment_module_);
+                    sky_modules_ready_ = false;
+                }
+            }
+            const VulkanGraphicsPipeline *ensure_sky_pipeline(int samples)
+            {
+                if (!sky_modules_ready_)
+                {
+                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_sky.vert.spv"))
+                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_sky.vert.spv", sky_vertex_module_, last_error_) ||
+                        !context_.load_shader_module(shader_dir / "vulkan/vulkan_sky.frag.spv", sky_fragment_module_, last_error_))
+                    {
+                        context_.destroy_shader_module(sky_vertex_module_);
+                        context_.destroy_shader_module(sky_fragment_module_);
+                        return nullptr;
+                    }
+                    sky_modules_ready_ = true;
+                }
+                const auto existing = sky_pipelines_.find(samples);
+                if (existing != sky_pipelines_.end())
+                    return &existing->second;
+                VulkanGraphicsPipeline pipeline;
+                if (!context_.create_graphics_pipeline(sky_vertex_module_, sky_fragment_module_, descriptor_layout_,
+                                                       PrimitiveType::triangles, pipeline, last_error_, nullptr, 0,
+                                                       true, false, false, false, VK_CULL_MODE_NONE, samples, true))
+                    return nullptr;
+                return &(sky_pipelines_[samples] = pipeline);
             }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::vector<VulkanTexture> retired_textures_;

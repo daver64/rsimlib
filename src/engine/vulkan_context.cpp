@@ -505,6 +505,8 @@ namespace sl::detail
         for (VulkanBuffer &buffer : upload_staging_buffers_)
             destroy_buffer(buffer);
         upload_staging_buffers_.clear();
+        environment_next_ = 0;
+        environment_last_bytes_ = 0;
         VkResult acquire = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_, VK_NULL_HANDLE, &current_image_);
         if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
         {
@@ -941,11 +943,13 @@ namespace sl::detail
                                          VkBuffer vertex_buffer, VkBuffer index_buffer,
                                          std::uint32_t index_count, VkDescriptorSet texture_descriptor,
                                          VkDescriptorSet normal_descriptor, const float *vertex_constants,
-                                         const float *fragment_constants, std::string &error)
+                                         const float *fragment_constants, const float *environment,
+                                         std::string &error)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
-            texture_descriptor == VK_NULL_HANDLE || normal_descriptor == VK_NULL_HANDLE || !vertex_constants || !fragment_constants || index_count == 0)
+            texture_descriptor == VK_NULL_HANDLE || normal_descriptor == VK_NULL_HANDLE || !vertex_constants ||
+            !fragment_constants || !environment || index_count == 0)
         {
             error = "Invalid Vulkan mesh draw state.";
             return false;
@@ -958,9 +962,13 @@ namespace sl::detail
         vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        const VkDescriptorSet mesh_descriptors[2] = {texture_descriptor, normal_descriptor};
-        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 2,
-                                mesh_descriptors, 0, nullptr);
+        std::uint32_t environment_offset = 0;
+        if (!ensure_environment_block(error) ||
+            !write_environment(environment, sizeof(float) * 16, environment_offset, error))
+            return false;
+        const VkDescriptorSet mesh_descriptors[3] = {texture_descriptor, normal_descriptor, environment_set_};
+        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 3,
+                                mesh_descriptors, 1, &environment_offset);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(float) * 28, vertex_constants);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
@@ -969,6 +977,130 @@ namespace sl::detail
         vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
         vkCmdBindIndexBuffer(command_buffer_, index_buffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(command_buffer_, index_count, 1, 0, 0, 0);
+        return true;
+    }
+
+    bool VulkanContext::record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
+                                        std::string &error)
+    {
+        if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
+            layout == VK_NULL_HANDLE || !sky_rows)
+        {
+            error = "Invalid Vulkan sky draw state.";
+            return false;
+        }
+        std::uint32_t environment_offset = 0;
+        if (!ensure_environment_block(error) ||
+            !write_environment(sky_rows, sizeof(float) * 56, environment_offset, error))
+            return false;
+        VkViewport viewport{0.0f, static_cast<float>(active_extent_.height),
+                            static_cast<float>(active_extent_.width),
+                            -static_cast<float>(active_extent_.height), 0.0f, 1.0f};
+        VkRect2D scissor{{0, 0}, active_extent_};
+        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1,
+                                &environment_set_, 1, &environment_offset);
+        vkCmdDraw(command_buffer_, 3, 1, 0, 0);
+        return true;
+    }
+
+    bool VulkanContext::ensure_environment_block(std::string &error)
+    {
+        if (environment_set_ != VK_NULL_HANDLE)
+            return true;
+        if (!is_valid())
+        {
+            error = "Invalid Vulkan environment block request.";
+            return false;
+        }
+        const VkDescriptorSetLayoutBinding binding{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1,
+                                                   VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+        VkDescriptorSetLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        layout_info.bindingCount = 1;
+        layout_info.pBindings = &binding;
+        const VkDescriptorPoolSize pool_size{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1};
+        VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pool_info.maxSets = 1;
+        pool_info.poolSizeCount = 1;
+        pool_info.pPoolSizes = &pool_size;
+        if (vkCreateDescriptorSetLayout(device_, &layout_info, nullptr, &environment_layout_) != VK_SUCCESS ||
+            vkCreateDescriptorPool(device_, &pool_info, nullptr, &environment_pool_) != VK_SUCCESS ||
+            !create_buffer(environment_slot_size * environment_slot_count, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                           environment_buffer_, error))
+        {
+            if (error.empty())
+                error = "Unable to create the Vulkan environment block.";
+            destroy_environment_block();
+            return false;
+        }
+        void *mapped = nullptr;
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorPool = environment_pool_;
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &environment_layout_;
+        if (vkAllocateDescriptorSets(device_, &allocation, &environment_set_) != VK_SUCCESS ||
+            vkMapMemory(device_, environment_buffer_.memory, 0, VK_WHOLE_SIZE, 0, &mapped) != VK_SUCCESS)
+        {
+            error = "Unable to create the Vulkan environment block.";
+            destroy_environment_block();
+            return false;
+        }
+        environment_mapped_ = static_cast<std::uint8_t *>(mapped);
+        // Each draw sees one 256-byte slot; the largest block (the sky rows) is 224 bytes.
+        const VkDescriptorBufferInfo buffer_info{environment_buffer_.buffer, 0, environment_slot_size};
+        VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        write.dstSet = environment_set_;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write.pBufferInfo = &buffer_info;
+        vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
+        return true;
+    }
+
+    void VulkanContext::destroy_environment_block()
+    {
+        if (device_ == VK_NULL_HANDLE)
+            return;
+        if (environment_mapped_)
+            vkUnmapMemory(device_, environment_buffer_.memory);
+        environment_mapped_ = nullptr;
+        destroy_buffer(environment_buffer_);
+        if (environment_pool_ != VK_NULL_HANDLE)
+            vkDestroyDescriptorPool(device_, environment_pool_, nullptr);
+        if (environment_layout_ != VK_NULL_HANDLE)
+            vkDestroyDescriptorSetLayout(device_, environment_layout_, nullptr);
+        environment_pool_ = VK_NULL_HANDLE;
+        environment_layout_ = VK_NULL_HANDLE;
+        environment_set_ = VK_NULL_HANDLE;
+    }
+
+    bool VulkanContext::write_environment(const void *data, std::size_t bytes, std::uint32_t &dynamic_offset,
+                                          std::string &error)
+    {
+        if (bytes > environment_slot_size)
+        {
+            error = "Vulkan environment block is too large.";
+            return false;
+        }
+        // Consecutive draws usually share the same environment, so reuse the previous slot when it matches.
+        if (environment_next_ > 0 && environment_last_bytes_ == bytes &&
+            std::memcmp(environment_mapped_ + (environment_next_ - 1) * environment_slot_size, data, bytes) == 0)
+        {
+            dynamic_offset = static_cast<std::uint32_t>((environment_next_ - 1) * environment_slot_size);
+            return true;
+        }
+        if (environment_next_ >= environment_slot_count)
+        {
+            error = "Vulkan environment block is full for this frame.";
+            return false;
+        }
+        dynamic_offset = static_cast<std::uint32_t>(environment_next_ * environment_slot_size);
+        std::memcpy(environment_mapped_ + dynamic_offset, data, bytes);
+        environment_last_bytes_ = bytes;
+        ++environment_next_;
         return true;
     }
 
@@ -2309,25 +2441,43 @@ namespace sl::detail
                                                  bool additive_blend,
                                                  bool mesh_vertices,
                                                  VkCullModeFlags cull_mode,
-                                                 int samples)
+                                                 int samples,
+                                                 bool sky)
     {
         result = {};
-        if (mesh_vertices)
+        if (mesh_vertices || sky)
             three_dimensional = true;
         if (vertex.module == VK_NULL_HANDLE || fragment.module == VK_NULL_HANDLE)
         {
             error = "Invalid Vulkan graphics pipeline inputs.";
             return false;
         }
-        if (three_dimensional)
+        if (mesh_vertices || sky)
+        {
+            if (!ensure_environment_block(error))
+                return false;
+        }
+        if (sky)
+        {
+            VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+            layout_info.setLayoutCount = 1;
+            layout_info.pSetLayouts = &environment_layout_;
+            if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)
+            {
+                error = "Unable to create Vulkan sky pipeline layout.";
+                return false;
+            }
+        }
+        else if (three_dimensional)
         {
             const VkPushConstantRange ranges[] = {
                 {VK_SHADER_STAGE_VERTEX_BIT, 0, static_cast<std::uint32_t>(mesh_vertices ? sizeof(float) * 28 : sizeof(float) * 16)},
                 {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28, sizeof(float) * 4}};
             VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-            // Meshes sample a second texture (the normal map) from descriptor set 1.
-            const VkDescriptorSetLayout mesh_layouts[2] = {descriptor_layout.layout, descriptor_layout.layout};
-            layout_info.setLayoutCount = mesh_vertices ? 2u : 1u;
+            // Meshes sample a second texture (the normal map) from set 1 and read the environment from set 2.
+            const VkDescriptorSetLayout mesh_layouts[3] = {descriptor_layout.layout, descriptor_layout.layout,
+                                                           environment_layout_};
+            layout_info.setLayoutCount = mesh_vertices ? 3u : 1u;
             layout_info.pSetLayouts = mesh_vertices ? mesh_layouts : &descriptor_layout.layout;
             layout_info.pushConstantRangeCount = mesh_vertices ? 2u : 1u;
             layout_info.pPushConstantRanges = ranges;
@@ -2388,9 +2538,9 @@ namespace sl::detail
             attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, colour))};
         }
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
-        vertex_input.vertexBindingDescriptionCount = 1;
+        vertex_input.vertexBindingDescriptionCount = sky ? 0u : 1u;
         vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = mesh_vertices ? 5u : three_dimensional ? 2u : 3u;
+        vertex_input.vertexAttributeDescriptionCount = sky ? 0u : mesh_vertices ? 5u : three_dimensional ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)
@@ -2438,8 +2588,9 @@ namespace sl::detail
         blending.pAttachments = &blend_attachment;
         VkPipelineDepthStencilStateCreateInfo depth{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
         depth.depthTestEnable = three_dimensional ? VK_TRUE : VK_FALSE;
-        depth.depthWriteEnable = three_dimensional ? VK_TRUE : VK_FALSE;
-        depth.depthCompareOp = VK_COMPARE_OP_LESS;
+        depth.depthWriteEnable = three_dimensional && !sky ? VK_TRUE : VK_FALSE;
+        // The sky sits exactly on the far plane, so it must pass at equal depth.
+        depth.depthCompareOp = sky ? VK_COMPARE_OP_LESS_OR_EQUAL : VK_COMPARE_OP_LESS;
         const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
         VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
         dynamic.dynamicStateCount = 2;
@@ -2613,6 +2764,7 @@ namespace sl::detail
         if (device_ != VK_NULL_HANDLE)
         {
             vkDeviceWaitIdle(device_);
+            destroy_environment_block();
             vkDestroyDevice(device_, nullptr);
             device_ = VK_NULL_HANDLE;
         }

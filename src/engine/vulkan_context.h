@@ -119,7 +119,10 @@ namespace sl::detail
                               VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
                               VkDescriptorSet texture_descriptor, VkDescriptorSet normal_descriptor,
                               const float *vertex_constants, const float *fragment_constants,
-                              std::string &error);
+                              const float *environment, std::string &error);
+        /** Fullscreen sky draw; sky_rows: 14 vec4 rows read from the per-draw environment block. */
+        bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
+                             std::string &error);
         bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                   VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
@@ -234,7 +237,8 @@ namespace sl::detail
                                       bool additive_blend = false,
                                       bool mesh_vertices = false,
                                       VkCullModeFlags cull_mode = VK_CULL_MODE_NONE,
-                                      int samples = 1);
+                                      int samples = 1,
+                                      bool sky = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -313,6 +317,21 @@ namespace sl::detail
         std::vector<RenderPassState> render_pass_stack_;
         int active_samples_ = 1;
         bool frame_active_ = false;
+        // Per-draw environment (light colour, fog, sky rows) lives in a host-visible uniform buffer bound with a
+        // dynamic offset as the last descriptor set of mesh and sky pipelines. The single frame fence makes
+        // reusing the buffer from the start of every frame safe.
+        static constexpr VkDeviceSize environment_slot_size = 256;
+        static constexpr std::uint32_t environment_slot_count = 1024;
+        bool ensure_environment_block(std::string &error);
+        void destroy_environment_block();
+        bool write_environment(const void *data, std::size_t bytes, std::uint32_t &dynamic_offset, std::string &error);
+        VkDescriptorSetLayout environment_layout_ = VK_NULL_HANDLE;
+        VkDescriptorPool environment_pool_ = VK_NULL_HANDLE;
+        VkDescriptorSet environment_set_ = VK_NULL_HANDLE;
+        VulkanBuffer environment_buffer_;
+        std::uint8_t *environment_mapped_ = nullptr;
+        std::uint32_t environment_next_ = 0;
+        std::size_t environment_last_bytes_ = 0;
         bool image_available_consumed_ = false;
         bool command_buffer_recording_ = false;
         bool render_pass_active_ = false;

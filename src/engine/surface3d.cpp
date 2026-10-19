@@ -1,5 +1,6 @@
 #include "surface3d.h"
 
+#include "atmosphere_internal.h"
 #include "error.h"
 #include "renderer.h"
 
@@ -16,6 +17,7 @@ namespace sl
         {
             Surface3D *surface = nullptr;
             glm::mat4 view_projection{1.0f};
+            Camera camera;
         };
 
         ActiveSurface active;
@@ -174,6 +176,7 @@ namespace sl
             return false;
         const float aspect = static_cast<float>(surface->bitmap->width) / static_cast<float>(surface->bitmap->height);
         active.surface = surface;
+        active.camera = camera;
         active.view_projection = camera.projection_matrix(aspect) * camera.view_matrix();
         return true;
     }
@@ -199,6 +202,24 @@ namespace sl
     {
         current_light = light;
     }
+
+    Light3D get_light_3d()
+    {
+        return current_light;
+    }
+
+    namespace detail
+    {
+        bool active_camera_info(ActiveCameraInfo &info)
+        {
+            if (!active.surface || !active.surface->bitmap)
+                return false;
+            info.camera = active.camera;
+            info.width = active.surface->bitmap->width;
+            info.height = active.surface->bitmap->height;
+            return true;
+        }
+    } // namespace detail
 
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices)
     {
@@ -389,11 +410,16 @@ namespace sl
             params.light[1] = to_light.y;
             params.light[2] = to_light.z;
             params.light[3] = current_light.ambient;
+            params.light_colour[0] = current_light.colour.r;
+            params.light_colour[1] = current_light.colour.g;
+            params.light_colour[2] = current_light.colour.b;
         }
         else
         {
             params.light[3] = 1.0f;
         }
+        params.light_colour[3] = material.alpha_cutoff;
+        detail::apply_environment(params, material.fog);
         if (!renderer->draw_mesh(mesh->handle, params))
         {
             detail::set_error("Unable to draw mesh on the active graphics backend");

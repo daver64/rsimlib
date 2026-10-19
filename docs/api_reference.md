@@ -1107,6 +1107,26 @@ double h = terrain.height_at(x, z);
 
 ---
 
+## Atmosphere & Clutter ([include/atmosphere.h](../include/atmosphere.h), [include/clutter.h](../include/clutter.h))
+
+Sky, fog, scattering, clouds and terrain-aware scattered objects. See [World Flavour](world_flavour.md) for the full guide.
+
+```cpp
+sl::set_environment_3d(env);                 // after begin_surface_3d(): fog, haze, clouds
+sl::draw_sky_3d();
+sl::ClutterLayer clutter(terrain);
+clutter.add_species(trees);                  // mesh, density, slope/height rules, LOD distances
+clutter.update(view);                        // outside begin_surface_3d
+clutter.draw(origin);
+```
+
+- `Environment3D`: gradient sky and exponential fog for flat worlds, Rayleigh/Mie scattering for planets, a 2D cloud layer.
+- `atmosphere_sun_colour`, `atmosphere_sky_colour`, `atmosphere_transmittance`: CPU mirrors of the shader maths.
+- `bake_instances`, `bake_impostor`, `bake_billboards`: merge copies of a mesh, or render view-dependent billboards.
+- `Material::alpha_cutoff` and `Material::fog` control cut-outs and fog per material.
+
+---
+
 ## Atlases & Animated Sprites ([include/atlas.h](../include/atlas.h), [include/animated_sprite.h](../include/animated_sprite.h))
 
 - `create_atlas(bitmap, tile_w, tile_h, spacing = 0, margin = 0)` / `load_atlas_from_file(path, tile_w, tile_h)`: slice a sprite sheet into numbered tiles. `atlas_tile_rect` returns a tile's pixel rectangle.

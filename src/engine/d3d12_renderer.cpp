@@ -457,6 +457,21 @@ namespace sl::detail
                 if (mesh_root_signature_)
                     mesh_root_signature_->Release();
                 mesh_root_signature_ = nullptr;
+                for (ID3D12PipelineState *&pipeline : sky_pipelines_)
+                {
+                    if (pipeline)
+                        pipeline->Release();
+                    pipeline = nullptr;
+                }
+                if (sky_root_signature_)
+                    sky_root_signature_->Release();
+                sky_root_signature_ = nullptr;
+                if (sky_vertex_blob_)
+                    sky_vertex_blob_->Release();
+                if (sky_pixel_blob_)
+                    sky_pixel_blob_->Release();
+                sky_vertex_blob_ = nullptr;
+                sky_pixel_blob_ = nullptr;
                 if (mesh_vertex_blob_)
                     mesh_vertex_blob_->Release();
                 if (mesh_pixel_blob_)
@@ -1113,11 +1128,16 @@ namespace sl::detail
                 if (normal_map == textures_.end())
                     return false;
 
-                std::array<float, 32> constants{};
+                std::array<float, 48> constants{};
                 std::copy(std::begin(params.mvp), std::end(params.mvp), constants.begin());
                 std::copy(&params.normal_rows[0][0], &params.normal_rows[0][0] + 12,
                           constants.begin() + 16);
                 std::copy(std::begin(params.light), std::end(params.light), constants.begin() + 28);
+                // Matches the cbuffer after `light`: light_colour, fog_colour, fog_beta, fog_view.
+                std::copy(std::begin(params.light_colour), std::end(params.light_colour), constants.begin() + 32);
+                std::copy(std::begin(params.fog_colour), std::end(params.fog_colour), constants.begin() + 36);
+                std::copy(std::begin(params.fog_beta), std::end(params.fog_beta), constants.begin() + 40);
+                std::copy(std::begin(params.fog_view), std::end(params.fog_view), constants.begin() + 44);
 
                 ID3D12GraphicsCommandList *commands = context_.command_list();
                 ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
@@ -1142,6 +1162,25 @@ namespace sl::detail
                 commands->IASetVertexBuffers(0, 1, &mesh->second.vertex_view);
                 commands->IASetIndexBuffer(&mesh->second.index_view);
                 commands->DrawIndexedInstanced(mesh->second.index_count, 1, 0, 0, 0);
+                return true;
+            }
+            bool draw_sky(const SkyDrawParams &params) override
+            {
+                if (active_render_target_ == 0 || !initialise_2d() || !initialise_sky_pipeline() || !ensure_frame())
+                    return false;
+                const auto target = render_targets_.find(active_render_target_);
+                if (target == render_targets_.end() || !target->second.depth)
+                    return false;
+                ID3D12PipelineState *pipeline = get_sky_pipeline(target->second.samples);
+                if (!pipeline)
+                    return false;
+                flush_2d();
+                ID3D12GraphicsCommandList *commands = context_.command_list();
+                commands->SetGraphicsRootSignature(sky_root_signature_);
+                commands->SetGraphicsRoot32BitConstants(0, SkyDrawParams::rows * 4, &params.data[0][0], 0);
+                commands->SetPipelineState(pipeline);
+                commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                commands->DrawInstanced(3, 1, 0, 0);
                 return true;
             }
             bool clear_3d(float red, float green, float blue, float alpha) override
@@ -1992,7 +2031,8 @@ namespace sl::detail
                 D3D12_ROOT_PARAMETER parameters[5]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
-                parameters[0].Constants.Num32BitValues = 32;
+                // 32 mesh constants plus 16 for the environment; with the four tables this is 52 of 64 DWORDs.
+                parameters[0].Constants.Num32BitValues = 48;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
                 for (UINT index = 0; index < 4; ++index)
                 {
@@ -2081,6 +2121,100 @@ namespace sl::detail
                 {
                     slot = nullptr;
                     last_error_ = "Unable to create the D3D12 mesh pipeline state.";
+                }
+                return slot;
+            }
+
+            bool initialise_sky_pipeline()
+            {
+                if (sky_root_signature_)
+                    return true;
+                const std::string vertex_source = load_shader("sky.vert.hlsl");
+                const std::string pixel_source = load_shader("sky.frag.hlsl");
+                if (vertex_source.empty() || pixel_source.empty())
+                {
+                    last_error_ = "Unable to load the D3D12 sky shaders.";
+                    return false;
+                }
+                ID3DBlob *vertex_blob = nullptr;
+                ID3DBlob *pixel_blob = nullptr;
+                if (!compile_shader(vertex_source, "main", "vs_5_0", &vertex_blob, last_error_) ||
+                    !compile_shader(pixel_source, "main", "ps_5_0", &pixel_blob, last_error_))
+                {
+                    if (vertex_blob)
+                        vertex_blob->Release();
+                    if (pixel_blob)
+                        pixel_blob->Release();
+                    return false;
+                }
+                // The 14 sky rows are the only root parameter (56 DWORDs).
+                D3D12_ROOT_PARAMETER parameter{};
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+                parameter.Constants.ShaderRegister = 0;
+                parameter.Constants.Num32BitValues = SkyDrawParams::rows * 4;
+                parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                D3D12_ROOT_SIGNATURE_DESC signature_desc{};
+                signature_desc.NumParameters = 1;
+                signature_desc.pParameters = &parameter;
+                ID3DBlob *serialized = nullptr;
+                ID3DBlob *messages = nullptr;
+                HRESULT result = D3D12SerializeRootSignature(&signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                                             &serialized, &messages);
+                if (FAILED(result))
+                {
+                    last_error_ = messages ? static_cast<const char *>(messages->GetBufferPointer())
+                                           : "Unable to serialize the D3D12 sky root signature.";
+                    if (messages)
+                        messages->Release();
+                    vertex_blob->Release();
+                    pixel_blob->Release();
+                    return false;
+                }
+                if (messages)
+                    messages->Release();
+                result = context_.device()->CreateRootSignature(
+                    0, serialized->GetBufferPointer(), serialized->GetBufferSize(),
+                    IID_PPV_ARGS(&sky_root_signature_));
+                serialized->Release();
+                if (FAILED(result))
+                {
+                    vertex_blob->Release();
+                    pixel_blob->Release();
+                    last_error_ = "Unable to create the D3D12 sky root signature.";
+                    return false;
+                }
+                sky_vertex_blob_ = vertex_blob;
+                sky_pixel_blob_ = pixel_blob;
+                return true;
+            }
+
+            ID3D12PipelineState *get_sky_pipeline(int samples)
+            {
+                ID3D12PipelineState *&slot = sky_pipelines_[sample_slot(samples)];
+                if (slot)
+                    return slot;
+                D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
+                pipeline_desc.pRootSignature = sky_root_signature_;
+                pipeline_desc.VS = {sky_vertex_blob_->GetBufferPointer(), sky_vertex_blob_->GetBufferSize()};
+                pipeline_desc.PS = {sky_pixel_blob_->GetBufferPointer(), sky_pixel_blob_->GetBufferSize()};
+                pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+                pipeline_desc.SampleMask = UINT_MAX;
+                pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+                pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+                pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+                // The sky sits exactly on the far plane: pass at equal depth and never write it.
+                pipeline_desc.DepthStencilState.DepthEnable = TRUE;
+                pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+                pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+                pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+                pipeline_desc.NumRenderTargets = 1;
+                pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+                pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+                pipeline_desc.SampleDesc.Count = static_cast<UINT>(samples);
+                if (FAILED(context_.device()->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&slot))))
+                {
+                    slot = nullptr;
+                    last_error_ = "Unable to create the D3D12 sky pipeline state.";
                 }
                 return slot;
             }
@@ -2997,6 +3131,10 @@ namespace sl::detail
             std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_pipelines_{};
             ID3DBlob *mesh_vertex_blob_ = nullptr;
             ID3DBlob *mesh_pixel_blob_ = nullptr;
+            ID3D12RootSignature *sky_root_signature_ = nullptr;
+            std::array<ID3D12PipelineState *, sample_slot_count> sky_pipelines_{};
+            ID3DBlob *sky_vertex_blob_ = nullptr;
+            ID3DBlob *sky_pixel_blob_ = nullptr;
             ID3D12Resource *vertex_buffer_ = nullptr;
             Vertex2D *mapped_vertices_ = nullptr;
             std::size_t vertex_capacity_ = 0;

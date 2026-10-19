@@ -129,6 +129,16 @@ namespace sl::detail
                     glDeleteProgram(mesh_program_);
                     mesh_program_ = 0;
                 }
+                if (sky_program_ != 0)
+                {
+                    glDeleteProgram(sky_program_);
+                    sky_program_ = 0;
+                }
+                if (sky_vao_ != 0)
+                {
+                    glDeleteVertexArrays(1, &sky_vao_);
+                    sky_vao_ = 0;
+                }
                 depth_buffers_.clear();
                 multisample_targets_.clear();
                 texture_sizes_.clear();
@@ -634,6 +644,10 @@ namespace sl::detail
                 glUniformMatrix4fv(glGetUniformLocation(mesh_program_, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uNormalRows"), 3, &params.normal_rows[0][0]);
                 glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uLightColour"), 1, params.light_colour);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogColour"), 1, params.fog_colour);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogBeta"), 1, params.fog_beta);
+                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogView"), 1, params.fog_view);
                 glBindVertexArray(found->second.vao);
                 glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
@@ -655,6 +669,53 @@ namespace sl::detail
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture1));
                 glActiveTexture(static_cast<GLenum>(previous_active_texture));
+                return true;
+            }
+            bool draw_sky(const SkyDrawParams &params) override
+            {
+                if (!initialise_2d())
+                    return false;
+                if (sky_program_ == 0)
+                {
+                    std::string error;
+                    if (!create_shader(ShaderSource::glsl(load_glsl_shader("sky.vert")),
+                                       ShaderSource::glsl(load_glsl_shader("sky.frag")), sky_program_, error))
+                        return false;
+                }
+                if (sky_vao_ == 0)
+                    glGenVertexArrays(1, &sky_vao_);
+                flush_2d();
+                GLint previous_program = 0;
+                GLint previous_depth_func = GL_LESS;
+                GLint previous_depth_mask = GL_TRUE;
+                GLint previous_vertex_array = 0;
+                glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
+                glGetIntegerv(GL_DEPTH_FUNC, &previous_depth_func);
+                glGetIntegerv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
+                glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array);
+                const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
+                const GLboolean cull_was_enabled = glIsEnabled(GL_CULL_FACE);
+                const GLboolean blend_was_enabled = glIsEnabled(GL_BLEND);
+                // The triangle sits on the far plane, so it only covers pixels nothing has drawn to.
+                glEnable(GL_DEPTH_TEST);
+                glDepthFunc(GL_LEQUAL);
+                glDepthMask(GL_FALSE);
+                glDisable(GL_CULL_FACE);
+                glDisable(GL_BLEND);
+                glUseProgram(sky_program_);
+                glUniform4fv(glGetUniformLocation(sky_program_, "uSky"), SkyDrawParams::rows, &params.data[0][0]);
+                glBindVertexArray(sky_vao_);
+                glDrawArrays(GL_TRIANGLES, 0, 3);
+                glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
+                glUseProgram(static_cast<GLuint>(previous_program));
+                glDepthFunc(static_cast<GLenum>(previous_depth_func));
+                glDepthMask(static_cast<GLboolean>(previous_depth_mask));
+                if (!depth_was_enabled)
+                    glDisable(GL_DEPTH_TEST);
+                if (cull_was_enabled)
+                    glEnable(GL_CULL_FACE);
+                if (blend_was_enabled)
+                    glEnable(GL_BLEND);
                 return true;
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height, std::string &) override
@@ -1221,6 +1282,8 @@ namespace sl::detail
             std::unordered_map<std::uint32_t, GLMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
             std::uint32_t mesh_program_ = 0;
+            std::uint32_t sky_program_ = 0;
+            std::uint32_t sky_vao_ = 0;
 
             std::vector<Vertex2D> batch_vertices_;
             PrimitiveType batch_primitive_ = PrimitiveType::triangles;

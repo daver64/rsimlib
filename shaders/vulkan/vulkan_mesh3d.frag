@@ -4,10 +4,15 @@ layout(location = 1) in vec4 vColour;
 layout(location = 2) in vec2 vUv;
 layout(location = 3) in vec4 vTangent;
 layout(location = 4) in vec4 vTerrain;
+// View-space depth, for fog.
+layout(location = 5) in float vViewDepth;
 layout(set = 0, binding = 0) uniform sampler2D uTexture;
 layout(set = 1, binding = 0) uniform sampler2D uNormalMap;
 // xyz: unit vector toward the light, w: ambient. Unlit draws use (0, 0, 0, 1).
 layout(push_constant) uniform Light { layout(offset = 112) vec4 light; } lighting;
+// Per-draw environment (set 2, dynamic offset): light colour, fog colour, per-channel fog extinction per metre, and
+// (tan x, tan y, 1/width, 1/height) of the view, which turn view depth into distance along the ray.
+layout(set = 2, binding = 0) uniform Environment { vec4 lightColour; vec4 fogColour; vec4 fogBeta; vec4 fogView; } environment;
 layout(location = 0) out vec4 fragColor;
 
 // The layer pyramid texture: level 0 is a 2x2 atlas of s0-pixel tiles at the origin, and each coarser level is a 2x2
@@ -118,9 +123,19 @@ void main()
             vec3 mapped = texture(uNormalMap, vUv).xyz * 2.0 - 1.0;
             normal = normalize(tangent * mapped.x + bitangent * mapped.y + normal * mapped.z);
         }
-        albedo = vColour.rgb * texture(uTexture, vUv).rgb;
+        vec4 sampled = texture(uTexture, vUv);
+        albedo = vColour.rgb * sampled.rgb;
+        // light colour w is the alpha cutoff of cut-out materials such as foliage and impostors (0 disables it).
+        if (environment.lightColour.w > 0.0 && vColour.a * sampled.a < environment.lightColour.w)
+            discard;
     }
     float diffuse = max(dot(normal, lighting.light.xyz), 0.0);
-    float brightness = lighting.light.w + (1.0 - lighting.light.w) * diffuse;
-    fragColor = vec4(albedo * brightness, 1.0);
+    vec3 colour = albedo * (lighting.light.w + (1.0 - lighting.light.w) * diffuse * environment.lightColour.rgb);
+    if (environment.fogBeta.r + environment.fogBeta.g + environment.fogBeta.b > 0.0)
+    {
+        vec2 ndc = gl_FragCoord.xy * environment.fogView.zw * 2.0 - 1.0;
+        float distance_to_eye = vViewDepth * length(vec3(ndc * environment.fogView.xy, 1.0));
+        colour = mix(environment.fogColour.rgb, colour, exp(-environment.fogBeta.rgb * distance_to_eye));
+    }
+    fragColor = vec4(colour, 1.0);
 }

@@ -94,6 +94,21 @@ namespace sl::detail
         /** Backend handle of the tangent-space normal map; a flat-normal texture when the material has none. */
         std::uint32_t normal_texture = 0;
         CullMode cull = CullMode::back;
+        /** rgb: colour fogged surfaces fade to. */
+        float fog_colour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        /** rgb: extinction per metre for each channel (all zero means no fog). */
+        float fog_beta[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        /** x, y: tan(fov/2) scaled by aspect and 1; z, w: 1 / viewport width and height. Turns depth into distance. */
+        float fog_view[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        /** rgb: colour of the directional light. */
+        float light_colour[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    };
+
+    /** Per-draw data for Renderer::draw_sky(): vec4 rows laid out as documented in atmosphere.cpp. */
+    struct SkyDrawParams
+    {
+        static constexpr int rows = 14;
+        float data[rows][4] = {};
     };
 
     struct Vertex2D
@@ -272,6 +287,8 @@ namespace sl::detail
         virtual void destroy_mesh(std::uint32_t) {}
         /** Draw a mesh into the active render target, depth tested. */
         virtual bool draw_mesh(std::uint32_t, const MeshDrawParams &) { return false; }
+        /** Draw the procedural sky behind everything already in the active 3D target; false if unsupported. */
+        virtual bool draw_sky(const SkyDrawParams &) { return false; }
         /** Clear the active render target's colour and depth. */
         virtual bool clear_3d(float, float, float, float) { return false; }
         /** Compile and link a vertex/fragment shader program. */
