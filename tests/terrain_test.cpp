@@ -82,10 +82,11 @@ static void test_flat_chunks()
     const int s = da.grid_vertices;
     CHECK(s == 17);
     // The shared border must agree exactly in world space.
-    for (int j = 0; j < s; ++j)
+    const std::size_t stride = static_cast<std::size_t>(s);
+    for (std::size_t j = 0; j < stride; ++j)
     {
-        const Vertex3D &va = da.vertices[j * s + (s - 1)];
-        const Vertex3D &vb = db.vertices[j * s];
+        const Vertex3D &va = da.vertices[j * stride + (stride - 1)];
+        const Vertex3D &vb = db.vertices[j * stride];
         for (int k = 0; k < 3; ++k)
         {
             const double pa = va.position[k] + da.center[k];
@@ -158,7 +159,7 @@ static void test_geomorph()
                 const int i = std::min(static_cast<int>(std::floor(lx + 1e-9)), s - 2);
                 const int j = std::min(static_cast<int>(std::floor(lz + 1e-9)), s - 2);
                 const double fx = lx - i, fz = lz - j;
-                auto h = [&](int a, int b) { return parent.vertices[b * s + a].position[1] + parent.center.y; };
+                auto h = [&](int a, int b) { return parent.vertices[static_cast<std::size_t>(b) * static_cast<std::size_t>(s) + static_cast<std::size_t>(a)].position[1] + parent.center.y; };
                 const double expected = fx + fz <= 1.0 ? h(i, j) + fx * (h(i + 1, j) - h(i, j)) + fz * (h(i, j + 1) - h(i, j))
                                                        : h(i + 1, j + 1) + (1 - fx) * (h(i, j + 1) - h(i + 1, j + 1)) +
                                                              (1 - fz) * (h(i + 1, j) - h(i + 1, j + 1));

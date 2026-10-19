@@ -54,7 +54,7 @@ namespace sl
             if (config.max_level >= 0)
                 return std::min(config.max_level, 24);
             const double root = config.shape == TerrainShape::flat ? config.size : config.radius * pi * 0.5;
-            const double cells = std::max(config.chunk_cells, 2);
+            const double cells = static_cast<double>(std::max(config.chunk_cells, 2));
             const double finest = std::max(config.finest_cell_size, 1.0e-3);
             const double ratio = root / (cells * finest);
             return ratio <= 1.0 ? 0 : std::clamp(static_cast<int>(std::ceil(std::log2(ratio))), 0, 24);
@@ -77,7 +77,7 @@ namespace sl
             }
 
             double chunk_size(int level) const { return std::ldexp(root_size, -level); }
-            double cell_size(int level) const { return chunk_size(level) / cells; }
+            double cell_size(int level) const { return chunk_size(level) / static_cast<double>(cells); }
 
             /** Position along a face in 0..1 of grid line `i` of the node whose index along that axis is `index`. */
             double unit(int level, int index, double i) const
@@ -457,12 +457,15 @@ namespace sl
             for (int layer = 0; layer < 4; ++layer)
             {
                 auto &tile = tiles[0][static_cast<std::size_t>(layer)];
-                tile.resize(static_cast<std::size_t>(base) * base * 4);
+                tile.resize(static_cast<std::size_t>(base) * static_cast<std::size_t>(base) * 4);
                 for (int y = 0; y < base; ++y)
                     for (int x = 0; x < base; ++x)
                     {
-                        const std::size_t from =
-                            (static_cast<std::size_t>((layer >> 1) * base + y) * source->width + (layer & 1) * base + x) * 4;
+                        const std::size_t row = static_cast<std::size_t>(layer >> 1) * static_cast<std::size_t>(base) +
+                                                static_cast<std::size_t>(y);
+                        const std::size_t column = static_cast<std::size_t>(layer & 1) * static_cast<std::size_t>(base) +
+                                                   static_cast<std::size_t>(x);
+                        const std::size_t from = (row * static_cast<std::size_t>(source->width) + column) * 4;
                         std::copy_n(&source->pixels[from], 4, &tile[(static_cast<std::size_t>(y) * base + x) * 4]);
                     }
             }
