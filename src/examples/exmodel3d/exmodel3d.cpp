@@ -9,6 +9,113 @@
 #include <string>
 #include <vector>
 
+namespace
+{
+    /** One model input property that drives animations or part visibility. */
+    struct Channel
+    {
+        std::string name;
+        std::string tags;
+        std::vector<std::string> parts;
+        float minimum = 0.0f;
+        float maximum = 1.0f;
+        float value = 0.0f;
+        bool ranged = false;
+    };
+
+    Channel &channel_for(std::vector<Channel> &channels, const std::string &name)
+    {
+        for (Channel &channel : channels)
+            if (channel.name == name)
+                return channel;
+        channels.push_back({});
+        channels.back().name = name;
+        return channels.back();
+    }
+
+    void add_tag(Channel &channel, const char *tag)
+    {
+        if (channel.tags.find(tag) == std::string::npos)
+            channel.tags += (channel.tags.empty() ? "" : ",") + std::string(tag);
+    }
+
+    void add_range(Channel &channel, float low, float high)
+    {
+        channel.minimum = channel.ranged ? std::min(channel.minimum, low) : low;
+        channel.maximum = channel.ranged ? std::max(channel.maximum, high) : high;
+        channel.ranged = true;
+    }
+
+    void add_parts(Channel &channel, const std::vector<std::string> &parts)
+    {
+        for (const std::string &part : parts)
+            if (std::find(channel.parts.begin(), channel.parts.end(), part) == channel.parts.end())
+                channel.parts.push_back(part);
+    }
+
+    void collect_condition(std::vector<Channel> &channels, const sl::ModelCondition &condition,
+                           const std::vector<std::string> &parts)
+    {
+        if (!condition.property.empty())
+        {
+            Channel &channel = channel_for(channels, condition.property);
+            add_tag(channel, "show");
+            add_parts(channel, parts);
+            // Cover comparison thresholds so a "rpm > 400" style rule can be satisfied.
+            add_range(channel, 0.0f, std::max(1.0f, std::abs(condition.value) * 2.0f));
+        }
+        for (const sl::ModelCondition &child : condition.children)
+            collect_condition(channels, child, parts);
+    }
+
+    std::vector<Channel> collect_channels(const sl::Model &model)
+    {
+        std::vector<Channel> channels;
+        for (const sl::ModelAnimation &animation : model.animations)
+        {
+            if (animation.property.empty())
+                continue; // static offsets have no input to drive
+            Channel &channel = channel_for(channels, animation.property);
+            add_parts(channel, animation.objects);
+            float low = 0.0f, high = 1.0f;
+            switch (animation.type)
+            {
+            case sl::ModelAnimationType::rotation: add_tag(channel, "rot"); break;
+            case sl::ModelAnimationType::translation: add_tag(channel, "move"); break;
+            case sl::ModelAnimationType::spin:
+                add_tag(channel, "spin");
+                high = 2500.0f;
+                break;
+            case sl::ModelAnimationType::blend: add_tag(channel, "fade"); break;
+            }
+            if (!animation.interpolation.empty())
+            {
+                low = high = animation.interpolation.front().x;
+                for (const glm::vec2 &entry : animation.interpolation)
+                {
+                    low = std::min(low, entry.x);
+                    high = std::max(high, entry.x);
+                }
+            }
+            add_range(channel, low, high);
+        }
+        for (const sl::ModelVisibility &visibility : model.visibility)
+            collect_condition(channels, visibility.condition, visibility.objects);
+        for (Channel &channel : channels)
+            if (channel.maximum <= channel.minimum)
+                channel.maximum = channel.minimum + 1.0f;
+        return channels;
+    }
+
+    std::string short_name(const std::string &name)
+    {
+        std::size_t cut = name.size();
+        for (int segments = 0; segments < 3 && cut != std::string::npos && cut > 0; ++segments)
+            cut = name.rfind('/', cut - 1);
+        return cut == std::string::npos || cut == 0 ? name : ".../" + name.substr(cut + 1);
+    }
+} // namespace
+
 int main(int argc, char **argv)
 {
     std::string model_path;
@@ -102,20 +209,21 @@ int main(int argc, char **argv)
         sl::shutdown();
         return 1;
     }
-    constexpr const char *engine_rpm_property = "/params/engine/rpm";
-    const bool has_engine_rpm = std::any_of(model->animations.begin(), model->animations.end(),
-                                            [&](const sl::ModelAnimation &animation) {
-                                                return animation.type == sl::ModelAnimationType::spin &&
-                                                       animation.property == engine_rpm_property;
-                                            });
-    float engine_rpm = 0.0f;
-    if (has_engine_rpm && !sl::set_model_property(model, engine_rpm_property, engine_rpm))
+    std::vector<Channel> channels = collect_channels(*model);
+    std::size_t selected = 0;
+    auto apply_channel = [&](Channel &channel, float value) {
+        channel.value = std::clamp(value, channel.minimum, channel.maximum);
+        return sl::set_model_property(model, channel.name, channel.value);
+    };
+    for (Channel &channel : channels)
+        if (!apply_channel(channel, 0.0f))
+            std::fprintf(stderr, "Unable to initialize %s: %s\n", channel.name.c_str(), sl::last_error().c_str());
+    // Verification hook: preselect a channel and value without keyboard input.
+    if (const char *preset = std::getenv("RSIMLIB_CHANNEL"))
     {
-        std::fprintf(stderr, "Unable to initialize propeller RPM: %s\n", sl::last_error().c_str());
-        sl::destroy_model(model);
-        sl::destroy_surface_3d(surface);
-        sl::shutdown();
-        return 1;
+        selected = std::min(channels.size() ? channels.size() - 1 : 0, static_cast<std::size_t>(std::atoi(preset)));
+        if (const char *preset_value = std::getenv("RSIMLIB_VALUE"); preset_value && !channels.empty())
+            apply_channel(channels[selected], static_cast<float>(std::atof(preset_value)));
     }
 
     sl::Camera camera;
@@ -152,8 +260,6 @@ int main(int argc, char **argv)
     update_camera();
     sl::set_light_3d({{-0.4f, -1.0f, -0.6f}, 0.3f});
 
-    float animation_value = 0.0f;
-    bool animation_enabled = false;
     bool running = true;
     std::uint32_t frame = 0;
     while (running)
@@ -179,23 +285,26 @@ int main(int argc, char **argv)
                     camera_distance = std::max(0.02f, camera_distance / 1.1f);
                 else if (event.key() == sl::Event::Key::minus || event.key() == sl::Event::Key::keypad_minus)
                     camera_distance = std::min(500.0f, camera_distance * 1.1f);
-                else if (has_engine_rpm && event.key() == sl::Event::Key::left_bracket)
-                    engine_rpm = std::max(0.0f, engine_rpm - 50.0f);
-                else if (has_engine_rpm && event.key() == sl::Event::Key::right_bracket)
-                    engine_rpm = std::min(2500.0f, engine_rpm + 50.0f);
-                else if (event.key() == sl::Event::Key::space && !model->animations.empty())
+                else if (!channels.empty() && (event.key() == sl::Event::Key::tab ||
+                                               event.key() == sl::Event::Key::page_down))
+                    selected = (selected + 1) % channels.size();
+                else if (!channels.empty() && event.key() == sl::Event::Key::page_up)
+                    selected = (selected + channels.size() - 1) % channels.size();
+                else if (!channels.empty() && event.key() == sl::Event::Key::space)
                 {
-                    animation_enabled = !animation_enabled;
-                    animation_value = animation_enabled ? 1.0f : 0.0f;
-                    sl::set_model_property(model, model->animations.front().property, animation_value);
+                    Channel &channel = channels[selected];
+                    apply_channel(channel, channel.value > channel.minimum ? channel.minimum : channel.maximum);
                 }
-                if (has_engine_rpm &&
-                    (event.key() == sl::Event::Key::left_bracket || event.key() == sl::Event::Key::right_bracket) &&
-                    !sl::set_model_property(model, engine_rpm_property, engine_rpm))
+                else if (!channels.empty() &&
+                         (event.key() == sl::Event::Key::comma || event.key() == sl::Event::Key::period))
                 {
-                    std::fprintf(stderr, "Unable to update propeller RPM: %s\n", sl::last_error().c_str());
-                    running = false;
+                    Channel &channel = channels[selected];
+                    const float step = (channel.maximum - channel.minimum) / 20.0f;
+                    apply_channel(channel, channel.value + (event.key() == sl::Event::Key::period ? step : -step));
                 }
+                else if (event.key() == sl::Event::Key::home)
+                    for (Channel &channel : channels)
+                        apply_channel(channel, 0.0f);
                 update_camera();
             }
             sl::display_handle_event(event);
@@ -209,13 +318,38 @@ int main(int argc, char **argv)
         }
         sl::clear_to_colour(sl::screen, {18, 22, 32});
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
-        sl::gprintf(16, 16, {255, 255, 255},
-                    has_engine_rpm ? "Arrows: orbit  =/-: zoom  []: prop RPM  Space: animation  Esc: exit"
-                                   : "Arrows: orbit  =/-: zoom  Space: animation  Esc: exit");
-        if (has_engine_rpm)
-            sl::gprintf(16, 36, {255, 255, 255}, "Engine RPM: %.0f", engine_rpm);
+        sl::gprintf(16, 16, {255, 255, 255}, "Arrows: orbit  =/-: zoom  Esc: exit");
+        int y = 36;
+        if (channels.empty())
+            sl::gprintf(16, y, {200, 200, 200}, "No animations in this model");
+        else
+        {
+            sl::gprintf(16, y, {255, 255, 255}, "Tab/PgUp/PgDn: select  Space: toggle  ,/.: adjust  Home: reset");
+            y += 20;
+            constexpr int rows = 12;
+            const int total = static_cast<int>(channels.size());
+            const int first = std::clamp(static_cast<int>(selected) - rows / 2, 0, std::max(0, total - rows));
+            for (int i = first; i < std::min(total, first + rows); ++i)
+            {
+                const Channel &channel = channels[static_cast<std::size_t>(i)];
+                const bool current = static_cast<std::size_t>(i) == selected;
+                sl::gprintf(16, y, current ? sl::Colour{255, 235, 120} : sl::Colour{190, 200, 215},
+                            "%s %2d  %6.2f  %s  (%s)", current ? ">" : " ", i + 1, channel.value,
+                            short_name(channel.name).c_str(), channel.tags.c_str());
+                y += 16;
+            }
+            const Channel &channel = channels[selected];
+            std::string parts;
+            for (std::size_t i = 0; i < channel.parts.size() && i < 3; ++i)
+                parts += (i ? ", " : "") + channel.parts[i];
+            if (channel.parts.size() > 3)
+                parts += " +" + std::to_string(channel.parts.size() - 3);
+            sl::gprintf(16, y + 4, {255, 205, 120}, "%s  [%.2f..%.2f]  parts: %s", channel.name.c_str(),
+                        channel.minimum, channel.maximum, parts.c_str());
+            y += 24;
+        }
         if (!model->unsupported_animations.empty())
-            sl::gprintf(16, has_engine_rpm ? 56 : 36, {255, 205, 120}, "%zu FlightGear animation(s) not imported",
+            sl::gprintf(16, y, {255, 205, 120}, "%zu FlightGear animation(s) not imported",
                         model->unsupported_animations.size());
         sl::draw_renderer_label();
         sl::show_video_bitmap();
