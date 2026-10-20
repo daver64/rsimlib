@@ -63,8 +63,9 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🏔️ **[Chunked-LOD Terrain](docs/terrain.md)** — Streamed quadtree terrain for flat arenas or planets: procedural, heightmap or editable sources, splat-textured layers with mipmapping and optional normal maps, geomorphing, exact height/normal/raycast queries, Lua bindings and `FlightWorld` ground integration.
 - 🌫️ **[World Flavour](docs/world_flavour.md)** — Sky, exponential fog, Rayleigh/Mie planetary atmosphere, 2D or volumetric clouds, and terrain-aware scattering of trees and rocks with mesh-to-impostor LOD, all scriptable from Lua.
 - 🛰️ **[Flight & Orbital Dynamics](docs/flight.md)** — Double-precision 3D rigid bodies with N-body gravity, Kepler rails and time warp, thrusters/RCS, atmosphere, lifting surfaces and landing gear for Orbiter-style or aircraft sims.
-- 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper, simple particle/AABB entity physics, and Lua physics bindings.
+- 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper and Lua physics bindings.
 - 📜 **[Sandboxed Lua Scripting & Canvas](docs/scripting_lua.md)** — Hardened Lua sandbox via sol2, persistent canvas drawing API, audio scripting, lighting and normal maps, tile maps, 2D/3D fluids, textured voxel worlds, resource limits, and C++ event dispatching.
+- 🧭 **[Showcase Guide](docs/showcases.md)** — A recommended tour through the interactive game, world, graphics, and tool examples.
 
 ---
 
@@ -218,6 +219,18 @@ For block-based worlds, the voxel API provides chunk rendering, hidden-face cull
 
 Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only). The backend is chosen once at startup; switching renderers at runtime is not supported and leaves existing bitmaps, shaders and buffers invalid (see [Renderer Backends](docs/renderers.md)).
 
+### Recommended Showcase Path
+
+Start with the three interactive showcase apps, then follow the [Showcase Guide](docs/showcases.md) to the deeper examples and tools:
+
+```bash
+./build/showcase2d       # Lightkeeper: physics, pickups, particles, dynamic lights and shadows
+./build/showcase3d       # Living World: streamed terrain, atmosphere, clouds and clutter
+./build/showcasevoxel    # Voxel Workshop: block lighting, raycasting, mining and building
+```
+
+The full catalog of focused runnable examples follows.
+
 ```bash
 ./build/exhello         # Minimal hello-world window and text
 ./build/exfont          # Proportional & monospace TrueType font rendering with glyph atlas
@@ -226,6 +239,9 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/exbitmap        # Bitmap creation, pixel access, blitting, PNG loading
 ./build/exlighting      # 2D radial dynamic lights and polygon shadow casters
 ./build/exphysics       # Box2D rigid bodies and contact polling
+./build/showcase2d      # Playable 2D showcase: physics, particles, lights and shadows
+./build/showcase3d      # 3D showcase: terrain LOD, clouds, atmosphere and clutter
+./build/showcasevoxel   # Voxel showcase: chunk meshing, lighting and block editing
 ./build/exorbit         # Spaceflight: orbits, RCS, time warp, Moon on rails
 ./build/exterrain       # Chunked-LOD terrain (add 'planet' for a planet)
 ./build/exflight        # Aircraft flight: lift, stall, jet engine, landing gear
@@ -262,7 +278,6 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 ./build/slpaint         # Retro paint app with brush/shapes, palette, undo/redo
 ./build/exspriteeditor  # Pixel sprite/animation editor (1x1-512x512, zoom, frames, PNG spritesheet I/O)
 ./build/exvideo         # MPEG1/MP2 "cutscene" video playback into a bitmap (see ffmpeg note below)
-./build/sltest          # Sample game: menu, physics playground, Lua console
 ./build/slpack          # CLI asset-packing tool
 ./build/slunpack        # CLI asset-unpacking tool
 ```
@@ -311,13 +326,16 @@ Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Wi
 
 
 ### Example Walkthrough Source Links
+- **[Showcase Guide](docs/showcases.md)** — Recommended paths through the current game, world, graphics, and tool demos.
+- **[`showcase2d`](src/examples/showcase2d/showcase2d.cpp)** — Playable lightkeeper game combining Box2D movement, pickups, particles, radial lighting, and polygon shadows.
+- **[`showcase3d`](src/examples/showcase3d/showcase3d.cpp)** — Interactive terrain tour combining streamed LOD terrain, sky, clouds, fog, and scattered trees.
+- **[`showcasevoxel`](src/examples/showcasevoxel/showcasevoxel.cpp)** — Interactive voxel workshop with propagated block lighting, raycast mining, and block placement.
 - **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`.
 - **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
 - **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
 - **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
 - **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`.
 - **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** ([Guide](docs/exgpuparticles_guide.md)) — 150k GPU compute particles with gravity wells, explosions, and cross-backend compute shader uniforms.
-- **[`sltest`](src/examples/sltest/main.cpp)** ([Guide](docs/sltest_guide.md)) — Sample game with main menu, physics playground, and embedded Lua REPL.
 
 ---
 

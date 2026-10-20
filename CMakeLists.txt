@@ -415,20 +415,6 @@ else()
     target_link_libraries(simlib PUBLIC ${SIMLIB_MIXER_TARGET})
 endif()
 
-add_executable(sltest
-    src/examples/sltest/main.cpp
-    src/examples/sltest/game.cpp
-    src/examples/sltest/game_menu.cpp
-    src/examples/sltest/game_playing.cpp
-    src/examples/sltest/entity.cpp
-    src/examples/sltest/game_paused.cpp
-    src/examples/sltest/game_help.cpp
-    src/examples/sltest/game_gameover.cpp
-    src/examples/sltest/game_settings.cpp
-    src/examples/sltest/game_lua.cpp
-)
-target_link_libraries(sltest PRIVATE simlib lua sol2)
-
 add_executable(exhello src/examples/exhello/exhello.cpp)
 target_link_libraries(exhello PRIVATE simlib)
 
@@ -446,6 +432,15 @@ target_link_libraries(exlighting PRIVATE simlib)
 
 add_executable(exphysics src/examples/exphysics/exphysics.cpp)
 target_link_libraries(exphysics PRIVATE simlib)
+
+add_executable(showcase2d src/examples/showcase2d/showcase2d.cpp)
+target_link_libraries(showcase2d PRIVATE simlib)
+
+add_executable(showcase3d src/examples/showcase3d/showcase3d.cpp)
+target_link_libraries(showcase3d PRIVATE simlib)
+
+add_executable(showcasevoxel src/examples/showcasevoxel/showcasevoxel.cpp)
+target_link_libraries(showcasevoxel PRIVATE simlib)
 
 add_executable(exorbit src/examples/exorbit/exorbit.cpp)
 target_link_libraries(exorbit PRIVATE simlib)
@@ -819,4 +814,3 @@ configure_package_config_file(
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )
-

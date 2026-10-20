@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-`simlib` provides an opaque C++ wrapper around Box2D, as well as a lightweight entity simulation model and sandboxed Lua physics bindings.
+`simlib` provides an opaque C++ wrapper around Box2D and sandboxed Lua physics bindings.
 
 ---
 
@@ -57,24 +57,4 @@ physics.destroy_world(world) -- releases bodies automatically
 For 3D rigid-body simulation (spacecraft, aircraft) see [Flight & Orbital Dynamics](flight.md) and `flight.h`.
 
 ---
-
-## Simple Entity Physics (`entity.h` in `sltest`)
-
-For lightweight games that do not need full rigid-body dynamics, `sltest` includes a simple particle/circle/AABB integrator:
-
-```cpp
-#include "entity.h"
-
-std::vector<game::GameObject> objects;
-objects.push_back(game::make_circle_object(sprite, 100.0f, 100.0f, /*radius*/16.0f, /*mass*/1.0f));
-
-// Per-frame update:
-game::physics_step(objects, dt_seconds);
-game::resolve_collisions(objects);
-game::constrain_to_screen(objects);
-game::render_objects(objects);
-```
-
----
-
 [← Back to README](../README.md)
