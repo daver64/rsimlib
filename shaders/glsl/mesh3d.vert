@@ -7,17 +7,16 @@ layout(location = 3) in vec2 aUv;
 layout(location = 4) in vec4 aTangent;
 
 uniform mat4 uMvp;
-// Rows of the normal matrix; w holds the tint colour. A negative uNormalRows[0].w selects terrain shading, where
-// the rows carry: [0] xyz: atlas code (mip levels + 16 if a normal atlas + 32 * tile size, 0 for none), 1/width, 1/height. [1] xyz: eye (mesh space), w: morph start.
-// [2] x: morph end, y: fade start, z: fade end.
+// Rows of the normal matrix; w holds the tint colour. A negative uNormalRows[0].w selects untextured terrain, where
+// the rows carry: [1] xyz: eye (mesh space), w: morph start. [2] x: morph end.
 uniform vec4 uNormalRows[3];
 
 out vec3 vNormal;
 out vec4 vTangent;
 out vec4 vColour;
 out vec2 vUv;
-// x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
-out vec4 vTerrain;
+// -1 for ordinary meshes, 0 for terrain, which is coloured by its vertex colour alone.
+out float vTerrain;
 // View-space depth, for fog.
 out float vViewDepth;
 
@@ -32,12 +31,10 @@ void main()
         gl_Position = uMvp * vec4(position, 1.0);
         vViewDepth = gl_Position.w;
         vNormal = aNormal;
-        vTangent = vec4(aPosition, 1.0);
+        vTangent = vec4(aTangent.xyz, 1.0);
         vColour = aColour;
         vUv = aUv;
-        float fade = uNormalRows[2].z > uNormalRows[2].y
-            ? smoothstep(uNormalRows[2].y, uNormalRows[2].z, distance(position, eye)) : 0.0;
-        vTerrain = vec4(fade, uNormalRows[0].x, uNormalRows[0].y, uNormalRows[0].z);
+        vTerrain = 0.0;
         return;
     }
     gl_Position = uMvp * vec4(aPosition, 1.0);
@@ -50,5 +47,5 @@ void main()
                     dot(uNormalRows[2].xyz, aTangent.xyz), aTangent.w);
     vUv = aUv;
     vColour = vec4(aColour.rgb * vec3(uNormalRows[0].w, uNormalRows[1].w, uNormalRows[2].w), aColour.a);
-    vTerrain = vec4(-1.0, 0.0, 0.0, 0.0);
+    vTerrain = -1.0;
 }

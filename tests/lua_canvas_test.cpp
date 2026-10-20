@@ -65,7 +65,7 @@ int main()
         "assert(terrain.create('moon', {shape = 'sphere', radius = 1737000, source = {type = 'flat', height = 100}}))\n"
         "assert(terrain.altitude_of('moon', 0, 1737100 + 50, 0) > 49)\n"
         "assert(terrain.height_at_direction('moon', 0, 1, 0) == 100)\n"
-        "assert(not terrain.set_atlas('hills', 'missing'))\n"
+        "assert(not terrain.create('bad', {layers = {{sprite = 'missing'}}}))\n"
         "assert(terrain.add_clutter('hills', {mesh = 'conifer', density = 0.004, max_slope = 30}) == 1)\n"
         "assert(terrain.add_clutter('hills', {mesh = 'rock', size = 1.5}) == 2)\n"
         "assert(not terrain.add_clutter('hills', {mesh = 'sofa'}))\n"

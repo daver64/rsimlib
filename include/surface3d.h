@@ -22,6 +22,8 @@ namespace sl
          * the supplied tangent as is (terrain meshes store their geomorph offset here).
          */
         float tangent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        /** Weights of terrain layers 4-7 (layers 0-3 are in the colour). Unused by ordinary meshes. */
+        float extra[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     /** Indexed triangle mesh stored on the GPU. Create with create_mesh() or a primitive builder. */
@@ -41,11 +43,34 @@ namespace sl
     };
 
     /**
+     * GPU texture arrays and per-layer constants for textured terrain, built by Terrain::set_layer_textures().
+     * Layer i of the terrain uses `variants[i]` consecutive array layers starting at `first[i]`, repeats every
+     * `tile_metres[i]` metres and fades to `average[i]` with distance.
+     */
+    struct TerrainTextures
+    {
+        static constexpr int max_layers = 8;
+        /** Backend handles of the albedo and (optional, 0 for none) tangent-space normal arrays. */
+        std::uint32_t albedo_array = 0;
+        std::uint32_t normal_array = 0;
+        int first[max_layers] = {};
+        int variants[max_layers] = {};
+        /** Tile size after snapping so a whole number of tiles fits in `period_metres`. */
+        float tile_metres[max_layers] = {};
+        int tiles_per_period[max_layers] = {};
+        float average[max_layers][3] = {};
+        /** Array layer of the macro-variation texture (negative for none), its tile size and strength. */
+        int macro_layer = -1;
+        float macro_tile_metres = 1.0f;
+        float macro_strength = 0.0f;
+    };
+
+    /**
      * Terrain shading, used by Terrain::draw(). Meshes are expected to hold layer weights in the vertex colour
-     * (r, g, b, a = layers 0-3) and a vertex position offset in the tangent xyz. The shader moves each vertex toward
-     * its coarser-level position between morph_start and morph_end metres from the eye, so level changes do not pop.
-     * When Material::texture is set it is a 2x2 atlas of the four layers (row major), repeated per UV unit.
-     * Material::texture and normal_map hold the layer pyramids built by Terrain; the tangent slot is not a tangent.
+     * (r, g, b, a = layers 0-3) and Vertex3D::extra (layers 4-7), and a vertex position offset in the tangent xyz. The
+     * shader moves each vertex toward its coarser-level position between morph_start and morph_end metres from the eye,
+     * so level changes do not pop. With `textures` set the UVs are metres (see TerrainTextures) and the layers are
+     * sampled per pixel; without it the vertex colour is drawn as is.
      */
     struct TerrainShading
     {
@@ -54,15 +79,11 @@ namespace sl
         float eye[3] = {0.0f, 0.0f, 0.0f};
         float morph_start = 0.0f;
         float morph_end = 0.0f;
-        /** Beyond fade_start the layers blend to a larger-scale copy of themselves, fully by fade_end (metres). */
+        /** Beyond fade_start the layers blend to their average colour, fully by fade_end (metres). */
         float fade_start = 0.0f;
         float fade_end = 0.0f;
-        /** Mip levels in the layer pyramid texture (see Terrain::set_layer_atlas); 0 means no atlas, use vertex colours. */
-        int atlas_levels = 0;
-        /** Pixels along one side of a level-0 layer tile. */
-        int layer_size = 0;
-        /** The material's normal_map holds the matching normal pyramid. */
-        bool normal_atlas = false;
+        /** Not owned; must stay valid during the draw. */
+        const TerrainTextures *textures = nullptr;
     };
 
     /** Surface appearance for draw_mesh(). The tint and texture multiply the mesh vertex colours. */

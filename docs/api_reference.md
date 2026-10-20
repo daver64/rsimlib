@@ -1093,7 +1093,7 @@ config.size = 16384.0;                       // flat; or config.shape = TerrainS
 sl::NoiseParameters noise;
 noise.amplitude = 180.0;
 sl::Terrain terrain(config, std::make_shared<sl::NoiseSource>(noise));
-terrain.set_layer_atlas(atlas, 150.0, 600.0, normal_atlas);   // optional splat layers, mipmapped, optional normals
+terrain.set_layer_textures();                // optional: textures config.layers with GPU texture arrays (OpenGL, Vulkan)
 terrain.update(view);                        // every frame: select chunks, stream, upload
 terrain.draw(origin);                        // inside begin_surface_3d / end_surface_3d
 double h = terrain.height_at(x, z);

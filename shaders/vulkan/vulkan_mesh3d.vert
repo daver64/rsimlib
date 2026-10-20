@@ -4,17 +4,13 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec4 aColour;
 layout(location = 3) in vec2 aUv;
 layout(location = 4) in vec4 aTangent;
-// Normal-matrix rows; w holds the tint colour. A negative normalRows[0].w selects terrain shading, where the rows
-// carry: [0] xyz: atlas code (mip levels + 16 if a normal atlas + 32 * tile size, 0 for none), 1/width, 1/height. [1] xyz: eye (mesh space), w: morph start.
-// [2] x: morph end, y: fade start, z: fade end.
+layout(location = 5) in vec4 aExtra;
 layout(push_constant) uniform Transform { mat4 mvp; vec4 normalRows[3]; } transform;
 layout(location = 0) out vec3 vNormal;
 layout(location = 1) out vec4 vColour;
 layout(location = 2) out vec2 vUv;
 layout(location = 3) out vec4 vTangent;
-// x: layer fade (-1 for ordinary meshes), y: atlas code, zw: 1/texture size.
-layout(location = 4) out vec4 vTerrain;
-// View-space depth, for fog.
+layout(location = 4) out float vTerrain;
 layout(location = 5) out float vViewDepth;
 void main()
 {
@@ -26,12 +22,10 @@ void main()
         gl_Position = transform.mvp * vec4(position, 1.0);
         vViewDepth = gl_Position.w;
         vNormal = aNormal;
-        vTangent = vec4(aPosition, 1.0);
+        vTangent = vec4(aTangent.xyz, 1.0);
         vColour = aColour;
         vUv = aUv;
-        float fade = transform.normalRows[2].z > transform.normalRows[2].y
-            ? smoothstep(transform.normalRows[2].y, transform.normalRows[2].z, distance(position, eye)) : 0.0;
-        vTerrain = vec4(fade, transform.normalRows[0].x, transform.normalRows[0].y, transform.normalRows[0].z);
+        vTerrain = 0.0;
         return;
     }
     gl_Position = transform.mvp * vec4(aPosition, 1.0);
@@ -44,5 +38,5 @@ void main()
                     dot(transform.normalRows[2].xyz, aTangent.xyz), aTangent.w);
     vUv = aUv;
     vColour = vec4(aColour.rgb * vec3(transform.normalRows[0].w, transform.normalRows[1].w, transform.normalRows[2].w), aColour.a);
-    vTerrain = vec4(-1.0, 0.0, 0.0, 0.0);
+    vTerrain = -1.0;
 }

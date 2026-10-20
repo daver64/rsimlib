@@ -94,6 +94,23 @@ namespace
                 }
         return normals;
     }
+
+    // Cuts one layer out of a 2x2 atlas into a bitmap of its own.
+    sl::Bitmap *extract_layer(const sl::Bitmap *atlas, int layer)
+    {
+        const int tile = atlas->width / 2;
+        sl::Bitmap *out = sl::create_bitmap(tile, tile);
+        if (!out)
+            return nullptr;
+        for (int y = 0; y < tile; ++y)
+            for (int x = 0; x < tile; ++x)
+            {
+                const std::size_t at = (static_cast<std::size_t>((layer >> 1) * tile + y) * atlas->width +
+                                        static_cast<std::size_t>((layer & 1) * tile + x)) * 4;
+                sl::putpixel(out, x, y, {atlas->pixels[at], atlas->pixels[at + 1], atlas->pixels[at + 2], atlas->pixels[at + 3]});
+            }
+        return out;
+    }
 }
 
 int main(int argc, char **argv)
@@ -131,6 +148,13 @@ int main(int argc, char **argv)
 
     sl::Bitmap *atlas = make_layer_atlas();
     sl::Bitmap *normal_atlas = atlas ? make_normal_atlas(atlas) : nullptr;
+    sl::Bitmap *layer_albedo[4] = {};
+    sl::Bitmap *layer_normal[4] = {};
+    for (int i = 0; i < 4 && atlas && normal_atlas; ++i)
+    {
+        layer_albedo[i] = extract_layer(atlas, i);
+        layer_normal[i] = extract_layer(normal_atlas, i);
+    }
     bool use_normals = true;
     bool use_atmosphere = true;
     bool use_clouds = true;
@@ -182,7 +206,6 @@ int main(int argc, char **argv)
             noise.amplitude = 6000.0;
             noise.floor_height = 0.0;
             config.finest_cell_size = 2.0;
-            config.uv_tile_metres = 32.0;
         }
         else
         {
@@ -192,8 +215,17 @@ int main(int argc, char **argv)
             noise.amplitude = 180.0;
             config.finest_cell_size = 1.0;
         }
+        config.layers = sl::default_terrain_layers(0.0, planet ? 6000.0 : 180.0);
+        for (std::size_t i = 0; i < config.layers.size() && i < 4; ++i)
+        {
+            config.layers[i].albedo = layer_albedo[i];
+            config.layers[i].normal_map = use_normals ? layer_normal[i] : nullptr;
+            config.layers[i].tile_metres = planet ? 32.0 : 16.0;
+        }
         terrain = std::make_unique<sl::Terrain>(config, std::make_shared<sl::NoiseSource>(noise));
-        terrain->set_layer_atlas(atlas, 150.0, 700.0, use_normals ? normal_atlas : nullptr);
+        sl::TerrainTextureOptions textures;
+        textures.fade_end = 700.0;
+        terrain->set_layer_textures(textures);
         build_clutter();
     };
     build();
@@ -383,6 +415,11 @@ int main(int argc, char **argv)
     terrain.reset();
     sl::destroy_bitmap(atlas);
     sl::destroy_bitmap(normal_atlas);
+    for (int i = 0; i < 4; ++i)
+    {
+        sl::destroy_bitmap(layer_albedo[i]);
+        sl::destroy_bitmap(layer_normal[i]);
+    }
     sl::destroy_surface_3d(surface);
     sl::shutdown();
     return 0;

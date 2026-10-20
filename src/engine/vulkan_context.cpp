@@ -185,6 +185,17 @@ namespace sl::detail
         }
         device_info.enabledExtensionCount = 1;
         device_info.ppEnabledExtensionNames = device_extensions;
+        VkPhysicalDeviceFeatures supported_features{};
+        vkGetPhysicalDeviceFeatures(physical_device_, &supported_features);
+        VkPhysicalDeviceFeatures enabled_features{};
+        enabled_features.samplerAnisotropy = supported_features.samplerAnisotropy;
+        sampler_anisotropy_enabled_ = enabled_features.samplerAnisotropy == VK_TRUE;
+        VkPhysicalDeviceProperties selected_properties{};
+        vkGetPhysicalDeviceProperties(physical_device_, &selected_properties);
+        max_sampler_anisotropy_ = sampler_anisotropy_enabled_
+                                      ? std::min(selected_properties.limits.maxSamplerAnisotropy, 16.0f)
+                                      : 1.0f;
+        device_info.pEnabledFeatures = &enabled_features;
         if (vkCreateDevice(physical_device_, &device_info, nullptr, &device_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan logical device.";
@@ -853,8 +864,8 @@ namespace sl::detail
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         barrier.image = image.image;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.levelCount = image.mip_levels;
+        barrier.subresourceRange.layerCount = image.array_layers;
         const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                                                       ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                                                       : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -944,7 +955,7 @@ namespace sl::detail
                                          std::uint32_t index_count, VkDescriptorSet texture_descriptor,
                                          VkDescriptorSet normal_descriptor, const float *vertex_constants,
                                          const float *fragment_constants, const float *environment,
-                                         std::string &error)
+                                         std::size_t environment_size, std::string &error)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
@@ -964,7 +975,7 @@ namespace sl::detail
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         std::uint32_t environment_offset = 0;
         if (!ensure_environment_block(error) ||
-            !write_environment(environment, sizeof(float) * 16, environment_offset, error))
+            !write_environment(environment, environment_size, environment_offset, error))
             return false;
         const VkDescriptorSet mesh_descriptors[3] = {texture_descriptor, normal_descriptor, environment_set_};
         vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 3,
@@ -1452,6 +1463,266 @@ namespace sl::detail
         return true;
     }
 
+    std::uint32_t VulkanContext::max_texture_array_layers() const
+    {
+        if (physical_device_ == VK_NULL_HANDLE)
+            return 0;
+        VkFormatProperties format_properties{};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, VK_FORMAT_R8G8B8A8_UNORM,
+                                            &format_properties);
+        constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                                   VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        if ((format_properties.optimalTilingFeatures & required) != required)
+            return 0;
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physical_device_, &properties);
+        return std::min(properties.limits.maxImageArrayLayers, 2048u);
+    }
+
+    bool VulkanContext::create_texture_array_image(const TextureArrayDesc &description,
+                                                   VulkanImage &result, std::string &error)
+    {
+        result = {};
+        if (description.width <= 0 || description.height <= 0 || description.layers <= 0 ||
+            description.mip_levels <= 0)
+        {
+            error = "Invalid Vulkan texture-array dimensions or unsupported format.";
+            return false;
+        }
+        std::uint32_t max_dimension = static_cast<std::uint32_t>(std::max(description.width, description.height));
+        int max_mips = 0;
+        while (max_dimension > 0)
+        {
+            ++max_mips;
+            max_dimension >>= 1;
+        }
+        if (description.mip_levels > max_mips ||
+            static_cast<std::uint32_t>(description.layers) > max_texture_array_layers())
+        {
+            error = "Invalid Vulkan texture-array dimensions or unsupported format.";
+            return false;
+        }
+        VkFormatProperties format_properties{};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, VK_FORMAT_R8G8B8A8_UNORM,
+                                            &format_properties);
+        constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                                   VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        if ((format_properties.optimalTilingFeatures & required) != required)
+        {
+            error = "Vulkan device does not support linearly filtered RGBA8 sampled images.";
+            return false;
+        }
+        result.format = VK_FORMAT_R8G8B8A8_UNORM;
+        result.mip_levels = static_cast<std::uint32_t>(description.mip_levels);
+        result.array_layers = static_cast<std::uint32_t>(description.layers);
+        VkImageCreateInfo image_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        image_info.imageType = VK_IMAGE_TYPE_2D;
+        image_info.extent = {static_cast<std::uint32_t>(description.width),
+                             static_cast<std::uint32_t>(description.height), 1};
+        image_info.mipLevels = result.mip_levels;
+        image_info.arrayLayers = result.array_layers;
+        image_info.format = result.format;
+        image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+        image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateImage(device_, &image_info, nullptr, &result.image) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan texture-array image.";
+            return false;
+        }
+        VkMemoryRequirements requirements{};
+        vkGetImageMemoryRequirements(device_, result.image, &requirements);
+        const std::uint32_t memory_type = find_memory_type(requirements.memoryTypeBits,
+                                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        if (memory_type == UINT32_MAX)
+        {
+            error = "Unable to find Vulkan texture-array memory type.";
+            destroy_image(result);
+            return false;
+        }
+        VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        allocation.allocationSize = requirements.size;
+        allocation.memoryTypeIndex = memory_type;
+        if (vkAllocateMemory(device_, &allocation, nullptr, &result.memory) != VK_SUCCESS ||
+            vkBindImageMemory(device_, result.image, result.memory, 0) != VK_SUCCESS)
+        {
+            error = "Unable to allocate Vulkan texture-array memory.";
+            destroy_image(result);
+            return false;
+        }
+        VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        view_info.image = result.image;
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        view_info.format = result.format;
+        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view_info.subresourceRange.levelCount = result.mip_levels;
+        view_info.subresourceRange.layerCount = result.array_layers;
+        if (vkCreateImageView(device_, &view_info, nullptr, &result.view) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan texture-array view.";
+            destroy_image(result);
+            return false;
+        }
+        return true;
+    }
+
+    bool VulkanContext::upload_image_array_rgba(VulkanImage &image, const TextureArrayDesc &description,
+                                                 const std::uint8_t *pixels, std::string &error)
+    {
+        if (image.image == VK_NULL_HANDLE || !pixels || description.width <= 0 || description.height <= 0 ||
+            image.array_layers != static_cast<std::uint32_t>(description.layers) ||
+            image.mip_levels != static_cast<std::uint32_t>(description.mip_levels))
+        {
+            error = "Invalid Vulkan texture-array upload.";
+            return false;
+        }
+        const std::size_t byte_count = texture_array_byte_count(description);
+        VulkanBuffer staging;
+        if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                           staging, error) || !upload_buffer(staging, pixels, byte_count, error))
+        {
+            destroy_buffer(staging);
+            return false;
+        }
+        const bool use_active_command = frame_active_;
+        VkCommandBuffer command = command_buffer_;
+        if (!use_active_command)
+        {
+            VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+            allocation.commandPool = command_pool_;
+            allocation.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocation.commandBufferCount = 1;
+            if (vkAllocateCommandBuffers(device_, &allocation, &command) != VK_SUCCESS)
+            {
+                error = "Unable to allocate Vulkan texture-array upload command buffer.";
+                destroy_buffer(staging);
+                return false;
+            }
+            VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+            begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            if (vkBeginCommandBuffer(command, &begin) != VK_SUCCESS)
+            {
+                vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+                destroy_buffer(staging);
+                error = "Unable to begin Vulkan texture-array upload command buffer.";
+                return false;
+            }
+        }
+        else
+        {
+            if (command_buffer_recording_ && render_pass_active_)
+                vkCmdEndRenderPass(command);
+            render_pass_active_ = false;
+        }
+        VkImageMemoryBarrier to_transfer{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        to_transfer.oldLayout = image.layout;
+        to_transfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        to_transfer.srcAccessMask = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                        ? VK_ACCESS_SHADER_READ_BIT
+                                        : 0;
+        to_transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        to_transfer.image = image.image;
+        to_transfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        to_transfer.subresourceRange.levelCount = image.mip_levels;
+        to_transfer.subresourceRange.layerCount = image.array_layers;
+        const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                      ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+                                                      : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        vkCmdPipelineBarrier(command, source_stage, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &to_transfer);
+        std::vector<VkBufferImageCopy> copies;
+        copies.reserve(static_cast<std::size_t>(description.mip_levels) * description.layers);
+        for (int level = 0; level < description.mip_levels; ++level)
+        {
+            const std::uint32_t width = static_cast<std::uint32_t>(std::max(description.width >> level, 1));
+            const std::uint32_t height = static_cast<std::uint32_t>(std::max(description.height >> level, 1));
+            const VkDeviceSize level_offset = texture_array_level_offset(description, level);
+            const VkDeviceSize layer_bytes = static_cast<VkDeviceSize>(width) * height * 4;
+            for (int layer = 0; layer < description.layers; ++layer)
+            {
+                VkBufferImageCopy copy{};
+                copy.bufferOffset = level_offset + layer_bytes * static_cast<VkDeviceSize>(layer);
+                copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                copy.imageSubresource.mipLevel = static_cast<std::uint32_t>(level);
+                copy.imageSubresource.baseArrayLayer = static_cast<std::uint32_t>(layer);
+                copy.imageSubresource.layerCount = 1;
+                copy.imageExtent = {width, height, 1};
+                copies.push_back(copy);
+            }
+        }
+        vkCmdCopyBufferToImage(command, staging.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               static_cast<std::uint32_t>(copies.size()), copies.data());
+        VkImageMemoryBarrier to_shader = to_transfer;
+        to_shader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        to_shader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        to_shader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        to_shader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &to_shader);
+        if (use_active_command)
+        {
+            VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+            begin.renderPass = active_resume_render_pass_;
+            begin.framebuffer = active_framebuffer_;
+            begin.renderArea.extent = active_extent_;
+            VkClearValue clear_values[3]{};
+            begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
+            begin.pClearValues = clear_values;
+            vkCmdBeginRenderPass(command, &begin, VK_SUBPASS_CONTENTS_INLINE);
+            active_render_pass_ = active_resume_render_pass_;
+            render_pass_active_ = true;
+            upload_staging_buffers_.push_back(staging);
+            image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            return true;
+        }
+        if (vkEndCommandBuffer(command) != VK_SUCCESS)
+        {
+            vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+            destroy_buffer(staging);
+            error = "Unable to finish Vulkan texture-array upload command buffer.";
+            return false;
+        }
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &command;
+        if (vkQueueSubmit(graphics_queue_, 1, &submit, VK_NULL_HANDLE) != VK_SUCCESS ||
+            vkQueueWaitIdle(graphics_queue_) != VK_SUCCESS)
+        {
+            error = "Unable to submit Vulkan texture-array upload.";
+            vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+            destroy_buffer(staging);
+            return false;
+        }
+        vkFreeCommandBuffers(device_, command_pool_, 1, &command);
+        destroy_buffer(staging);
+        image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        return true;
+    }
+
+    bool VulkanContext::create_terrain_sampler(VulkanSampler &result, std::string &error)
+    {
+        result = {};
+        VkSamplerCreateInfo sampler_info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.anisotropyEnable = sampler_anisotropy_enabled_ ? VK_TRUE : VK_FALSE;
+        sampler_info.maxAnisotropy = max_sampler_anisotropy_;
+        sampler_info.maxLod = VK_LOD_CLAMP_NONE;
+        if (vkCreateSampler(device_, &sampler_info, nullptr, &result.sampler) != VK_SUCCESS)
+        {
+            error = "Unable to create Vulkan terrain texture sampler.";
+            return false;
+        }
+        return true;
+    }
+
     bool VulkanContext::download_image_rgba(VulkanImage &image, int width, int height,
                                             std::uint8_t *out_pixels, std::string &error)
     {
@@ -1599,6 +1870,8 @@ namespace sl::detail
     {
         result = {};
         result.format = format;
+        result.mip_levels = 1;
+        result.array_layers = 1;
         VkImageCreateInfo image_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
         image_info.imageType = VK_IMAGE_TYPE_2D;
         image_info.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};
@@ -1642,8 +1915,8 @@ namespace sl::detail
             (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0
                 ? VK_IMAGE_ASPECT_DEPTH_BIT
                 : VK_IMAGE_ASPECT_COLOR_BIT;
-        view_info.subresourceRange.levelCount = 1;
-        view_info.subresourceRange.layerCount = 1;
+        view_info.subresourceRange.levelCount = result.mip_levels;
+        view_info.subresourceRange.layerCount = result.array_layers;
         if (vkCreateImageView(device_, &view_info, nullptr, &result.view) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan image view.";
@@ -2519,7 +2792,7 @@ namespace sl::detail
                          : three_dimensional ? sizeof(Vulkan3DVertex)
                                              : sizeof(Vertex2D);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        VkVertexInputAttributeDescription attributes[5] = {
+        VkVertexInputAttributeDescription attributes[6] = {
             {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
             {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
             {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
@@ -2531,6 +2804,7 @@ namespace sl::detail
             attributes[2] = {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, colour))};
             attributes[3] = {3, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, uv))};
             attributes[4] = {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, tangent))};
+            attributes[5] = {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DMeshVertex, extra))};
         }
         else if (three_dimensional)
         {
@@ -2540,7 +2814,7 @@ namespace sl::detail
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
         vertex_input.vertexBindingDescriptionCount = sky ? 0u : 1u;
         vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = sky ? 0u : mesh_vertices ? 5u : three_dimensional ? 2u : 3u;
+        vertex_input.vertexAttributeDescriptionCount = sky ? 0u : mesh_vertices ? 6u : three_dimensional ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)

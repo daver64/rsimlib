@@ -6,6 +6,8 @@
 #include "draw.h"
 #include "surface3d.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <limits>
 #include <cstdint>
@@ -81,6 +83,33 @@ namespace sl::detail
         bool render_target = false;
     };
 
+    /** A mipmapped, repeating, anisotropically filtered RGBA8 texture array. */
+    struct TextureArrayDesc
+    {
+        int width = 0;
+        int height = 0;
+        int layers = 0;
+        int mip_levels = 1;
+    };
+
+    /** Byte offset of a mip level's first layer in the pixel data of create_texture_array(). */
+    inline std::size_t texture_array_level_offset(const TextureArrayDesc &desc, int level)
+    {
+        std::size_t offset = 0;
+        for (int i = 0; i < level; ++i)
+            offset += static_cast<std::size_t>(std::max(desc.width >> i, 1)) * std::max(desc.height >> i, 1) * 4 *
+                      static_cast<std::size_t>(desc.layers);
+        return offset;
+    }
+
+    inline std::size_t texture_array_byte_count(const TextureArrayDesc &desc)
+    {
+        return texture_array_level_offset(desc, desc.mip_levels);
+    }
+
+    /** Number of surface types a terrain draw can blend (weights are carried in two vertex attributes). */
+    constexpr int terrain_layer_count = 8;
+
     /** Per-draw data for Renderer::draw_mesh(). Matrices are column-major, as in GLM. */
     struct MeshDrawParams
     {
@@ -102,6 +131,20 @@ namespace sl::detail
         float fog_view[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         /** rgb: colour of the directional light. */
         float light_colour[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+        /**
+         * Terrain splatting. When terrain_albedo is not 0 the mesh is drawn with the terrain pipeline instead: texture and
+         * normal_texture are ignored, the vertex colour and Vertex3D::extra hold the eight layer weights, and the
+         * vertex UVs are metres. terrain_normals may be 0 (no normal maps). normal_rows carries the terrain parameters as for
+         * untextured terrain: [0].w = -1, [1].xyz eye, [1].w morph start, [2].x morph end, [2].yz fade start and end.
+         */
+        std::uint32_t terrain_albedo = 0;
+        std::uint32_t terrain_normals = 0;
+        /** Per surface type: x first array layer, y variant count, z tile metres, w tiles per UV period. */
+        float terrain_layers[terrain_layer_count][4] = {};
+        /** Per surface type: rgb average colour, which distant ground fades to. */
+        float terrain_average[terrain_layer_count][4] = {};
+        /** x: macro texture array layer (negative for none), y: macro tile metres, z: macro strength. */
+        float terrain_macro[4] = {-1.0f, 1.0f, 0.0f, 0.0f};
     };
 
     /** Per-draw data for Renderer::draw_sky(): vec4 rows laid out as documented in atmosphere.cpp. */
@@ -267,6 +310,15 @@ namespace sl::detail
                                       std::uint8_t *out_pixels) = 0;
         /** Destroy a texture handle. */
         virtual void destroy_texture(std::uint32_t texture) = 0;
+        /** Most layers a texture array may have, or 0 if texture arrays (and so textured terrain) are unsupported. */
+        virtual int max_texture_array_layers() const { return 0; }
+        /**
+         * Create a texture array with repeat wrapping, trilinear filtering and the best anisotropic filtering available.
+         * `pixels` holds RGBA8 for every mip level in turn, and within a level every layer in turn (see
+         * texture_array_byte_count()). The array is bound for sampling only by draw_mesh().
+         */
+        virtual bool create_texture_array(const TextureArrayDesc &, const std::uint8_t *, std::uint32_t &) { return false; }
+        virtual void destroy_texture_array(std::uint32_t) {}
         /** Create a color render target and return its texture and framebuffer handles. */
         virtual bool create_render_target(int width, int height, std::uint32_t &texture,
                                           std::uint32_t &framebuffer) = 0;

@@ -165,6 +165,7 @@ namespace sl::detail
                 }
                 meshes_.clear();
                 destroy_mesh_pipelines();
+                destroy_terrain_pipelines();
                 destroy_sky_pipelines();
                 if (mesh_pipeline_ready_)
                 {
@@ -178,12 +179,24 @@ namespace sl::detail
                     context_.destroy_image(texture.image);
                 }
                 textures_.clear();
+                for (auto &[handle, texture] : texture_arrays_)
+                {
+                    context_.destroy_sampler(texture.sampler);
+                    context_.destroy_image(texture.image);
+                }
+                texture_arrays_.clear();
                 for (VulkanTexture &texture : retired_textures_)
                 {
                     context_.destroy_sampler(texture.sampler);
                     context_.destroy_image(texture.image);
                 }
                 retired_textures_.clear();
+                for (VulkanTextureArray &texture : retired_texture_arrays_)
+                {
+                    context_.destroy_sampler(texture.sampler);
+                    context_.destroy_image(texture.image);
+                }
+                retired_texture_arrays_.clear();
                 for (VulkanRenderTarget &target : retired_render_targets_)
                     destroy_target_resources(target, false);
                 retired_render_targets_.clear();
@@ -338,6 +351,13 @@ namespace sl::detail
                         context_.destroy_image(texture.image);
                     }
                     retired_textures_.clear();
+                    for (VulkanTextureArray &texture : retired_texture_arrays_)
+                    {
+                        context_.free_descriptor_set(descriptor_pool_, texture.descriptor);
+                        context_.destroy_sampler(texture.sampler);
+                        context_.destroy_image(texture.image);
+                    }
+                    retired_texture_arrays_.clear();
                     for (VulkanRenderTarget &target : retired_render_targets_)
                         destroy_target_resources(target, true);
                     retired_render_targets_.clear();
@@ -377,6 +397,52 @@ namespace sl::detail
                 }
                 textures_.emplace(texture, std::move(resource));
                 return true;
+            }
+            int max_texture_array_layers() const override
+            {
+                return static_cast<int>(context_.max_texture_array_layers());
+            }
+            bool create_texture_array(const TextureArrayDesc &description, const std::uint8_t *pixels,
+                                      std::uint32_t &texture) override
+            {
+                texture = 0;
+                if (!pixels || description.width <= 0 || description.height <= 0 ||
+                    description.layers <= 0 || description.mip_levels <= 0 ||
+                    texture_array_byte_count(description) == 0)
+                    return false;
+                VulkanTextureArray resource;
+                if (!context_.create_texture_array_image(description, resource.image, last_error_) ||
+                    !context_.create_terrain_sampler(resource.sampler, last_error_) ||
+                    !context_.upload_image_array_rgba(resource.image, description, pixels, last_error_) ||
+                    !context_.allocate_texture_descriptor(descriptor_pool_, descriptor_layout_, resource.image,
+                                                          resource.sampler, resource.descriptor, last_error_))
+                {
+                    context_.free_descriptor_set(descriptor_pool_, resource.descriptor);
+                    context_.destroy_sampler(resource.sampler);
+                    context_.destroy_image(resource.image);
+                    return false;
+                }
+                texture = next_texture_++;
+                texture_arrays_.emplace(texture, std::move(resource));
+                return true;
+            }
+            void destroy_texture_array(std::uint32_t texture) override
+            {
+                const auto iterator = texture_arrays_.find(texture);
+                if (iterator == texture_arrays_.end())
+                    return;
+                if (frame_active_)
+                {
+                    retired_texture_arrays_.push_back(std::move(iterator->second));
+                    texture_arrays_.erase(iterator);
+                    return;
+                }
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
+                context_.free_descriptor_set(descriptor_pool_, iterator->second.descriptor);
+                context_.destroy_sampler(iterator->second.sampler);
+                context_.destroy_image(iterator->second.image);
+                texture_arrays_.erase(iterator);
             }
             bool upload_texture(std::uint32_t texture, int width, int height, const std::uint8_t *pixels) override
             {
@@ -530,8 +596,10 @@ namespace sl::detail
                 const auto found = meshes_.find(handle);
                 if (found == meshes_.end())
                     return false;
+                const bool terrain = params.terrain_albedo != 0;
                 const int target_samples = current_target_samples();
-                const MeshPipelineSet *pipelines = ensure_mesh_pipelines(target_samples);
+                const MeshPipelineSet *pipelines = terrain ? ensure_terrain_pipelines(target_samples)
+                                                           : ensure_mesh_pipelines(target_samples);
                 if (!pipelines)
                     return false;
                 flush_2d();
@@ -558,17 +626,57 @@ namespace sl::detail
                     last_error_ = "Vulkan mesh texture handle is not registered.";
                     return false;
                 };
-                VkDescriptorSet descriptor = VK_NULL_HANDLE;
-                VkDescriptorSet normal_descriptor = VK_NULL_HANDLE;
-                if (!sampled_descriptor(params.texture != 0 ? params.texture : white_texture_, descriptor) ||
-                    !sampled_descriptor(params.normal_texture != 0 ? params.normal_texture : white_texture_, normal_descriptor))
-                    return false;
                 MeshDrawParams adjusted = params;
                 // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1].
                 for (int column = 0; column < 4; ++column)
                     adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
                 const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
-                // light_colour, fog_colour, fog_beta, fog_view: the std140 layout of the fragment Environment block.
+                if (terrain)
+                {
+                    const auto albedo = texture_arrays_.find(params.terrain_albedo);
+                    if (albedo == texture_arrays_.end())
+                    {
+                        last_error_ = "Vulkan terrain albedo array handle is not registered.";
+                        return false;
+                    }
+                    if (!context_.prepare_image_for_sampling(albedo->second.image, last_error_))
+                        return false;
+                    VkDescriptorSet normal_descriptor = albedo->second.descriptor;
+                    if (params.terrain_normals != 0)
+                    {
+                        const auto normals = texture_arrays_.find(params.terrain_normals);
+                        if (normals == texture_arrays_.end())
+                        {
+                            last_error_ = "Vulkan terrain normal array handle is not registered.";
+                            return false;
+                        }
+                        if (!context_.prepare_image_for_sampling(normals->second.image, last_error_))
+                            return false;
+                        normal_descriptor = normals->second.descriptor;
+                    }
+                    float vertex_constants[28];
+                    std::memcpy(vertex_constants, adjusted.mvp, sizeof(float) * 16);
+                    std::memcpy(vertex_constants + 16, adjusted.normal_rows, sizeof(float) * 12);
+                    float environment[84]{};
+                    std::memcpy(environment, params.light_colour, sizeof(float) * 4);
+                    std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
+                    std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
+                    std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
+                    std::memcpy(environment + 16, params.terrain_layers, sizeof(float) * 32);
+                    std::memcpy(environment + 48, params.terrain_average, sizeof(float) * 32);
+                    std::memcpy(environment + 80, params.terrain_macro, sizeof(float) * 4);
+                    environment[83] = params.terrain_normals != 0 ? 1.0f : 0.0f;
+                    return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
+                                                     found->second.vertices.buffer, found->second.indices.buffer,
+                                                     found->second.index_count, albedo->second.descriptor, normal_descriptor,
+                                                     vertex_constants, params.light, environment,
+                                                     sizeof(environment), last_error_);
+                }
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+                VkDescriptorSet normal_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.texture != 0 ? params.texture : white_texture_, descriptor) ||
+                    !sampled_descriptor(params.normal_texture != 0 ? params.normal_texture : white_texture_, normal_descriptor))
+                    return false;
                 float environment[16];
                 std::memcpy(environment, params.light_colour, sizeof(float) * 4);
                 std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
@@ -577,7 +685,7 @@ namespace sl::detail
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
-                                                 environment, last_error_);
+                                                 environment, sizeof(environment), last_error_);
             }
             bool draw_sky(const SkyDrawParams &params) override
             {
@@ -2441,6 +2549,12 @@ namespace sl::detail
                 VulkanSampler sampler;
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
             };
+            struct VulkanTextureArray
+            {
+                VulkanImage image;
+                VulkanSampler sampler;
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+            };
             struct VulkanRenderTarget
             {
                 VulkanImage image;
@@ -2506,6 +2620,57 @@ namespace sl::detail
                 }
                 return &(mesh_pipelines_[samples] = set);
             }
+            std::map<int, MeshPipelineSet> terrain_pipelines_;
+            VulkanShaderModule terrain_vertex_module_;
+            VulkanShaderModule terrain_fragment_module_;
+            bool terrain_pipeline_ready_ = false;
+            void destroy_terrain_pipelines()
+            {
+                for (auto &[samples, set] : terrain_pipelines_)
+                    for (VulkanGraphicsPipeline &culled : set)
+                        context_.destroy_graphics_pipeline(culled);
+                terrain_pipelines_.clear();
+                if (terrain_pipeline_ready_)
+                {
+                    context_.destroy_shader_module(terrain_vertex_module_);
+                    context_.destroy_shader_module(terrain_fragment_module_);
+                    terrain_pipeline_ready_ = false;
+                }
+            }
+            const MeshPipelineSet *ensure_terrain_pipelines(int samples)
+            {
+                if (!terrain_pipeline_ready_)
+                {
+                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_terrain.vert.spv"))
+                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_terrain.vert.spv", terrain_vertex_module_, last_error_) ||
+                        !context_.load_shader_module(shader_dir / "vulkan/vulkan_terrain.frag.spv", terrain_fragment_module_, last_error_))
+                    {
+                        context_.destroy_shader_module(terrain_vertex_module_);
+                        context_.destroy_shader_module(terrain_fragment_module_);
+                        return nullptr;
+                    }
+                    terrain_pipeline_ready_ = true;
+                }
+                const auto existing = terrain_pipelines_.find(samples);
+                if (existing != terrain_pipelines_.end())
+                    return &existing->second;
+                MeshPipelineSet set{};
+                const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
+                for (int mode = 0; mode < 3; ++mode)
+                {
+                    if (!context_.create_graphics_pipeline(terrain_vertex_module_, terrain_fragment_module_, descriptor_layout_,
+                                                           PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
+                                                           true, false, false, true, flags[mode], samples))
+                    {
+                        for (VulkanGraphicsPipeline &created : set)
+                            context_.destroy_graphics_pipeline(created);
+                        return nullptr;
+                    }
+                }
+                return &(terrain_pipelines_[samples] = set);
+            }
             std::map<int, VulkanGraphicsPipeline> sky_pipelines_; // Keyed by sample count.
             VulkanShaderModule sky_vertex_module_;
             VulkanShaderModule sky_fragment_module_;
@@ -2549,7 +2714,9 @@ namespace sl::detail
                 return &(sky_pipelines_[samples] = pipeline);
             }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
+            std::unordered_map<std::uint32_t, VulkanTextureArray> texture_arrays_;
             std::vector<VulkanTexture> retired_textures_;
+            std::vector<VulkanTextureArray> retired_texture_arrays_;
             std::vector<VulkanRenderTarget> retired_render_targets_;
             std::map<std::uint32_t, VulkanRenderTarget> render_targets_;
             std::vector<std::uint32_t> active_render_targets_;

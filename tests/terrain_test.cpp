@@ -113,26 +113,35 @@ static void test_flat_chunks()
     CHECK(bad == 0);
 }
 
-static void test_layer_atlas()
+static void test_layer_textures()
 {
-    Terrain terrain(flat_config(), std::make_shared<NoiseSource>());
+    TerrainConfig config = flat_config();
+    config.layers = default_terrain_layers(0.0, 100.0);
+    for (int i = 0; i < 4; ++i)
+        config.layers.push_back(config.layers[static_cast<std::size_t>(i)]);
+    Terrain terrain(config, std::make_shared<NoiseSource>());
     Bitmap *albedo = create_bitmap(32, 32);
-    Bitmap *normals = create_bitmap(32, 32);
-    Bitmap *wrong = create_bitmap(16, 16);
-    Bitmap *oblong = create_bitmap(32, 16);
-    CHECK(albedo && normals && wrong && oblong);
-    if (albedo && normals && wrong && oblong)
-    {
-        CHECK(terrain.set_layer_atlas(albedo, 100.0, 400.0));
-        CHECK(terrain.set_layer_atlas(albedo, 100.0, 400.0, normals));
-        CHECK(!terrain.set_layer_atlas(albedo, 100.0, 400.0, wrong));
-        CHECK(!terrain.set_layer_atlas(oblong));
-        CHECK(terrain.set_layer_atlas(nullptr));
-    }
+    CHECK(albedo != nullptr);
+    config.layers[0].albedo = albedo;
+    // Without a renderer with texture arrays, textures are refused and vertex colours stay in use.
+    Terrain textured(config, std::make_shared<NoiseSource>());
+    CHECK(!textured.set_layer_textures());
+    textured.clear_layer_textures();
     destroy_bitmap(albedo);
-    destroy_bitmap(normals);
-    destroy_bitmap(wrong);
-    destroy_bitmap(oblong);
+
+    // Eight weights are carried: four in the colour and four in the extra attribute, summing to one.
+    config.weights_in_vertex_colour = true;
+    config.layers[0].albedo = nullptr;
+    config.weight_function = [](const TerrainSample &, float weights[terrain_max_layers])
+    {
+        for (int i = 0; i < terrain_max_layers; ++i)
+            weights[i] = static_cast<float>(i + 1);
+    };
+    const TerrainChunkData data = build_terrain_chunk(config, *hills(), {0, 0, 0, 0});
+    const Vertex3D &v = data.vertices[0];
+    const float sum = v.colour[0] + v.colour[1] + v.colour[2] + v.colour[3] + v.extra[0] + v.extra[1] + v.extra[2] + v.extra[3];
+    CHECK(std::fabs(sum - 1.0f) < 1.0e-4f);
+    CHECK(v.extra[3] > v.extra[0] && v.extra[0] > v.colour[3]);
 }
 
 static void test_geomorph()
@@ -306,7 +315,7 @@ int main()
     test_lod();
     test_flat_chunks();
     test_geomorph();
-    test_layer_atlas();
+    test_layer_textures();
     test_queries();
     test_sphere();
     test_grid();

@@ -126,12 +126,9 @@ namespace sl
         {
             std::unique_ptr<Terrain> terrain;
             std::shared_ptr<GridSource> grid;
-            std::string atlas_sprite;
-            std::string normal_sprite;
-            Bitmap *normal_applied = nullptr;
-            Bitmap *atlas_applied = nullptr;
-            double fade_start = 150.0;
-            double fade_end = 600.0;
+            // Layer textures are uploaded by the first draw, when a renderer is certain to exist.
+            bool textures_pending = false;
+            TerrainTextureOptions texture_options;
             int x = 0;
             int y = 0;
             int width = 0;
@@ -697,10 +694,83 @@ namespace sl
             config.finest_cell_size = std::max(0.01, options.get_or("finest_cell_size", config.finest_cell_size));
             config.max_level = std::clamp(options.get_or("max_level", config.max_level), -1, 24);
             config.max_screen_error = std::max(0.5, options.get_or("max_screen_error", config.max_screen_error));
-            config.uv_tile_metres = std::max(0.1, options.get_or("uv_tile_metres", config.uv_tile_metres));
             config.geomorph = options.get_or("geomorph", config.geomorph);
 
             TerrainEntry entry;
+            auto sprite_of = [this](const sol::object &value) -> Bitmap *
+            {
+                if (value.get_type() != sol::type::string)
+                    return nullptr;
+                return bitmaps ? bitmaps(value.as<std::string>()) : nullptr;
+            };
+            bool any_albedo = false;
+            if (sol::optional<sol::table> layers = options.get<sol::optional<sol::table>>("layers"))
+            {
+                for (std::size_t i = 1; i <= layers->size() && config.layers.size() < static_cast<std::size_t>(terrain_max_layers); ++i)
+                {
+                    sol::optional<sol::table> description = layers->get<sol::optional<sol::table>>(i);
+                    if (!description)
+                        return false;
+                    TerrainLayer layer;
+                    if (sol::optional<sol::table> colour = description->get<sol::optional<sol::table>>("colour"))
+                        layer.colour = {static_cast<Uint8>(std::clamp(colour->get_or(1, 128), 0, 255)),
+                                        static_cast<Uint8>(std::clamp(colour->get_or(2, 128), 0, 255)),
+                                        static_cast<Uint8>(std::clamp(colour->get_or(3, 128), 0, 255)), 255};
+                    layer.tile_metres = std::max(0.01, description->get_or("tile_metres", layer.tile_metres));
+                    layer.min_height = description->get_or("min_height", layer.min_height);
+                    layer.max_height = description->get_or("max_height", layer.max_height);
+                    layer.height_blend = description->get_or("height_blend", layer.height_blend);
+                    layer.min_slope = description->get_or("min_slope", layer.min_slope);
+                    layer.max_slope = description->get_or("max_slope", layer.max_slope);
+                    layer.slope_blend = description->get_or("slope_blend", layer.slope_blend);
+                    layer.strength = description->get_or("strength", layer.strength);
+                    const sol::object sprite = description->get<sol::object>("sprite");
+                    if (sprite.valid() && sprite.get_type() != sol::type::lua_nil)
+                    {
+                        if (!(layer.albedo = sprite_of(sprite)))
+                            return false;
+                        any_albedo = true;
+                        const sol::object normal = description->get<sol::object>("normal");
+                        if (normal.valid() && normal.get_type() != sol::type::lua_nil && !(layer.normal_map = sprite_of(normal)))
+                            return false;
+                        if (sol::optional<sol::table> variants = description->get<sol::optional<sol::table>>("variants"))
+                            for (std::size_t k = 1; k <= variants->size(); ++k)
+                            {
+                                // A variant is a sprite name or a table {sprite = ..., normal = ...}.
+                                const sol::object item = variants->get<sol::object>(k);
+                                TerrainLayerVariant variant;
+                                if (item.get_type() == sol::type::table)
+                                {
+                                    const sol::table fields = item.as<sol::table>();
+                                    variant.albedo = sprite_of(fields.get<sol::object>("sprite"));
+                                    const sol::object normal_field = fields.get<sol::object>("normal");
+                                    if (normal_field.valid() && normal_field.get_type() != sol::type::lua_nil &&
+                                        !(variant.normal_map = sprite_of(normal_field)))
+                                        return false;
+                                }
+                                else
+                                    variant.albedo = sprite_of(item);
+                                if (!variant.albedo)
+                                    return false;
+                                layer.variants.push_back(variant);
+                            }
+                    }
+                    config.layers.push_back(layer);
+                }
+            }
+            if (sol::optional<sol::table> textures = options.get<sol::optional<sol::table>>("textures"))
+            {
+                TerrainTextureOptions &texture = entry.texture_options;
+                texture.fade_start = textures->get_or("fade_start", texture.fade_start);
+                texture.fade_end = textures->get_or("fade_end", texture.fade_end);
+                texture.macro_tile_metres = textures->get_or("macro_tile_metres", texture.macro_tile_metres);
+                texture.macro_strength = textures->get_or("macro_strength", texture.macro_strength);
+                texture.max_size = std::clamp(textures->get_or("max_size", texture.max_size), 4, 8192);
+                const sol::object macro = textures->get<sol::object>("macro_sprite");
+                if (macro.valid() && macro.get_type() != sol::type::lua_nil && !(texture.macro_texture = sprite_of(macro)))
+                    return false;
+            }
+            entry.textures_pending = any_albedo;
             std::shared_ptr<TerrainSource> source;
             sol::optional<sol::table> description = options.get<sol::optional<sol::table>>("source");
             const std::string kind = description ? description->get_or("type", std::string("noise")) : "noise";
@@ -755,24 +825,6 @@ namespace sl
             if (it->second.surface)
                 destroy_surface_3d(it->second.surface);
             terrains.erase(it);
-            return true; });
-        table.set_function("set_atlas", [this](const std::string &id, sol::optional<std::string> sprite,
-                                               sol::optional<double> fade_start, sol::optional<double> fade_end,
-                                               sol::optional<std::string> normal_sprite)
-                           {
-            TerrainEntry *entry = terrain(id);
-            if (!entry || (sprite && !bitmaps))
-                return false;
-            if ((sprite && !bitmaps(*sprite)) || (normal_sprite && (!bitmaps || !bitmaps(*normal_sprite))))
-                return false;
-            entry->atlas_sprite = sprite.value_or("");
-            entry->normal_sprite = normal_sprite.value_or("");
-            entry->fade_start = fade_start.value_or(entry->fade_start);
-            entry->fade_end = fade_end.value_or(entry->fade_end);
-            entry->atlas_applied = nullptr;
-            entry->normal_applied = nullptr;
-            if (entry->atlas_sprite.empty())
-                entry->terrain->set_layer_atlas(nullptr);
             return true; });
         table.set_function("height_at", [this](const std::string &id, double x, double z) -> sol::optional<double>
                            {
@@ -1053,16 +1105,11 @@ namespace sl
                 entry->surface = create_surface_3d(entry->width, entry->height);
             if (!entry->surface)
                 break;
-            if (!entry->atlas_sprite.empty() && state.bitmaps)
+            if (entry->textures_pending)
             {
-                Bitmap *atlas = state.bitmaps(entry->atlas_sprite);
-                Bitmap *normals = entry->normal_sprite.empty() ? nullptr : state.bitmaps(entry->normal_sprite);
-                if (atlas != entry->atlas_applied || normals != entry->normal_applied)
-                {
-                    entry->terrain->set_layer_atlas(atlas, entry->fade_start, entry->fade_end, normals);
-                    entry->atlas_applied = atlas;
-                    entry->normal_applied = normals;
-                }
+                entry->terrain->set_layer_textures(entry->texture_options);
+                entry->textures_pending = false;
+                entry->texture_options.macro_texture = nullptr;
             }
             TerrainView view;
             view.position = entry->eye;

@@ -209,6 +209,16 @@ namespace sl
         double slope_degrees = 0.0;
     };
 
+    /** An extra texture for a layer, picked per tile by hashed noise to break up repetition. Same tile size as the layer. */
+    struct TerrainLayerVariant
+    {
+        Bitmap *albedo = nullptr;
+        Bitmap *normal_map = nullptr;
+    };
+
+    /** Most surface types a terrain blends; each has four weights in the vertex colour or eight in total with the extras. */
+    constexpr int terrain_max_layers = 8;
+
     /** One surface layer: a colour and optional textures, placed by height and slope. */
     struct TerrainLayer
     {
@@ -217,8 +227,10 @@ namespace sl
         /** Optional textures for splat rendering; not owned. */
         Bitmap *albedo = nullptr;
         Bitmap *normal_map = nullptr;
-        /** Metres covered by one texture repeat. */
+        /** Metres covered by one texture repeat (the FlightGear xsize). */
         double tile_metres = 16.0;
+        /** Further albedo/normal pairs of the same surface; one is chosen per tile in the shader. */
+        std::vector<TerrainLayerVariant> variants;
 
         /** Height band in metres (use +-1e30 for open ends) and how far outside it the layer fades. */
         double min_height = -1.0e30;
@@ -240,6 +252,21 @@ namespace sl
     {
         flat,
         sphere
+    };
+
+    /** How Terrain::set_layer_textures() builds and draws the layer textures. */
+    struct TerrainTextureOptions
+    {
+        /** Beyond fade_start metres each layer blends to its average colour, completely by fade_end (none if fade_end <= fade_start). */
+        double fade_start = 150.0;
+        double fade_end = 600.0;
+        /** Optional large-scale texture that modulates brightness to break up repetition at altitude. */
+        Bitmap *macro_texture = nullptr;
+        double macro_tile_metres = 2000.0;
+        /** 0 disables the macro texture; 1 swings brightness by +-100%. */
+        double macro_strength = 0.35;
+        /** Largest layer edge in texels; the array uses a power of two up to this. */
+        int max_size = 2048;
     };
 
     /** Terrain construction parameters. */
@@ -265,16 +292,22 @@ namespace sl
         double error_scale = 0.5;
         /** Skirt depth as a multiple of the cell size; skirts hide cracks between neighbouring levels. */
         double skirt_scale = 1.0;
-        /** Metres per texture repeat of the vertex UVs. */
-        double uv_tile_metres = 16.0;
+        /**
+         * Metres after which the vertex UVs wrap, which must be a whole number of every layer's tile. 0 uses the
+         * largest layer tile_metres; Terrain::set_layer_textures() sets it itself to fit its macro texture.
+         */
+        double uv_period_metres = 0.0;
 
         /** Layers placed by height and slope; empty uses default_terrain_layers() scaled to the source range. */
         std::vector<TerrainLayer> layers;
-        /** Optional override of layer weights per vertex; runs on worker threads, so it must be thread-safe. */
-        std::function<void(const TerrainSample &sample, float weights[4])> weight_function;
         /**
-         * Put the four layer weights in the vertex colour instead of the blended layer colours. Terrain::set_layer_atlas()
-         * turns this on by itself while an atlas is set.
+         * Optional override of layer weights per vertex (one per layer, at most terrain_max_layers); runs on worker
+         * threads, so it must be thread-safe.
+         */
+        std::function<void(const TerrainSample &sample, float weights[terrain_max_layers])> weight_function;
+        /**
+         * Put the layer weights in the vertex attributes instead of the blended layer colours. Terrain::set_layer_textures()
+         * turns this on by itself while textures are set.
          */
         bool weights_in_vertex_colour = false;
         /**
@@ -397,21 +430,19 @@ namespace sl
          */
         bool draw(const dvec3 &origin, const Material &material = {}) const;
         /**
-         * Texture the terrain with four tiling layers laid out as a 2x2 atlas (row major: layer 0 top left, 1 top
-         * right, 2 bottom left, 3 bottom right) and weighted per pixel by the layer weights, so splatting works
-         * the same on every backend. The atlas must be square with an even size of at least 8; each layer repeats
-         * every uv_tile_metres. The terrain copies the atlas into its own mipmapped, trilinearly filtered texture
-         * (later changes to the bitmap are not seen), so distant layers do not shimmer. Beyond `fade_start` metres the
-         * layers blend to a larger-scale copy to hide repetition, completely by `fade_end` (no fade when fade_end <=
-         * fade_start).
+         * Texture the terrain from config().layers (at most terrain_max_layers) using GPU texture arrays: every layer
+         * wraps, is mipmapped and anisotropically filtered, and repeats every its own tile_metres, so no pre-baked atlas
+         * is needed. Layer weights are per vertex, so all surface types are always present. Layers with no albedo are
+         * drawn in their flat colour. Each layer's variants are chosen per tile by hashed noise. Layer sizes are
+         * unrestricted: they are resampled to one power-of-two size (the largest input, capped by options.max_size).
+         * The bitmaps are copied to the GPU and not owned or read again.
          *
-         * `normal_atlas` optionally gives a tangent-space normal map per layer in the same layout and size (green up,
-         * OpenGL style; only the red and green channels are used). Pass nullptr for the atlas to go back to vertex
-         * colours. Returns false if the atlas is unusable (vertex colours stay in use) or the normal atlas is (the albedo atlas still applies). Rebuilds
-         * the chunks, so call it at setup. The bitmaps are not owned.
+         * Needs a renderer with texture arrays (OpenGL and Vulkan); returns false otherwise, or if no layer has an
+         * albedo, and vertex colours stay in use. Rebuilds the chunks, so call it at setup after set_gfx_mode().
          */
-        bool set_layer_atlas(Bitmap *atlas, double fade_start = 150.0, double fade_end = 600.0,
-                             Bitmap *normal_atlas = nullptr);
+        bool set_layer_textures(const TerrainTextureOptions &options = {});
+        /** Go back to vertex colours and free the texture arrays. */
+        void clear_layer_textures();
         /** Block until every chunk the last update() asked for has been built and uploaded (for loading screens). */
         void wait_until_ready(const TerrainView &view, int max_updates = 600);
 

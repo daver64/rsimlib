@@ -15,6 +15,7 @@
 
 #include <SDL2/SDL.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -128,6 +129,11 @@ namespace sl::detail
                 {
                     glDeleteProgram(mesh_program_);
                     mesh_program_ = 0;
+                }
+                if (terrain_program_ != 0)
+                {
+                    glDeleteProgram(terrain_program_);
+                    terrain_program_ = 0;
                 }
                 if (sky_program_ != 0)
                 {
@@ -328,6 +334,83 @@ namespace sl::detail
                     glDeleteTextures(1, &handle);
                     texture_sizes_.erase(handle);
                 }
+            }
+
+            int max_texture_array_layers() const override
+            {
+                GLint layers = 0;
+                glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &layers);
+                return std::min<GLint>(layers, 2048);
+            }
+
+            bool create_texture_array(const TextureArrayDesc &description, const std::uint8_t *pixels,
+                                      std::uint32_t &texture) override
+            {
+                texture = 0;
+                GLint max_size = 0;
+                glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
+                if (!pixels || description.width <= 0 || description.height <= 0 || description.layers <= 0 ||
+                    description.layers > max_texture_array_layers() || description.mip_levels <= 0 ||
+                    description.width > max_size || description.height > max_size)
+                    return false;
+                GLuint handle = 0;
+                glGenTextures(1, &handle);
+                if (handle == 0)
+                    return false;
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_texture = 0;
+                GLint previous_unpack_buffer = 0;
+                GLint previous_unpack_alignment = 4;
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture);
+                glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &previous_unpack_buffer);
+                glGetIntegerv(GL_UNPACK_ALIGNMENT, &previous_unpack_alignment);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                while (glGetError() != GL_NO_ERROR)
+                {
+                }
+                glBindTexture(GL_TEXTURE_2D_ARRAY, handle);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BASE_LEVEL, 0);
+                glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, description.mip_levels - 1);
+                for (int level = 0; level < description.mip_levels; ++level)
+                    glTexImage3D(GL_TEXTURE_2D_ARRAY, level, GL_RGBA8, std::max(description.width >> level, 1),
+                                 std::max(description.height >> level, 1), description.layers, 0, GL_RGBA,
+                                 GL_UNSIGNED_BYTE, pixels + texture_array_level_offset(description, level));
+                const bool created = glGetError() == GL_NO_ERROR;
+                if (created)
+                {
+                    GLfloat anisotropy = 1.0f;
+                    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &anisotropy);
+                    if (glGetError() == GL_NO_ERROR && anisotropy > 1.0f)
+                        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(anisotropy, 16.0f));
+                    while (glGetError() != GL_NO_ERROR)
+                    {
+                    }
+                }
+                glPixelStorei(GL_UNPACK_ALIGNMENT, previous_unpack_alignment);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, static_cast<GLuint>(previous_texture));
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(previous_unpack_buffer));
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
+                if (!created)
+                {
+                    glDeleteTextures(1, &handle);
+                    return false;
+                }
+                texture = handle;
+                return true;
+            }
+
+            void destroy_texture_array(std::uint32_t texture) override
+            {
+                const GLuint handle = static_cast<GLuint>(texture);
+                if (handle != 0)
+                    glDeleteTextures(1, &handle);
             }
 
             bool create_render_target(int width, int height, std::uint32_t &texture,
@@ -539,6 +622,9 @@ namespace sl::detail
                 glEnableVertexAttribArray(4);
                 glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
                                       reinterpret_cast<void *>(offsetof(Vertex3D, tangent)));
+                glEnableVertexAttribArray(5);
+                glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex3D),
+                                      reinterpret_cast<void *>(offsetof(Vertex3D, extra)));
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_array_buffer));
                 handle = next_mesh_++;
@@ -589,6 +675,8 @@ namespace sl::detail
                 const auto found = meshes_.find(handle);
                 if (found == meshes_.end() || !initialise_2d())
                     return false;
+                if (params.terrain_albedo != 0)
+                    return draw_terrain(handle, params);
                 if (mesh_program_ == 0)
                 {
                     std::string error;
@@ -671,6 +759,100 @@ namespace sl::detail
                 glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }
+            bool draw_terrain(std::uint32_t handle, const MeshDrawParams &params)
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end())
+                    return false;
+                const auto &mesh = found->second;
+                if (terrain_program_ == 0)
+                {
+                    std::string error;
+                    if (!create_shader(ShaderSource::glsl(load_glsl_shader("terrain.vert")),
+                                       ShaderSource::glsl(load_glsl_shader("terrain.frag")),
+                                       terrain_program_, error))
+                        return false;
+                }
+                flush_2d();
+                GLint previous_program = 0;
+                GLint previous_depth_func = GL_LESS;
+                GLint previous_depth_mask = GL_TRUE;
+                GLint previous_cull_mode = GL_BACK;
+                GLint previous_front_face = GL_CCW;
+                GLint previous_active_texture = GL_TEXTURE0;
+                GLint previous_vertex_array = 0;
+                GLint previous_array0 = 0;
+                GLint previous_array1 = 0;
+                glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
+                glGetIntegerv(GL_DEPTH_FUNC, &previous_depth_func);
+                glGetIntegerv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
+                glGetIntegerv(GL_CULL_FACE_MODE, &previous_cull_mode);
+                glGetIntegerv(GL_FRONT_FACE, &previous_front_face);
+                glGetIntegerv(GL_ACTIVE_TEXTURE, &previous_active_texture);
+                glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previous_vertex_array);
+                glActiveTexture(GL_TEXTURE0);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_array0);
+                glActiveTexture(GL_TEXTURE1);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_array1);
+                const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
+                glEnable(GL_DEPTH_TEST);
+                glDepthFunc(GL_LESS);
+                glDepthMask(GL_TRUE);
+                const GLboolean cull_was_enabled = glIsEnabled(GL_CULL_FACE);
+                if (params.cull == CullMode::none)
+                {
+                    glDisable(GL_CULL_FACE);
+                }
+                else
+                {
+                    glEnable(GL_CULL_FACE);
+                    glCullFace(params.cull == CullMode::front ? GL_FRONT : GL_BACK);
+                    glFrontFace(GL_CCW);
+                }
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, static_cast<GLuint>(params.terrain_albedo));
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, static_cast<GLuint>(params.terrain_normals != 0 ? params.terrain_normals : params.terrain_albedo));
+                glActiveTexture(GL_TEXTURE0);
+                glUseProgram(terrain_program_);
+                float macro[4] = {params.terrain_macro[0], params.terrain_macro[1], params.terrain_macro[2],
+                                  params.terrain_normals != 0 ? 1.0f : 0.0f};
+                glUniform1i(glGetUniformLocation(terrain_program_, "uAlbedo"), 0);
+                glUniform1i(glGetUniformLocation(terrain_program_, "uNormals"), 1);
+                glUniformMatrix4fv(glGetUniformLocation(terrain_program_, "uMvp"), 1, GL_FALSE, params.mvp);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uTerrain"), 2, &params.normal_rows[1][0]);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uLayers"), terrain_layer_count, &params.terrain_layers[0][0]);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uAverage"), terrain_layer_count, &params.terrain_average[0][0]);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uMacro"), 1, macro);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uLight"), 1, params.light);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uLightColour"), 1, params.light_colour);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uFogColour"), 1, params.fog_colour);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uFogBeta"), 1, params.fog_beta);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uFogView"), 1, params.fog_view);
+                glBindVertexArray(mesh.vao);
+                glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, nullptr);
+                glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
+                glUseProgram(static_cast<GLuint>(previous_program));
+                glDepthFunc(static_cast<GLenum>(previous_depth_func));
+                glDepthMask(static_cast<GLboolean>(previous_depth_mask));
+                glCullFace(static_cast<GLenum>(previous_cull_mode));
+                glFrontFace(static_cast<GLenum>(previous_front_face));
+                if (cull_was_enabled)
+                    glEnable(GL_CULL_FACE);
+                else
+                    glDisable(GL_CULL_FACE);
+                if (depth_was_enabled)
+                    glEnable(GL_DEPTH_TEST);
+                else
+                    glDisable(GL_DEPTH_TEST);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, static_cast<GLuint>(previous_array0));
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, static_cast<GLuint>(previous_array1));
+                glActiveTexture(static_cast<GLenum>(previous_active_texture));
+                return true;
+            }
+
             bool draw_sky(const SkyDrawParams &params) override
             {
                 if (!initialise_2d())
@@ -1282,6 +1464,7 @@ namespace sl::detail
             std::unordered_map<std::uint32_t, GLMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
             std::uint32_t mesh_program_ = 0;
+            std::uint32_t terrain_program_ = 0;
             std::uint32_t sky_program_ = 0;
             std::uint32_t sky_vao_ = 0;
 

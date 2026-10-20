@@ -6,6 +6,7 @@
 
 #include <glm/gtc/constants.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -389,10 +390,7 @@ namespace sl
             // Terrain is only translated, so the normal matrix is not needed and its slots carry the terrain
             // parameters. A negative tint red marks the mode for the shaders.
             const TerrainShading &t = material.terrain;
-            const bool atlas = material.texture && t.atlas_levels > 0;
-            params.normal_rows[0][0] = atlas ? static_cast<float>(t.atlas_levels + (t.normal_atlas ? 16 : 0) + 32 * t.layer_size) : 0.0f;
-            params.normal_rows[0][1] = atlas && material.texture->width > 0 ? 1.0f / material.texture->width : 0.0f;
-            params.normal_rows[0][2] = atlas && material.texture->height > 0 ? 1.0f / material.texture->height : 0.0f;
+            params.normal_rows[0][0] = params.normal_rows[0][1] = params.normal_rows[0][2] = 0.0f;
             params.normal_rows[0][3] = -1.0f;
             params.normal_rows[1][0] = t.eye[0];
             params.normal_rows[1][1] = t.eye[1];
@@ -402,6 +400,23 @@ namespace sl
             params.normal_rows[2][1] = t.fade_start;
             params.normal_rows[2][2] = t.fade_end;
             params.normal_rows[2][3] = 0.0f;
+            if (const TerrainTextures *textures = t.textures; textures && textures->albedo_array != 0)
+            {
+                params.terrain_albedo = textures->albedo_array;
+                params.terrain_normals = textures->normal_array;
+                for (int i = 0; i < TerrainTextures::max_layers; ++i)
+                {
+                    params.terrain_layers[i][0] = static_cast<float>(textures->first[i]);
+                    params.terrain_layers[i][1] = static_cast<float>(std::max(textures->variants[i], 1));
+                    params.terrain_layers[i][2] = std::max(textures->tile_metres[i], 1.0e-3f);
+                    params.terrain_layers[i][3] = static_cast<float>(std::max(textures->tiles_per_period[i], 1));
+                    for (int c = 0; c < 3; ++c)
+                        params.terrain_average[i][c] = textures->average[i][c];
+                }
+                params.terrain_macro[0] = static_cast<float>(textures->macro_layer);
+                params.terrain_macro[1] = std::max(textures->macro_tile_metres, 1.0e-3f);
+                params.terrain_macro[2] = textures->macro_strength;
+            }
         }
         if (material.lit)
         {

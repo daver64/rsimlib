@@ -27,6 +27,8 @@ namespace sl::detail
         VkImageView view = VK_NULL_HANDLE;
         VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
         VkFormat format = VK_FORMAT_UNDEFINED;
+        std::uint32_t mip_levels = 1;
+        std::uint32_t array_layers = 1;
     };
 
     struct VulkanShaderModule
@@ -74,6 +76,7 @@ namespace sl::detail
         float colour[4];
         float uv[2];
         float tangent[4];
+        float extra[4];
     };
 
     struct VulkanComputePipeline
@@ -119,7 +122,8 @@ namespace sl::detail
                               VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
                               VkDescriptorSet texture_descriptor, VkDescriptorSet normal_descriptor,
                               const float *vertex_constants, const float *fragment_constants,
-                              const float *environment, std::string &error);
+                              const float *environment, std::size_t environment_size,
+                              std::string &error);
         /** Fullscreen sky draw; sky_rows: 14 vec4 rows read from the per-draw environment block. */
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);
@@ -148,6 +152,12 @@ namespace sl::detail
                            std::string &error);
         bool upload_image_rgba(VulkanImage &image, int width, int height,
                                const std::uint8_t *pixels, std::string &error);
+        bool create_texture_array_image(const TextureArrayDesc &description, VulkanImage &result,
+                                        std::string &error);
+        bool upload_image_array_rgba(VulkanImage &image, const TextureArrayDesc &description,
+                                     const std::uint8_t *pixels, std::string &error);
+        bool create_terrain_sampler(VulkanSampler &result, std::string &error);
+        std::uint32_t max_texture_array_layers() const;
         bool download_image_rgba(VulkanImage &image, int width, int height,
                                  std::uint8_t *out_pixels, std::string &error);
         bool download_swapchain_rgba(int width, int height,
@@ -320,7 +330,7 @@ namespace sl::detail
         // Per-draw environment (light colour, fog, sky rows) lives in a host-visible uniform buffer bound with a
         // dynamic offset as the last descriptor set of mesh and sky pipelines. The single frame fence makes
         // reusing the buffer from the start of every frame safe.
-        static constexpr VkDeviceSize environment_slot_size = 256;
+        static constexpr VkDeviceSize environment_slot_size = 512;
         static constexpr std::uint32_t environment_slot_count = 1024;
         bool ensure_environment_block(std::string &error);
         void destroy_environment_block();
@@ -338,6 +348,8 @@ namespace sl::detail
         bool offscreen_active_ = false;
         VkImage active_offscreen_image_ = VK_NULL_HANDLE;
         bool vsync_enabled_ = true;
+        bool sampler_anisotropy_enabled_ = false;
+        float max_sampler_anisotropy_ = 1.0f;
 
         std::uint32_t find_memory_type(std::uint32_t type_filter,
                                        VkMemoryPropertyFlags properties) const;
