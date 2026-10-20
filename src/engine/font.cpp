@@ -202,7 +202,7 @@ namespace sl
             rendered_glyphs[ch].surface = nullptr;
         }
 
-        if (!renderer->create_texture({atlas_w, atlas_h, detail::TextureFilter::linear}, atlas->texture_id) ||
+        if (!renderer->create_texture({atlas_w, atlas_h, detail::TextureFilter::linear, 16.0f}, atlas->texture_id) ||
             !renderer->upload_texture(atlas->texture_id, atlas_w, atlas_h, atlas_pixels.data()))
         {
             if (atlas->texture_id != 0)
@@ -239,7 +239,7 @@ namespace sl
         texture.height = rgba->h;
 
         detail::Renderer *renderer = detail::active_renderer();
-        if (!renderer || !renderer->create_texture({texture.width, texture.height, detail::TextureFilter::linear}, texture.id) ||
+        if (!renderer || !renderer->create_texture({texture.width, texture.height, detail::TextureFilter::linear, 16.0f}, texture.id) ||
             !renderer->upload_texture(texture.id, texture.width, texture.height,
                                       static_cast<const std::uint8_t *>(rgba->pixels)))
         {

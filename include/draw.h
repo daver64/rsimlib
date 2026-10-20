@@ -153,6 +153,8 @@ namespace sl
         Bitmap *normal_map = nullptr;
         /** Sample the texture with bilinear filtering instead of nearest. Read when the GPU texture is first created. */
         bool smooth = false;
+        /** Set ansiotrophic filtering level. 1.0f Disables this, 16.0f is the max. */
+        float ansiotrophy = 1.0f;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */

@@ -212,6 +212,7 @@ namespace sl::detail
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, description.ansiotrophy);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
                 const bool created = glGetError() == GL_NO_ERROR;
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
@@ -348,7 +349,7 @@ namespace sl::detail
                 {
                     return false;
                 }
-                if (!create_texture({width, height, TextureFilter::linear}, texture))
+                if (!create_texture({width, height, TextureFilter::linear, 16.0f}, texture))
                 {
                     std::fprintf(stderr, "create_texture failed: GL error 0x%x\n", glGetError());
                     return false;
@@ -848,7 +849,7 @@ namespace sl::detail
                 glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), reinterpret_cast<void *>(offsetof(Vertex2D, r)));
                 glBindVertexArray(0);
                 const unsigned char white_pixel[4] = {255, 255, 255, 255};
-                if (!create_texture({1, 1, TextureFilter::nearest}, white_texture_) ||
+                if (!create_texture({1, 1, TextureFilter::nearest, 1.0f}, white_texture_) ||
                     !upload_texture(white_texture_, 1, 1, white_pixel))
                 {
                     shutdown_2d();

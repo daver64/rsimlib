@@ -79,6 +79,7 @@ namespace sl::detail
         int height = 0;
         TextureFilter filter = TextureFilter::nearest;
         bool render_target = false;
+        float ansiotrophy = 1.0f;
     };
 
     /** Per-draw data for Renderer::draw_mesh(). Matrices are column-major, as in GLM. */
