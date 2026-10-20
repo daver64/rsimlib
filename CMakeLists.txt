@@ -246,6 +246,8 @@ add_library(simlib STATIC
     src/engine/draw.cpp
     src/engine/surface3d.cpp
     src/engine/model3d.cpp
+    src/engine/ac3d.cpp
+    src/engine/model_animation.cpp
     src/engine/atlas.cpp
     src/engine/tilemap.cpp
     src/engine/font.cpp
@@ -509,6 +511,9 @@ endif()
 add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
 target_link_libraries(ex3d_surface PRIVATE simlib)
 
+add_executable(exmodel3d src/examples/exmodel3d/exmodel3d.cpp)
+target_link_libraries(exmodel3d PRIVATE simlib)
+
 add_executable(exvoxel src/examples/exvoxel/exvoxel.cpp)
 target_link_libraries(exvoxel PRIVATE simlib)
 
@@ -676,7 +681,7 @@ if(BUILD_TESTING)
 
     add_executable(renderer_test tests/renderer_test.cpp)
     target_link_libraries(renderer_test PRIVATE simlib)
-    target_compile_definitions(renderer_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    target_compile_definitions(renderer_test PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME renderer COMMAND renderer_test)
 
     add_executable(voxel_test tests/voxel_test.cpp)

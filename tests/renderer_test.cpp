@@ -1,11 +1,69 @@
 #include "sl.h"
 
 #include <cassert>
+#include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <vector>
 
 namespace
 {
+    void test_model_loading()
+    {
+        const std::string fixture = std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/model3d_fixture";
+        sl::Model *model = sl::load_model(fixture + ".ac");
+        if (!model)
+            std::cerr << "AC3D fixture failed to load: " << sl::last_error() << std::endl;
+        assert(model != nullptr);
+        assert(model->parts.size() == 3);
+        assert(model->parts.front().name == "fuselage");
+        assert(model->parts.front().material.tint.red == 204);
+        assert(std::fabs(model->parts.front().transform[3].x - 1.0f) < 0.001f);
+        assert(std::fabs(model->parts.front().transform[3].y - 2.0f) < 0.001f);
+        assert(std::fabs(model->parts.front().transform[3].z - 3.0f) < 0.001f);
+        assert(model->parts[1].name == "hstab");
+        assert(model->parts[1].mesh->index_count == 3);
+        sl::destroy_model(model);
+
+        model = sl::load_flightgear_model(fixture + ".xml");
+        assert(model != nullptr);
+        assert(model->animations.size() == 5);
+        assert(model->unsupported_animations.size() == 1);
+        assert(model->unsupported_animations.front() == "pick");
+        assert(model->visibility.size() == 1);
+        assert(model->animations.front().property == "controls/aileron");
+        assert(model->animations[2].type == sl::ModelAnimationType::translation);
+        assert(model->animations[2].property.empty());
+        assert(std::fabs(model->animations[2].axis.x - 0.6f) < 0.001f);
+        assert(std::fabs(model->animations[2].axis.z - 0.8f) < 0.001f);
+        assert(model->animations[3].type == sl::ModelAnimationType::spin);
+        assert(model->animations[4].type == sl::ModelAnimationType::blend);
+        assert(std::fabs(model->animations[4].maximum - 0.5f) < 0.001f);
+        assert(sl::set_model_property(model, "controls/aileron", 0.5f));
+        assert(sl::set_model_property(model, "gear/extension", 1.0f));
+        assert(sl::set_model_property(model, "/params/engine/rpm", 2000.0f));
+        assert(sl::set_model_property(model, "/params/engine/crashed", 0.0f));
+        assert(!sl::set_model_property(model, "not/a/property", 0.0f));
+        const auto converted = std::filesystem::temp_directory_path() / "simlib-model3d-animations.json";
+        assert(sl::save_model_animations_json(model, converted.string()));
+        sl::destroy_model(model);
+
+        model = sl::load_ac3d_model(fixture + ".ac");
+        assert(model != nullptr);
+        assert(sl::load_model_animations_json(model, converted.string()));
+        assert(model->animations.size() == 5);
+        assert(model->animations[2].property.empty());
+        assert(model->animations[3].type == sl::ModelAnimationType::spin);
+        assert(model->animations[4].type == sl::ModelAnimationType::blend);
+        assert(model->visibility.size() == 1);
+        assert(sl::load_model_animations_json(model, fixture + ".animations.json"));
+        assert(model->animations.size() == 6);
+        assert(model->animations.back().interpolation.size() == 3);
+        assert(sl::set_model_property(model, "controls/aileron", -1.0f));
+        sl::destroy_model(model);
+        std::filesystem::remove(converted);
+    }
+
     // Vulkan records drawing into the frame's command buffer, so submit it before reading GPU images back.
     void flush_frame()
     {
@@ -31,6 +89,8 @@ void test_backend(sl::GraphicsBackend backend)
         std::cerr << "  Failed to initialize graphics mode: " << sl::last_error() << std::endl;
         return;
     }
+
+    test_model_loading();
 
     // 1. Test render target creation and clearing
     sl::Bitmap *rt = sl::create_render_target(128, 128);

@@ -19,6 +19,13 @@
 
 namespace sl
 {
+    namespace detail
+    {
+        glm::mat4 model_animation_transform(const Model &model, const ModelPart &part);
+        bool model_part_visible(const Model &model, const ModelPart &part);
+        float model_animation_alpha(const Model &model, const ModelPart &part);
+    }
+
     namespace
     {
         using json = nlohmann::json;
@@ -1040,6 +1047,8 @@ namespace sl
             return load_obj_model(path);
         if (extension == ".gltf" || extension == ".glb")
             return load_gltf_model(path);
+        if (extension == ".ac")
+            return load_ac3d_model(path);
         detail::set_error("Unsupported model format: " + path);
         return nullptr;
     }
@@ -1064,7 +1073,20 @@ namespace sl
         }
         bool ok = true;
         for (const ModelPart &part : model->parts)
-            ok = draw_mesh(part.mesh, transform * part.transform, part.material) && ok;
+            if (detail::model_part_visible(*model, part))
+            {
+                const float alpha = std::clamp(detail::model_animation_alpha(*model, part), 0.0f, 1.0f);
+                // The mesh shader does not blend, so mostly-transparent parts (hotspots, glass, propeller blur)
+                // would draw as opaque slabs. Skip them instead.
+                if (alpha < 0.5f)
+                    continue;
+                Material material = part.material;
+                material.tint.alpha = static_cast<std::uint8_t>(std::lround(alpha * 255.0f));
+                ok = draw_mesh(part.mesh, transform * detail::model_animation_transform(*model, part) *
+                                                part.transform,
+                               material) &&
+                     ok;
+            }
         return ok;
     }
 
