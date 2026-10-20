@@ -220,6 +220,16 @@ if(NOT TARGET box2d::box2d)
     add_library(box2d::box2d ALIAS box2d)
 endif()
 
+# XML parser for FlightGear model descriptions (model_animation.cpp).
+FetchContent_Declare(
+    pugixml
+    GIT_REPOSITORY https://github.com/zeux/pugixml.git
+    GIT_TAG v1.15
+    GIT_SHALLOW TRUE
+)
+set(PUGIXML_INSTALL OFF CACHE BOOL "Do not install pugixml" FORCE)
+FetchContent_MakeAvailable(pugixml)
+
 # Single-header MPEG1/MP2 decoder used by video.cpp for cutscene-style video playback.
 FetchContent_Declare(
     pl_mpeg
@@ -330,6 +340,7 @@ target_compile_definitions(simlib PRIVATE
 )
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
 target_link_libraries(simlib PUBLIC box2d::box2d)
+target_link_libraries(simlib PRIVATE pugixml-static)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
 if(WIN32)
     target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler GLEW::GLEW)
@@ -760,7 +771,7 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/man/simlib.3"
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man3
 )
 
-install(TARGETS simlib imgui lua
+install(TARGETS simlib imgui lua pugixml-static
     EXPORT simlibTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -801,6 +812,10 @@ install(FILES "${sol2_SOURCE_DIR}/LICENSE.txt"
 install(FILES "${box2d_SOURCE_DIR}/LICENSE"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
     RENAME box2d-LICENSE
+)
+install(FILES "${pugixml_SOURCE_DIR}/LICENSE.md"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+    RENAME pugixml-LICENSE.md
 )
 install(DIRECTORY shaders/glsl/ DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/shaders/glsl)
 install(DIRECTORY shaders/d3d/ DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/shaders/d3d)

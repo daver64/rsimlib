@@ -16,6 +16,7 @@
 #include <string_view>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <pugixml.hpp>
 
 namespace sl
 {
@@ -31,164 +32,44 @@ namespace sl
             std::vector<std::unique_ptr<XmlNode>> children;
         };
 
-        std::string decode_xml(std::string value)
+        void convert_xml(const pugi::xml_node &source, XmlNode &target)
         {
-            const std::pair<const char *, const char *> entities[] = {
-                {"&amp;", "&"}, {"&lt;", "<"}, {"&gt;", ">"}, {"&quot;", "\""}, {"&apos;", "'"}};
-            for (const auto &entity : entities)
+            for (const pugi::xml_attribute &attribute : source.attributes())
+                target.attributes.emplace(attribute.name(), attribute.value());
+            for (const pugi::xml_node &entry : source.children())
             {
-                std::size_t position = 0;
-                while ((position = value.find(entity.first, position)) != std::string::npos)
+                switch (entry.type())
                 {
-                    value.replace(position, std::char_traits<char>::length(entity.first), entity.second);
-                    position += std::char_traits<char>::length(entity.second);
+                case pugi::node_element:
+                {
+                    auto node = std::make_unique<XmlNode>();
+                    node->name = entry.name();
+                    convert_xml(entry, *node);
+                    target.children.push_back(std::move(node));
+                    break;
+                }
+                case pugi::node_pcdata:
+                case pugi::node_cdata:
+                    target.text += entry.value();
+                    break;
+                default:
+                    break;
                 }
             }
-            return value;
         }
 
         bool parse_xml(const std::string &source, XmlNode &document, std::string &error)
         {
-            std::vector<XmlNode *> stack{&document};
-            std::size_t position = 0;
-            while (position < source.size())
+            pugi::xml_document parsed;
+            const pugi::xml_parse_result result = parsed.load_buffer(source.data(), source.size());
+            if (!result)
             {
-                const std::size_t open = source.find('<', position);
-                if (open == std::string::npos)
-                {
-                    stack.back()->text += decode_xml(source.substr(position));
-                    break;
-                }
-                if (open > position)
-                    stack.back()->text += decode_xml(source.substr(position, open - position));
-                if (source.compare(open, 4, "<!--") == 0)
-                {
-                    const std::size_t close = source.find("-->", open + 4);
-                    if (close == std::string::npos)
-                    {
-                        error = "Unterminated XML comment";
-                        return false;
-                    }
-                    position = close + 3;
-                    continue;
-                }
-                if (source.compare(open, 9, "<![CDATA[") == 0)
-                {
-                    const std::size_t close = source.find("]]>", open + 9);
-                    if (close == std::string::npos)
-                    {
-                        error = "Unterminated XML CDATA section";
-                        return false;
-                    }
-                    stack.back()->text += source.substr(open + 9, close - open - 9);
-                    position = close + 3;
-                    continue;
-                }
-                std::size_t close = open + 1;
-                char quote = '\0';
-                for (; close < source.size(); ++close)
-                {
-                    const char current = source[close];
-                    if (quote != '\0')
-                    {
-                        if (current == quote)
-                            quote = '\0';
-                    }
-                    else if (current == '"' || current == '\'')
-                        quote = current;
-                    else if (current == '>')
-                        break;
-                }
-                if (close == std::string::npos)
-                {
-                    error = "Unterminated XML tag";
-                    return false;
-                }
-                if (close >= source.size())
-                {
-                    error = "Unterminated XML tag";
-                    return false;
-                }
-                std::string_view body(source.data() + open + 1, close - open - 1);
-                position = close + 1;
-                if (body.empty())
-                    continue;
-                if (body.front() == '?' || body.front() == '!')
-                    continue;
-                if (body.front() == '/')
-                {
-                    const std::string closing(body.substr(1));
-                    if (stack.size() == 1 || stack.back()->name != closing)
-                    {
-                        error = "Mismatched XML closing tag: " + closing;
-                        return false;
-                    }
-                    stack.pop_back();
-                    continue;
-                }
-                bool self_closing = body.back() == '/';
-                if (self_closing)
-                    body.remove_suffix(1);
-                std::size_t cursor = 0;
-                auto skip_space = [&]() {
-                    while (cursor < body.size() && std::isspace(static_cast<unsigned char>(body[cursor])))
-                        ++cursor;
-                };
-                skip_space();
-                const std::size_t name_start = cursor;
-                while (cursor < body.size() && !std::isspace(static_cast<unsigned char>(body[cursor])))
-                    ++cursor;
-                if (cursor == name_start)
-                {
-                    error = "Empty XML tag name";
-                    return false;
-                }
-                auto node = std::make_unique<XmlNode>();
-                node->name = std::string(body.substr(name_start, cursor - name_start));
-                while (cursor < body.size())
-                {
-                    skip_space();
-                    if (cursor >= body.size())
-                        break;
-                    const std::size_t key_start = cursor;
-                    while (cursor < body.size() && body[cursor] != '=' &&
-                           !std::isspace(static_cast<unsigned char>(body[cursor])))
-                        ++cursor;
-                    const std::string key(body.substr(key_start, cursor - key_start));
-                    skip_space();
-                    if (key.empty() || cursor >= body.size() || body[cursor++] != '=')
-                    {
-                        error = "Invalid XML attribute in <" + node->name + ">";
-                        return false;
-                    }
-                    skip_space();
-                    if (cursor >= body.size() || (body[cursor] != '"' && body[cursor] != '\''))
-                    {
-                        error = "Unquoted XML attribute in <" + node->name + ">: " + std::string(body);
-                        return false;
-                    }
-                    const char quote = body[cursor++];
-                    const std::size_t value_start = cursor;
-                    while (cursor < body.size() && body[cursor] != quote)
-                        ++cursor;
-                    if (cursor >= body.size())
-                    {
-                        error = "Unterminated XML attribute in <" + node->name + ">";
-                        return false;
-                    }
-                    node->attributes.emplace(key, decode_xml(std::string(body.substr(value_start, cursor - value_start))));
-                    ++cursor;
-                }
-                XmlNode *added = node.get();
-                stack.back()->children.push_back(std::move(node));
-                if (!self_closing)
-                    stack.push_back(added);
-            }
-            if (stack.size() != 1)
-            {
-                error = "Unclosed XML tag: " + stack.back()->name;
+                const std::size_t line = 1 + static_cast<std::size_t>(std::count(
+                                                 source.begin(), source.begin() + std::min<std::size_t>(result.offset, source.size()), '\n'));
+                error = std::string(result.description()) + " (line " + std::to_string(line) + ")";
                 return false;
             }
+            convert_xml(parsed, document);
             return true;
         }
 
