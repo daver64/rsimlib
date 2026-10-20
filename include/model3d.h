@@ -72,6 +72,10 @@ namespace sl
         Material material;
         glm::mat4 transform{1.0f};
         bool visible = true;
+        /** Axis-aligned bounds of the part's geometry after `transform` (before animation); valid when has_bounds. */
+        glm::vec3 bounds_min{0.0f};
+        glm::vec3 bounds_max{0.0f};
+        bool has_bounds = false;
     };
 
     /**
@@ -130,6 +134,9 @@ namespace sl
 
     /** Set an input property used by the model's property-driven animations. */
     bool set_model_property(Model *model, const std::string &property, float value);
+
+    /** True when the part's visibility flag and any imported select rules currently allow it to draw. */
+    bool model_part_is_visible(const Model *model, const ModelPart &part);
 
     /** Draw every part into the active surface; transform is applied on top of each part's own transform. */
     bool draw_model(const Model *model, const glm::mat4 &transform);

@@ -1064,6 +1064,11 @@ namespace sl
         delete model;
     }
 
+    bool model_part_is_visible(const Model *model, const ModelPart &part)
+    {
+        return model && detail::model_part_visible(*model, part);
+    }
+
     bool draw_model(const Model *model, const glm::mat4 &transform)
     {
         if (!model)

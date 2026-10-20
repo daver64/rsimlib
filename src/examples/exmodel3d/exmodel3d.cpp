@@ -120,15 +120,34 @@ int main(int argc, char **argv)
 
     sl::Camera camera;
     camera.target = {1.5f, 0.0f, 0.0f};
-    camera.far_plane = 50000.0f;
+    float camera_distance = 9.5f;
+    {
+        // Frame the visible geometry so both aircraft and small instruments start at a sensible size.
+        glm::vec3 low(0.0f), high(0.0f);
+        bool any = false;
+        for (const sl::ModelPart &part : model->parts)
+            if (part.has_bounds && sl::model_part_is_visible(model, part))
+            {
+                low = any ? glm::min(low, part.bounds_min) : part.bounds_min;
+                high = any ? glm::max(high, part.bounds_max) : part.bounds_max;
+                any = true;
+            }
+        if (any)
+        {
+            camera.target = (low + high) * 0.5f;
+            camera_distance = std::max(0.05f, glm::length(high - low) * 0.9f);
+        }
+    }
     float camera_yaw = -0.75f;
     float camera_pitch = 0.28f;
-    float camera_distance = 9.5f;
     auto update_camera = [&]() {
         camera.position = camera.target + glm::vec3(
             std::sin(camera_yaw) * std::cos(camera_pitch),
             std::sin(camera_pitch),
             std::cos(camera_yaw) * std::cos(camera_pitch)) * camera_distance;
+        // Keep the clip planes proportional so very close views of small models (instruments) are not clipped.
+        camera.near_plane = camera_distance * 0.02f;
+        camera.far_plane = camera_distance * 5000.0f;
     };
     update_camera();
     sl::set_light_3d({{-0.4f, -1.0f, -0.6f}, 0.3f});
@@ -155,10 +174,11 @@ int main(int argc, char **argv)
                     camera_pitch = std::min(1.2f, camera_pitch + 0.06f);
                 else if (event.key() == sl::Event::Key::arrow_down)
                     camera_pitch = std::max(-1.2f, camera_pitch - 0.06f);
-                else if (event.key() == sl::Event::Key::plus)
-                    camera_distance = std::max(5.0f, camera_distance - 1.0f);
-                else if (event.key() == sl::Event::Key::minus)
-                    camera_distance = std::min(80.0f, camera_distance + 1.0f);
+                else if (event.key() == sl::Event::Key::plus || event.key() == sl::Event::Key::equals ||
+                         event.key() == sl::Event::Key::keypad_plus)
+                    camera_distance = std::max(0.02f, camera_distance / 1.1f);
+                else if (event.key() == sl::Event::Key::minus || event.key() == sl::Event::Key::keypad_minus)
+                    camera_distance = std::min(500.0f, camera_distance * 1.1f);
                 else if (has_engine_rpm && event.key() == sl::Event::Key::left_bracket)
                     engine_rpm = std::max(0.0f, engine_rpm - 50.0f);
                 else if (has_engine_rpm && event.key() == sl::Event::Key::right_bracket)
@@ -190,8 +210,8 @@ int main(int argc, char **argv)
         sl::clear_to_colour(sl::screen, {18, 22, 32});
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
         sl::gprintf(16, 16, {255, 255, 255},
-                    has_engine_rpm ? "Arrows: orbit  +/-: zoom  []: prop RPM  Space: animation  Esc: exit"
-                                   : "Arrows: orbit  +/-: zoom  Space: animation  Esc: exit");
+                    has_engine_rpm ? "Arrows: orbit  =/-: zoom  []: prop RPM  Space: animation  Esc: exit"
+                                   : "Arrows: orbit  =/-: zoom  Space: animation  Esc: exit");
         if (has_engine_rpm)
             sl::gprintf(16, 36, {255, 255, 255}, "Engine RPM: %.0f", engine_rpm);
         if (!model->unsupported_animations.empty())

@@ -405,6 +405,14 @@ namespace sl
                 part.name = object.name;
                 part.mesh = mesh;
                 part.transform = transform;
+                for (const Vertex3D &vertex : bucket.vertices)
+                {
+                    const glm::vec3 world = glm::vec3(transform * glm::vec4(vertex.position[0], vertex.position[1],
+                                                                            vertex.position[2], 1.0f));
+                    part.bounds_min = part.has_bounds ? glm::min(part.bounds_min, world) : world;
+                    part.bounds_max = part.has_bounds ? glm::max(part.bounds_max, world) : world;
+                    part.has_bounds = true;
+                }
                 part.material.cull = bucket.two_sided ? CullMode::none : CullMode::back;
                 if (!materials.empty() && entry.first >= 0 && entry.first < static_cast<int>(materials.size()))
                     part.material.tint = materials[static_cast<std::size_t>(entry.first)].diffuse;
