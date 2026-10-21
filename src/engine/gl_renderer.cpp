@@ -16,6 +16,7 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -194,7 +195,7 @@ namespace sl::detail
             bool create_texture(const TextureDesc &description, std::uint32_t &texture) override
             {
                 texture = 0;
-                if (description.width <= 0 || description.height <= 0)
+                if (description.width <= 0 || description.height <= 0 || !std::isfinite(description.anisotropy))
                 {
                     return false;
                 }
@@ -218,6 +219,17 @@ namespace sl::detail
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                if (description.anisotropy > 1.0f &&
+                    SDL_GL_ExtensionSupported("GL_EXT_texture_filter_anisotropic"))
+                {
+                    GLfloat max_anisotropy = 1.0f;
+                    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max_anisotropy);
+                    if (glGetError() == GL_NO_ERROR && max_anisotropy > 1.0f)
+                    {
+                        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                                        std::clamp(description.anisotropy, 1.0f, max_anisotropy));
+                    }
+                }
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
                 const bool created = glGetError() == GL_NO_ERROR;
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));

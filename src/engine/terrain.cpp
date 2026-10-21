@@ -1244,6 +1244,11 @@ namespace sl
 
     bool Terrain::set_layer_textures(const TerrainTextureOptions &options)
     {
+        return set_layer_textures(impl_->config.layers, options);
+    }
+
+    bool Terrain::set_layer_textures(const std::vector<TerrainLayer> &layers, const TerrainTextureOptions &options)
+    {
         Impl &impl = *impl_;
         impl.release_textures();
         bool ok = false;
@@ -1251,7 +1256,7 @@ namespace sl
         if (renderer && renderer->max_texture_array_layers() > 0)
         {
             BuiltTextures built;
-            if (build_layer_textures(*renderer, impl.config.layers, options, built))
+            if (build_layer_textures(*renderer, layers, options, built))
             {
                 impl.texture_owner = renderer;
                 impl.textures = built.textures;

@@ -328,8 +328,13 @@ struct Bitmap {
     bool ram_dirty = false;
     bool gpu_dirty = false;
     BitmapKind kind = BitmapKind::Bitmap;
+    Bitmap *normal_map = nullptr;
+    bool smooth = false;
+    float anisotropy = 1.0f;
 };
 ```
+
+`smooth` selects bilinear filtering, and `anisotropy` requests anisotropic filtering (`1.0f` disables it). Higher values are clamped to the active renderer's supported maximum. Both sampling settings are read when the GPU texture is first created.
 
 Global screen pointer: `extern Bitmap *screen;`
 

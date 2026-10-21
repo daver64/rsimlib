@@ -441,6 +441,13 @@ namespace sl
          * albedo, and vertex colours stay in use. Rebuilds the chunks, so call it at setup after set_gfx_mode().
          */
         bool set_layer_textures(const TerrainTextureOptions &options = {});
+        /**
+         * As above, but textures the terrain from `layers` instead of config().layers, so the surface textures can change
+         * while the terrain lives (for example on entering another region). Only the albedo, normal map, tile_metres and
+         * variants are used; the layer count and the weight function (and so the layer order) must stay as configured.
+         * The bitmaps are copied to the GPU and not owned or read again. Rebuilds the chunks.
+         */
+        bool set_layer_textures(const std::vector<TerrainLayer> &layers, const TerrainTextureOptions &options = {});
         /** Go back to vertex colours and free the texture arrays. */
         void clear_layer_textures();
         /** Block until every chunk the last update() asked for has been built and uploaded (for loading screens). */

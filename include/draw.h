@@ -153,6 +153,8 @@ namespace sl
         Bitmap *normal_map = nullptr;
         /** Sample the texture with bilinear filtering instead of nearest. Read when the GPU texture is first created. */
         bool smooth = false;
+        /** Requested texture anisotropy; 1.0 disables it. Read when the GPU texture is first created. */
+        float anisotropy = 1.0f;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */

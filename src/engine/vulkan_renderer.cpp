@@ -381,7 +381,8 @@ namespace sl::detail
                 if (!context_.create_image(description.width, description.height, VK_FORMAT_R8G8B8A8_UNORM,
                                            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                                            resource.image, last_error_) ||
-                    !context_.create_sampler(description.filter, resource.sampler, last_error_))
+                    !context_.create_sampler(description.filter, resource.sampler, last_error_,
+                                             description.anisotropy))
                 {
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);

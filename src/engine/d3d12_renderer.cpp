@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <climits>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -573,6 +574,7 @@ namespace sl::detail
             {
                 texture = 0;
                 if (description.width <= 0 || description.height <= 0 ||
+                    !std::isfinite(description.anisotropy) ||
                     !context_.device() || !ensure_descriptor_heaps())
                     return false;
 
@@ -614,9 +616,12 @@ namespace sl::detail
                     resource.resource, &srv_desc, cpu_descriptor(srv_heap_, srv_descriptor_size_, descriptor));
 
                 D3D12_SAMPLER_DESC sampler_desc{};
-                sampler_desc.Filter = description.filter == TextureFilter::linear
-                                          ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
-                                          : D3D12_FILTER_MIN_MAG_MIP_POINT;
+                sampler_desc.Filter = description.anisotropy > 1.0f
+                                          ? D3D12_FILTER_ANISOTROPIC
+                                          : description.filter == TextureFilter::linear
+                                                ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
+                                                : D3D12_FILTER_MIN_MAG_MIP_POINT;
+                sampler_desc.MaxAnisotropy = static_cast<UINT>(std::clamp(description.anisotropy, 1.0f, 16.0f));
                 sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
                 sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
                 sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;

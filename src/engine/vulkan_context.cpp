@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -2117,9 +2118,15 @@ namespace sl::detail
         pool = {};
     }
 
-    bool VulkanContext::create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error)
+    bool VulkanContext::create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
+                                       float anisotropy)
     {
         result = {};
+        if (!std::isfinite(anisotropy))
+        {
+            error = "Invalid Vulkan texture anisotropy.";
+            return false;
+        }
         VkSamplerCreateInfo sampler_info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
         const VkFilter vulkan_filter = filter == TextureFilter::linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
         sampler_info.magFilter = vulkan_filter;
@@ -2130,6 +2137,10 @@ namespace sl::detail
         sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.anisotropyEnable = sampler_anisotropy_enabled_ && anisotropy > 1.0f ? VK_TRUE : VK_FALSE;
+        sampler_info.maxAnisotropy = sampler_info.anisotropyEnable
+                                         ? std::clamp(anisotropy, 1.0f, max_sampler_anisotropy_)
+                                         : 1.0f;
         sampler_info.maxLod = 1.0f;
         if (vkCreateSampler(device_, &sampler_info, nullptr, &result.sampler) != VK_SUCCESS)
         {

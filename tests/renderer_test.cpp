@@ -145,6 +145,7 @@ void test_backend(sl::GraphicsBackend backend)
     // 6. Test texture creation, upload, and download
     sl::Bitmap *tex_bmp = sl::create_video_bitmap(32, 32);
     assert(tex_bmp != nullptr);
+    tex_bmp->anisotropy = 16.0f;
     sl::clear_to_colour(tex_bmp, sl::Colour{200, 150, 50, 255});
     assert(sl::upload_bitmap(tex_bmp));
 

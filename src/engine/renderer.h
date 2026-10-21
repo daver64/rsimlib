@@ -81,6 +81,7 @@ namespace sl::detail
         int height = 0;
         TextureFilter filter = TextureFilter::nearest;
         bool render_target = false;
+        float anisotropy = 1.0f;
     };
 
     /** A mipmapped, repeating, anisotropically filtered RGBA8 texture array. */
