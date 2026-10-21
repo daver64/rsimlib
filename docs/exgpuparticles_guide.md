@@ -2,6 +2,8 @@
 
 [← Back to README](../README.md)
 
+Screenshot, controls and a short summary: [exgpuparticles example page](examples/exgpuparticles.md).
+
 `exgpuparticles` ([src/examples/exgpuparticles/exgpuparticles.cpp](../src/examples/exgpuparticles/exgpuparticles.cpp)) simulates 150,000 particles entirely on the GPU using a compute shader and `sl::StorageBuffer`, then renders them as additively-blended points with a soft `sl::Blur` glow. It builds on the minimal [`excompute`](../src/examples/excompute/excompute.cpp) example by adding interactive forces, cross-backend compute shader uniforms, and a full render pipeline.
 
 ---

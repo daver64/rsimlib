@@ -2,6 +2,8 @@
 
 [← Back to README](../README.md)
 
+Screenshot, controls and a short summary: [excafluid example page](examples/excafluid.md).
+
 https://github.com/user-attachments/assets/81a93445-babe-4a3d-be93-2abe296d62f5
 
 `excafluid` ([src/examples/excafluid/excafluid.cpp](../src/examples/excafluid/excafluid.cpp)) is an interactive sandbox simulation combining a multi-material **Cellular Automata (CA)** fluid engine ([src/engine/fluid.cpp](../src/engine/fluid.cpp)) with **Box2D rigid-body physics** and **2D dynamic spotlight illumination**.

@@ -2,6 +2,8 @@
 
 [← Back to README](../README.md)
 
+Screenshot, controls and a short summary: [exroguelike example page](examples/exroguelike.md).
+
 ![exroguelike Screenshot](exroguelike1.png)
 
 `exroguelike` ([src/examples/exroguelike/exroguelike.cpp](../src/examples/exroguelike/exroguelike.cpp)) is a complete turn-based ASCII roguelike built using `simlib` for hardware-accelerated rendering and windowing, alongside independent modular libraries for entity management ([`recs`](../src/examples/exroguelike/recs.h)) and procedural world generation ([`rworld`](../src/examples/exroguelike/rworld.h)).

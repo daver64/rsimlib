@@ -1,5 +1,7 @@
 # Showcase Guide
 
+See also the [Example Gallery](examples/README.md) for a screenshot and controls page for each example.
+
 [← Back to README](../README.md)
 
 simlib's demonstrations are independent applications rather than one large sample. Start with these three purpose-built showcases, then use the focused examples listed below to explore an individual subsystem. The [README example list](../README.md#running-the-examples) is the complete executable catalog.

@@ -66,6 +66,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🌐 **[Networking](docs/networking.md)** — ENet-based UDP client/server with reliable and unreliable channels, bounds-checked packet reading and writing, and a non-blocking TCP socket for talking to services such as IRC.
 - 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper and Lua physics bindings.
 - 📜 **[Sandboxed Lua Scripting & Canvas](docs/scripting_lua.md)** — Hardened Lua sandbox via sol2, persistent canvas drawing API, audio scripting, lighting and normal maps, tile maps, 2D/3D fluids, textured voxel worlds, resource limits, and C++ event dispatching.
+- 🖼️ **[Example Gallery](docs/examples/README.md)** — A screenshot, description and controls page for every graphical example.
 - 🧭 **[Showcase Guide](docs/showcases.md)** — A recommended tour through the interactive game, world, graphics, and tool examples.
 
 ---
@@ -304,53 +305,55 @@ The full catalog of focused runnable examples follows.
 
 
 ### Example Source Links
-- **[`exhello`](src/examples/exhello/exhello.cpp)** — Window setup, frame presentation, clearing, and basic text.
-- **[`exfont`](src/examples/exfont/exfont.cpp)** — TrueType loading, font selection, measurement, and text rendering.
-- **[`extriangle`](src/examples/extriangle/extriangle.cpp)** — Immediate-mode 2D primitives: triangles, rectangles, circles, and lines.
-- **[`exrotatesprite`](src/examples/exrotatesprite/exrotatesprite.cpp)** — Bitmap loading, sprite rotation, scaling, and frame timing.
-- **[`exbitmap`](src/examples/exbitmap/exbitmap.cpp)** — Bitmap creation, pixel access, blitting, and image loading.
-- **[`exlighting`](src/examples/exlighting/exlighting.cpp)** — Render targets, radial lights, shadow casters, and `LightingPass`.
-- **[`exphysics`](src/examples/exphysics/exphysics.cpp)** — Box2D world/body/fixture creation, stepping, and contact polling.
-- **[`exterrain`](src/examples/exterrain/exterrain.cpp)** — Fly over streamed chunked-LOD terrain, flat or planet-sized, with splat layers, mipmaps, normal maps (`N`), geomorphing, sky, fog, clouds (`H`/`K`/`Z`/`X`) and scattered trees and rocks (`T`).
-- **[`exorbit`](src/examples/exorbit/exorbit.cpp)** — Spaceflight with `FlightWorld`: orbit about Earth, main/retro engines, RCS thruster groups, predicted trajectory, time warp and a Moon on Kepler rails.
-- **[`exflight`](src/examples/exflight/exflight.cpp)** — Aircraft flight with `FlightWorld`: lifting and control surfaces, jet engine, landing gear on a runway, stalls.
-- **[`exvulkan`](src/examples/exvulkan/exvulkan.cpp)** — Backend selection, textured sprites, render targets, and Bloom.
-- **[`exlua`](src/examples/exlua/exlua.cpp)** — Lua runtime setup and execution through sol2.
-- **[`exluaconsole`](src/examples/exluaconsole/exluaconsole.cpp)** — Interactive Lua command input, output, and console integration.
-- **[`exdb`](src/examples/exdb/exdb.cpp)** — SQLite transactions, prepared statements, and queries through `rdb::Database`.
-- **[`exshader`](src/examples/exshader/exshader.cpp)** — File-based GLSL loading, runtime compilation, and textured quads.
-- **[`exrendertarget`](src/examples/exrendertarget/exrendertarget.cpp)** — Off-screen rendering, render-target lifetime, and compositing.
-- **[`exaudio`](src/examples/exaudio/exaudio.cpp)** — SDL_mixer sound effects, streamed music, pause/resume, and volume.
-- **[`exsynth`](src/examples/exsynth/exsynth.cpp)** — Procedural audio synthesis via `audio_synth.h`.
-- **[`exinput`](src/examples/exinput/exinput.cpp)** — Held keyboard state, mouse state, gamepad axes/buttons, hotplugging, and optional `InputMap` actions with F2 remapping.
-- **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialisation, event forwarding, widgets, and rendering.
-- **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
-- **[`excamera2d`](src/examples/excamera2d/excamera2d.cpp)** — `Camera2D` follow, zoom, rotation and shake, a clipped inset with `set_clip_rect()`, and `draw_sprite_ex()` origins and tints.
-- **[`exjoints`](src/examples/exjoints/exjoints.cpp)** — revolute, distance (spring), wheel and mouse joints, with `debug_draw_physics()`.
-- **[`ex2dfeatures`](src/examples/ex2dfeatures/ex2dfeatures.cpp)** — word-wrapped text blocks, multiply/screen blending, `Animator` clips, hexagonal and infinite tile maps, and integer-scaled low-resolution targets.
-- **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
-- **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
-- **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass.
-- **[`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)** — A cube and sphere with a procedural normal map under an orbiting light.
-- **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`.
-- **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm.
-- **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena.
-- **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer.
-- **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions.
-- **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading.
-- **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
-- **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
-- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.
-- **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
-- **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB, AC3D), directional lighting, and 2D HUD compositing.
-- **[`exclouds`](src/examples/exclouds/exclouds.cpp)** — Cloud types and layers (cirrus, altocumulus, cumulus, stratocumulus, stratus, cumulonimbus) over a flat world or a planet; `--types cirrus,cumulus` picks the starting set.
-- **[`expbr`](src/examples/expbr/expbr.cpp)** — PBR material showcase: metallic/roughness sphere grid plus an emissive sphere, orbit camera, rotating light and a PBR on/off toggle.
-- **[`exmodel3d`](src/examples/exmodel3d/exmodel3d.cpp)** ([AC3D / FlightGear guide](docs/ac3d.md)) — Load and render a glTF model (with keyframe clip playback; defaults to the Blender-exported test fixture), an AC3D model or FlightGear model XML with imported transform animations; supports simlib JSON animation files.
-- **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool.
-- **[`exvoxel`](src/examples/exvoxel/exvoxel.cpp)** — Minecraft clone demo: 16x16x16 voxel chunk rendering, hidden-face culling, procedural terrain (FastNoiseLite), pixel-art texture atlas, first-person camera, and 3D DDA block break/place raycasting.
-- **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.
-- **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines.
-- **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load.
+Each entry links to its source and to a page with a screenshot, controls and key APIs; browse them all in the [Example Gallery](docs/examples/README.md).
+
+- **[`exhello`](src/examples/exhello/exhello.cpp)** — Window setup, frame presentation, clearing, and basic text. [Screenshot & guide](docs/examples/exhello.md).
+- **[`exfont`](src/examples/exfont/exfont.cpp)** — TrueType loading, font selection, measurement, and text rendering. [Screenshot & guide](docs/examples/exfont.md).
+- **[`extriangle`](src/examples/extriangle/extriangle.cpp)** — Immediate-mode 2D primitives: triangles, rectangles, circles, and lines. [Screenshot & guide](docs/examples/extriangle.md).
+- **[`exrotatesprite`](src/examples/exrotatesprite/exrotatesprite.cpp)** — Bitmap loading, sprite rotation, scaling, and frame timing. [Screenshot & guide](docs/examples/exrotatesprite.md).
+- **[`exbitmap`](src/examples/exbitmap/exbitmap.cpp)** — Bitmap creation, pixel access, blitting, and image loading. [Screenshot & guide](docs/examples/exbitmap.md).
+- **[`exlighting`](src/examples/exlighting/exlighting.cpp)** — Render targets, radial lights, shadow casters, and `LightingPass`. [Screenshot & guide](docs/examples/exlighting.md).
+- **[`exphysics`](src/examples/exphysics/exphysics.cpp)** — Box2D world/body/fixture creation, stepping, and contact polling. [Screenshot & guide](docs/examples/exphysics.md).
+- **[`exterrain`](src/examples/exterrain/exterrain.cpp)** — Fly over streamed chunked-LOD terrain, flat or planet-sized, with splat layers, mipmaps, normal maps (`N`), geomorphing, sky, fog, clouds (`H`/`K`/`Z`/`X`) and scattered trees and rocks (`T`). [Screenshot & guide](docs/examples/exterrain.md).
+- **[`exorbit`](src/examples/exorbit/exorbit.cpp)** — Spaceflight with `FlightWorld`: orbit about Earth, main/retro engines, RCS thruster groups, predicted trajectory, time warp and a Moon on Kepler rails. [Screenshot & guide](docs/examples/exorbit.md).
+- **[`exflight`](src/examples/exflight/exflight.cpp)** — Aircraft flight with `FlightWorld`: lifting and control surfaces, jet engine, landing gear on a runway, stalls. [Screenshot & guide](docs/examples/exflight.md).
+- **[`exvulkan`](src/examples/exvulkan/exvulkan.cpp)** — Backend selection, textured sprites, render targets, and Bloom. [Screenshot & guide](docs/examples/exvulkan.md).
+- **[`exlua`](src/examples/exlua/exlua.cpp)** — Lua runtime setup and execution through sol2. [Screenshot & guide](docs/examples/exlua.md).
+- **[`exluaconsole`](src/examples/exluaconsole/exluaconsole.cpp)** — Interactive Lua command input, output, and console integration. [Screenshot & guide](docs/examples/exluaconsole.md).
+- **[`exdb`](src/examples/exdb/exdb.cpp)** — SQLite transactions, prepared statements, and queries through `rdb::Database`. [Screenshot & guide](docs/examples/exdb.md).
+- **[`exshader`](src/examples/exshader/exshader.cpp)** — File-based GLSL loading, runtime compilation, and textured quads. [Screenshot & guide](docs/examples/exshader.md).
+- **[`exrendertarget`](src/examples/exrendertarget/exrendertarget.cpp)** — Off-screen rendering, render-target lifetime, and compositing. [Screenshot & guide](docs/examples/exrendertarget.md).
+- **[`exaudio`](src/examples/exaudio/exaudio.cpp)** — SDL_mixer sound effects, streamed music, pause/resume, and volume. [Screenshot & guide](docs/examples/exaudio.md).
+- **[`exsynth`](src/examples/exsynth/exsynth.cpp)** — Procedural audio synthesis via `audio_synth.h`. [Screenshot & guide](docs/examples/exsynth.md).
+- **[`exinput`](src/examples/exinput/exinput.cpp)** — Held keyboard state, mouse state, gamepad axes/buttons, hotplugging, and optional `InputMap` actions with F2 remapping. [Screenshot & guide](docs/examples/exinput.md).
+- **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialisation, event forwarding, widgets, and rendering. [Screenshot & guide](docs/examples/exgui.md).
+- **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity. [Screenshot & guide](docs/examples/exparticles.md).
+- **[`excamera2d`](src/examples/excamera2d/excamera2d.cpp)** — `Camera2D` follow, zoom, rotation and shake, a clipped inset with `set_clip_rect()`, and `draw_sprite_ex()` origins and tints. [Screenshot & guide](docs/examples/excamera2d.md).
+- **[`exjoints`](src/examples/exjoints/exjoints.cpp)** — revolute, distance (spring), wheel and mouse joints, with `debug_draw_physics()`. [Screenshot & guide](docs/examples/exjoints.md).
+- **[`ex2dfeatures`](src/examples/ex2dfeatures/ex2dfeatures.cpp)** — word-wrapped text blocks, multiply/screen blending, `Animator` clips, hexagonal and infinite tile maps, and integer-scaled low-resolution targets. [Screenshot & guide](docs/examples/ex2dfeatures.md).
+- **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading. [Screenshot & guide](docs/examples/exresources.md).
+- **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering. [Screenshot & guide](docs/examples/exatlas.md).
+- **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass. [Screenshot & guide](docs/examples/exnormalmap.md).
+- **[`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)** — A cube and sphere with a procedural normal map under an orbiting light. [Screenshot & guide](docs/examples/exnormalmap3d.md).
+- **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`. [Screenshot & guide](docs/examples/exmipmap.md).
+- **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm. [Screenshot & guide](docs/examples/exinstancing.md).
+- **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena. [Screenshot & guide](docs/examples/exlobby.md).
+- **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer. [Screenshot & guide](docs/examples/expathfinding.md).
+- **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions. [Screenshot & guide](docs/examples/exanimsprite.md).
+- **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading. [Screenshot & guide](docs/examples/extilemap.md).
+- **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters. [Screenshot & guide](docs/examples/exconfig.md).
+- **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback. [Screenshot & guide](docs/examples/excompute.md).
+- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow. [Screenshot & guide](docs/examples/exgpuparticles.md).
+- **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting. [Screenshot & guide](docs/examples/exisometric.md).
+- **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB, AC3D), directional lighting, and 2D HUD compositing. [Screenshot & guide](docs/examples/ex3d_surface.md).
+- **[`exclouds`](src/examples/exclouds/exclouds.cpp)** — Cloud types and layers (cirrus, altocumulus, cumulus, stratocumulus, stratus, cumulonimbus) over a flat world or a planet; `--types cirrus,cumulus` picks the starting set. [Screenshot & guide](docs/examples/exclouds.md).
+- **[`expbr`](src/examples/expbr/expbr.cpp)** — PBR material showcase: metallic/roughness sphere grid plus an emissive sphere, orbit camera, rotating light and a PBR on/off toggle. [Screenshot & guide](docs/examples/expbr.md).
+- **[`exmodel3d`](src/examples/exmodel3d/exmodel3d.cpp)** ([AC3D / FlightGear guide](docs/ac3d.md)) — Load and render a glTF model (with keyframe clip playback; defaults to the Blender-exported test fixture), an AC3D model or FlightGear model XML with imported transform animations; supports simlib JSON animation files. [Screenshot & guide](docs/examples/exmodel3d.md).
+- **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool. [Screenshot & guide](docs/examples/exfluid3d.md).
+- **[`exvoxel`](src/examples/exvoxel/exvoxel.cpp)** — Minecraft clone demo: 16x16x16 voxel chunk rendering, hidden-face culling, procedural terrain (FastNoiseLite), pixel-art texture atlas, first-person camera, and 3D DDA block break/place raycasting. [Screenshot & guide](docs/examples/exvoxel.md).
+- **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices. [Screenshot & guide](docs/examples/ex3d_gl.md).
+- **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines. [Screenshot & guide](docs/examples/ex3d_vulkan.md).
+- **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load. [Screenshot & guide](docs/examples/exspriteeditor.md).
 - **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — MPEG1/MP2 video decoding via `pl_mpeg` into a bitmap, with synced audio playback; see [Video Playback](#video-playback) below for the required source format.
 - **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
@@ -361,12 +364,12 @@ The full catalog of focused runnable examples follows.
 - **[`showcase2d`](src/examples/showcase2d/showcase2d.cpp)** — Playable lightkeeper game combining Box2D movement, pickups, particles, radial lighting, and polygon shadows.
 - **[`showcase3d`](src/examples/showcase3d/showcase3d.cpp)** — Interactive terrain tour combining streamed LOD terrain, sky, clouds, fog, and scattered trees.
 - **[`showcasevoxel`](src/examples/showcasevoxel/showcasevoxel.cpp)** — Interactive voxel workshop with propagated block lighting, raycast mining, and block placement.
-- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`.
-- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates.
-- **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video).
+- **[`exroguelike`](src/examples/exroguelike/exroguelike.cpp)** ([Guide](docs/exroguelike_guide.md)) — Turn-based ASCII roguelike showcasing procedural generation, FOV, 2D lighting, and decoupling `simlib`, `recs`, and `rworld`. [Screenshot & guide](docs/examples/exroguelike.md).
+- **[`execs`](src/examples/execs/execs.cpp)** ([Guide](docs/ecs.md)) — Interactive Entity Component System (ECS) demonstration showing decoupled simulation, archetype chunk iteration, and parallel updates. [Screenshot & guide](docs/examples/execs.md).
+- **[`excafluid`](src/examples/excafluid/excafluid.cpp)** ([Guide](docs/excafluid_guide.md)) — Cellular automata fluid mechanics, thermodynamics, phase changes, and Box2D Archimedes buoyancy coupling (includes demo video). [Screenshot & guide](docs/examples/excafluid.md).
 - **[`slpaint`](src/examples/slpaint/slpaint.cpp)** ([Guide](docs/slpaint_guide.md)) — Retro paint app with brush/shapes, thickness, palette, and multi-level undo/redo.
-- **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`.
-- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** ([Guide](docs/exgpuparticles_guide.md)) — 150k GPU compute particles with gravity wells, explosions, and cross-backend compute shader uniforms.
+- **[`expostprocess`](src/examples/expostprocess/expostprocess.cpp)** ([Guide](docs/graphics_effects.md)) — 17+ post-processing shader effects chained with `PingPongBuffer`. [Screenshot & guide](docs/examples/expostprocess.md).
+- **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** ([Guide](docs/exgpuparticles_guide.md)) — 150k GPU compute particles with gravity wells, explosions, and cross-backend compute shader uniforms. [Screenshot & guide](docs/examples/exgpuparticles.md).
 
 ---
 
