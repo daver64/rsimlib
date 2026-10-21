@@ -36,7 +36,7 @@ Each frame, scroll the world, update, then draw on top of the scene:
 precipitation.scroll(move, 0.0f);
 precipitation.update(dt);
 lens.update(dt, precipitation.weather.current());
-sound.update(precipitation.weather.current(), 200);
+sound.update(precipitation.weather.current());
 // ... draw the scene ...
 precipitation.draw();
 ```
@@ -56,7 +56,8 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | Up / Down | Stronger / lighter |
 | Q / E | Wind left / right |
 | Left / Right | Scroll the city |
-| L | Toggle lens effect |
+| L | Toggle lens haze |
+| B | Toggle lens droplets (off by default) |
 | M | Toggle sound |
 | Escape | Exit |
 

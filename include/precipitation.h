@@ -271,6 +271,8 @@ namespace sl
     class PrecipitationLens
     {
     public:
+        /** Spawn raindrops and melting flakes on the lens. Off by default: only the haze is drawn. */
+        bool droplets = false;
         /** Advance the droplets for the current weather. */
         void update(float dt_seconds, const PrecipitationConfig &weather);
         /** Draw the haze and droplets over the rectangle (x, y, width, height). */
@@ -302,12 +304,12 @@ namespace sl
         PrecipitationAudio &operator=(const PrecipitationAudio &) = delete;
         ~PrecipitationAudio() { release(); }
 
-        /** Pick the loop and volume for the weather; call each frame (cheap). `master` is 0-255. */
-        void update(const PrecipitationConfig &weather, int master = 255);
+        /** Pick the loop and volume for the weather; call each frame (cheap). `master` is 0-255; the default 26 is about 0.1 of full volume. */
+        void update(const PrecipitationConfig &weather, int master = 10);
         /** Stop and free the samples. Call before audio shutdown. */
         void release();
         /** Volume (0-255) chosen for a weather and master volume; exposed for testing. */
-        static int volume_for(const PrecipitationConfig &weather, int master = 255);
+        static int volume_for(const PrecipitationConfig &weather, int master = 10);
 
     private:
         Sample *samples_[3] = {nullptr, nullptr, nullptr};

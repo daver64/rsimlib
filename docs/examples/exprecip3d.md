@@ -60,7 +60,8 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | PgUp / PgDn | Stronger / lighter |
 | Arrow keys | Walk and turn |
 | Space | Toggle camera orbit |
-| L | Toggle lens effect |
+| L | Toggle lens haze |
+| B | Toggle lens droplets (off by default) |
 | M | Toggle sound |
 | Escape | Exit |
 

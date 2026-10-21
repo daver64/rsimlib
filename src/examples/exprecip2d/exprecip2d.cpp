@@ -145,6 +145,9 @@ int main(int argc, char *argv[])
                 case Key::letter_l:
                     lens_on = !lens_on;
                     break;
+                case Key::letter_b:
+                    lens.droplets = !lens.droplets;
+                    break;
                 case Key::letter_m:
                     sound_on = audio && !sound_on;
                     break;
@@ -169,7 +172,7 @@ int main(int argc, char *argv[])
         precipitation.update(dt);
         lens.update(dt, precipitation.weather.current());
         if (sound_on)
-            sound.update(precipitation.weather.current(), 200);
+            sound.update(precipitation.weather.current());
         else
             sound.update({sl::PrecipitationType::none, 0.0f});
 
@@ -182,8 +185,8 @@ int main(int argc, char *argv[])
         sl::gprintf(14, 12, {236, 240, 248}, "%s, %s  intensity %.2f  wind %+.0f px/s   %d particles, %d splashes",
                     type_names[static_cast<int>(precipitation.weather.target().type)], level_names[static_cast<int>(level)],
                     now_weather.intensity, now_weather.wind.x, precipitation.particle_count(), precipitation.splash_count());
-        sl::gprintf(14, 32, {170, 180, 200}, "1 rain  2 hail  3 snow  0 clear   Up/Down strength   Q/E wind   Left/Right scroll   L lens %s   M sound %s",
-                    lens_on ? "on" : "off", sound_on ? "on" : "off");
+        sl::gprintf(14, 32, {170, 180, 200}, "1 rain  2 hail  3 snow  0 clear   Up/Down strength   Q/E wind   Left/Right scroll   L haze %s   B droplets %s   M sound %s",
+                    lens_on ? "on" : "off", lens.droplets ? "on" : "off", sound_on ? "on" : "off");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();

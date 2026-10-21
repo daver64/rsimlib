@@ -125,6 +125,9 @@ int main(int argc, char *argv[])
                 case Key::letter_l:
                     lens_on = !lens_on;
                     break;
+                case Key::letter_b:
+                    lens.droplets = !lens.droplets;
+                    break;
                 case Key::letter_m:
                     sound_on = audio && !sound_on;
                     break;
@@ -163,7 +166,7 @@ int main(int argc, char *argv[])
 
         precipitation.update(dt, camera);
         lens.update(dt, precipitation.weather.current());
-        sound.update(sound_on ? precipitation.weather.current() : sl::PrecipitationConfig{sl::PrecipitationType::none, 0.0f}, 200);
+        sound.update(sound_on ? precipitation.weather.current() : sl::PrecipitationConfig{sl::PrecipitationType::none, 0.0f});
 
         const sl::PrecipitationConfig &weather = precipitation.weather.current();
         const float cover = precipitation.snow_cover();
@@ -208,8 +211,8 @@ int main(int argc, char *argv[])
         sl::gprintf(20, 12, {236, 240, 248}, "%s, %s  intensity %.2f  wind %.1f, %.1f m/s  snow cover %.0f%%",
                     type_names[static_cast<int>(precipitation.weather.target().type)], level_names[static_cast<int>(level)],
                     weather.intensity, weather.wind.x, weather.wind.y, cover * 100.0f);
-        sl::gprintf(20, 34, {170, 180, 200}, "1 rain  2 hail  3 snow  0 clear   PgUp/PgDn strength   arrows walk/turn   Space orbit %s   L lens %s   M sound %s",
-                    orbit ? "on" : "off", lens_on ? "on" : "off", sound_on ? "on" : "off");
+        sl::gprintf(20, 34, {170, 180, 200}, "1 rain  2 hail  3 snow  0 clear   PgUp/PgDn strength   arrows walk/turn   Space orbit %s   L haze %s   B droplets %s   M sound %s",
+                    orbit ? "on" : "off", lens_on ? "on" : "off", lens.droplets ? "on" : "off", sound_on ? "on" : "off");
         sl::gprintf(20, 616, {170, 180, 200}, "%d particles, %d splashes   %.1f ms/frame", precipitation.particle_count(),
                     precipitation.splash_count(), frame_ms);
         sl::draw_renderer_label();

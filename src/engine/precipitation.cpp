@@ -873,7 +873,11 @@ namespace sl
             return;
         float rate = 0.0f;
         float radius_scale = 1.0f;
-        if (weather.type == PrecipitationType::rain)
+        if (!droplets && accumulator_ == 0.0f && drops_.empty())
+            return;
+        if (!droplets)
+            rate = 0.0f;
+        else if (weather.type == PrecipitationType::rain)
             rate = 5.0f * weather.intensity;
         else if (weather.type == PrecipitationType::snow)
         {
@@ -888,19 +892,23 @@ namespace sl
                 drops_.push_back({uniform(rng_, 0.0f, 1.0f), uniform(rng_, 0.0f, 1.0f),
                                   uniform(rng_, 1.5f, 5.0f) * radius_scale, 0.0f, 0.0f, 0.0f, false});
         }
-        const float lifetime = weather.type == PrecipitationType::snow ? 5.0f : 9.0f;
+        // Melting flakes are short-lived spots that never run; only rain beads up and slides.
+        const bool runs = weather.type != PrecipitationType::snow;
+        const float lifetime = runs ? 9.0f : 2.5f;
         for (std::size_t i = 0; i < drops_.size();)
         {
             Droplet &d = drops_[i];
             d.age += dt;
             // Larger drops are heavy enough to run sooner.
-            if (!d.sliding && d.age > 1.5f - d.radius * 0.12f + (static_cast<float>((i * 37) % 11) * 0.15f))
+            if (runs && !d.sliding && d.age > 1.5f - d.radius * 0.12f + (static_cast<float>((i * 37) % 11) * 0.15f))
                 d.sliding = true;
             if (d.sliding)
             {
-                d.slide = std::min(d.slide + dt * 0.35f, 0.25f + d.radius * 0.03f);
+                // Straight down, pausing now and then as the bead catches on the glass; no sideways wobble.
+                const float stick = std::sin(d.age * 3.0f + static_cast<float>(i) * 1.7f);
+                const float target_speed = stick > 0.55f ? 0.05f : 0.25f + d.radius * 0.03f;
+                d.slide += (target_speed - d.slide) * std::min(1.0f, dt * 4.0f);
                 d.y += d.slide * dt * 0.25f * (0.6f + d.radius * 0.15f);
-                d.x += std::sin(d.age * 7.0f + static_cast<float>(i)) * 0.0006f * dt * 60.0f;
                 d.trail = std::min(d.trail + dt * 40.0f * d.slide, 60.0f);
             }
             if (d.y > 1.05f || d.age > lifetime + 8.0f || (!d.sliding && d.age > lifetime))
@@ -937,13 +945,31 @@ namespace sl
         {
             const float px = x + d.x * width;
             const float py = y + d.y * height;
-            const float fade = clamp01(d.age * 3.0f);
+            float fade = clamp01(d.age * 3.0f);
+            if (weather.type == PrecipitationType::snow)
+            {
+                // A melting flake: a faint soft blotch that fades away.
+                fade *= clamp01((2.5f - d.age) * 1.5f);
+                circlefill(screen, px, py, d.radius, {225, 232, 244, static_cast<Uint8>(34.0f * fade)});
+                circlefill(screen, px, py, d.radius * 0.55f, {240, 244, 252, static_cast<Uint8>(40.0f * fade)});
+                continue;
+            }
             if (d.trail > 1.0f)
-                line(screen, px, py - d.trail, px, py, {200, 215, 235, static_cast<Uint8>(26.0f * fade)}, std::max(1.0f, d.radius * 0.45f));
-            circlefill(screen, px, py, d.radius + 1.0f, {10, 14, 22, static_cast<Uint8>(55.0f * fade)});
-            circlefill(screen, px, py, d.radius, {190, 210, 236, static_cast<Uint8>(70.0f * fade)});
-            circlefill(screen, px - d.radius * 0.3f, py - d.radius * 0.35f, std::max(0.8f, d.radius * 0.32f),
-                       {255, 255, 255, static_cast<Uint8>(190.0f * fade)});
+            {
+                // A wet streak that thins out as it runs up from the bead.
+                constexpr int segments = 4;
+                for (int segment = 0; segment < segments; ++segment)
+                {
+                    const float from = d.trail * static_cast<float>(segment + 1) / segments;
+                    const float to = d.trail * static_cast<float>(segment) / segments;
+                    const float strength = 1.0f - static_cast<float>(segment) / segments;
+                    line(screen, px, py - from, px, py - to, {200, 215, 235, static_cast<Uint8>(16.0f * strength * fade)}, 1.0f);
+                }
+            }
+            circlefill(screen, px, py, d.radius, {150, 175, 205, static_cast<Uint8>(34.0f * fade)});
+            circlefill(screen, px + d.radius * 0.15f, py + d.radius * 0.2f, d.radius * 0.7f, {10, 14, 22, static_cast<Uint8>(22.0f * fade)});
+            circlefill(screen, px - d.radius * 0.3f, py - d.radius * 0.35f, std::max(0.8f, d.radius * 0.28f),
+                       {255, 255, 255, static_cast<Uint8>(150.0f * fade)});
         }
     }
 
@@ -1014,7 +1040,7 @@ namespace sl
     void PrecipitationAudio::update(const PrecipitationConfig &weather, int master)
     {
         const int volume = volume_for(weather, master);
-        const int bucket = volume < 4 ? 0 : std::min(255, ((volume + 8) / 16) * 16);
+        const int bucket = volume < 2 ? 0 : std::min(255, ((volume + 2) / 4) * 4);
         const int type = bucket == 0 ? -1 : static_cast<int>(weather.type) - 1;
         if (type == playing_type_ && bucket == playing_volume_)
             return;

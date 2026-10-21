@@ -994,7 +994,7 @@ float cover = p3.snow_cover();             // 0-1; use snow_tinted(colour, cover
 precipitation_apply_environment(env, p3.weather.current());  // darker sky, denser fog
 ```
 
-Also: `Precipitation3D::wind_from_clouds`, `PrecipitationLens` (droplets/frost overlay) and `PrecipitationAudio` (looped noise beds). 3D particles are drawn with `draw_mesh_instanced` as alpha-blended quads (`MaterialBlend::alpha`), after your opaque geometry.
+Also: `Precipitation3D::wind_from_clouds`, `PrecipitationLens` (haze overlay; set `droplets = true` for raindrops and melting flakes on the lens) and `PrecipitationAudio` (looped noise beds). 3D particles are drawn with `draw_mesh_instanced` as alpha-blended quads (`MaterialBlend::alpha`), after your opaque geometry.
 
 ---
 
