@@ -625,6 +625,7 @@ namespace sl::detail
                     return false;
                 GLMesh mesh;
                 mesh.index_count = static_cast<GLsizei>(index_count);
+                mesh.vertex_count = vertex_count;
                 glGenVertexArrays(1, &mesh.vao);
                 glGenBuffers(1, &mesh.vbo);
                 glGenBuffers(1, &mesh.ebo);
@@ -666,6 +667,19 @@ namespace sl::detail
                 glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_array_buffer));
                 handle = next_mesh_++;
                 meshes_[handle] = mesh;
+                return true;
+            }
+
+            bool update_mesh_vertices(std::uint32_t handle, const Vertex3D *vertices, std::size_t vertex_count) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end() || !vertices || vertex_count != found->second.vertex_count)
+                    return false;
+                GLint previous_array_buffer = 0;
+                glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_array_buffer);
+                glBindBuffer(GL_ARRAY_BUFFER, found->second.vbo);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(sizeof(Vertex3D) * vertex_count), vertices);
+                glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_array_buffer));
                 return true;
             }
 
@@ -802,6 +816,7 @@ namespace sl::detail
                 GLint previous_vertex_array = 0;
                 GLint previous_texture0 = 0;
                 GLint previous_texture1 = 0;
+                GLint previous_texture2 = 0;
                 glGetIntegerv(GL_CURRENT_PROGRAM, &previous_program);
                 glGetIntegerv(GL_DEPTH_FUNC, &previous_depth_func);
                 glGetIntegerv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
@@ -813,6 +828,8 @@ namespace sl::detail
                 glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture0);
                 glActiveTexture(GL_TEXTURE1);
                 glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture1);
+                glActiveTexture(GL_TEXTURE2);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture2);
                 const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
                 glEnable(GL_DEPTH_TEST);
                 glDepthFunc(GL_LESS);
@@ -832,10 +849,18 @@ namespace sl::detail
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.texture != 0 ? params.texture : white_texture_));
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.normal_texture != 0 ? params.normal_texture : white_texture_));
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.material_texture != 0 ? params.material_texture : white_texture_));
                 glActiveTexture(GL_TEXTURE0);
                 glUseProgram(program);
                 glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
                 glUniform1i(glGetUniformLocation(program, "uNormalMap"), 1);
+                glUniform1i(glGetUniformLocation(program, "uMaterial"), 2);
+                glUniform4fv(glGetUniformLocation(program, "uPbr"), 1, params.pbr);
+                glUniform4fv(glGetUniformLocation(program, "uEmissive"), 1, params.emissive);
+                glUniform4fv(glGetUniformLocation(program, "uCameraRight"), 1, params.camera_right);
+                glUniform4fv(glGetUniformLocation(program, "uCameraUp"), 1, params.camera_up);
+                glUniform4fv(glGetUniformLocation(program, "uCameraForward"), 1, params.camera_forward);
                 glUniformMatrix4fv(glGetUniformLocation(program, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(program, "uNormalRows"), 3, &params.normal_rows[0][0]);
                 glUniform4fv(glGetUniformLocation(program, "uLight"), 1, params.light);
@@ -888,6 +913,8 @@ namespace sl::detail
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture0));
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture1));
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture2));
                 glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }
@@ -1591,6 +1618,7 @@ namespace sl::detail
                 GLuint vbo = 0;
                 GLuint ebo = 0;
                 GLsizei index_count = 0;
+                std::size_t vertex_count = 0;
             };
             std::unordered_map<GLuint, GLuint> depth_buffers_;
             std::unordered_map<GLuint, MultisampleTarget> multisample_targets_;

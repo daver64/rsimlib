@@ -222,6 +222,21 @@ namespace sl
         }
     } // namespace detail
 
+    namespace
+    {
+        bool g_retain_mesh_cpu_data = false;
+    }
+
+    bool mesh_cpu_data_retained()
+    {
+        return g_retain_mesh_cpu_data;
+    }
+
+    void set_mesh_cpu_data_retained(bool retained)
+    {
+        g_retain_mesh_cpu_data = retained;
+    }
+
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices)
     {
         detail::Renderer *renderer = detail::active_renderer();
@@ -257,7 +272,36 @@ namespace sl
         mesh->handle = handle;
         mesh->vertex_count = static_cast<int>(vertices.size());
         mesh->index_count = static_cast<int>(indices.size());
+        if (g_retain_mesh_cpu_data)
+        {
+            mesh->vertices = *source;
+            mesh->indices = indices;
+        }
         return mesh;
+    }
+
+    bool update_mesh_vertices(Mesh *mesh, const std::vector<Vertex3D> &vertices)
+    {
+        detail::Renderer *renderer = detail::active_renderer();
+        if (!mesh || !renderer || vertices.size() != static_cast<std::size_t>(mesh->vertex_count))
+        {
+            detail::set_error("Mesh update needs the same vertex count as the mesh");
+            return false;
+        }
+        const std::vector<Vertex3D> *source = &vertices;
+        std::vector<Vertex3D> with_tangents;
+        if (!has_tangents(vertices) && mesh->indices.size() == static_cast<std::size_t>(mesh->index_count))
+        {
+            with_tangents = vertices;
+            generate_tangents(with_tangents, mesh->indices);
+            source = &with_tangents;
+        }
+        if (!renderer->update_mesh_vertices(mesh->handle, source->data(), source->size()))
+        {
+            detail::set_error("Unable to update mesh on the active graphics backend");
+            return false;
+        }
+        return true;
     }
 
     void destroy_mesh(Mesh *mesh)
@@ -443,6 +487,24 @@ namespace sl
         }
         params.light_colour[3] = material.alpha_cutoff;
         detail::apply_environment(params, material.fog);
+        if (material.pbr && material.lit && !material.terrain.enabled && detail::apply_pbr_camera(params))
+        {
+            if (material.metallic_roughness)
+            {
+                if (!upload_bitmap(material.metallic_roughness))
+                {
+                    detail::set_error("Unable to upload mesh metallic-roughness texture");
+                    return false;
+                }
+                params.material_texture = material.metallic_roughness->gpu_texture;
+            }
+            params.pbr[0] = 1.0f;
+            params.pbr[1] = std::clamp(material.metallic, 0.0f, 1.0f);
+            params.pbr[2] = std::clamp(material.roughness, 0.0f, 1.0f);
+            params.pbr[3] = std::clamp(material.occlusion_strength, 0.0f, 1.0f);
+            for (int i = 0; i < 3; ++i)
+                params.emissive[i] = std::max(material.emissive[i], 0.0f);
+        }
         const bool drawn = instance_buffer != 0
                                ? renderer->draw_mesh_instanced(mesh->handle, params, instance_buffer, instance_count)
                                : renderer->draw_mesh(mesh->handle, params);

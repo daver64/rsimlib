@@ -151,6 +151,18 @@ namespace sl::detail
         /** rgb: colour of the directional light. */
         float light_colour[4] = {1.0f, 1.0f, 1.0f, 0.0f};
         /**
+         * Physically based shading, used when pbr[0] is 1: metallic, roughness and occlusion strength in y, z, w; rgb of
+         * `emissive`. material_texture (0 for white) holds occlusion, roughness and metalness in R, G and B. The camera
+         * vectors are in world space: right and up are scaled by tan(fov/2) (and the aspect ratio for right), so the view
+         * ray through a pixel is forward + ndc.x * right + ndc.y * up. Backends without PBR ignore all of these.
+         */
+        float pbr[4] = {0.0f, 1.0f, 1.0f, 1.0f};
+        float emissive[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        float camera_right[4] = {};
+        float camera_up[4] = {};
+        float camera_forward[4] = {};
+        std::uint32_t material_texture = 0;
+        /**
          * Terrain splatting. When terrain_albedo is not 0 the mesh is drawn with the terrain pipeline instead: texture and
          * normal_texture are ignored, the vertex colour and Vertex3D::extra hold the eight layer weights, and the
          * vertex UVs are metres. terrain_normals may be 0 (no normal maps). normal_rows carries the terrain parameters as for
@@ -363,6 +375,8 @@ namespace sl::detail
         virtual bool create_mesh(const Vertex3D *, std::size_t, const std::uint32_t *, std::size_t,
                                  std::uint32_t &) { return false; }
         virtual void destroy_mesh(std::uint32_t) {}
+        /** Replace all vertices of an existing mesh (same count as at creation), e.g. after CPU skinning. At most once per frame. */
+        virtual bool update_mesh_vertices(std::uint32_t, const Vertex3D *, std::size_t) { return false; }
         /** Draw a mesh into the active render target, depth tested. */
         virtual bool draw_mesh(std::uint32_t, const MeshDrawParams &) { return false; }
         /** Draw the procedural sky behind everything already in the active 3D target; false if unsupported. */

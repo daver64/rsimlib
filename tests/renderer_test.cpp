@@ -71,7 +71,129 @@ namespace
         assert(sl::play_model_clip(model, "Hop", false));
         sl::update_model_clip(model, 10.0f);
         assert(near_pos(3, 1, 0) && !sl::model_clip_playing(model));
+        // Round trip: save to glTF with retained CPU geometry and load it back.
         sl::destroy_model(model);
+        const auto resaved = std::filesystem::temp_directory_path() / "simlib-roundtrip.glb";
+        sl::set_mesh_cpu_data_retained(true);
+        model = sl::load_model(std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_blender.glb");
+        sl::set_mesh_cpu_data_retained(false);
+        assert(model && model->parts[0].mesh->vertices.size() == 24);
+        assert(sl::save_model_gltf(model, resaved.string()));
+        sl::destroy_model(model);
+        model = sl::load_model(resaved.string());
+        assert(model != nullptr && model->parts.size() == 1 && model->parts[0].name == "Hand");
+        assert(model->parts[0].mesh->vertex_count == 24 && model->parts[0].mesh->index_count == 36);
+        assert(model->parts[0].material.texture != nullptr && model->parts[0].material.cull == sl::CullMode::none);
+        assert(model->nodes.size() == 2 && model->clips.size() == 3);
+        assert(std::fabs((model->parts[0].bounds_max.y - model->parts[0].bounds_min.y) - 3.0f) < 0.001f);
+        assert(sl::sample_model_clip(model, "Swing", 1.0417f, false));
+        {
+            const glm::vec4 p = model->parts[0].transform[3];
+            assert(std::fabs(p.x) < 0.01f && std::fabs(p.y - 1.0f) < 0.01f && std::fabs(p.z + 1.0f) < 0.01f);
+        }
+        sl::destroy_model(model);
+        std::filesystem::remove(resaved);
+
+        {
+            // PBR: metallic/roughness factors and emission survive loading and a save/load round trip.
+            const auto check = [](const sl::Model *m) {
+                assert(m && m->parts.size() == 3);
+                for (const sl::ModelPart &part : m->parts)
+                {
+                    assert(part.material.pbr);
+                    if (part.name == "Metal")
+                        assert(part.material.metallic == 1.0f && std::fabs(part.material.roughness - 0.2f) < 0.001f);
+                    else if (part.name == "Plastic")
+                        assert(part.material.metallic == 0.0f && std::fabs(part.material.roughness - 0.3f) < 0.001f);
+                    else
+                    {
+                        assert(part.name == "Glow");
+                        assert(std::fabs(part.material.emissive[1] - 2.0f) < 0.01f &&
+                               std::fabs(part.material.emissive[0] - 0.4f) < 0.01f);
+                    }
+                }
+            };
+            const auto pbr_path = std::filesystem::temp_directory_path() / "simlib-pbr.glb";
+            sl::set_mesh_cpu_data_retained(true);
+            sl::Model *pbr = sl::load_model(std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_pbr.glb");
+            sl::set_mesh_cpu_data_retained(false);
+            check(pbr);
+            assert(sl::save_model_gltf(pbr, pbr_path.string()));
+            sl::destroy_model(pbr);
+            pbr = sl::load_model(pbr_path.string());
+            check(pbr);
+            sl::destroy_model(pbr);
+            std::filesystem::remove(pbr_path);
+        }
+
+        {
+            // Skinning: a bar with two bones; "Bend" folds the top half over by 90 degrees.
+            sl::Model *skinned = sl::load_model(std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_skin.glb");
+            assert(skinned && skinned->skins.size() == 1 && skinned->skins[0].joints.size() == 2);
+            assert(skinned->parts.size() == 1 && skinned->parts[0].skin_binding == 0);
+            const sl::ModelSkinBinding &binding = skinned->skin_bindings[0];
+            assert(binding.skinned.size() == skinned->parts[0].mesh->vertices.size() && !binding.skinned.empty());
+            const auto extent = [&](int axis, bool top) {
+                float value = top ? -1e9f : 1e9f;
+                for (const sl::Vertex3D &v : binding.skinned)
+                    value = top ? std::max(value, v.position[axis]) : std::min(value, v.position[axis]);
+                return value;
+            };
+            assert(std::fabs(extent(1, true) - 4.0f) < 0.01f && std::fabs(skinned->parts[0].bounds_max.y - 4.0f) < 0.01f);
+            assert(sl::sample_model_clip(skinned, "Bend", 1.0417f, false));
+            // The top half now points sideways: height 2 plus half the bar's thickness, and 2 deep.
+            assert(extent(1, true) < 2.6f);
+            assert(std::fabs(extent(2, true)) > 1.9f || std::fabs(extent(2, false)) > 1.9f);
+            for (const sl::Vertex3D &v : binding.skinned)
+            {
+                const float length = std::sqrt(v.normal[0] * v.normal[0] + v.normal[1] * v.normal[1] + v.normal[2] * v.normal[2]);
+                assert(std::fabs(length - 1.0f) < 0.01f);
+            }
+            sl::reset_model_pose(skinned);
+            assert(std::fabs(extent(1, true) - 4.0f) < 0.01f);
+            sl::destroy_model(skinned);
+            // Skins survive a save and load.
+            const auto skin_path = std::filesystem::temp_directory_path() / "simlib-skin.glb";
+            sl::set_mesh_cpu_data_retained(true);
+            skinned = sl::load_model(std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_skin.glb");
+            sl::set_mesh_cpu_data_retained(false);
+            assert(skinned && sl::save_model_gltf(skinned, skin_path.string()));
+            sl::destroy_model(skinned);
+            skinned = sl::load_model(skin_path.string());
+            assert(skinned && skinned->skins.size() == 1 && skinned->skin_bindings.size() == 1 && skinned->clips.size() == 1);
+            assert(sl::sample_model_clip(skinned, "Bend", 1.0417f, false));
+            {
+                float top = -1e9f;
+                for (const sl::Vertex3D &v : skinned->skin_bindings[0].skinned)
+                    top = std::max(top, v.position[1]);
+                assert(top < 2.6f);
+            }
+            sl::destroy_model(skinned);
+            std::filesystem::remove(skin_path);
+        }
+
+        sl::set_mesh_cpu_data_retained(true);
+        model = sl::load_model(fixture + ".ac");
+        sl::set_mesh_cpu_data_retained(false);
+        assert(model != nullptr);
+        assert(sl::save_model_gltf(model, resaved.string()));
+        const std::size_t ac_parts = model->parts.size();
+        const sl::Colour ac_tint = model->parts.front().material.tint;
+        sl::destroy_model(model);
+        model = sl::load_model(resaved.string());
+        assert(model != nullptr && model->parts.size() == ac_parts);
+        assert(model->parts.front().name == "fuselage" && model->parts.front().material.tint.red == ac_tint.red);
+        assert(std::fabs(model->parts.front().transform[3].z - 3.0f) < 0.001f);
+        {
+            // A mesh created without retained data cannot be saved.
+            sl::Model empty;
+            sl::ModelPart part;
+            part.mesh = model->parts.front().mesh;
+            empty.parts.push_back(part);
+            assert(!sl::save_model_gltf(&empty, resaved.string()));
+        }
+        sl::destroy_model(model);
+        std::filesystem::remove(resaved);
 
         model = sl::load_flightgear_model(fixture + ".xml");
         assert(model != nullptr);

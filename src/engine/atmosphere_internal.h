@@ -19,4 +19,7 @@ namespace sl::detail
 
     /** Fill the fog fields of a mesh draw from the current environment (no fog when `fog` is false or none is set). */
     void apply_environment(MeshDrawParams &params, bool fog);
+
+    /** Fill the camera vectors a PBR mesh draw needs; false (leaving PBR off) when there is no active camera. */
+    bool apply_pbr_camera(MeshDrawParams &params);
 } // namespace sl::detail

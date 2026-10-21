@@ -259,6 +259,7 @@ add_library(simlib STATIC
     src/engine/draw.cpp
     src/engine/surface3d.cpp
     src/engine/model3d.cpp
+    src/engine/model_gltf_writer.cpp
     src/engine/ac3d.cpp
     src/engine/model_animation.cpp
     src/engine/atlas.cpp
@@ -531,6 +532,10 @@ endif()
 add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
 target_link_libraries(ex3d_surface PRIVATE simlib)
 
+add_executable(simlib_convert tools/simlib_convert.cpp)
+target_link_libraries(simlib_convert PRIVATE simlib)
+install(TARGETS simlib_convert RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 add_executable(exmodel3d src/examples/exmodel3d/exmodel3d.cpp)
 target_link_libraries(exmodel3d PRIVATE simlib)
 target_compile_definitions(exmodel3d PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -730,6 +735,20 @@ if(BUILD_TESTING)
     target_link_libraries(renderer_test PRIVATE simlib)
     target_compile_definitions(renderer_test PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME renderer COMMAND renderer_test)
+    add_test(NAME convert_ac3d_to_glb
+        COMMAND simlib_convert ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/model3d_fixture.ac
+                ${CMAKE_CURRENT_BINARY_DIR}/convert_test_ac3d.glb)
+    include(cmake/SimlibBlender.cmake)
+    if(BLENDER_EXECUTABLE)
+        # Exports Blender's default scene with tools/blender/export_glb.py, then loads and re-saves it through simlib.
+        add_test(NAME blender_export
+            COMMAND ${BLENDER_EXECUTABLE} --background --factory-startup --python
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/blender/export_glb.py -- ${CMAKE_CURRENT_BINARY_DIR}/blender_default.glb)
+        add_test(NAME blender_export_loads
+            COMMAND simlib_convert ${CMAKE_CURRENT_BINARY_DIR}/blender_default.glb ${CMAKE_CURRENT_BINARY_DIR}/blender_default_resaved.glb)
+        set_tests_properties(blender_export PROPERTIES FIXTURES_SETUP blender_default_glb)
+        set_tests_properties(blender_export_loads PROPERTIES FIXTURES_REQUIRED blender_default_glb)
+    endif()
 
     add_executable(voxel_test tests/voxel_test.cpp)
     target_link_libraries(voxel_test PRIVATE simlib)
@@ -868,5 +887,7 @@ configure_package_config_file(
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
+    cmake/SimlibBlender.cmake
+    tools/blender/export_glb.py
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )

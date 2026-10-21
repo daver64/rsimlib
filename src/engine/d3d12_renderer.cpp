@@ -1143,6 +1143,20 @@ namespace sl::detail
                 meshes_.emplace(handle, mesh);
                 return true;
             }
+            bool update_mesh_vertices(std::uint32_t handle, const Vertex3D *vertices, std::size_t vertex_count) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end() || !vertices ||
+                    sizeof(Vertex3D) * vertex_count != found->second.vertex_view.SizeInBytes)
+                    return false;
+                void *mapped = nullptr;
+                const D3D12_RANGE read_range{0, 0};
+                if (FAILED(found->second.vertices->Map(0, &read_range, &mapped)))
+                    return false;
+                std::memcpy(mapped, vertices, sizeof(Vertex3D) * vertex_count);
+                found->second.vertices->Unmap(0, nullptr);
+                return true;
+            }
             void destroy_mesh(std::uint32_t handle) override
             {
                 const auto found = meshes_.find(handle);

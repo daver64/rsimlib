@@ -75,6 +75,8 @@ namespace sl
         glm::mat4 transform{1.0f};
         /** Index into Model::nodes for glTF parts (so clips can move it), or -1. */
         int node = -1;
+        /** Index into Model::skin_bindings for skinned parts (whose `transform` is then identity), or -1. */
+        int skin_binding = -1;
         bool visible = true;
         /** Axis-aligned bounds of the part's geometry after `transform` (before animation); valid when has_bounds. */
         glm::vec3 bounds_min{0.0f};
@@ -100,6 +102,31 @@ namespace sl
         glm::mat4 matrix{1.0f};
         /** Set while a clip drives this node. */
         bool animated = false;
+    };
+
+    /** A glTF skin: the joint nodes and their inverse bind matrices. */
+    struct ModelSkin
+    {
+        std::string name;
+        /** Indices into Model::nodes. */
+        std::vector<int> joints;
+        /** One per joint (identity when the file has none). */
+        std::vector<glm::mat4> inverse_bind;
+    };
+
+    /**
+     * Per-part skinning data. The model skins on the CPU whenever the pose changes (clip sampling,
+     * reset_model_pose()) and uploads the result with update_mesh_vertices(). The skinned mesh is not shared.
+     */
+    struct ModelSkinBinding
+    {
+        int part = -1;
+        int skin = -1;
+        /** Per vertex: indices into ModelSkin::joints and normalised weights. */
+        std::vector<glm::uvec4> joints;
+        std::vector<glm::vec4> weights;
+        /** The latest skinned vertices, in model space. */
+        std::vector<Vertex3D> skinned;
     };
 
     enum class ModelChannelPath
@@ -153,6 +180,9 @@ namespace sl
         std::vector<ModelNode> nodes;
         /** glTF keyframe animations. */
         std::vector<ModelClip> clips;
+        /** glTF skins and the per-part skinning data (bounds of skinned parts are taken from the load-time pose). */
+        std::vector<ModelSkin> skins;
+        std::vector<ModelSkinBinding> skin_bindings;
         /** Playback state driven by play_model_clip() and update_model_clip(). */
         int active_clip = -1;
         float clip_time = 0.0f;
@@ -170,9 +200,11 @@ namespace sl
     /**
      * Load a glTF 2.0 file (.gltf with external or base64 buffers, or binary .glb). Supports
      * node hierarchies, triangle primitives, POSITION/NORMAL/TEXCOORD_0/COLOR_0, base colour
-     * factor and texture, normal texture, doubleSided, alphaMode MASK, and node keyframe animations
+     * factor and texture, normal texture, PBR metallic/roughness factors and texture (with occlusion in the same
+     * texture) and emissive factor (an emissive texture is ignored, along with the factor, since only a constant glow
+     * is supported), doubleSided, alphaMode MASK, and node keyframe animations
      * (translation, rotation and scale with linear, step and cubic-spline interpolation; see
-     * play_model_clip()). Skins, morph targets and sparse accessors are ignored. This is the
+     * play_model_clip()). Skins (JOINTS_0/WEIGHTS_0, CPU skinning, one set of 4 influences) are supported; morph targets and sparse accessors are ignored. This is the
      * recommended format; Blender 4.x exports it directly (File > Export > glTF 2.0, Y-up).
      * Returns nullptr on failure.
      */
@@ -201,6 +233,13 @@ namespace sl
     Model *load_model(const std::string &path);
 
     void destroy_model(Model *model);
+
+    /**
+     * Write a model as a binary glTF 2.0 (.glb): parts, node hierarchy, tint/texture/normal-map/double-sided/alpha-mask
+     * materials and keyframe clips. Meshes are GPU-only, so call set_mesh_cpu_data_retained(true) before loading the
+     * model. FlightGear property animations have no glTF equivalent and are not written (see save_model_animations_json()).
+     */
+    bool save_model_gltf(const Model *model, const std::string &path);
 
     /** Index of the clip with this name, or -1. */
     int find_model_clip(const Model *model, const std::string &name);

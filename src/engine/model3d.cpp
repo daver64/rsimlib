@@ -451,6 +451,8 @@ namespace sl
                 return 3;
             if (type == "VEC4")
                 return 4;
+            if (type == "MAT4")
+                return 16;
             return 0;
         }
 
@@ -627,7 +629,45 @@ namespace sl
             return bitmap;
         }
 
-        Mesh *build_gltf_primitive(Model &model, const Gltf &gltf, const json &primitive)
+        struct SkinAttributes
+        {
+            std::vector<glm::uvec4> joints;
+            std::vector<glm::vec4> weights;
+        };
+
+        bool read_skin_attributes(const Gltf &gltf, const json &attributes, std::size_t count, SkinAttributes &out)
+        {
+            std::vector<double> joints, weights;
+            int jc = 0, wc = 0;
+            if (!read_accessor(gltf, attributes["JOINTS_0"].get<int>(), joints, jc) || jc != 4 ||
+                joints.size() != count * 4 ||
+                !read_accessor(gltf, attributes["WEIGHTS_0"].get<int>(), weights, wc) || wc != 4 ||
+                weights.size() != count * 4)
+            {
+                detail::set_error("Invalid glTF JOINTS_0 or WEIGHTS_0 accessor");
+                return false;
+            }
+            out.joints.resize(count);
+            out.weights.resize(count);
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                float total = 0.0f;
+                for (int k = 0; k < 4; ++k)
+                {
+                    const double j = joints[i * 4 + k];
+                    out.joints[i][k] = j >= 0.0 ? static_cast<unsigned>(j) : 0u;
+                    out.weights[i][k] = std::max(0.0f, static_cast<float>(weights[i * 4 + k]));
+                    total += out.weights[i][k];
+                }
+                if (total > 0.0f)
+                    out.weights[i] /= total;
+                else
+                    out.weights[i] = glm::vec4(0.0f);
+            }
+            return true;
+        }
+
+        Mesh *build_gltf_primitive(Model &model, const Gltf &gltf, const json &primitive, SkinAttributes *skin = nullptr)
         {
             if (primitive.value("mode", 4) != 4 || !primitive.contains("attributes") ||
                 !primitive["attributes"].contains("POSITION"))
@@ -747,8 +787,17 @@ namespace sl
             }
             if (indices.empty())
                 return nullptr;
+            if (skin && !read_skin_attributes(gltf, attributes, count, *skin))
+                return nullptr;
             generate_missing_normals(vertices, indices, normal_flags);
-            return add_mesh(model, vertices, indices);
+            if (!skin)
+                return add_mesh(model, vertices, indices);
+            // Skinning needs the bind-pose vertices (with tangents) on the CPU.
+            const bool retained = mesh_cpu_data_retained();
+            set_mesh_cpu_data_retained(true);
+            Mesh *mesh = add_mesh(model, vertices, indices);
+            set_mesh_cpu_data_retained(retained);
+            return mesh;
         }
 
         void visit_gltf_node(Model &model, Gltf &gltf, int node_index, const glm::mat4 &parent, int depth,
@@ -769,20 +818,43 @@ namespace sl
                     const json &primitives = meshes[mesh_index].value("primitives", json::array());
                     for (int p = 0; p < static_cast<int>(primitives.size()); ++p)
                     {
-                        const auto key = std::make_pair(mesh_index, p);
-                        auto cached = mesh_cache.find(key);
-                        if (cached == mesh_cache.end())
-                            cached = mesh_cache.emplace(key, build_gltf_primitive(model, gltf, primitives[p])).first;
-                        if (!cached->second)
+                        const json &primitive_attributes = primitives[p].value("attributes", json::object());
+                        const int skin_index = node.value("skin", -1);
+                        const bool skinned = skin_index >= 0 && skin_index < static_cast<int>(model.skins.size()) &&
+                                             primitive_attributes.contains("JOINTS_0") &&
+                                             primitive_attributes.contains("WEIGHTS_0");
+                        SkinAttributes skin_attributes;
+                        Mesh *part_mesh = nullptr;
+                        if (skinned)
+                            part_mesh = build_gltf_primitive(model, gltf, primitives[p], &skin_attributes);
+                        else
+                        {
+                            const auto key = std::make_pair(mesh_index, p);
+                            auto cached = mesh_cache.find(key);
+                            if (cached == mesh_cache.end())
+                                cached = mesh_cache.emplace(key, build_gltf_primitive(model, gltf, primitives[p])).first;
+                            part_mesh = cached->second;
+                        }
+                        if (!part_mesh)
                             continue;
                         ModelPart part;
                         part.name = node.value("name", meshes[mesh_index].value("name", ""));
-                        part.mesh = cached->second;
-                        part.transform = world;
-                        part.node = node_index;
+                        part.mesh = part_mesh;
+                        part.transform = skinned ? glm::mat4(1.0f) : world;
+                        part.node = skinned ? -1 : node_index;
+                        if (skinned)
+                        {
+                            ModelSkinBinding binding;
+                            binding.part = static_cast<int>(model.parts.size());
+                            binding.skin = skin_index;
+                            binding.joints = std::move(skin_attributes.joints);
+                            binding.weights = std::move(skin_attributes.weights);
+                            part.skin_binding = static_cast<int>(model.skin_bindings.size());
+                            model.skin_bindings.push_back(std::move(binding));
+                        }
                         const json &accessors = gltf.doc.value("accessors", json::array());
                         const int position = primitives[p].value("attributes", json::object()).value("POSITION", -1);
-                        if (position >= 0 && position < static_cast<int>(accessors.size()) &&
+                        if (!skinned && position >= 0 && position < static_cast<int>(accessors.size()) &&
                             accessors[position].contains("min") && accessors[position].contains("max") &&
                             accessors[position]["min"].size() == 3 && accessors[position]["max"].size() == 3)
                         {
@@ -807,6 +879,7 @@ namespace sl
                         if (m >= 0 && m < static_cast<int>(materials.size()))
                         {
                             const json &material = materials[m];
+                            part.material.pbr = true;
                             if (material.value("doubleSided", false))
                                 part.material.cull = CullMode::none;
                             if (material.value("alphaMode", "OPAQUE") == "MASK")
@@ -820,6 +893,27 @@ namespace sl
                                     part.material.tint = {to_byte(f[0].get<double>()), to_byte(f[1].get<double>()),
                                                           to_byte(f[2].get<double>()), to_byte(f[3].get<double>())};
                                 }
+                                part.material.metallic = pbr.value("metallicFactor", 1.0f);
+                                part.material.roughness = pbr.value("roughnessFactor", 1.0f);
+                                if (pbr.contains("metallicRoughnessTexture"))
+                                {
+                                    const json &textures = gltf.doc.value("textures", json::array());
+                                    const int t = pbr["metallicRoughnessTexture"].value("index", -1);
+                                    if (t >= 0 && t < static_cast<int>(textures.size()) && textures[t].contains("source"))
+                                    {
+                                        part.material.metallic_roughness = load_gltf_image(
+                                            model, gltf, textures[t]["source"].get<int>(), image_cache);
+                                        // Occlusion rides in R of this texture; a separate occlusion image is not combined.
+                                        const int o = material.value("occlusionTexture", json::object()).value("index", -1);
+                                        if (o < 0 || o >= static_cast<int>(textures.size()) ||
+                                            !textures[o].contains("source") ||
+                                            textures[o]["source"] != textures[t]["source"])
+                                            part.material.occlusion_strength = 0.0f;
+                                        else
+                                            part.material.occlusion_strength =
+                                                material["occlusionTexture"].value("strength", 1.0f);
+                                    }
+                                }
                                 if (pbr.contains("baseColorTexture"))
                                 {
                                     const json &textures = gltf.doc.value("textures", json::array());
@@ -828,6 +922,17 @@ namespace sl
                                         part.material.texture = load_gltf_image(model, gltf, textures[t]["source"].get<int>(),
                                                                                 image_cache);
                                 }
+                            }
+                            if (material.contains("emissiveFactor") && material["emissiveFactor"].size() == 3 &&
+                                !material.contains("emissiveTexture"))
+                            {
+                                float strength = 1.0f;
+                                if (material.contains("extensions") &&
+                                    material["extensions"].contains("KHR_materials_emissive_strength"))
+                                    strength = material["extensions"]["KHR_materials_emissive_strength"].value(
+                                        "emissiveStrength", 1.0f);
+                                for (int c = 0; c < 3; ++c)
+                                    part.material.emissive[c] = material["emissiveFactor"][c].get<float>() * strength;
                             }
                             if (material.contains("normalTexture"))
                             {
@@ -867,11 +972,103 @@ namespace sl
             return world;
         }
 
+        void skin_model_parts(Model &model)
+        {
+            std::vector<glm::mat4> matrices;
+            for (ModelSkinBinding &binding : model.skin_bindings)
+            {
+                if (binding.part < 0 || binding.part >= static_cast<int>(model.parts.size()) ||
+                    binding.skin < 0 || binding.skin >= static_cast<int>(model.skins.size()))
+                    continue;
+                Mesh *mesh = model.parts[binding.part].mesh;
+                const ModelSkin &skin = model.skins[binding.skin];
+                if (!mesh || mesh->vertices.size() != binding.joints.size())
+                    continue;
+                matrices.resize(skin.joints.size());
+                for (std::size_t j = 0; j < matrices.size(); ++j)
+                    matrices[j] = node_world(model, skin.joints[j]) * skin.inverse_bind[j];
+                binding.skinned = mesh->vertices;
+                for (std::size_t i = 0; i < binding.skinned.size(); ++i)
+                {
+                    glm::mat4 blended(0.0f);
+                    for (int k = 0; k < 4; ++k)
+                        if (binding.weights[i][k] > 0.0f && binding.joints[i][k] < matrices.size())
+                            blended += binding.weights[i][k] * matrices[binding.joints[i][k]];
+                    if (blended == glm::mat4(0.0f))
+                        continue;
+                    Vertex3D &v = binding.skinned[i];
+                    const glm::vec3 position = glm::vec3(blended * glm::vec4(v.position[0], v.position[1], v.position[2], 1.0f));
+                    const glm::mat3 linear(blended);
+                    glm::vec3 normal = linear * glm::vec3(v.normal[0], v.normal[1], v.normal[2]);
+                    glm::vec3 tangent = linear * glm::vec3(v.tangent[0], v.tangent[1], v.tangent[2]);
+                    if (glm::dot(normal, normal) > 0.0f)
+                        normal = glm::normalize(normal);
+                    if (glm::dot(tangent, tangent) > 0.0f)
+                        tangent = glm::normalize(tangent);
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        v.position[c] = position[c];
+                        v.normal[c] = normal[c];
+                        v.tangent[c] = tangent[c];
+                    }
+                }
+                update_mesh_vertices(mesh, binding.skinned);
+            }
+        }
+
         void refresh_model_parts(Model &model)
         {
             for (ModelPart &part : model.parts)
                 if (part.node >= 0 && part.node < static_cast<int>(model.nodes.size()))
                     part.transform = node_world(model, part.node);
+            skin_model_parts(model);
+        }
+
+        void load_gltf_skins(Model &model, const Gltf &gltf)
+        {
+            const json &skins = gltf.doc.value("skins", json::array());
+            for (const json &source : skins)
+            {
+                ModelSkin skin;
+                skin.name = source.value("name", "");
+                for (const json &joint : source.value("joints", json::array()))
+                {
+                    const int index = joint.get<int>();
+                    if (index >= 0 && index < static_cast<int>(model.nodes.size()))
+                        skin.joints.push_back(index);
+                    else
+                        skin.joints.push_back(0);
+                }
+                skin.inverse_bind.assign(skin.joints.size(), glm::mat4(1.0f));
+                std::vector<double> values;
+                int components = 0;
+                if (source.contains("inverseBindMatrices") &&
+                    read_accessor(gltf, source["inverseBindMatrices"].get<int>(), values, components) &&
+                    components == 16 && values.size() >= skin.joints.size() * 16)
+                    for (std::size_t j = 0; j < skin.joints.size(); ++j)
+                        for (int i = 0; i < 16; ++i)
+                            skin.inverse_bind[j][i / 4][i % 4] = static_cast<float>(values[j * 16 + i]);
+                model.skins.push_back(std::move(skin));
+            }
+        }
+
+        // Poses skinned parts once and takes their bounds from that pose.
+        void finish_gltf_skins(Model &model)
+        {
+            if (model.skin_bindings.empty())
+                return;
+            skin_model_parts(model);
+            for (const ModelSkinBinding &binding : model.skin_bindings)
+            {
+                ModelPart &part = model.parts[binding.part];
+                for (const Vertex3D &v : binding.skinned)
+                {
+                    const glm::vec3 point(v.position[0], v.position[1], v.position[2]);
+                    part.bounds_min = part.has_bounds ? glm::min(part.bounds_min, point) : point;
+                    part.bounds_max = part.has_bounds ? glm::max(part.bounds_max, point) : point;
+                    part.has_bounds = true;
+                }
+            }
         }
 
         void build_gltf_nodes(Model &model, const Gltf &gltf)
@@ -1238,9 +1435,11 @@ namespace sl
             std::map<std::pair<int, int>, Mesh *> mesh_cache;
             std::map<int, Bitmap *> image_cache;
             build_gltf_nodes(*model, gltf);
+            load_gltf_skins(*model, gltf);
             for (const int root : roots)
                 visit_gltf_node(*model, gltf, root, glm::mat4(1.0f), 0, mesh_cache, image_cache);
             load_gltf_clips(*model, gltf);
+            finish_gltf_skins(*model);
         }
         catch (const json::exception &error)
         {

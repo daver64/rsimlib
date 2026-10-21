@@ -568,6 +568,7 @@ namespace sl::detail
                 const auto host_visible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
                 VulkanMesh mesh;
                 mesh.index_count = static_cast<std::uint32_t>(index_count);
+                mesh.vertex_count = vertex_count;
                 const VkDeviceSize vertex_bytes = sizeof(Vulkan3DMeshVertex) * vertex_count;
                 const VkDeviceSize index_bytes = sizeof(std::uint32_t) * index_count;
                 // Vertex3D and Vulkan3DMeshVertex share the same layout.
@@ -585,6 +586,14 @@ namespace sl::detail
                 handle = next_mesh_++;
                 meshes_[handle] = mesh;
                 return true;
+            }
+            bool update_mesh_vertices(std::uint32_t handle, const Vertex3D *vertices, std::size_t vertex_count) override
+            {
+                const auto found = meshes_.find(handle);
+                if (found == meshes_.end() || !vertices || vertex_count != found->second.vertex_count)
+                    return false;
+                return context_.upload_buffer(found->second.vertices, vertices, sizeof(Vulkan3DMeshVertex) * vertex_count,
+                                              last_error_);
             }
             void destroy_mesh(std::uint32_t handle) override
             {
@@ -689,15 +698,25 @@ namespace sl::detail
                 if (!sampled_descriptor(params.texture != 0 ? params.texture : white_texture_, descriptor) ||
                     !sampled_descriptor(params.normal_texture != 0 ? params.normal_texture : white_texture_, normal_descriptor))
                     return false;
-                float environment[16];
+                VkDescriptorSet material_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.material_texture != 0 ? params.material_texture : white_texture_,
+                                        material_descriptor))
+                    return false;
+                float environment[36];
                 std::memcpy(environment, params.light_colour, sizeof(float) * 4);
                 std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
                 std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
                 std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
+                std::memcpy(environment + 16, params.pbr, sizeof(float) * 4);
+                std::memcpy(environment + 20, params.emissive, sizeof(float) * 4);
+                std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
+                std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
+                std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
-                                                 environment, sizeof(environment), last_error_);
+                                                 environment, sizeof(environment), last_error_, VK_NULL_HANDLE, 1,
+                                                 material_descriptor);
             }
             bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
             {
@@ -779,17 +798,27 @@ namespace sl::detail
                 // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1]; this holds for the view-projection too.
                 for (int column = 0; column < 4; ++column)
                     adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
-                float environment[16];
+                VkDescriptorSet material_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.material_texture != 0 ? params.material_texture : white_texture_,
+                                        material_descriptor))
+                    return false;
+                float environment[36];
                 std::memcpy(environment, params.light_colour, sizeof(float) * 4);
                 std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
                 std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
                 std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
+                std::memcpy(environment + 16, params.pbr, sizeof(float) * 4);
+                std::memcpy(environment + 20, params.emissive, sizeof(float) * 4);
+                std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
+                std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
+                std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
                 const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp,
                                                  adjusted.light, environment, sizeof(environment), last_error_,
-                                                 instances->second.buffer.buffer, static_cast<std::uint32_t>(count));
+                                                 instances->second.buffer.buffer, static_cast<std::uint32_t>(count),
+                                                 material_descriptor);
             }
             bool draw_sky(const SkyDrawParams &params) override
             {
@@ -2675,6 +2704,7 @@ namespace sl::detail
                 VulkanBuffer vertices;
                 VulkanBuffer indices;
                 std::uint32_t index_count = 0;
+                std::size_t vertex_count = 0;
             };
             std::unordered_map<std::uint32_t, VulkanMesh> meshes_;
             std::uint32_t next_mesh_ = 1;

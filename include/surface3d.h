@@ -33,7 +33,21 @@ namespace sl
         std::uint32_t handle = 0;
         int vertex_count = 0;
         int index_count = 0;
+        /** CPU copy of the geometry (with generated tangents); filled while set_mesh_cpu_data_retained(true) and always for skinned model meshes. */
+        std::vector<Vertex3D> vertices;
+        std::vector<std::uint32_t> indices;
     };
+
+    /**
+     * Replace the vertices of an existing mesh (the count must match, the indices are unchanged), for CPU-animated
+     * geometry such as skinned models. Zero tangents are regenerated. Call at most once per frame per mesh, before drawing it.
+     * Does not change Mesh::vertices, which keeps the original geometry.
+     */
+    bool update_mesh_vertices(Mesh *mesh, const std::vector<Vertex3D> &vertices);
+
+    /** Make create_mesh() keep a CPU copy of each mesh's vertices and indices in Mesh::vertices / Mesh::indices. Off by default. */
+    void set_mesh_cpu_data_retained(bool retained);
+    bool mesh_cpu_data_retained();
 
     /** Which triangles draw_mesh() discards. Counter-clockwise triangles are front faces. */
     enum class CullMode
@@ -108,6 +122,20 @@ namespace sl
          * Gives hard-edged cut-outs for foliage cards and impostors without sorting. Not applied to terrain.
          */
         float alpha_cutoff = 0.0f;
+        /**
+         * Physically based shading (glTF metallic-roughness): GGX specular with the scene's directional light, ambient
+         * light scaled by occlusion, and emission. Only for lit materials; the texture is the base colour. Not
+         * available on Direct3D 12, which shades these materials like plain lit ones.
+         */
+        bool pbr = false;
+        float metallic = 1.0f;
+        float roughness = 1.0f;
+        /** Optional texture: G multiplies roughness, B multiplies metallic, R is ambient occlusion (glTF layout). Not owned. */
+        Bitmap *metallic_roughness = nullptr;
+        /** How much of the texture's R channel darkens ambient light, 0-1. */
+        float occlusion_strength = 1.0f;
+        /** Linear rgb light the surface gives off, added after lighting. */
+        float emissive[3] = {0.0f, 0.0f, 0.0f};
         TerrainShading terrain;
     };
 

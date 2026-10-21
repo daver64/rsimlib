@@ -957,7 +957,8 @@ namespace sl::detail
                                          VkDescriptorSet normal_descriptor, const float *vertex_constants,
                                          const float *fragment_constants, const float *environment,
                                          std::size_t environment_size, std::string &error,
-                                         VkBuffer instance_buffer, std::uint32_t instance_count)
+                                         VkBuffer instance_buffer, std::uint32_t instance_count,
+                                         VkDescriptorSet material_descriptor)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
@@ -982,6 +983,9 @@ namespace sl::detail
         const VkDescriptorSet mesh_descriptors[3] = {texture_descriptor, normal_descriptor, environment_set_};
         vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 3,
                                 mesh_descriptors, 1, &environment_offset);
+        if (material_descriptor != VK_NULL_HANDLE)
+            vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 3, 1, &material_descriptor, 0,
+                                    nullptr);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(float) * 28, vertex_constants);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
@@ -2787,9 +2791,9 @@ namespace sl::detail
                 {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28, sizeof(float) * 4}};
             VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
             // Meshes sample a second texture (the normal map) from set 1 and read the environment from set 2.
-            const VkDescriptorSetLayout mesh_layouts[3] = {descriptor_layout.layout, descriptor_layout.layout,
-                                                           environment_layout_};
-            layout_info.setLayoutCount = mesh_vertices ? 3u : 1u;
+            const VkDescriptorSetLayout mesh_layouts[4] = {descriptor_layout.layout, descriptor_layout.layout,
+                                                           environment_layout_, descriptor_layout.layout};
+            layout_info.setLayoutCount = mesh_vertices ? 4u : 1u;
             layout_info.pSetLayouts = mesh_vertices ? mesh_layouts : &descriptor_layout.layout;
             layout_info.pushConstantRangeCount = mesh_vertices ? 2u : 1u;
             layout_info.pPushConstantRanges = ranges;

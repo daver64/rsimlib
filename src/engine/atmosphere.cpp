@@ -306,6 +306,28 @@ namespace sl
 
     namespace detail
     {
+        bool apply_pbr_camera(MeshDrawParams &params)
+        {
+            ActiveCameraInfo info;
+            if (!active_camera_info(info))
+                return false;
+            const Camera &camera = info.camera;
+            const glm::vec3 forward = glm::normalize(camera.target - camera.position);
+            const glm::vec3 right = glm::normalize(glm::cross(forward, camera.up));
+            const glm::vec3 up = glm::cross(right, forward);
+            const float tan_y = std::tan(glm::radians(camera.field_of_view) * 0.5f);
+            const float aspect = static_cast<float>(info.width) / static_cast<float>(std::max(info.height, 1));
+            for (int i = 0; i < 3; ++i)
+            {
+                params.camera_right[i] = right[i] * tan_y * aspect;
+                params.camera_up[i] = up[i] * tan_y;
+                params.camera_forward[i] = forward[i];
+            }
+            params.fog_view[2] = 1.0f / static_cast<float>(std::max(info.width, 1));
+            params.fog_view[3] = 1.0f / static_cast<float>(std::max(info.height, 1));
+            return true;
+        }
+
         void apply_environment(MeshDrawParams &params, bool fog)
         {
             if (!fog || !have_environment || glm::dot(fog_beta, glm::vec3(1.0f)) <= 0.0f)

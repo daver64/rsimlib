@@ -121,6 +121,8 @@ namespace sl::detail
                             const float *mvp, std::string &error);
         /**
          * vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats.
+         * material_descriptor (set 3, the PBR occlusion-roughness-metalness texture) is bound when not null; shaders that
+         * sample it need it.
          * With an instance_buffer, the pipeline must be an instanced one and it supplies instance_count instances.
          */
         bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
@@ -129,7 +131,7 @@ namespace sl::detail
                               const float *vertex_constants, const float *fragment_constants,
                               const float *environment, std::size_t environment_size,
                               std::string &error, VkBuffer instance_buffer = VK_NULL_HANDLE,
-                              std::uint32_t instance_count = 1);
+                              std::uint32_t instance_count = 1, VkDescriptorSet material_descriptor = VK_NULL_HANDLE);
         /** Fullscreen sky draw; sky_rows: 14 vec4 rows read from the per-draw environment block. */
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);

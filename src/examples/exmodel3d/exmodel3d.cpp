@@ -401,7 +401,8 @@ int main(int argc, char **argv)
         if (frames && frame >= static_cast<std::uint32_t>(std::max(1, std::atoi(frames))))
             running = false;
         const char *screenshot = std::getenv("RSIMLIB_SCREENSHOT");
-        if (screenshot && frame == 2 && !sl::save_bitmap(sl::screen, screenshot))
+        const char *screenshot_frame = std::getenv("RSIMLIB_SCREENSHOT_FRAME");
+        if (screenshot && frame == (screenshot_frame ? static_cast<std::uint32_t>(std::atoi(screenshot_frame)) : 2u) && !sl::save_bitmap(sl::screen, screenshot))
             std::fprintf(stderr, "Screenshot save failed: %s\n", sl::last_error().c_str());
     }
 
