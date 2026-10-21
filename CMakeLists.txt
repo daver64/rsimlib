@@ -305,6 +305,7 @@ add_library(simlib STATIC
     src/engine/fluid.cpp
     src/engine/fluid3d.cpp
     src/engine/gui.cpp
+    src/engine/shader_paths.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
     src/engine/physics.cpp
@@ -343,12 +344,9 @@ if(NOT GLSLANG_VALIDATOR)
     set(GLSLANG_VALIDATOR "")
 endif()
 target_compile_definitions(simlib PRIVATE
-    SIMLIB_GLSL_SHADER_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders/glsl"
-    SIMLIB_BUILD_GLSL_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl"
-    SIMLIB_D3D_SHADER_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders/d3d"
-    SIMLIB_BUILD_D3D_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders/d3d"
-    SIMLIB_SHADER_BINARY_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib/shaders"
-    SIMLIB_BUILD_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    SIMLIB_INSTALL_DATA_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib"
+    SIMLIB_BUILD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    SIMLIB_BUILD_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
 target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB lua sol2)
@@ -671,6 +669,12 @@ if(BUILD_TESTING)
     target_link_libraries(lobby_test PRIVATE simlib)
     target_compile_definitions(lobby_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME lobby COMMAND lobby_test)
+
+    add_executable(shader_paths_test tests/shader_paths_test.cpp)
+    target_include_directories(shader_paths_test PRIVATE src/engine)
+    target_link_libraries(shader_paths_test PRIVATE simlib)
+    target_compile_definitions(shader_paths_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME shader_paths COMMAND shader_paths_test)
 
     add_executable(pathfinder_test tests/pathfinder_test.cpp)
     target_link_libraries(pathfinder_test PRIVATE simlib)

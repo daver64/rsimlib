@@ -4,6 +4,7 @@
 
 #include "gl_renderer.h"
 #include "gl_context.h"
+#include "shader_paths.h"
 
 #ifdef _WIN32
 #include <GL/glew.h>
@@ -34,12 +35,8 @@ namespace sl::detail
     {
         std::string load_glsl_shader(const char *name)
         {
-            std::ifstream file(std::filesystem::path(SIMLIB_GLSL_SHADER_DIR) / name);
-            if (!file)
-            {
-                file.clear();
-                file.open(std::filesystem::path(SIMLIB_BUILD_GLSL_SHADER_DIR) / name);
-            }
+            const std::filesystem::path relative = std::filesystem::path("glsl") / name;
+            std::ifstream file(find_shader_root(relative) / relative);
             return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
         }
 

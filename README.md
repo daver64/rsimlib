@@ -156,7 +156,14 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH="$HOME/opt"
 cmake --build build -j"$(nproc)"
 ```
 
-If you change the install prefix, reconfigure simlib with the new `CMAKE_INSTALL_PREFIX` and reinstall it. The configured prefix is also used to locate the installed runtime shader assets.
+Runtime shader assets (`share/simlib/shaders/{glsl,d3d,vulkan}`) are searched for in this order, so an installed or copied tree can be moved without rebuilding:
+
+1. `$SIMLIB_DATA_DIR/shaders` — set `SIMLIB_DATA_DIR` to the directory that contains `shaders/` (for example `<prefix>/share/simlib`)
+2. next to the executable: `<exe>/shaders`, `<exe>/share/simlib/shaders`, `<exe>/../share/simlib/shaders`
+3. the `CMAKE_INSTALL_PREFIX` baked in at configure time
+4. the source and build trees simlib was built from
+
+If you only move the install, point `SIMLIB_DATA_DIR` at the new location or place the `share/simlib` folder relative to your executable.
 
 Run the test suite:
 

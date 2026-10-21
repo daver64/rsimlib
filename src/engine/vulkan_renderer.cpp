@@ -3,6 +3,7 @@
  */
 #include "vulkan_renderer.h"
 #include "vulkan_context.h"
+#include "shader_paths.h"
 
 #include <vulkan/vulkan.h>
 
@@ -109,9 +110,7 @@ namespace sl::detail
                     !context_.create_storage_descriptor_layout(storage_layout_, error) ||
                     !context_.create_descriptor_pool(descriptor_pool_, error))
                     return false;
-                std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_2d.vert.spv"))
-                    shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_2d.vert.spv");
                 if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.vert.spv", vertex_module_, error) ||
                     !context_.load_shader_module(shader_dir / "vulkan/vulkan_2d.frag.spv", fragment_module_, error) ||
                     !create_pipelines(error))
@@ -2789,9 +2788,7 @@ namespace sl::detail
             {
                 if (!mesh_pipeline_ready_)
                 {
-                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d.vert.spv"))
-                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_mesh3d.vert.spv");
                     if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.vert.spv", mesh_vertex_module_, last_error_) ||
                         !context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d.frag.spv", mesh_fragment_module_, last_error_))
                     {
@@ -2836,9 +2833,7 @@ namespace sl::detail
                     return nullptr;
                 if (!mesh_instanced_module_ready_)
                 {
-                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d_instanced.vert.spv"))
-                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_mesh3d_instanced.vert.spv");
                     if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d_instanced.vert.spv",
                                                      mesh_instanced_vertex_module_, last_error_))
                     {
@@ -2887,9 +2882,7 @@ namespace sl::detail
             {
                 if (!terrain_pipeline_ready_)
                 {
-                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_terrain.vert.spv"))
-                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_terrain.vert.spv");
                     if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_terrain.vert.spv", terrain_vertex_module_, last_error_) ||
                         !context_.load_shader_module(shader_dir / "vulkan/vulkan_terrain.frag.spv", terrain_fragment_module_, last_error_))
                     {
@@ -2937,9 +2930,7 @@ namespace sl::detail
             {
                 if (!sky_modules_ready_)
                 {
-                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
-                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_sky.vert.spv"))
-                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_sky.vert.spv");
                     if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_sky.vert.spv", sky_vertex_module_, last_error_) ||
                         !context_.load_shader_module(shader_dir / "vulkan/vulkan_sky.frag.spv", sky_fragment_module_, last_error_))
                     {

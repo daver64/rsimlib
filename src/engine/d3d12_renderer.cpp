@@ -6,6 +6,7 @@
 #include "d3d12_renderer.h"
 #include "d3d12_context.h"
 #include "d3d12_shader_translator.h"
+#include "shader_paths.h"
 
 #include <d3d12.h>
 #include <d3dcompiler.h>
@@ -152,12 +153,8 @@ namespace sl::detail
 
         std::string load_shader(const char *name)
         {
-            std::ifstream file(std::filesystem::path(SIMLIB_BUILD_D3D_SHADER_DIR) / name);
-            if (!file)
-            {
-                file.clear();
-                file.open(std::filesystem::path(SIMLIB_D3D_SHADER_DIR) / name);
-            }
+            const std::filesystem::path relative = std::filesystem::path("d3d") / name;
+            std::ifstream file(find_shader_root(relative) / relative);
             return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
         }
 
