@@ -30,6 +30,12 @@ namespace sl
     /** Return whether a keyboard scancode is currently held. */
     bool key_down(SDL_Scancode key);
     bool key_down(Event::Key key);
+    /** Backend scancode for a Key (0 when it has no mapping). Used by InputMap; games rarely need it. */
+    int key_scancode(Event::Key key);
+    /** Start delivering Event::Type::text_input events (for text fields and consoles). */
+    void start_text_input();
+    /** Stop delivering text_input events. */
+    void stop_text_input();
     /** Return the current mouse X coordinate in window pixels. */
     int mouse_x();
     /** Return the current mouse Y coordinate in window pixels. */

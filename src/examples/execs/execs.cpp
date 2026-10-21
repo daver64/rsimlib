@@ -1327,7 +1327,7 @@ int main(
                 mouse.y);
         }
 
-        // SDL right mouse button mask.
+        // Right mouse button mask.
 
         if (
             inside_arena &&

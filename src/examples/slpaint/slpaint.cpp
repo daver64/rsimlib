@@ -1,6 +1,5 @@
 #include "sl.h"
 
-#include <SDL2/SDL.h>
 
 #include <algorithm>
 #include <cmath>
@@ -174,7 +173,7 @@ namespace
 
         // Current mouse operation.
         bool operation_active = false;
-        int operation_button = SDL_BUTTON_LEFT;
+        int operation_button = static_cast<int>(sl::MouseButton::left);
 
         int start_x = 0;
         int start_y = 0;
@@ -704,7 +703,7 @@ namespace
 
         sl::Colour colour_for_button(int button)
         {
-            return button == SDL_BUTTON_RIGHT
+            return button == static_cast<int>(sl::MouseButton::right)
                        ? background
                        : foreground;
         }
@@ -755,7 +754,7 @@ namespace
                 const sl::Colour picked =
                     sl::getpixel(canvas, x, y);
 
-                if (button == SDL_BUTTON_RIGHT)
+                if (button == static_cast<int>(sl::MouseButton::right))
                     background = picked;
                 else
                     foreground = picked;
@@ -1050,7 +1049,7 @@ namespace
                         16,
                         16))
                 {
-                    if (button == SDL_BUTTON_RIGHT)
+                    if (button == static_cast<int>(sl::MouseButton::right))
                         background = PALETTE[i];
                     else
                         foreground = PALETTE[i];
@@ -1206,8 +1205,8 @@ namespace
         void key_down(sl::Event::Key key)
         {
             const bool ctrl =
-                sl::key_down(SDL_SCANCODE_LCTRL) ||
-                sl::key_down(SDL_SCANCODE_RCTRL);
+                sl::key_down(sl::Event::Key::left_control) ||
+                sl::key_down(sl::Event::Key::right_control);
 
             if (ctrl)
             {

@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 
         // Drag any dynamic body under the cursor with a mouse joint.
         const sl::Vec2 mouse{static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y())};
-        const bool held = (sl::mouse_buttons() & SDL_BUTTON_LMASK) != 0;
+        const bool held = (sl::mouse_buttons() & sl::MOUSE_BUTTON_LEFT_MASK) != 0;
         if (held && !grab)
         {
             for (sl::PhysicsBody *body : sl::physics_query_point(world, mouse))

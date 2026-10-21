@@ -3,6 +3,7 @@
 #include "tween.h"
 #include "pixel_scale.h"
 #include "animation2d.h"
+#include "input_actions.h"
 
 #include <cassert>
 #include <cmath>
@@ -239,5 +240,64 @@ int main()
     }
 
     std::cout << "camera_collision_test passed\n";
+    // Input actions: injection, edges, vectors and the text round trip (no devices needed).
+    {
+        sl::InputMap input;
+        input.bind_key("jump", sl::Event::Key::space);
+        input.bind_key("jump", sl::Event::Key::arrow_up);
+        input.bind_mouse("jump", sl::MouseButton::right);
+        input.bind_gamepad_button("jump", sl::GamepadButton::south, 1);
+        input.bind_gamepad_axis("left", sl::GamepadAxis::left_x, -1);
+        input.bind_gamepad_axis("right", sl::GamepadAxis::left_x, 1);
+        input.bind_touch("tap");
+        input.bind("up", {sl::InputBinding::Kind::key, SDL_SCANCODE_W, 1, -1});
+        input.bind("down", {sl::InputBinding::Kind::key, SDL_SCANCODE_S, 1, -1});
+
+        input.update();
+        assert(!input.down("jump") && !input.pressed("jump") && input.value("jump") == 0.0f);
+        assert(!input.down("missing") && input.axis("left", "right") == 0.0f);
+
+        input.inject("jump");
+        input.update();
+        assert(input.down("jump") && input.pressed("jump") && !input.released("jump"));
+        input.update();
+        assert(!input.down("jump") && input.released("jump") && !input.pressed("jump"));
+
+        // Hysteresis: a value that dips slightly below the press threshold stays down until it falls well below.
+        input.inject("jump", 0.6f);
+        input.update();
+        input.inject("jump", 0.45f);
+        input.update();
+        assert(input.down("jump"));
+        input.inject("jump", 0.2f);
+        input.update();
+        assert(!input.down("jump"));
+
+        // Diagonal movement is normalised.
+        input.inject("right");
+        input.inject("down");
+        input.update();
+        float vx = 0.0f, vy = 0.0f;
+        input.vector("left", "right", "up", "down", vx, vy);
+        assert(near(std::sqrt(vx * vx + vy * vy), 1.0f) && vx > 0.0f && vy > 0.0f);
+
+        const std::string text = input.save();
+        sl::InputMap loaded;
+        assert(loaded.load(text));
+        assert(loaded.bindings("jump").size() == 4 && loaded.bindings("left")[0].direction == -1);
+        assert(loaded.bindings("jump")[3].gamepad == 1 && loaded.bindings("jump")[0].code == SDL_SCANCODE_SPACE);
+        assert(loaded.save() == text);
+
+        sl::InputMap untouched;
+        untouched.bind_key("keep", sl::Event::Key::letter_a);
+        assert(!untouched.load("jump\tkey:NotAKey\n") && untouched.has_action("keep"));
+        assert(!untouched.load("nobinding") && !untouched.load("a\tpad:nonsense"));
+        assert(sl::InputMap::describe(loaded.bindings("jump")[0]) == "Space");
+        input.clear_bindings("jump");
+        assert(input.bindings("jump").empty() && input.has_action("jump"));
+        input.remove_action("jump");
+        assert(!input.has_action("jump"));
+    }
+
     return 0;
 }

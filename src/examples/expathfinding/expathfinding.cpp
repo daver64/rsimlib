@@ -109,20 +109,20 @@ int main(int argc, char *argv[])
         last = now;
 
         // The player steps at a fixed rate so the chase is fair.
-        noisy = sl::key_down(SDL_SCANCODE_LSHIFT) || sl::key_down(SDL_SCANCODE_RSHIFT);
+        noisy = sl::key_down(sl::Event::Key::left_shift) || sl::key_down(sl::Event::Key::right_shift);
         move_timer += dt;
         const float step_time = noisy ? 0.10f : 0.16f;
         moved = false;
         if (move_timer >= step_time)
         {
             int dx = 0, dy = 0;
-            if (sl::key_down(SDL_SCANCODE_LEFT) || sl::key_down(SDL_SCANCODE_A))
+            if (sl::key_down(sl::Event::Key::arrow_left) || sl::key_down(sl::Event::Key::letter_a))
                 dx = -1;
-            else if (sl::key_down(SDL_SCANCODE_RIGHT) || sl::key_down(SDL_SCANCODE_D))
+            else if (sl::key_down(sl::Event::Key::arrow_right) || sl::key_down(sl::Event::Key::letter_d))
                 dx = 1;
-            else if (sl::key_down(SDL_SCANCODE_UP) || sl::key_down(SDL_SCANCODE_W))
+            else if (sl::key_down(sl::Event::Key::arrow_up) || sl::key_down(sl::Event::Key::letter_w))
                 dy = -1;
-            else if (sl::key_down(SDL_SCANCODE_DOWN) || sl::key_down(SDL_SCANCODE_S))
+            else if (sl::key_down(sl::Event::Key::arrow_down) || sl::key_down(sl::Event::Key::letter_s))
                 dy = 1;
             if ((dx || dy) && pathfinder.open(player_col + dx, player_row + dy))
             {

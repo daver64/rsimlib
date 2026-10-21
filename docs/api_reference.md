@@ -202,6 +202,9 @@ while (sl::poll_event(&event)) {
 #### `key_down(key)`
 ```cpp
 bool key_down(Event::Key key);
+int key_scancode(Event::Key key);   // backend scancode, used by InputMap
+void start_text_input();            // begin Event::Type::text_input delivery
+void stop_text_input();
 bool key_down(SDL_Scancode key);
 ```
 - **Description**: Queries whether a specific keyboard key is currently physically held down. Client applications should prefer `Event::Key` (e.g., `sl::Key::w`, `sl::Key::space`, `sl::Key::escape`) to avoid exposing platform/SDL scancodes.
@@ -298,6 +301,28 @@ void rest(std::uint32_t milliseconds);
 - **Description**: Delays execution of the calling thread for the specified duration using `SDL_Delay()`.
 - **Parameters**:
   - `milliseconds` (`std::uint32_t`): Duration to sleep in milliseconds.
+
+---
+
+### Input actions ([include/input_actions.h](../include/input_actions.h))
+Optional: nothing else in simlib depends on it, and raw `key_down()`, `mouse_buttons()` and `gamepad_*()` keep working alongside it. Name your game actions and bind any mix of inputs to each.
+```cpp
+sl::InputMap input;
+input.bind_key("jump", sl::Event::Key::space);
+input.bind_gamepad_button("jump", sl::GamepadButton::south);
+input.bind_gamepad_axis("left", sl::GamepadAxis::left_x, -1);
+input.bind_key("left", sl::Event::Key::letter_a);
+// each frame:
+input.update();
+if (input.pressed("jump")) { /* ... */ }
+float x = input.axis("left", "right");
+```
+- **Bindings**: `bind_key`, `bind_mouse`, `bind_gamepad_button`, `bind_gamepad_axis` (one direction per binding, e.g. `left_x` with -1), `bind_touch`, or `bind(action, InputBinding)`. An action can have any number of bindings and the strongest one wins. Gamepad bindings match any connected pad unless you give an index.
+- **Queries** (after `update()`): `value()` (0-1, analogue aware), `down()`, `pressed()` and `released()` (true for one frame), `axis(negative, positive)` and `vector(left, right, up, down, x, y)` (length capped at 1 so diagonals are not faster). `press_threshold` (default 0.5) sets when an analogue input counts as down, with a little hysteresis on release. Gamepad dead zones come from `gamepad_set_deadzone()`.
+- **Remapping**: `InputMap::capture()` returns the first input currently held, `describe(binding)` gives a label such as "Space" or "Pad South", `clear_bindings()` removes an action's bindings, and `save()` / `load()` convert to and from a text form for a settings file. `load()` leaves the map untouched when the text is malformed.
+- **Virtual input**: `inject(action, value)` feeds an action for the next `update()` only, for on-screen touch buttons, AI, replays and tests.
+- **Touch**: `bind_touch` triggers while any finger is down; `touch_points()` returns finger positions in screen coordinates for on-screen controls.
+- Polling means no event hookup is required. Keys are bound by `SDL_Scancode`. See [`exinput`](../src/examples/exinput/exinput.cpp), which includes an F2 remap.
 
 ---
 

@@ -252,13 +252,13 @@ int main(int argc, char *argv[])
             session.phase() == lobby::GameSession::Phase::playing && !ImGui::GetIO().WantTextInput)
         {
             float dx = 0, dy = 0;
-            if (sl::key_down(SDL_SCANCODE_LEFT) || sl::key_down(SDL_SCANCODE_A))
+            if (sl::key_down(sl::Event::Key::arrow_left) || sl::key_down(sl::Event::Key::letter_a))
                 dx -= 1;
-            if (sl::key_down(SDL_SCANCODE_RIGHT) || sl::key_down(SDL_SCANCODE_D))
+            if (sl::key_down(sl::Event::Key::arrow_right) || sl::key_down(sl::Event::Key::letter_d))
                 dx += 1;
-            if (sl::key_down(SDL_SCANCODE_UP) || sl::key_down(SDL_SCANCODE_W))
+            if (sl::key_down(sl::Event::Key::arrow_up) || sl::key_down(sl::Event::Key::letter_w))
                 dy -= 1;
-            if (sl::key_down(SDL_SCANCODE_DOWN) || sl::key_down(SDL_SCANCODE_S))
+            if (sl::key_down(sl::Event::Key::arrow_down) || sl::key_down(sl::Event::Key::letter_s))
                 dy += 1;
             for (const lobby::Player &p : session.players())
                 if (p.id == session.my_id())

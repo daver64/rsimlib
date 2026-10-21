@@ -501,10 +501,10 @@ int main(int argc, char *argv[])
         }
 
         // Camera keyboard panning
-        if (sl::key_down(SDL_SCANCODE_LEFT) || sl::key_down(SDL_SCANCODE_A)) iso.origin_x += 6.0f;
-        if (sl::key_down(SDL_SCANCODE_RIGHT) || sl::key_down(SDL_SCANCODE_D)) iso.origin_x -= 6.0f;
-        if (sl::key_down(SDL_SCANCODE_UP) || sl::key_down(SDL_SCANCODE_W)) iso.origin_y += 6.0f;
-        if (sl::key_down(SDL_SCANCODE_DOWN) || sl::key_down(SDL_SCANCODE_S)) iso.origin_y -= 6.0f;
+        if (sl::key_down(sl::Event::Key::arrow_left) || sl::key_down(sl::Event::Key::letter_a)) iso.origin_x += 6.0f;
+        if (sl::key_down(sl::Event::Key::arrow_right) || sl::key_down(sl::Event::Key::letter_d)) iso.origin_x -= 6.0f;
+        if (sl::key_down(sl::Event::Key::arrow_up) || sl::key_down(sl::Event::Key::letter_w)) iso.origin_y += 6.0f;
+        if (sl::key_down(sl::Event::Key::arrow_down) || sl::key_down(sl::Event::Key::letter_s)) iso.origin_y -= 6.0f;
 
         torch_pulse += 0.05f;
 

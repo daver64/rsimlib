@@ -313,7 +313,7 @@ The full catalog of focused runnable examples follows.
 - **[`exrendertarget`](src/examples/exrendertarget/exrendertarget.cpp)** — Off-screen rendering, render-target lifetime, and compositing.
 - **[`exaudio`](src/examples/exaudio/exaudio.cpp)** — SDL_mixer sound effects, streamed music, pause/resume, and volume.
 - **[`exsynth`](src/examples/exsynth/exsynth.cpp)** — Procedural audio synthesis via `audio_synth.h`.
-- **[`exinput`](src/examples/exinput/exinput.cpp)** — Held keyboard state, mouse state, gamepad axes/buttons, and hotplugging.
+- **[`exinput`](src/examples/exinput/exinput.cpp)** — Held keyboard state, mouse state, gamepad axes/buttons, hotplugging, and optional `InputMap` actions with F2 remapping.
 - **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialisation, event forwarding, widgets, and rendering.
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
 - **[`excamera2d`](src/examples/excamera2d/excamera2d.cpp)** — `Camera2D` follow, zoom, rotation and shake, a clipped inset with `set_clip_rect()`, and `draw_sprite_ex()` origins and tints.

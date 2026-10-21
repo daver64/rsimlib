@@ -73,9 +73,9 @@ void console_execute_input()
 }
 
 /**
- * @brief Convert SDL text and key events into console input.
+ * @brief Convert text and key events into console input.
  *
- * Escape stops SDL text input and leaves the console, Enter executes the current command,
+ * Escape stops text input and leaves the console, Enter executes the current command,
  * and Backspace removes one byte from the pending UTF-8 input string.
  */
 void handle_lua_console_input(const sl::Event &event)
@@ -89,7 +89,7 @@ void handle_lua_console_input(const sl::Event &event)
         switch (event.key())
         {
         case sl::Event::Key::escape:
-            SDL_StopTextInput();
+            sl::stop_text_input();
             console_active = false;
             running = false;
             break;
@@ -108,7 +108,7 @@ void handle_lua_console_input(const sl::Event &event)
 /**
  * @brief Render the persistent Lua canvas first, then overlay cached console scrollback.
  *
- * The first call starts SDL text input and initialises the Lua runtime; subsequent calls
+ * The first call starts text input and initialises the Lua runtime; subsequent calls
  * replay engine-owned drawing and sprite commands before drawing the REPL prompt.
  */
 void update_and_render_lua_console()
@@ -119,7 +119,7 @@ void update_and_render_lua_console()
         console_ensure_lua_initialised();
         if (!input_cache)
             input_cache = sl::create_text_cache();
-        SDL_StartTextInput();
+        sl::start_text_input();
     }
 
     sl::Font *font = sl::get_default_monospace_font();
@@ -157,7 +157,7 @@ void shutdown_lua_console()
     input_cache = nullptr;
 }
 
-/** @brief Poll SDL, route mode input, and notify display and ImGui backends of each event. */
+/** @brief Poll events, route mode input, and notify display and ImGui backends of each event. */
 bool handle_events()
 {
     sl::Event event;

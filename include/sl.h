@@ -29,6 +29,7 @@
 #include "gamepad.h"
 #include "gui.h"
 #include "input.h"
+#include "input_actions.h"
 #include "isometric.h"
 #include "camera2d.h"
 #include "collision2d.h"

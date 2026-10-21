@@ -19,7 +19,7 @@ namespace sl
 		const Uint8 *state = SDL_GetKeyboardState(nullptr);
 		return state && key >= 0 && key < SDL_NUM_SCANCODES && state[key] != 0;
 	}
-	bool key_down(Event::Key key)
+	int key_scancode(Event::Key key)
 	{
 		SDL_Scancode sdl_key=SDL_SCANCODE_UNKNOWN;
 		switch(key)
@@ -289,7 +289,21 @@ namespace sl
 			break;
 		}
 		
-		return key_down(sdl_key);
+		return static_cast<int>(sdl_key);
+	}
+	bool key_down(Event::Key key)
+	{
+		return key_down(static_cast<SDL_Scancode>(key_scancode(key)));
+	}
+
+	void start_text_input()
+	{
+		SDL_StartTextInput();
+	}
+
+	void stop_text_input()
+	{
+		SDL_StopTextInput();
 	}
 	namespace
 	{
