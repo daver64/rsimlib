@@ -16,6 +16,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(SIMLIB_GUI "imgui" CACHE STRING "GUI backend: imgui or none")
+set_property(CACHE SIMLIB_GUI PROPERTY STRINGS imgui none)
+if(NOT SIMLIB_GUI STREQUAL "imgui" AND NOT SIMLIB_GUI STREQUAL "none")
+    message(FATAL_ERROR "SIMLIB_GUI must be 'imgui' or 'none' (got '${SIMLIB_GUI}')")
+endif()
+
 option(SIMLIB_VALIDATE_SHADERS "Validate checked-in GLSL shaders with glslangValidator" ON)
 
 if(SIMLIB_VALIDATE_SHADERS)
@@ -144,34 +150,36 @@ if(WIN32)
 endif()
 
 include(FetchContent)
-FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.9
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(imgui)
+if(SIMLIB_GUI STREQUAL "imgui")
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.91.9
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(imgui)
 
-add_library(imgui STATIC
-    ${imgui_SOURCE_DIR}/imgui.cpp
-    ${imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/imgui_demo.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
-)
-target_include_directories(imgui PUBLIC
-    $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/backends>
-)
-target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
-if(WIN32)
-    target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
-    target_link_libraries(imgui PUBLIC d3d12 dxgi d3dcompiler)
+    add_library(imgui STATIC
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/imgui_demo.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+    )
+    target_include_directories(imgui PUBLIC
+        $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/backends>
+    )
+    target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
+    if(WIN32)
+        target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+        target_link_libraries(imgui PUBLIC d3d12 dxgi d3dcompiler)
+    endif()
 endif()
 
 FetchContent_Declare(
@@ -343,7 +351,11 @@ target_compile_definitions(simlib PRIVATE
     SIMLIB_BUILD_SHADER_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
-target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol2)
+target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB lua sol2)
+if(SIMLIB_GUI STREQUAL "imgui")
+    target_link_libraries(simlib PUBLIC imgui)
+    target_compile_definitions(simlib PUBLIC SIMLIB_GUI_IMGUI)
+endif()
 target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE pugixml-static)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
@@ -511,8 +523,10 @@ target_link_libraries(exsynth PRIVATE simlib)
 add_executable(exinput src/examples/exinput/exinput.cpp)
 target_link_libraries(exinput PRIVATE simlib)
 
-add_executable(exgui src/examples/exgui/exgui.cpp)
-target_link_libraries(exgui PRIVATE simlib imgui)
+if(SIMLIB_GUI STREQUAL "imgui")
+    add_executable(exgui src/examples/exgui/exgui.cpp)
+    target_link_libraries(exgui PRIVATE simlib imgui)
+endif()
 
 add_executable(exparticles src/examples/exparticles/exparticles.cpp)
 target_link_libraries(exparticles PRIVATE simlib)
@@ -582,8 +596,10 @@ target_link_libraries(client_template PRIVATE simlib)
 add_executable(slpaint src/examples/slpaint/slpaint.cpp)
 target_link_libraries(slpaint PRIVATE simlib)
 
-add_executable(exspriteeditor src/examples/exspriteeditor/exspriteeditor.cpp)
-target_link_libraries(exspriteeditor PRIVATE simlib imgui)
+if(SIMLIB_GUI STREQUAL "imgui")
+    add_executable(exspriteeditor src/examples/exspriteeditor/exspriteeditor.cpp)
+    target_link_libraries(exspriteeditor PRIVATE simlib imgui)
+endif()
 
 add_executable(exvideo src/examples/exvideo/exvideo.cpp)
 target_link_libraries(exvideo PRIVATE simlib)
@@ -627,8 +643,10 @@ add_executable(exmipmap src/examples/exmipmap/exmipmap.cpp)
 target_link_libraries(exmipmap PRIVATE simlib)
 add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
-add_executable(exlobby src/examples/exlobby/exlobby.cpp)
-target_link_libraries(exlobby PRIVATE simlib imgui)
+if(SIMLIB_GUI STREQUAL "imgui")
+    add_executable(exlobby src/examples/exlobby/exlobby.cpp)
+    target_link_libraries(exlobby PRIVATE simlib imgui)
+endif()
 add_executable(expathfinding src/examples/expathfinding/expathfinding.cpp)
 target_link_libraries(expathfinding PRIVATE simlib)
 add_executable(exanimsprite src/examples/exanimsprite/exanimsprite.cpp)
@@ -845,7 +863,11 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/man/simlib.3"
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man3
 )
 
-install(TARGETS simlib imgui lua pugixml-static
+set(SIMLIB_INSTALL_TARGETS simlib lua pugixml-static)
+if(SIMLIB_GUI STREQUAL "imgui")
+    list(APPEND SIMLIB_INSTALL_TARGETS imgui)
+endif()
+install(TARGETS ${SIMLIB_INSTALL_TARGETS}
     EXPORT simlibTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -857,10 +879,12 @@ install(EXPORT simlibTargets
 )
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-file(GLOB IMGUI_PUBLIC_HEADERS "${imgui_SOURCE_DIR}/*.h")
-file(GLOB IMGUI_BACKEND_HEADERS "${imgui_SOURCE_DIR}/backends/*.h")
-install(FILES ${IMGUI_PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${IMGUI_BACKEND_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/backends)
+if(SIMLIB_GUI STREQUAL "imgui")
+    file(GLOB IMGUI_PUBLIC_HEADERS "${imgui_SOURCE_DIR}/*.h")
+    file(GLOB IMGUI_BACKEND_HEADERS "${imgui_SOURCE_DIR}/backends/*.h")
+    install(FILES ${IMGUI_PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES ${IMGUI_BACKEND_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/backends)
+endif()
 install(FILES
     "${lua_SOURCE_DIR}/lua.h"
     "${lua_SOURCE_DIR}/luaconf.h"
@@ -875,10 +899,12 @@ install(FILES LICENSE
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
     RENAME simlib-LICENSE
 )
-install(FILES "${imgui_SOURCE_DIR}/LICENSE.txt"
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
-    RENAME imgui-LICENSE.txt
-)
+if(SIMLIB_GUI STREQUAL "imgui")
+    install(FILES "${imgui_SOURCE_DIR}/LICENSE.txt"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
+        RENAME imgui-LICENSE.txt
+    )
+endif()
 install(FILES "${sol2_SOURCE_DIR}/LICENSE.txt"
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/simlib
     RENAME sol2-LICENSE.txt

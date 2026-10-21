@@ -6,7 +6,9 @@
 #include <cstdarg>
 #include <cstdio>
 
+#ifdef SIMLIB_GUI_IMGUI
 #include <imgui.h>
+#endif
 #include <cstdint>
 #include <string>
 

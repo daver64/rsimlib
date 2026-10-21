@@ -9,11 +9,26 @@
 #include "renderer.h"
 #include "vulkan_context.h"
 
+#ifdef SIMLIB_GUI_IMGUI
 #include <imgui.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <backends/imgui_impl_vulkan.h>
+#endif
 
+#ifndef SIMLIB_GUI_IMGUI
+namespace sl
+{
+    // Built with SIMLIB_GUI=none: the GUI API is kept as no-ops so callers still link.
+    void gui_init() {}
+    void gui_handle_event(const Event &) {}
+    void gui_new_frame() {}
+    void gui_render() {}
+    void gui_shutdown() {}
+    void gui_show_demo_window() {}
+    void gui_show_metrics_window(bool &) {}
+} // namespace sl
+#else
 namespace sl
 {
     namespace
@@ -158,3 +173,4 @@ namespace sl
          ImGui::ShowMetricsWindow(&show_metrics);
     }
 } // namespace sl
+#endif // SIMLIB_GUI_IMGUI

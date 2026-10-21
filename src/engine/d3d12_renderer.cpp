@@ -15,8 +15,10 @@
 #include <dxcapi.h>
 #endif
 
+#ifdef SIMLIB_GUI_IMGUI
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -359,6 +361,7 @@ namespace sl::detail
                 return context_.initialise(window, error);
             }
 
+#ifdef SIMLIB_GUI_IMGUI
             bool gui_backend_init() override
             {
                 if (imgui_ready_)
@@ -439,6 +442,7 @@ namespace sl::detail
                     imgui_heap_->Release();
                 imgui_heap_ = nullptr;
             }
+#endif
 
             void shutdown() override
             {
@@ -3312,11 +3316,13 @@ namespace sl::detail
 
             SDL_Window *window_ = nullptr;
             D3D12Context context_;
+#ifdef SIMLIB_GUI_IMGUI
             static constexpr UINT imgui_descriptor_count = 64;
             ID3D12DescriptorHeap *imgui_heap_ = nullptr;
             UINT imgui_descriptor_size_ = 0;
             std::vector<UINT> imgui_free_;
             bool imgui_ready_ = false;
+#endif
             std::string last_error_;
             bool vsync_enabled_ = true;
             bool initialized_2d_ = false;

@@ -1274,6 +1274,8 @@ MPEG1/MP2 playback into a bitmap.
 
 `gui_init()`, `gui_handle_event(event)`, `gui_new_frame()`, `gui_render()` and `gui_shutdown()` wrap Dear ImGui for all three backends. `gui_show_demo_window()` and `gui_show_metrics_window(show)` are quick diagnostics. See `src/examples/exgui`.
 
+The GUI backend is chosen at configure time with `-DSIMLIB_GUI=imgui|none` (default `imgui`). With `none`, ImGui is not fetched, built, linked or installed, `<imgui.h>` is not included by `sl.h`, the `gui_*` functions are no-ops, and the ImGui examples (`exgui`, `exspriteeditor`, `exlobby`) are skipped. `sl::gui_available()` reports which mode the library was built in; `SIMLIB_GUI_IMGUI` is defined for consumers when ImGui is enabled.
+
 ---
 
 ## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
