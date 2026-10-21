@@ -21,3 +21,4 @@ excafluid
 *.lib
 *.obj
 *.o
+fullbuild.sh

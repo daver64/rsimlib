@@ -2,6 +2,8 @@ Texture2D texture_value : register(t0);
 SamplerState texture_sampler : register(s0);
 Texture2D normal_value : register(t1);
 SamplerState normal_sampler : register(s1);
+Texture2D material_value : register(t2);
+SamplerState material_sampler : register(s2);
 
 cbuffer MeshParameters : register(b0)
 {
@@ -16,6 +18,44 @@ cbuffer MeshParameters : register(b0)
     float4 fog_beta;
     float4 fog_view;
 };
+
+// PBR (x = 1 when enabled): metallic, roughness, occlusion strength in yzw. Emissive rgb. Camera right/up (scaled by the
+// field of view) and forward in world space.
+cbuffer PbrParameters : register(b1)
+{
+    float4 pbr;
+    float4 emissive;
+    float4 camera_right;
+    float4 camera_up;
+    float4 camera_forward;
+};
+
+static const float PI = 3.14159265359;
+
+// Cook-Torrance (GGX, Smith-Schlick, Schlick Fresnel) for the one directional light plus an ambient term.
+float3 shade_pbr(float3 N, float3 V, float3 L, float3 albedo, float metallic, float roughness, float occlusion,
+                 float ambient, float3 light_rgb)
+{
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+    float3 H = normalize(L + V);
+    float NdL = max(dot(N, L), 0.0);
+    float NdV = max(dot(N, V), 1e-4);
+    float NdH = max(dot(N, H), 0.0);
+    float VdH = max(dot(V, H), 0.0);
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float d = NdH * NdH * (a2 - 1.0) + 1.0;
+    float D = a2 / (PI * d * d);
+    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+    float G = (NdV / (NdV * (1.0 - k) + k)) * (NdL / (NdL * (1.0 - k) + k));
+    float3 F = F0 + (1.0 - F0) * pow(1.0 - VdH, 5.0);
+    float3 specular = D * G * F / (4.0 * NdV * max(NdL, 1e-4));
+    float3 diffuse = (1.0 - F) * (1.0 - metallic) * albedo;
+    float3 direct = (diffuse + specular * PI) * NdL * light_rgb * (1.0 - ambient);
+    float3 Fa = F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - NdV, 5.0);
+    float3 indirect = ambient * occlusion * ((1.0 - Fa) * (1.0 - metallic) * albedo + Fa * (1.0 - 0.5 * roughness));
+    return direct + indirect;
+}
 
 struct PixelInput
 {
@@ -52,8 +92,23 @@ float4 main(PixelInput input) : SV_TARGET
         if (light_colour.w > 0.0 && input.color.a * sampled.a < light_colour.w)
             discard;
     }
-    float diffuse = max(dot(normal, light.xyz), 0.0);
-    float3 colour = albedo * (light.w + (1.0 - light.w) * diffuse * light_colour.rgb);
+    float3 colour;
+    if (pbr.x > 0.5 && input.terrain.x < 0.0)
+    {
+        float3 orm = material_value.Sample(material_sampler, input.texcoord).rgb;
+        // Framebuffer y grows downward in D3D.
+        float2 pixel = input.position.xy * fog_view.zw * 2.0;
+        float2 ndc = float2(pixel.x - 1.0, 1.0 - pixel.y);
+        float3 view = normalize(-(camera_forward.xyz + ndc.x * camera_right.xyz + ndc.y * camera_up.xyz));
+        colour = shade_pbr(normal, view, light.xyz, albedo, saturate(pbr.y * orm.b),
+                           clamp(pbr.z * orm.g, 0.04, 1.0), lerp(1.0, orm.r, pbr.w), light.w, light_colour.rgb) +
+                 emissive.rgb;
+    }
+    else
+    {
+        float diffuse = max(dot(normal, light.xyz), 0.0);
+        colour = albedo * (light.w + (1.0 - light.w) * diffuse * light_colour.rgb);
+    }
     if (fog_beta.r + fog_beta.g + fog_beta.b > 0.0)
     {
         float2 ndc = input.position.xy * fog_view.zw * 2.0 - 1.0;

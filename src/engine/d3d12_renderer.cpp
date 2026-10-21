@@ -1259,6 +1259,22 @@ namespace sl::detail
                 if (normal_map == textures_.end())
                     return false;
 
+                auto material_map = textures_.find(params.material_texture != 0 ? params.material_texture : white_texture_);
+                if (material_map == textures_.end() ||
+                    material_map->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    material_map = textures_.find(white_texture_);
+                if (material_map == textures_.end())
+                    return false;
+                float pbr_constants[20];
+                std::copy(std::begin(params.pbr), std::end(params.pbr), pbr_constants);
+                std::copy(std::begin(params.emissive), std::end(params.emissive), pbr_constants + 4);
+                std::copy(std::begin(params.camera_right), std::end(params.camera_right), pbr_constants + 8);
+                std::copy(std::begin(params.camera_up), std::end(params.camera_up), pbr_constants + 12);
+                std::copy(std::begin(params.camera_forward), std::end(params.camera_forward), pbr_constants + 16);
+                const D3D12_GPU_VIRTUAL_ADDRESS pbr_address = allocate_constants(pbr_constants, sizeof(pbr_constants));
+                if (pbr_address == 0)
+                    return false;
+
                 std::array<float, 48> constants{};
                 std::copy(std::begin(params.mvp), std::end(params.mvp), constants.begin());
                 std::copy(&params.normal_rows[0][0], &params.normal_rows[0][0] + 12,
@@ -1284,6 +1300,11 @@ namespace sl::detail
                     3, gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor));
                 commands->SetGraphicsRootDescriptorTable(
                     4, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor));
+                commands->SetGraphicsRootDescriptorTable(
+                    5, gpu_descriptor(srv_heap_, srv_descriptor_size_, material_map->second.descriptor));
+                commands->SetGraphicsRootDescriptorTable(
+                    6, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor));
+                commands->SetGraphicsRootConstantBufferView(7, pbr_address);
                 ID3D12PipelineState *mesh_pipeline =
                     get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr);
                 if (!mesh_pipeline)
@@ -1593,13 +1614,16 @@ namespace sl::detail
                     ranges[index].BaseShaderRegister = index / 2;
                     ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
                 }
-                D3D12_ROOT_PARAMETER parameters[5]{};
+                D3D12_ROOT_PARAMETER parameters[8]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
                 parameters[0].Constants.RegisterSpace = 0;
                 parameters[0].Constants.Num32BitValues = 16;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-                for (UINT index = 0; index < 4; ++index)
+                parameters[7].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                parameters[7].Descriptor.ShaderRegister = 1;
+                parameters[7].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                for (UINT index = 0; index < 6; ++index)
                 {
                     parameters[index + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     parameters[index + 1].DescriptorTable.NumDescriptorRanges = 1;
@@ -2157,9 +2181,10 @@ namespace sl::detail
                     return false;
                 }
 
-                // Tables 1-4: colour SRV t0, colour sampler s0, normal SRV t1, normal sampler s1.
-                D3D12_DESCRIPTOR_RANGE ranges[4]{};
-                for (UINT index = 0; index < 4; ++index)
+                // Tables 1-6: colour SRV t0, colour sampler s0, normal SRV t1, normal sampler s1, and the PBR
+                // occlusion-roughness-metalness SRV t2 and sampler s2. Parameter 7 is the PBR constant buffer b1.
+                D3D12_DESCRIPTOR_RANGE ranges[6]{};
+                for (UINT index = 0; index < 6; ++index)
                 {
                     ranges[index].RangeType = index % 2 == 0 ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV
                                                               : D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
@@ -2170,7 +2195,7 @@ namespace sl::detail
                 D3D12_ROOT_PARAMETER parameters[5]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
-                // 32 mesh constants plus 16 for the environment; with the four tables this is 52 of 64 DWORDs.
+                // 32 mesh constants plus 16 for the environment; with the six tables and the CBV this is 56 of 64 DWORDs.
                 parameters[0].Constants.Num32BitValues = 48;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
                 for (UINT index = 0; index < 4; ++index)

@@ -124,8 +124,8 @@ namespace sl
         float alpha_cutoff = 0.0f;
         /**
          * Physically based shading (glTF metallic-roughness): GGX specular with the scene's directional light, ambient
-         * light scaled by occlusion, and emission. Only for lit materials; the texture is the base colour. Not
-         * available on Direct3D 12, which shades these materials like plain lit ones.
+         * light scaled by occlusion, and emission. Only for lit materials; the texture is the base colour. Available
+         * on every backend (the Direct3D 12 path has not been tested on Windows yet).
          */
         bool pbr = false;
         float metallic = 1.0f;
