@@ -22,3 +22,4 @@ excafluid
 *.obj
 *.o
 fullbuild.sh
+fullbuild.bat

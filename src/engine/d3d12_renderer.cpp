@@ -2192,19 +2192,22 @@ namespace sl::detail
                     ranges[index].BaseShaderRegister = index / 2;
                     ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
                 }
-                D3D12_ROOT_PARAMETER parameters[5]{};
+                D3D12_ROOT_PARAMETER parameters[8]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
                 // 32 mesh constants plus 16 for the environment; with the six tables and the CBV this is 56 of 64 DWORDs.
                 parameters[0].Constants.Num32BitValues = 48;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-                for (UINT index = 0; index < 4; ++index)
+                for (UINT index = 0; index < 6; ++index)
                 {
                     parameters[index + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     parameters[index + 1].DescriptorTable.NumDescriptorRanges = 1;
                     parameters[index + 1].DescriptorTable.pDescriptorRanges = &ranges[index];
                     parameters[index + 1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 }
+                parameters[7].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                parameters[7].Descriptor.ShaderRegister = 1;
+                parameters[7].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 D3D12_ROOT_SIGNATURE_DESC signature_desc{};
                 signature_desc.NumParameters = static_cast<UINT>(std::size(parameters));
                 signature_desc.pParameters = parameters;

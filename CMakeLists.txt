@@ -534,6 +534,7 @@ target_link_libraries(ex3d_surface PRIVATE simlib)
 
 add_executable(simlib_convert tools/simlib_convert.cpp)
 target_link_libraries(simlib_convert PRIVATE simlib)
+target_compile_definitions(simlib_convert PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
 install(TARGETS simlib_convert RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(exmodel3d src/examples/exmodel3d/exmodel3d.cpp)
@@ -777,7 +778,8 @@ if(BUILD_TESTING)
             renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
-                target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)
+                # A force-included #undef avoids MSVC's D9025 warning that /UNDEBUG would trigger.
+                target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE "/FI${CMAKE_CURRENT_SOURCE_DIR}/cmake/force_assert.h")
             else()
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE -UNDEBUG)
             endif()
