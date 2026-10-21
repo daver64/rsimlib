@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     pulse.ping_pong = true;
 
     bool running = true;
-    unsigned frame = 0;
+  
     sl::set_fps(60);
     while (running)
     {
@@ -157,13 +157,7 @@ int main(int argc, char *argv[])
         sl::show_video_bitmap();
         sl::end_frame();
 
-        ++frame;
-        const char *frames = std::getenv("RSIMLIB_FRAMES");
-        if (frames && frame >= static_cast<unsigned>(std::max(1, std::atoi(frames))))
-            running = false;
-        const char *screenshot = std::getenv("RSIMLIB_SCREENSHOT");
-        if (screenshot && frame == 5u && !sl::save_bitmap(sl::screen, screenshot))
-            std::fprintf(stderr, "Screenshot save failed: %s\n", sl::last_error().c_str());
+
     }
 
     sl::destroy_bitmap(world);
