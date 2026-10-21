@@ -587,7 +587,8 @@ namespace sl::detail
                 resource_desc.Width = static_cast<UINT64>(description.width);
                 resource_desc.Height = static_cast<UINT>(description.height);
                 resource_desc.DepthOrArraySize = 1;
-                resource_desc.MipLevels = 1;
+                resource_desc.MipLevels = static_cast<UINT16>(
+                    description.mipmaps ? mip_level_count(description.width, description.height) : 1);
                 resource_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 resource_desc.SampleDesc.Count = 1;
                 resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -611,7 +612,7 @@ namespace sl::detail
                 srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
                 srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-                srv_desc.Texture2D.MipLevels = 1;
+                srv_desc.Texture2D.MipLevels = resource_desc.MipLevels;
                 context_.device()->CreateShaderResourceView(
                     resource.resource, &srv_desc, cpu_descriptor(srv_heap_, srv_descriptor_size_, descriptor));
 
@@ -660,13 +661,32 @@ namespace sl::detail
                     destination_desc.Height != static_cast<UINT>(height))
                     return false;
 
-                D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
-                UINT row_count = 0;
-                UINT64 unpadded_row_size = 0;
+                // Mip levels 1..N-1 are rebuilt on the CPU from the uploaded base level.
+                const UINT level_count = destination_desc.MipLevels;
+                std::vector<std::uint8_t> mip_chain;
+                std::vector<const std::uint8_t *> level_pixels{pixels};
+                std::vector<std::size_t> level_row_bytes{static_cast<std::size_t>(width) * 4};
+                if (level_count > 1)
+                {
+                    mip_chain = build_mip_chain(pixels, width, height);
+                    std::size_t chain_offset = 0;
+                    for (UINT level = 1; level < level_count; ++level)
+                    {
+                        const std::size_t level_width = static_cast<std::size_t>(std::max(width >> level, 1));
+                        const std::size_t level_height = static_cast<std::size_t>(std::max(height >> level, 1));
+                        level_pixels.push_back(mip_chain.data() + chain_offset);
+                        level_row_bytes.push_back(level_width * 4);
+                        chain_offset += level_width * level_height * 4;
+                    }
+                }
+
+                std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(level_count);
+                std::vector<UINT> row_counts(level_count);
+                std::vector<UINT64> unpadded_row_sizes(level_count);
                 UINT64 upload_size = 0;
-                context_.device()->GetCopyableFootprints(&destination_desc, 0, 1, 0,
-                                                         &footprint, &row_count, &unpadded_row_size,
-                                                         &upload_size);
+                context_.device()->GetCopyableFootprints(&destination_desc, 0, level_count, 0,
+                                                         footprints.data(), row_counts.data(),
+                                                         unpadded_row_sizes.data(), &upload_size);
                 ID3D12Resource *upload = nullptr;
                 const D3D12_RESOURCE_DESC upload_desc = buffer_description(upload_size);
                 const D3D12_HEAP_PROPERTIES upload_heap = heap_properties(D3D12_HEAP_TYPE_UPLOAD);
@@ -685,12 +705,15 @@ namespace sl::detail
                     upload->Release();
                     return false;
                 }
-                const auto *source = pixels;
-                for (UINT row = 0; row < row_count; ++row)
+                for (UINT level = 0; level < level_count; ++level)
                 {
-                    std::memcpy(mapped + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
-                                source + static_cast<std::size_t>(row) * width * 4,
-                                static_cast<std::size_t>(unpadded_row_size));
+                    const auto &footprint = footprints[level];
+                    for (UINT row = 0; row < row_counts[level]; ++row)
+                    {
+                        std::memcpy(mapped + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
+                                    level_pixels[level] + static_cast<std::size_t>(row) * level_row_bytes[level],
+                                    static_cast<std::size_t>(unpadded_row_sizes[level]));
+                    }
                 }
                 upload->Unmap(0, nullptr);
 
@@ -715,15 +738,18 @@ namespace sl::detail
                 if (previous_state != D3D12_RESOURCE_STATE_COPY_DEST)
                     transition_resource(commands, found->second.resource, previous_state,
                                         D3D12_RESOURCE_STATE_COPY_DEST);
-                D3D12_TEXTURE_COPY_LOCATION source_location{};
-                source_location.pResource = upload;
-                source_location.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-                source_location.PlacedFootprint = footprint;
-                D3D12_TEXTURE_COPY_LOCATION destination_location{};
-                destination_location.pResource = found->second.resource;
-                destination_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-                destination_location.SubresourceIndex = 0;
-                commands->CopyTextureRegion(&destination_location, 0, 0, 0, &source_location, nullptr);
+                for (UINT level = 0; level < level_count; ++level)
+                {
+                    D3D12_TEXTURE_COPY_LOCATION source_location{};
+                    source_location.pResource = upload;
+                    source_location.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+                    source_location.PlacedFootprint = footprints[level];
+                    D3D12_TEXTURE_COPY_LOCATION destination_location{};
+                    destination_location.pResource = found->second.resource;
+                    destination_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                    destination_location.SubresourceIndex = level;
+                    commands->CopyTextureRegion(&destination_location, 0, 0, 0, &source_location, nullptr);
+                }
                 transition_resource(commands, found->second.resource,
                                     D3D12_RESOURCE_STATE_COPY_DEST,
                                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

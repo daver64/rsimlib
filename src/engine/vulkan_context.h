@@ -29,6 +29,8 @@ namespace sl::detail
         VkFormat format = VK_FORMAT_UNDEFINED;
         std::uint32_t mip_levels = 1;
         std::uint32_t array_layers = 1;
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
     };
 
     struct VulkanShaderModule
@@ -164,7 +166,8 @@ namespace sl::detail
                                      std::uint8_t *out_pixels, std::string &error);
         bool create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                           VulkanImage &result, std::string &error,
-                          VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
+                          VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
+                          std::uint32_t mip_levels = 1);
         void destroy_image(VulkanImage &image);
         bool create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
                                               int width, int height,
@@ -182,7 +185,7 @@ namespace sl::detail
         bool create_descriptor_pool(VulkanDescriptorPool &result, std::string &error);
         void destroy_descriptor_pool(VulkanDescriptorPool &pool);
         bool create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
-                            float anisotropy = 1.0f);
+                            float anisotropy = 1.0f, bool mipmaps = false);
         void destroy_sampler(VulkanSampler &sampler);
         bool allocate_texture_descriptor(const VulkanDescriptorPool &pool,
                                          const VulkanDescriptorSetLayout &layout,

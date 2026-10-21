@@ -426,7 +426,11 @@ namespace sl
                     {
                         Bitmap *bitmap = load_bitmap(key);
                         if (bitmap)
+                        {
+                            bitmap->mipmaps = true;
+                            bitmap->anisotropy = 16.0f;
                             model.textures.push_back(bitmap);
+                        }
                         found = texture_cache.emplace(key, bitmap).first;
                     }
                     part.material.texture = found->second;

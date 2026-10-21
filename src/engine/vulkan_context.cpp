@@ -1362,13 +1362,23 @@ namespace sl::detail
             return false;
         }
         VulkanBuffer staging;
-        const std::size_t byte_count = static_cast<std::size_t>(width) * height * 4;
-        std::vector<std::uint8_t> upload_pixels(pixels, pixels + byte_count);
+        const std::size_t base_bytes = static_cast<std::size_t>(width) * height * 4;
+        std::vector<std::uint8_t> upload_pixels(pixels, pixels + base_bytes);
         if (image.format == VK_FORMAT_B8G8R8A8_UNORM || image.format == VK_FORMAT_B8G8R8A8_SRGB)
         {
             for (std::size_t index = 0; index < upload_pixels.size(); index += 4)
                 std::swap(upload_pixels[index], upload_pixels[index + 2]);
         }
+        // Mip levels are only rebuilt for a whole-image upload; a partial upload leaves them untouched.
+        std::uint32_t upload_levels = 1;
+        if (image.mip_levels > 1 && static_cast<std::uint32_t>(width) == image.width &&
+            static_cast<std::uint32_t>(height) == image.height)
+        {
+            const std::vector<std::uint8_t> chain = build_mip_chain(upload_pixels.data(), width, height);
+            upload_pixels.insert(upload_pixels.end(), chain.begin(), chain.end());
+            upload_levels = image.mip_levels;
+        }
+        const std::size_t byte_count = upload_pixels.size();
         if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                            staging, error) ||
@@ -1410,19 +1420,31 @@ namespace sl::detail
         to_transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         to_transfer.image = image.image;
         to_transfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        to_transfer.subresourceRange.levelCount = 1;
+        to_transfer.subresourceRange.levelCount = image.mip_levels;
         to_transfer.subresourceRange.layerCount = 1;
         const VkPipelineStageFlags source_stage = image.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                       ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
                                                       : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         vkCmdPipelineBarrier(command, source_stage,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_transfer);
-        VkBufferImageCopy copy{};
-        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copy.imageSubresource.layerCount = 1;
-        copy.imageExtent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};
+        std::vector<VkBufferImageCopy> copies;
+        VkDeviceSize level_offset = 0;
+        for (std::uint32_t level = 0; level < upload_levels; ++level)
+        {
+            const std::uint32_t level_width = std::max(static_cast<std::uint32_t>(width) >> level, 1u);
+            const std::uint32_t level_height = std::max(static_cast<std::uint32_t>(height) >> level, 1u);
+            VkBufferImageCopy copy{};
+            copy.bufferOffset = level_offset;
+            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.imageSubresource.mipLevel = level;
+            copy.imageSubresource.layerCount = 1;
+            copy.imageExtent = {level_width, level_height, 1};
+            copies.push_back(copy);
+            level_offset += static_cast<VkDeviceSize>(level_width) * level_height * 4;
+        }
         vkCmdCopyBufferToImage(command, staging.buffer, image.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               static_cast<std::uint32_t>(copies.size()), copies.data());
         VkImageMemoryBarrier to_shader = to_transfer;
         to_shader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         to_shader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1867,16 +1889,18 @@ namespace sl::detail
 
     bool VulkanContext::create_image(int width, int height, VkFormat format, VkImageUsageFlags usage,
                                      VulkanImage &result, std::string &error,
-                                     VkSampleCountFlagBits samples)
+                                     VkSampleCountFlagBits samples, std::uint32_t mip_levels)
     {
         result = {};
         result.format = format;
-        result.mip_levels = 1;
+        result.mip_levels = std::max<std::uint32_t>(mip_levels, 1);
         result.array_layers = 1;
+        result.width = static_cast<std::uint32_t>(width);
+        result.height = static_cast<std::uint32_t>(height);
         VkImageCreateInfo image_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
         image_info.imageType = VK_IMAGE_TYPE_2D;
         image_info.extent = {static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), 1};
-        image_info.mipLevels = 1;
+        image_info.mipLevels = result.mip_levels;
         image_info.arrayLayers = 1;
         image_info.format = format;
         image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -2119,7 +2143,7 @@ namespace sl::detail
     }
 
     bool VulkanContext::create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
-                                       float anisotropy)
+                                       float anisotropy, bool mipmaps)
     {
         result = {};
         if (!std::isfinite(anisotropy))
@@ -2141,7 +2165,7 @@ namespace sl::detail
         sampler_info.maxAnisotropy = sampler_info.anisotropyEnable
                                          ? std::clamp(anisotropy, 1.0f, max_sampler_anisotropy_)
                                          : 1.0f;
-        sampler_info.maxLod = 1.0f;
+        sampler_info.maxLod = mipmaps ? VK_LOD_CLAMP_NONE : 1.0f;
         if (vkCreateSampler(device_, &sampler_info, nullptr, &result.sampler) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan texture sampler.";

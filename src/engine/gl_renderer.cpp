@@ -26,6 +26,7 @@
 #include <iterator>
 #include <limits>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace sl::detail
 {
@@ -149,6 +150,7 @@ namespace sl::detail
                 depth_buffers_.clear();
                 multisample_targets_.clear();
                 texture_sizes_.clear();
+                mipmapped_textures_.clear();
                 render_target_stack_.clear();
                 context_.shutdown();
             }
@@ -215,7 +217,10 @@ namespace sl::detail
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
                 glBindTexture(GL_TEXTURE_2D, handle);
                 const GLint filter = description.filter == TextureFilter::linear ? GL_LINEAR : GL_NEAREST;
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+                const GLint min_filter = !description.mipmaps ? filter
+                                         : description.filter == TextureFilter::linear ? GL_LINEAR_MIPMAP_LINEAR
+                                                                                       : GL_NEAREST_MIPMAP_NEAREST;
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -231,6 +236,14 @@ namespace sl::detail
                     }
                 }
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, description.width, description.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+                if (description.mipmaps)
+                {
+                    // Allocate every level now so the texture is complete before its first upload.
+                    const int levels = mip_level_count(description.width, description.height);
+                    for (int level = 1; level < levels; ++level)
+                        glTexImage2D(GL_TEXTURE_2D, level, GL_RGBA8, std::max(description.width >> level, 1),
+                                     std::max(description.height >> level, 1), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+                }
                 const bool created = glGetError() == GL_NO_ERROR;
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(previous_unpack_buffer));
@@ -241,6 +254,8 @@ namespace sl::detail
                     return false;
                 }
                 texture_sizes_[handle] = {description.width, description.height};
+                if (description.mipmaps)
+                    mipmapped_textures_.insert(handle);
                 texture = handle;
                 return true;
             }
@@ -281,6 +296,8 @@ namespace sl::detail
                 glBindTexture(GL_TEXTURE_2D, handle);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
                                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+                if (mipmapped_textures_.count(handle) != 0)
+                    glGenerateMipmap(GL_TEXTURE_2D);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(previous_unpack_buffer));
                 glPixelStorei(GL_UNPACK_ALIGNMENT, previous_unpack_alignment);
@@ -345,6 +362,7 @@ namespace sl::detail
                     const GLuint handle = static_cast<GLuint>(texture);
                     glDeleteTextures(1, &handle);
                     texture_sizes_.erase(handle);
+                    mipmapped_textures_.erase(handle);
                 }
             }
 
@@ -1463,6 +1481,7 @@ namespace sl::detail
             std::uint32_t white_texture_ = 0;
             std::string shader_error_;
             std::unordered_map<GLuint, std::pair<int, int>> texture_sizes_;
+            std::unordered_set<GLuint> mipmapped_textures_;
             std::vector<RenderTargetState> render_target_stack_;
             struct GLMesh
             {

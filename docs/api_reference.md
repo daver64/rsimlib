@@ -331,10 +331,11 @@ struct Bitmap {
     Bitmap *normal_map = nullptr;
     bool smooth = false;
     float anisotropy = 1.0f;
+    bool mipmaps = false;
 };
 ```
 
-`smooth` selects bilinear filtering, and `anisotropy` requests anisotropic filtering (`1.0f` disables it). Higher values are clamped to the active renderer's supported maximum. Both sampling settings are read when the GPU texture is first created.
+`smooth` selects bilinear filtering, `anisotropy` requests anisotropic filtering (`1.0f` disables it), and `mipmaps` builds a full mip chain when the pixels are uploaded, for cleaner minified sampling (distant 3D surfaces, scaled-down sprites). Mipmaps are off by default so pixel art stays crisp; models loaded by `load_model()` enable them, with 16x anisotropy, on their textures. Anisotropy is clamped to the active renderer's supported maximum. All three settings are read when the GPU texture is first created, so set them before the first draw or `upload_bitmap()`. Mip levels are regenerated on each upload of the whole bitmap; offscreen render targets are not mipmapped.
 
 Global screen pointer: `extern Bitmap *screen;`
 

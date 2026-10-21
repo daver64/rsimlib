@@ -160,6 +160,32 @@ void test_backend(sl::GraphicsBackend backend)
     sl::destroy_bitmap(downloaded);
     sl::destroy_bitmap(tex_bmp);
 
+    // 6b. A mipmapped bitmap averages when minified; without mips this 1px checkerboard would alias.
+    {
+        sl::Bitmap *mip_bmp = sl::create_bitmap(64, 64);
+        assert(mip_bmp != nullptr);
+        mip_bmp->smooth = true;
+        mip_bmp->mipmaps = true;
+        for (int y = 0; y < 64; ++y)
+            for (int x = 0; x < 64; ++x)
+                sl::putpixel(mip_bmp, x, y, ((x + y) & 1) ? sl::Colour{255, 255, 255, 255} : sl::Colour{0, 0, 0, 255});
+        assert(sl::upload_bitmap(mip_bmp));
+
+        sl::Bitmap *mip_rt = sl::create_render_target(8, 8);
+        assert(mip_rt != nullptr);
+        assert(sl::begin_render_target(mip_rt));
+        sl::clear_render_target(sl::Colour{0, 0, 0, 255});
+        sl::stretch_blit(mip_bmp, mip_rt, 0, 0, 64, 64, 0, 0, 8, 8);
+        sl::end_render_target();
+        flush_frame();
+        assert(sl::download_bitmap(mip_rt));
+        const sl::Colour averaged = sl::getpixel(mip_rt, 4, 4);
+        assert(averaged.red >= 100 && averaged.red <= 156);
+
+        sl::destroy_bitmap(mip_rt);
+        sl::destroy_bitmap(mip_bmp);
+    }
+
     // 7. Test multitexturing shader
     sl::Shader multi_shader;
     const std::string vert_source =

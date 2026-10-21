@@ -82,7 +82,25 @@ namespace sl::detail
         TextureFilter filter = TextureFilter::nearest;
         bool render_target = false;
         float anisotropy = 1.0f;
+        /** Allocate a full mip chain; upload_texture() of the whole texture then fills every level. */
+        bool mipmaps = false;
     };
+
+    /** Number of levels in a full mip chain for a width x height texture. */
+    inline int mip_level_count(int width, int height)
+    {
+        int levels = 1;
+        for (int size = std::max(width, height); size > 1; size >>= 1)
+            ++levels;
+        return levels;
+    }
+
+    /**
+     * Box-filter the mip levels 1..N-1 of a tightly packed RGBA8 image. The levels are returned one after another
+     * with no padding; level i is max(width >> i, 1) by max(height >> i, 1). Colour is alpha-weighted so
+     * transparent pixels do not darken edges.
+     */
+    std::vector<std::uint8_t> build_mip_chain(const std::uint8_t *pixels, int width, int height);
 
     /** A mipmapped, repeating, anisotropically filtered RGBA8 texture array. */
     struct TextureArrayDesc

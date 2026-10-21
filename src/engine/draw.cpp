@@ -103,7 +103,7 @@ namespace sl
 			{
 				detail::Renderer *renderer = detail::active_renderer();
 				std::uint32_t texture = 0;
-				if (!renderer || !renderer->create_texture({bitmap->width, bitmap->height, bitmap->smooth ? detail::TextureFilter::linear : detail::TextureFilter::nearest, false, bitmap->anisotropy}, texture))
+				if (!renderer || !renderer->create_texture({bitmap->width, bitmap->height, bitmap->smooth ? detail::TextureFilter::linear : detail::TextureFilter::nearest, false, bitmap->anisotropy, bitmap->mipmaps}, texture))
 				{
 					return false;
 				}

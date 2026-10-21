@@ -155,6 +155,8 @@ namespace sl
         bool smooth = false;
         /** Requested texture anisotropy; 1.0 disables it. Read when the GPU texture is first created. */
         float anisotropy = 1.0f;
+        /** Build a mip chain when the pixels are uploaded, for cleaner minified sampling and effective anisotropy. */
+        bool mipmaps = false;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */

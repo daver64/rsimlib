@@ -106,7 +106,12 @@ namespace sl
         Bitmap *add_texture(Model &model, Bitmap *bitmap)
         {
             if (bitmap)
+            {
+                // Model textures are minified at distance and viewed at grazing angles.
+                bitmap->mipmaps = true;
+                bitmap->anisotropy = 16.0f;
                 model.textures.push_back(bitmap);
+            }
             return bitmap;
         }
 
