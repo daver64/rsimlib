@@ -692,8 +692,8 @@ namespace sl::detail
                     std::size_t chain_offset = 0;
                     for (UINT level = 1; level < level_count; ++level)
                     {
-                        const std::size_t level_width = static_cast<std::size_t>(std::max(width >> level, 1));
-                        const std::size_t level_height = static_cast<std::size_t>(std::max(height >> level, 1));
+                        const std::size_t level_width = static_cast<std::size_t>                        ((std::max)(width >> level, 1));
+                                                const std::size_t level_height = static_cast<std::size_t>((std::max)(height >> level, 1));
                         level_pixels.push_back(mip_chain.data() + chain_offset);
                         level_row_bytes.push_back(level_width * 4);
                         chain_offset += level_width * level_height * 4;
