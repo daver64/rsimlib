@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
     bool running = true;
     bool paused = false;
     float phase = 0.0f;
+    float last_time = static_cast<float>(sl::time_ms()) * 0.001f;
     while (running)
     {
         sl::Event event;
@@ -65,8 +66,11 @@ int main(int argc, char *argv[])
                 paused = !paused;
             sl::display_handle_event(event);
         }
+        // Advance by elapsed time so the sway speed is the same on every backend and frame rate.
+        const float now = static_cast<float>(sl::time_ms()) * 0.001f;
         if (!paused)
-            phase += 0.01f;
+            phase += (now - last_time) * 0.4f;
+        last_time = now;
 
         // Sway sideways so the aliasing in the unfiltered plane visibly crawls.
         camera.position = {std::sin(phase) * 1.5f, 0.6f, 3.0f};
