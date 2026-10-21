@@ -1,5 +1,6 @@
 #include "video.h"
 #include "draw.h"
+#include "error.h"
 
 #define PL_MPEG_IMPLEMENTATION
 #include <pl_mpeg.h>
@@ -124,14 +125,31 @@ namespace sl
         }
     } // namespace
 
+    const char *video_backend_name()
+    {
+        return "pl_mpeg";
+    }
+
     Video *open_video(const std::string &path, bool audio)
     {
-        return create_video(plm_create_with_filename(path.c_str()), audio);
+        if (path.find("://") != std::string::npos)
+        {
+            detail::set_error("URL playback requires the FFmpeg video backend (SIMLIB_VIDEO=ffmpeg)");
+            return nullptr;
+        }
+
+        Video *video = create_video(plm_create_with_filename(path.c_str()), audio);
+        if (!video)
+            detail::set_error("Unable to open MPEG1 video: " + path);
+        return video;
     }
 
     Video *open_video_from_memory(const std::uint8_t *data, std::size_t size, bool audio)
     {
-        return create_video(plm_create_with_memory(const_cast<std::uint8_t *>(data), static_cast<std::size_t>(size), 0), audio);
+        Video *video = create_video(plm_create_with_memory(const_cast<std::uint8_t *>(data), static_cast<std::size_t>(size), 0), audio);
+        if (!video)
+            detail::set_error("Unable to open MPEG1 video from memory");
+        return video;
     }
 
     void destroy_video(Video *video)
@@ -178,6 +196,26 @@ namespace sl
     double video_duration(Video *video)
     {
         return video ? plm_get_duration(video->plm) : 0.0;
+    }
+
+    double video_position(Video *video)
+    {
+        return video ? plm_get_time(video->plm) : 0.0;
+    }
+
+    bool seek_video(Video *video, double seconds)
+    {
+        if (!video)
+            return false;
+
+        const double duration = plm_get_duration(video->plm);
+        seconds = std::max(0.0, duration > 0.0 ? std::min(seconds, duration) : seconds);
+        return plm_seek(video->plm, seconds, 1) != 0;
+    }
+
+    bool video_has_audio(Video *video)
+    {
+        return video && video->wants_audio;
     }
 
     bool video_has_ended(Video *video)

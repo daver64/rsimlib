@@ -2,11 +2,15 @@
 
 include(CMakeFindDependencyMacro)
 
-find_dependency(OpenGL)
+if("@SIMLIB_RENDER_GL@")
+    find_dependency(OpenGL)
+endif()
 find_dependency(PNG)
 find_dependency(ZLIB)
 find_dependency(SDL2)
-find_dependency(Vulkan)
+if("@SIMLIB_RENDER_VULKAN@")
+    find_dependency(Vulkan)
+endif()
 find_dependency(box2d CONFIG)
 find_dependency(sol2 CONFIG)
 if(WIN32)
@@ -62,6 +66,12 @@ elseif("@SIMLIB_MIXER_TARGET@" STREQUAL "SDL2_mixer::SDL2_mixer-static")
 else()
     find_dependency(PkgConfig)
     pkg_check_modules(SDL2_MIXER REQUIRED IMPORTED_TARGET SDL2_mixer)
+endif()
+
+if("@SIMLIB_VIDEO@" STREQUAL "ffmpeg")
+    find_dependency(PkgConfig)
+    pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
+        libavformat>=59.27 libavcodec>=59.37 libavutil>=57.28 libswscale>=6.7 libswresample>=4.7)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/simlibTargets.cmake")

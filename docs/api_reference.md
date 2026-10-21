@@ -1262,7 +1262,10 @@ clutter.draw(origin);
 
 ## Video Playback ([include/video.h](../include/video.h))
 
-MPEG1/MP2 playback into a bitmap.
+Video playback into a bitmap. The backend is set at build time with `SIMLIB_VIDEO` (`plmpeg`: MPEG1/MP2 files; `ffmpeg`: most formats plus URLs; `none`: stubs).
+
+- `seek_video(video, seconds)`, `video_position(video)`, `video_has_audio(video)`, `video_backend_name()`.
+- Failures set `last_error()`; with `plmpeg`, `open_video` rejects URLs.
 
 - `open_video(path, audio = true)` / `open_video_from_memory(data, size, audio = true)` / `destroy_video(video)`.
 - `update_video(video, dt_seconds)` decodes the next frames; draw `video_bitmap(video)` like any other sprite.

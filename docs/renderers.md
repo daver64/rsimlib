@@ -27,6 +27,8 @@ sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600);
 
 Check compiled support with `sl::graphics_backend_available(backend)`.
 
+Which backends are compiled is a configure-time choice: `-DSIMLIB_RENDERERS="gl;vulkan;d3d12"` (default `gl;vulkan`, plus `d3d12` on Windows; at least one is required, `d3d12` is Windows-only). Only the listed backends are built and linked, and `SIMLIB_RENDERER_GL`, `SIMLIB_RENDERER_VULKAN` and `SIMLIB_RENDERER_D3D12` are defined for consumers. The default backend is the first enabled one, and selecting a disabled backend fails with an error from `last_error()`.
+
 **The backend is fixed for the life of the process.** Choose it once, before `set_gfx_mode()`, and keep it until `shutdown()`. Switching backends at runtime (for example calling `set_gfx_mode()` again after `set_graphics_backend()` with a different backend) is not supported. Bitmaps, render targets, meshes and other GPU resources are tied to the backend that created them and are not migrated, so handles from the old backend become invalid. To change backend, restart the application.
 
 ---

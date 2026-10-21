@@ -13,7 +13,13 @@
 int main(int argc, char **argv)
 {
     std::string input, output, animations;
+#if defined(SIMLIB_RENDERER_GL)
     char default_backend[] = "--gl";
+#elif defined(SIMLIB_RENDERER_VULKAN)
+    char default_backend[] = "--vulkan";
+#else
+    char default_backend[] = "--d3d12";
+#endif
     std::vector<char *> backend_arguments{argv[0], default_backend};
     for (int i = 1; i < argc; ++i)
     {

@@ -22,6 +22,41 @@ if(NOT SIMLIB_GUI STREQUAL "imgui" AND NOT SIMLIB_GUI STREQUAL "none")
     message(FATAL_ERROR "SIMLIB_GUI must be 'imgui' or 'none' (got '${SIMLIB_GUI}')")
 endif()
 
+set(SIMLIB_VIDEO "plmpeg" CACHE STRING "Video decoder: plmpeg (MPEG1/MP2 only), ffmpeg (most formats and URLs) or none")
+set_property(CACHE SIMLIB_VIDEO PROPERTY STRINGS plmpeg ffmpeg none)
+if(NOT SIMLIB_VIDEO STREQUAL "plmpeg" AND NOT SIMLIB_VIDEO STREQUAL "ffmpeg" AND NOT SIMLIB_VIDEO STREQUAL "none")
+    message(FATAL_ERROR "SIMLIB_VIDEO must be 'plmpeg', 'ffmpeg' or 'none' (got '${SIMLIB_VIDEO}')")
+endif()
+
+if(WIN32)
+    set(_SIMLIB_DEFAULT_RENDERERS "gl;vulkan;d3d12")
+else()
+    set(_SIMLIB_DEFAULT_RENDERERS "gl;vulkan")
+endif()
+set(SIMLIB_RENDERERS "${_SIMLIB_DEFAULT_RENDERERS}" CACHE STRING
+    "Semicolon-separated renderers to build: gl, vulkan, d3d12 (Windows only). At least one is required.")
+set(SIMLIB_RENDER_GL OFF)
+set(SIMLIB_RENDER_VULKAN OFF)
+set(SIMLIB_RENDER_D3D12 OFF)
+if(NOT SIMLIB_RENDERERS)
+    message(FATAL_ERROR "SIMLIB_RENDERERS must list at least one of: gl, vulkan, d3d12")
+endif()
+foreach(_renderer IN LISTS SIMLIB_RENDERERS)
+    if(_renderer STREQUAL "gl")
+        set(SIMLIB_RENDER_GL ON)
+    elseif(_renderer STREQUAL "vulkan")
+        set(SIMLIB_RENDER_VULKAN ON)
+    elseif(_renderer STREQUAL "d3d12")
+        if(NOT WIN32)
+            message(FATAL_ERROR "SIMLIB_RENDERERS: 'd3d12' is only available on Windows")
+        endif()
+        set(SIMLIB_RENDER_D3D12 ON)
+    else()
+        message(FATAL_ERROR "SIMLIB_RENDERERS: unknown renderer '${_renderer}' (expected gl, vulkan, d3d12)")
+    endif()
+endforeach()
+message(STATUS "simlib renderers: ${SIMLIB_RENDERERS}")
+
 option(SIMLIB_VALIDATE_SHADERS "Validate checked-in GLSL shaders with glslangValidator" ON)
 
 if(SIMLIB_VALIDATE_SHADERS)
@@ -138,12 +173,16 @@ if(SIMLIB_VALIDATE_SHADERS)
     endif()
 endif()
 
-find_package(OpenGL REQUIRED)
+if(SIMLIB_RENDER_GL)
+    find_package(OpenGL REQUIRED)
+endif()
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(Vulkan REQUIRED)
+if(SIMLIB_RENDER_VULKAN)
+    find_package(Vulkan REQUIRED)
+endif()
 find_package(SDL2_ttf QUIET CONFIG)
 if(WIN32)
     find_package(GLEW REQUIRED)
@@ -166,17 +205,23 @@ if(SIMLIB_GUI STREQUAL "imgui")
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
         ${imgui_SOURCE_DIR}/imgui_demo.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
     )
+    if(SIMLIB_RENDER_GL)
+        target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
+        target_link_libraries(imgui PUBLIC OpenGL::GL)
+    endif()
+    if(SIMLIB_RENDER_VULKAN)
+        target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
+        target_link_libraries(imgui PUBLIC Vulkan::Vulkan)
+    endif()
     target_include_directories(imgui PUBLIC
         $<BUILD_INTERFACE:${imgui_SOURCE_DIR}>
         $<BUILD_INTERFACE:${imgui_SOURCE_DIR}/backends>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/backends>
     )
-    target_link_libraries(imgui PUBLIC SDL2::SDL2 OpenGL::GL Vulkan::Vulkan ${CMAKE_DL_LIBS})
-    if(WIN32)
+    target_link_libraries(imgui PUBLIC SDL2::SDL2 ${CMAKE_DL_LIBS})
+    if(SIMLIB_RENDER_D3D12)
         target_sources(imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
         target_link_libraries(imgui PUBLIC d3d12 dxgi d3dcompiler)
     endif()
@@ -241,14 +286,21 @@ FetchContent_Declare(
 set(PUGIXML_INSTALL OFF CACHE BOOL "Do not install pugixml" FORCE)
 FetchContent_MakeAvailable(pugixml)
 
-# Single-header MPEG1/MP2 decoder used by video.cpp for cutscene-style video playback.
-FetchContent_Declare(
-    pl_mpeg
-    GIT_REPOSITORY https://github.com/phoboslab/pl_mpeg.git
-    GIT_TAG master
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(pl_mpeg)
+if(SIMLIB_VIDEO STREQUAL "plmpeg")
+    # Single-header MPEG1/MP2 decoder used by video_plmpeg.cpp for cutscene-style video playback.
+    FetchContent_Declare(
+        pl_mpeg
+        GIT_REPOSITORY https://github.com/phoboslab/pl_mpeg.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(pl_mpeg)
+elseif(SIMLIB_VIDEO STREQUAL "ffmpeg")
+    # FFmpeg 5.1+ (libavformat 59.27, libavcodec 59.37, libavutil 57.28, libswresample 4.7).
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
+        libavformat>=59.27 libavcodec>=59.37 libavutil>=57.28 libswscale>=6.7 libswresample>=4.7)
+endif()
 
 set(SIMLIB_TTF_TARGET "")
 if(TARGET SDL2_ttf::SDL2_ttf)
@@ -316,16 +368,20 @@ add_library(simlib STATIC
     src/engine/terrain.cpp
     src/engine/terrain_sources.cpp
     src/engine/renderer.cpp
-    src/engine/gl_context.cpp
-    src/engine/gl_renderer.cpp
-    src/engine/vulkan_context.cpp
-    src/engine/vulkan_renderer.cpp
-    src/engine/video.cpp
     src/engine/animated_sprite.cpp
     src/engine/voxel.cpp
     src/engine/net.cpp
 )
-if(WIN32)
+if(SIMLIB_RENDER_GL)
+    target_sources(simlib PRIVATE src/engine/gl_context.cpp src/engine/gl_renderer.cpp)
+    target_compile_definitions(simlib PUBLIC SIMLIB_RENDERER_GL)
+endif()
+if(SIMLIB_RENDER_VULKAN)
+    target_sources(simlib PRIVATE src/engine/vulkan_context.cpp src/engine/vulkan_renderer.cpp)
+    target_compile_definitions(simlib PUBLIC SIMLIB_RENDERER_VULKAN)
+endif()
+if(SIMLIB_RENDER_D3D12)
+    target_compile_definitions(simlib PUBLIC SIMLIB_RENDERER_D3D12)
     target_sources(simlib PRIVATE
         src/engine/d3d12_context.cpp
         src/engine/d3d12_renderer.cpp
@@ -336,7 +392,16 @@ target_include_directories(simlib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_include_directories(simlib PRIVATE ${pl_mpeg_SOURCE_DIR})
+if(SIMLIB_VIDEO STREQUAL "plmpeg")
+    target_sources(simlib PRIVATE src/engine/video_plmpeg.cpp)
+    target_include_directories(simlib PRIVATE ${pl_mpeg_SOURCE_DIR})
+elseif(SIMLIB_VIDEO STREQUAL "ffmpeg")
+    target_sources(simlib PRIVATE src/engine/video_ffmpeg.cpp)
+    target_link_libraries(simlib PUBLIC PkgConfig::FFMPEG)
+else()
+    target_sources(simlib PRIVATE src/engine/video_none.cpp)
+endif()
+target_compile_definitions(simlib PUBLIC SIMLIB_VIDEO_BACKEND_${SIMLIB_VIDEO})
 if(NOT GLSLANG_VALIDATOR)
     find_program(GLSLANG_VALIDATOR glslangValidator)
 endif()
@@ -349,21 +414,29 @@ target_compile_definitions(simlib PRIVATE
     SIMLIB_BUILD_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
     SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
 )
-target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB lua sol2)
+target_link_libraries(simlib PUBLIC PNG::PNG ZLIB::ZLIB lua sol2)
+if(SIMLIB_RENDER_GL)
+    target_link_libraries(simlib PUBLIC OpenGL::GL)
+endif()
 if(SIMLIB_GUI STREQUAL "imgui")
     target_link_libraries(simlib PUBLIC imgui)
     target_compile_definitions(simlib PUBLIC SIMLIB_GUI_IMGUI)
 endif()
 target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE pugixml-static)
-target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
+if(SIMLIB_RENDER_VULKAN)
+    target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
+endif()
 find_package(Threads REQUIRED)
 target_link_libraries(simlib PRIVATE Threads::Threads)
 if(WIN32)
     target_link_libraries(simlib PRIVATE ws2_32 winmm)
 endif()
 if(WIN32)
-    target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler GLEW::GLEW)
+    target_link_libraries(simlib PRIVATE GLEW::GLEW)
+endif()
+if(SIMLIB_RENDER_D3D12)
+    target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler)
     # The D3D12 backend translates GLSL to HLSL (glslang -> SPIR-V -> SPIRV-Cross) at runtime.
     # Install with: vcpkg install glslang:x64-windows spirv-cross:x64-windows
     find_package(glslang CONFIG QUIET)
@@ -412,7 +485,7 @@ endif()
 if(TARGET shader_validation)
     add_dependencies(simlib shader_validation)
 endif()
-if(TARGET vulkan_shader_validation)
+if(SIMLIB_RENDER_VULKAN AND TARGET vulkan_shader_validation)
     add_dependencies(simlib vulkan_shader_validation)
 endif()
 
@@ -484,8 +557,10 @@ target_link_libraries(exflight PRIVATE simlib)
 add_executable(exterrain src/examples/exterrain/exterrain.cpp)
 target_link_libraries(exterrain PRIVATE simlib)
 
-add_executable(exvulkan src/examples/exvulkan/exvulkan.cpp)
-target_link_libraries(exvulkan PRIVATE simlib)
+if(SIMLIB_RENDER_VULKAN)
+    add_executable(exvulkan src/examples/exvulkan/exvulkan.cpp)
+    target_link_libraries(exvulkan PRIVATE simlib)
+endif()
 
 add_executable(exlua src/examples/exlua/exlua.cpp)
 target_link_libraries(exlua PRIVATE simlib lua sol2)
@@ -541,10 +616,12 @@ target_link_libraries(exresources PRIVATE simlib)
 add_executable(expostprocess src/examples/expostprocess/expostprocess.cpp)
 target_link_libraries(expostprocess PRIVATE simlib)
 
-add_executable(ex3d_gl src/examples/ex3d_gl/ex3d_gl.cpp)
-target_link_libraries(ex3d_gl PRIVATE simlib)
-if(WIN32)
-    target_link_libraries(ex3d_gl PRIVATE GLEW::GLEW)
+if(SIMLIB_RENDER_GL)
+    add_executable(ex3d_gl src/examples/ex3d_gl/ex3d_gl.cpp)
+    target_link_libraries(ex3d_gl PRIVATE simlib)
+    if(WIN32)
+        target_link_libraries(ex3d_gl PRIVATE GLEW::GLEW)
+    endif()
 endif()
 
 add_executable(ex3d_surface src/examples/ex3d_surface/ex3d_surface.cpp)
@@ -571,18 +648,20 @@ target_link_libraries(exvoxel PRIVATE simlib)
 add_executable(exfluid3d src/examples/exfluid3d/exfluid3d.cpp)
 target_link_libraries(exfluid3d PRIVATE simlib)
 
-add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
-target_include_directories(ex3d_vulkan PRIVATE src/engine)
-target_compile_definitions(ex3d_vulkan PRIVATE
-    SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
-)
-target_link_libraries(ex3d_vulkan PRIVATE simlib)
+if(SIMLIB_RENDER_VULKAN)
+    add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
+    target_include_directories(ex3d_vulkan PRIVATE src/engine)
+    target_compile_definitions(ex3d_vulkan PRIVATE
+        SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
+    )
+    target_link_libraries(ex3d_vulkan PRIVATE simlib)
+endif()
 
-if(WIN32)
+if(SIMLIB_RENDER_D3D12)
     add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
     target_include_directories(ex3d_d3d12 PRIVATE src/engine)
     target_link_libraries(ex3d_d3d12 PRIVATE simlib d3d12 dxgi d3dcompiler)
-else()
+elseif(NOT WIN32)
     add_executable(ex3d_d3d12 src/examples/ex3d_d3d12/ex3d_d3d12.cpp)
     target_include_directories(ex3d_d3d12 PRIVATE src/engine)
     target_link_libraries(ex3d_d3d12 PRIVATE simlib)
@@ -599,8 +678,10 @@ if(SIMLIB_GUI STREQUAL "imgui")
     target_link_libraries(exspriteeditor PRIVATE simlib imgui)
 endif()
 
-add_executable(exvideo src/examples/exvideo/exvideo.cpp)
-target_link_libraries(exvideo PRIVATE simlib)
+if(NOT SIMLIB_VIDEO STREQUAL "none")
+    add_executable(exvideo src/examples/exvideo/exvideo.cpp)
+    target_link_libraries(exvideo PRIVATE simlib)
+endif()
 
 add_executable(slpack src/examples/slpack/slpack.cpp)
 target_link_libraries(slpack PRIVATE ZLIB::ZLIB)
@@ -675,6 +756,13 @@ if(BUILD_TESTING)
     target_link_libraries(shader_paths_test PRIVATE simlib)
     target_compile_definitions(shader_paths_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME shader_paths COMMAND shader_paths_test)
+
+    add_executable(video_test tests/video_test.cpp)
+    target_link_libraries(video_test PRIVATE simlib)
+    target_compile_definitions(video_test PRIVATE
+        SIMLIB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+        $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME video COMMAND video_test)
 
     add_executable(pathfinder_test tests/pathfinder_test.cpp)
     target_link_libraries(pathfinder_test PRIVATE simlib)
@@ -800,7 +888,7 @@ if(BUILD_TESTING)
     target_compile_definitions(fluid3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME fluid3d COMMAND fluid3d_test)
 
-    if(WIN32)
+    if(SIMLIB_RENDER_D3D12)
         add_executable(d3d12_renderer_test tests/d3d12_renderer_test.cpp)
         target_link_libraries(d3d12_renderer_test PRIVATE simlib)
         target_compile_definitions(d3d12_renderer_test PRIVATE SDL_MAIN_HANDLED)

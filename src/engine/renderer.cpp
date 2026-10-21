@@ -2,9 +2,13 @@
  * @brief Selects and creates the active Renderer backend implementation.
  */
 #include "renderer.h"
+#ifdef SIMLIB_RENDERER_GL
 #include "gl_renderer.h"
+#endif
+#ifdef SIMLIB_RENDERER_VULKAN
 #include "vulkan_renderer.h"
-#ifdef _WIN32
+#endif
+#if defined(_WIN32) && defined(SIMLIB_RENDERER_D3D12)
 #include "d3d12_renderer.h"
 #endif
 
@@ -74,11 +78,19 @@ namespace sl::detail
         switch (backend)
         {
         case GraphicsBackend::opengl:
+#ifdef SIMLIB_RENDERER_GL
             return create_gl_renderer();
+#else
+            return nullptr;
+#endif
         case GraphicsBackend::vulkan:
+#ifdef SIMLIB_RENDERER_VULKAN
             return create_vulkan_renderer();
+#else
+            return nullptr;
+#endif
         case GraphicsBackend::d3d12:
-#ifdef _WIN32
+#if defined(_WIN32) && defined(SIMLIB_RENDERER_D3D12)
             return create_d3d12_renderer();
 #else
             return nullptr;

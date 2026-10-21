@@ -1,4 +1,5 @@
-// Plays an MPEG1 (.mpg) video with MP2 audio into a bitmap, for use as a cutscene player.
+// Plays a video into a bitmap, for use as a cutscene player. The pl_mpeg backend plays MPEG1/MP2 (.mpg) files;
+// the FFmpeg backend (SIMLIB_VIDEO=ffmpeg) plays most formats and URLs.
 #include "sl.h"
 
 #include <cstdio>
@@ -29,7 +30,7 @@ int main(int argc, char **argv)
 
     if (path.empty())
     {
-        std::fprintf(stderr, "Usage: %s <video.mpg> [--loop]\n", argv[0]);
+        std::fprintf(stderr, "Usage: %s <video file or URL> [--loop]\n", argv[0]);
         return 1;
     }
 
@@ -38,12 +39,12 @@ int main(int argc, char **argv)
     sl::Video *video = sl::open_video(path);
     if (!video)
     {
-        std::fprintf(stderr, "Could not open video: %s\n", path.c_str());
+        std::fprintf(stderr, "Could not open video: %s\n%s\n", path.c_str(), sl::last_error().c_str());
         return 1;
     }
 
-    std::fprintf(stderr, "Opened %s: %dx%d, duration=%.2fs\n",
-                 path.c_str(), sl::video_width(video), sl::video_height(video), sl::video_duration(video));
+    std::fprintf(stderr, "Opened %s (%s): %dx%d, duration=%.2fs\n", path.c_str(), sl::video_backend_name(),
+                 sl::video_width(video), sl::video_height(video), sl::video_duration(video));
 
     if (loop)
         sl::set_video_loop(video, true);
@@ -62,6 +63,7 @@ int main(int argc, char **argv)
     sl::set_fps(60);
 
     bool running = true;
+    bool paused = false;
     sl::Event event;
 
     while (running)
@@ -73,10 +75,20 @@ int main(int argc, char **argv)
             {
                 running = false;
             }
+            else if (event.type() == sl::Event::Type::key_down)
+            {
+                if (event.key() == sl::Event::Key::space)
+                    paused = !paused;
+                else if (event.key() == sl::Event::Key::arrow_left)
+                    sl::seek_video(video, sl::video_position(video) - 5.0);
+                else if (event.key() == sl::Event::Key::arrow_right)
+                    sl::seek_video(video, sl::video_position(video) + 5.0);
+            }
             sl::display_handle_event(event);
         }
 
-        sl::update_video(video, sl::get_frame_time() / 1000.0);
+        if (!paused)
+            sl::update_video(video, sl::get_frame_time() / 1000.0);
 
         if (sl::video_has_ended(video))
             running = false;
@@ -84,6 +96,8 @@ int main(int argc, char **argv)
         sl::clear_to_colour(sl::screen, sl::Black);
         sl::draw_sprite_stretched(sl::video_bitmap(video), 0, 0, sl::screen_width(), sl::screen_height());
 
+        sl::gprintf(8, 8, sl::White, "%s  %.1f / %.1f s  Space: pause  Left/Right: seek 5s%s", sl::video_backend_name(),
+                    sl::video_position(video), sl::video_duration(video), paused ? "  [paused]" : "");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();

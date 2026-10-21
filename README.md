@@ -91,6 +91,14 @@ Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's 
 
 Dear ImGui is optional: configure with `-DSIMLIB_GUI=none` to build without it (the `gui_*` API becomes no-ops and the ImGui examples are skipped).
 
+Renderers are selected with `-DSIMLIB_RENDERERS="gl;vulkan;d3d12"` (default `gl;vulkan`, plus `d3d12` on Windows). At least one is required, and `d3d12` is Windows-only. Disabled renderers are not compiled or linked (so e.g. `-DSIMLIB_RENDERERS=gl` needs no Vulkan SDK), the matching examples (`ex3d_gl`, `exvulkan`/`ex3d_vulkan`) are skipped, and requesting a disabled backend with `--gl`/`--vulkan`/`--d3d12` reports an error. The default backend is the first enabled one (D3D12 on Windows when enabled).
+
+| Option | Values | Default |
+|--------|--------|---------|
+| `SIMLIB_RENDERERS` | `gl`, `vulkan`, `d3d12` (list) | `gl;vulkan` (+ `d3d12` on Windows) |
+| `SIMLIB_GUI` | `imgui`, `none` | `imgui` |
+| `SIMLIB_VIDEO` | `plmpeg`, `ffmpeg`, `none` | `plmpeg` |
+
 On Windows, install GLEW, libpng, and zlib with vcpkg, then configure CMake with the vcpkg toolchain. GLEW loads the OpenGL 4.3 entry points used by the optional OpenGL backend; libpng and zlib are required by PNG export:
 
 ```powershell
@@ -100,15 +108,25 @@ cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:\path\to\vcpkg\scripts\buildsystem
 
 ### Video Playback
 
-`sl::open_video()` (see [`exvideo`](src/examples/exvideo/exvideo.cpp)) decodes MPEG1 video and MP2 audio only
-(via the bundled `pl_mpeg` decoder) — it cannot read `.mp4`/`.mov`/`.webm`/H.264 files directly. Transcode
-source footage with `ffmpeg` first:
+`sl::open_video()` (see [`exvideo`](src/examples/exvideo/exvideo.cpp)) plays video into a bitmap with synced audio.
+The decoder is chosen at configure time with `-DSIMLIB_VIDEO=<plmpeg|ffmpeg|none>`:
+
+| Value | Formats | Notes |
+|-------|---------|-------|
+| `plmpeg` (default) | MPEG1 video + MP2 audio (`.mpg`) | Bundled `pl_mpeg`, no extra dependencies. Local files only. |
+| `ffmpeg` | Most formats (`.mp4`, `.mkv`, `.webm`, H.264...) | Needs FFmpeg 5.1+ dev packages (found via pkg-config). Also opens URLs/streams and memory buffers. |
+| `none` | - | Video API compiled as stubs; `open_video()` returns `nullptr` and sets `last_error()`. |
+
+All backends share the same API, including `seek_video()`, `video_position()`, `video_has_audio()` and
+`video_backend_name()`. FFmpeg is LGPL (GPL if built with GPL components); link it dynamically.
+To prepare footage for the default backend:
 
 ```bash
 ffmpeg -i input.mp4 -c:v mpeg1video -q:v 2 -c:a mp2 -format mpeg cutscene.mpg
 ```
 
-Then play it back with `./build/exvideo cutscene.mpg [--loop]`.
+Play with `./build/exvideo cutscene.mpg [--loop]` (Space pauses, Left/Right seek 5 s). Small test clips live in
+`tests/data/`.
 
 ### Build Commands:
 
@@ -354,7 +372,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices. [Screenshot & guide](docs/examples/ex3d_gl.md).
 - **[`ex3d_vulkan`](src/examples/ex3d_vulkan/ex3d_vulkan.cpp)** — Direct Vulkan 3D rendering with shared device/swapchain and custom pipelines. [Screenshot & guide](docs/examples/ex3d_vulkan.md).
 - **[`exspriteeditor`](src/examples/exspriteeditor/exspriteeditor.cpp)** — Pixel sprite/animation editor: zoomed pixel-perfect canvas (1x1-512x512), per-frame undo/redo, animation playback, and PNG spritesheet save/load. [Screenshot & guide](docs/examples/exspriteeditor.md).
-- **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — MPEG1/MP2 video decoding via `pl_mpeg` into a bitmap, with synced audio playback; see [Video Playback](#video-playback) below for the required source format.
+- **[`exvideo`](src/examples/exvideo/exvideo.cpp)** — Video decoding into a bitmap with synced audio (`pl_mpeg` or FFmpeg, selected by `SIMLIB_VIDEO`); see [Video Playback](#video-playback).
 - **[`ex3d_d3d12`](src/examples/ex3d_d3d12/ex3d_d3d12.cpp)** — Direct3D 12 3D rendering escape hatch.
 - **[`slpack`](src/examples/slpack/slpack.cpp)** / **[`slunpack`](src/examples/slunpack/slunpack.cpp)** — Asset packaging tools.
 

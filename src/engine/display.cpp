@@ -26,10 +26,14 @@ namespace sl
 
         SDL_Window *window = nullptr;
         std::unique_ptr<detail::Renderer> renderer;
-#ifdef _WIN32
+#if defined(_WIN32) && defined(SIMLIB_RENDERER_D3D12)
         constexpr GraphicsBackend default_backend = GraphicsBackend::d3d12;
-#else
+#elif defined(SIMLIB_RENDERER_GL)
         constexpr GraphicsBackend default_backend = GraphicsBackend::opengl;
+#elif defined(SIMLIB_RENDERER_VULKAN)
+        constexpr GraphicsBackend default_backend = GraphicsBackend::vulkan;
+#else
+#error "At least one renderer (SIMLIB_RENDERERS) must be enabled"
 #endif
         GraphicsBackend selected_backend = default_backend;
         bool ttfInitialized = false;
@@ -52,9 +56,10 @@ namespace sl
         }
         if (!graphics_backend_available(backend))
         {
-            sl::detail::set_error(backend == GraphicsBackend::d3d12
-                                      ? "Direct3D 12 is only available on Windows"
-                                      : "Requested graphics backend is not available");
+            sl::detail::set_error(std::string(backend == GraphicsBackend::opengl   ? "OpenGL"
+                                              : backend == GraphicsBackend::vulkan ? "Vulkan"
+                                                                                   : "Direct3D 12") +
+                                  " is not available in this build (see SIMLIB_RENDERERS)");
             return false;
         }
         selected_backend = backend;
@@ -89,12 +94,28 @@ namespace sl
 
     bool graphics_backend_available(GraphicsBackend backend)
     {
-#ifdef _WIN32
-        return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan ||
-               backend == GraphicsBackend::d3d12;
+        switch (backend)
+        {
+        case GraphicsBackend::opengl:
+#ifdef SIMLIB_RENDERER_GL
+            return true;
 #else
-        return backend == GraphicsBackend::opengl || backend == GraphicsBackend::vulkan;
+            return false;
 #endif
+        case GraphicsBackend::vulkan:
+#ifdef SIMLIB_RENDERER_VULKAN
+            return true;
+#else
+            return false;
+#endif
+        case GraphicsBackend::d3d12:
+#if defined(_WIN32) && defined(SIMLIB_RENDERER_D3D12)
+            return true;
+#else
+            return false;
+#endif
+        }
+        return false;
     }
 
     GraphicsBackend graphics_backend()
