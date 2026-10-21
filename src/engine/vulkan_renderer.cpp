@@ -164,6 +164,9 @@ namespace sl::detail
                     context_.destroy_buffer(mesh.indices);
                 }
                 meshes_.clear();
+                for (auto &[handle, instances] : instance_buffers_)
+                    context_.destroy_buffer(instances.buffer);
+                instance_buffers_.clear();
                 destroy_mesh_pipelines();
                 destroy_terrain_pipelines();
                 destroy_sky_pipelines();
@@ -172,6 +175,11 @@ namespace sl::detail
                     context_.destroy_shader_module(mesh_vertex_module_);
                     context_.destroy_shader_module(mesh_fragment_module_);
                     mesh_pipeline_ready_ = false;
+                }
+                if (mesh_instanced_module_ready_)
+                {
+                    context_.destroy_shader_module(mesh_instanced_vertex_module_);
+                    mesh_instanced_module_ready_ = false;
                 }
                 for (auto &[handle, texture] : textures_)
                 {
@@ -690,6 +698,98 @@ namespace sl::detail
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
                                                  environment, sizeof(environment), last_error_);
+            }
+            bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
+            {
+                handle = 0;
+                const auto host_visible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+                VulkanInstanceBuffer instances;
+                instances.capacity = capacity;
+                if (!context_.create_buffer(sizeof(InstanceGpu) * capacity, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                            host_visible, instances.buffer, last_error_))
+                {
+                    context_.destroy_buffer(instances.buffer);
+                    return false;
+                }
+                handle = next_instance_buffer_++;
+                instance_buffers_[handle] = instances;
+                return true;
+            }
+            bool update_instance_buffer(std::uint32_t handle, const InstanceGpu *instances, std::size_t count) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end() || count > found->second.capacity || (!instances && count > 0))
+                    return false;
+                if (count == 0)
+                    return true;
+                return context_.upload_buffer(found->second.buffer, instances, sizeof(InstanceGpu) * count, last_error_);
+            }
+            void destroy_instance_buffer(std::uint32_t handle) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end())
+                    return;
+                // The buffer may still be referenced by a submitted frame.
+                if (context_.device() != VK_NULL_HANDLE)
+                    vkDeviceWaitIdle(context_.device());
+                context_.destroy_buffer(found->second.buffer);
+                instance_buffers_.erase(found);
+            }
+            bool draw_mesh_instanced(std::uint32_t handle, const MeshDrawParams &params, std::uint32_t instance_buffer,
+                                     std::size_t count) override
+            {
+                const auto found = meshes_.find(handle);
+                const auto instances = instance_buffers_.find(instance_buffer);
+                if (found == meshes_.end() || instances == instance_buffers_.end() || count == 0 ||
+                    count > instances->second.capacity || params.terrain_albedo != 0)
+                    return false;
+                const MeshPipelineSet *pipelines = ensure_mesh_instanced_pipelines(current_target_samples());
+                if (!pipelines)
+                    return false;
+                flush_2d();
+                const auto sampled_descriptor = [&](std::uint32_t texture_handle, VkDescriptorSet &descriptor)
+                {
+                    const auto texture_iterator = textures_.find(texture_handle);
+                    if (texture_iterator != textures_.end())
+                    {
+                        if (!context_.prepare_image_for_sampling(texture_iterator->second.image, last_error_))
+                            return false;
+                        descriptor = texture_iterator->second.descriptor;
+                        return true;
+                    }
+                    for (auto &[framebuffer, target] : render_targets_)
+                    {
+                        if (target.texture_handle == texture_handle)
+                        {
+                            if (!context_.prepare_image_for_sampling(target.image, last_error_))
+                                return false;
+                            descriptor = target.descriptor;
+                            return true;
+                        }
+                    }
+                    last_error_ = "Vulkan mesh texture handle is not registered.";
+                    return false;
+                };
+                VkDescriptorSet descriptor = VK_NULL_HANDLE;
+                VkDescriptorSet normal_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.texture != 0 ? params.texture : white_texture_, descriptor) ||
+                    !sampled_descriptor(params.normal_texture != 0 ? params.normal_texture : white_texture_, normal_descriptor))
+                    return false;
+                MeshDrawParams adjusted = params;
+                // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1]; this holds for the view-projection too.
+                for (int column = 0; column < 4; ++column)
+                    adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
+                float environment[16];
+                std::memcpy(environment, params.light_colour, sizeof(float) * 4);
+                std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
+                std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
+                std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
+                const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
+                return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
+                                                 found->second.vertices.buffer, found->second.indices.buffer,
+                                                 found->second.index_count, descriptor, normal_descriptor, adjusted.mvp,
+                                                 adjusted.light, environment, sizeof(environment), last_error_,
+                                                 instances->second.buffer.buffer, static_cast<std::uint32_t>(count));
             }
             bool draw_sky(const SkyDrawParams &params) override
             {
@@ -2589,6 +2689,10 @@ namespace sl::detail
                     for (VulkanGraphicsPipeline &culled : set)
                         context_.destroy_graphics_pipeline(culled);
                 mesh_pipelines_.clear();
+                for (auto &[samples, set] : mesh_instanced_pipelines_)
+                    for (VulkanGraphicsPipeline &culled : set)
+                        context_.destroy_graphics_pipeline(culled);
+                mesh_instanced_pipelines_.clear();
             }
             const MeshPipelineSet *ensure_mesh_pipelines(int samples)
             {
@@ -2623,6 +2727,53 @@ namespace sl::detail
                     }
                 }
                 return &(mesh_pipelines_[samples] = set);
+            }
+            struct VulkanInstanceBuffer
+            {
+                VulkanBuffer buffer;
+                std::size_t capacity = 0;
+            };
+            std::unordered_map<std::uint32_t, VulkanInstanceBuffer> instance_buffers_;
+            std::uint32_t next_instance_buffer_ = 1;
+            std::map<int, MeshPipelineSet> mesh_instanced_pipelines_; // Keyed by sample count.
+            VulkanShaderModule mesh_instanced_vertex_module_;
+            bool mesh_instanced_module_ready_ = false;
+            const MeshPipelineSet *ensure_mesh_instanced_pipelines(int samples)
+            {
+                // The fragment stage and descriptor layouts are shared with plain meshes.
+                if (!ensure_mesh_pipelines(samples))
+                    return nullptr;
+                if (!mesh_instanced_module_ready_)
+                {
+                    std::filesystem::path shader_dir = SIMLIB_SHADER_BINARY_DIR;
+                    if (!std::filesystem::exists(shader_dir / "vulkan/vulkan_mesh3d_instanced.vert.spv"))
+                        shader_dir = SIMLIB_BUILD_SHADER_BINARY_DIR;
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d_instanced.vert.spv",
+                                                     mesh_instanced_vertex_module_, last_error_))
+                    {
+                        context_.destroy_shader_module(mesh_instanced_vertex_module_);
+                        return nullptr;
+                    }
+                    mesh_instanced_module_ready_ = true;
+                }
+                const auto existing = mesh_instanced_pipelines_.find(samples);
+                if (existing != mesh_instanced_pipelines_.end())
+                    return &existing->second;
+                MeshPipelineSet set{};
+                const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
+                for (int mode = 0; mode < 3; ++mode)
+                {
+                    if (!context_.create_graphics_pipeline(mesh_instanced_vertex_module_, mesh_fragment_module_,
+                                                           descriptor_layout_, PrimitiveType::triangles, set[mode],
+                                                           last_error_, nullptr, 0, true, false, false, true,
+                                                           flags[mode], samples, false, true))
+                    {
+                        for (VulkanGraphicsPipeline &created : set)
+                            context_.destroy_graphics_pipeline(created);
+                        return nullptr;
+                    }
+                }
+                return &(mesh_instanced_pipelines_[samples] = set);
             }
             std::map<int, MeshPipelineSet> terrain_pipelines_;
             VulkanShaderModule terrain_vertex_module_;

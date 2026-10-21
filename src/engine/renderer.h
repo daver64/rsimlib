@@ -166,6 +166,13 @@ namespace sl::detail
         float terrain_macro[4] = {-1.0f, 1.0f, 0.0f, 0.0f};
     };
 
+    /** One instance of an instanced mesh draw: a column-major model matrix and an rgba tint multiplying the vertex colours. */
+    struct InstanceGpu
+    {
+        float model[16];
+        float tint[4];
+    };
+
     /** Per-draw data for Renderer::draw_sky(): vec4 rows laid out as documented in atmosphere.cpp. */
     struct SkyDrawParams
     {
@@ -359,6 +366,18 @@ namespace sl::detail
         /** Draw a mesh into the active render target, depth tested. */
         virtual bool draw_mesh(std::uint32_t, const MeshDrawParams &) { return false; }
         /** Draw the procedural sky behind everything already in the active 3D target; false if unsupported. */
+        /**
+         * Per-instance data for draw_mesh_instanced(). Buffers have a fixed capacity and may be updated at most once per
+         * frame, before they are drawn that frame. Backends without instancing leave these unimplemented.
+         */
+        virtual bool create_instance_buffer(std::size_t, std::uint32_t &) { return false; }
+        virtual bool update_instance_buffer(std::uint32_t, const InstanceGpu *, std::size_t) { return false; }
+        virtual void destroy_instance_buffer(std::uint32_t) {}
+        /**
+         * Draw `count` instances of a mesh. params.mvp is the view-projection matrix (each instance's model matrix is
+         * applied in the shader), params.normal_rows[i][3] still holds the material tint, and terrain is not supported.
+         */
+        virtual bool draw_mesh_instanced(std::uint32_t, const MeshDrawParams &, std::uint32_t, std::size_t) { return false; }
         virtual bool draw_sky(const SkyDrawParams &) { return false; }
         /** Clear the active render target's colour and depth. */
         virtual bool clear_3d(float, float, float, float) { return false; }
@@ -417,4 +436,8 @@ namespace sl::detail
     std::unique_ptr<Renderer> create_renderer(GraphicsBackend backend);
     /** Return the active renderer, or nullptr before display initialization. */
     Renderer *active_renderer();
+    /** Make the per-frame instance buffers used by draw_mesh_instanced(vector) available for reuse. Called once per frame. */
+    void recycle_transient_instance_buffers();
+    /** Destroy those buffers; called before the renderer shuts down. */
+    void release_transient_instance_buffers();
 }

@@ -48,6 +48,7 @@ if(SIMLIB_VALIDATE_SHADERS)
             ex3d.vert
             ex3d.frag
             mesh3d.vert
+            mesh3d_instanced.vert
             mesh3d.frag
             terrain.vert
             terrain.frag
@@ -91,7 +92,7 @@ if(SIMLIB_VALIDATE_SHADERS)
         endforeach()
         add_custom_target(shader_validation DEPENDS ${SHADER_BINARIES})
         set(VULKAN_SHADER_BINARIES)
-        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag vulkan_mesh3d.vert vulkan_mesh3d.frag vulkan_terrain.vert vulkan_terrain.frag vulkan_sky.vert vulkan_sky.frag)
+        foreach(VULKAN_SHADER_SOURCE vulkan_2d.vert vulkan_2d.frag vulkan_fullscreen.vert vulkan_light_cull.comp vulkan_lighting.frag vulkan_vignette.frag vulkan_bright_pass.frag vulkan_blur.frag vulkan_colour_adjust.frag vulkan_chromatic_aberration.frag vulkan_pixelate.frag vulkan_radial_blur.frag vulkan_heat_haze.frag vulkan_shockwave.frag vulkan_crt.frag vulkan_dither.frag vulkan_film_grain.frag vulkan_composite.frag vulkan_ex3d.vert vulkan_ex3d.frag vulkan_mesh3d.vert vulkan_mesh3d_instanced.vert vulkan_mesh3d.frag vulkan_terrain.vert vulkan_terrain.frag vulkan_sky.vert vulkan_sky.frag)
             get_filename_component(VULKAN_SHADER_EXTENSION "${VULKAN_SHADER_SOURCE}" EXT)
             if(VULKAN_SHADER_EXTENSION STREQUAL ".vert")
                 set(VULKAN_SHADER_STAGE vert)
@@ -599,6 +600,8 @@ add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)
 target_link_libraries(exnormalmap3d PRIVATE simlib)
 add_executable(exmipmap src/examples/exmipmap/exmipmap.cpp)
 target_link_libraries(exmipmap PRIVATE simlib)
+add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
+target_link_libraries(exinstancing PRIVATE simlib)
 
 add_executable(exconfig src/examples/exconfig/exconfig.cpp)
 target_link_libraries(exconfig PRIVATE simlib)

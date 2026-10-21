@@ -46,8 +46,9 @@ namespace sl
     /**
      * Merge a copy of `source` for every instance into one mesh, so a whole group draws with a single draw_mesh().
      * Instance positions are used as given; draw the result with a translation if they are relative to a local origin.
-     * The backends have no hardware instancing, so this bakes the transforms on the CPU: build once per group, not per
-     * frame. Returns nullptr if there is nothing to build.
+     * This bakes the transforms on the CPU: build once per group, not per frame. Use it for static groups that are
+     * culled or lit as one piece; use draw_mesh_instanced() when instances move or change, or to avoid duplicating the
+     * vertex data. Returns nullptr if there is nothing to build.
      */
     Mesh *bake_instances(const MeshData &source, const std::vector<Instance3D> &instances);
 

@@ -346,12 +346,20 @@ namespace sl
         return create_mesh(vertices, indices);
     }
 
-    bool draw_mesh(const Mesh *mesh, const glm::mat4 &model, const Material &material)
+    // Shared by draw_mesh() and draw_mesh_instanced(). For instanced draws `model` is the identity, so the params carry
+    // the view-projection and the shader applies each instance's own matrix.
+    static bool submit_mesh_draw(const Mesh *mesh, const glm::mat4 &model, const Material &material,
+                                 std::uint32_t instance_buffer, std::size_t instance_count)
     {
         detail::Renderer *renderer = detail::active_renderer();
         if (!mesh || !renderer || !active.surface)
         {
             detail::set_error("draw_mesh requires a mesh and an active 3D surface");
+            return false;
+        }
+        if (instance_buffer != 0 && material.terrain.enabled)
+        {
+            detail::set_error("Terrain shading cannot be drawn with draw_mesh_instanced");
             return false;
         }
         detail::MeshDrawParams params{};
@@ -435,12 +443,157 @@ namespace sl
         }
         params.light_colour[3] = material.alpha_cutoff;
         detail::apply_environment(params, material.fog);
-        if (!renderer->draw_mesh(mesh->handle, params))
+        const bool drawn = instance_buffer != 0
+                               ? renderer->draw_mesh_instanced(mesh->handle, params, instance_buffer, instance_count)
+                               : renderer->draw_mesh(mesh->handle, params);
+        if (!drawn)
         {
             detail::set_error("Unable to draw mesh on the active graphics backend");
             return false;
         }
         return true;
     }
+
+    bool draw_mesh(const Mesh *mesh, const glm::mat4 &model, const Material &material)
+    {
+        return submit_mesh_draw(mesh, model, material, 0, 0);
+    }
+
+    namespace
+    {
+        constexpr std::size_t min_transient_capacity = 256;
+
+        // Buffers for the one-shot vector overload; each is used by one draw per frame, then reused.
+        struct TransientInstanceBuffer
+        {
+            InstanceBuffer *buffer = nullptr;
+            bool in_use = false;
+        };
+        std::vector<TransientInstanceBuffer> transient_buffers;
+
+        std::vector<detail::InstanceGpu> pack_instances(const std::vector<InstanceData3D> &instances)
+        {
+            std::vector<detail::InstanceGpu> packed(instances.size());
+            for (std::size_t index = 0; index < instances.size(); ++index)
+            {
+                const InstanceData3D &instance = instances[index];
+                for (int column = 0; column < 4; ++column)
+                    for (int row = 0; row < 4; ++row)
+                        packed[index].model[column * 4 + row] = instance.model[column][row];
+                packed[index].tint[0] = instance.tint.red / 255.0f;
+                packed[index].tint[1] = instance.tint.green / 255.0f;
+                packed[index].tint[2] = instance.tint.blue / 255.0f;
+                packed[index].tint[3] = instance.tint.alpha / 255.0f;
+            }
+            return packed;
+        }
+    } // namespace
+
+    InstanceBuffer *create_instance_buffer(std::size_t capacity)
+    {
+        detail::Renderer *renderer = detail::active_renderer();
+        std::uint32_t handle = 0;
+        if (capacity == 0 || !renderer || !renderer->create_instance_buffer(capacity, handle))
+        {
+            detail::set_error("Instance buffers are not supported by the active graphics backend");
+            return nullptr;
+        }
+        InstanceBuffer *buffer = new InstanceBuffer;
+        buffer->handle = handle;
+        buffer->capacity = capacity;
+        return buffer;
+    }
+
+    bool update_instance_buffer(InstanceBuffer *buffer, const std::vector<InstanceData3D> &instances)
+    {
+        detail::Renderer *renderer = detail::active_renderer();
+        if (!buffer || !renderer)
+        {
+            detail::set_error("update_instance_buffer requires an instance buffer");
+            return false;
+        }
+        if (instances.size() > buffer->capacity)
+        {
+            detail::set_error("Instance buffer is too small for the instances given");
+            return false;
+        }
+        const std::vector<detail::InstanceGpu> packed = pack_instances(instances);
+        if (!renderer->update_instance_buffer(buffer->handle, packed.data(), packed.size()))
+        {
+            detail::set_error("Unable to update the instance buffer");
+            return false;
+        }
+        buffer->count = packed.size();
+        return true;
+    }
+
+    void destroy_instance_buffer(InstanceBuffer *buffer)
+    {
+        if (!buffer)
+            return;
+        for (TransientInstanceBuffer &transient : transient_buffers)
+            if (transient.buffer == buffer)
+                transient.buffer = nullptr;
+        if (detail::Renderer *renderer = detail::active_renderer())
+            renderer->destroy_instance_buffer(buffer->handle);
+        delete buffer;
+    }
+
+    bool draw_mesh_instanced(const Mesh *mesh, const InstanceBuffer *buffer, const Material &material)
+    {
+        if (!buffer)
+        {
+            detail::set_error("draw_mesh_instanced requires an instance buffer");
+            return false;
+        }
+        if (buffer->count == 0)
+            return true;
+        return submit_mesh_draw(mesh, glm::mat4(1.0f), material, buffer->handle, buffer->count);
+    }
+
+    bool draw_mesh_instanced(const Mesh *mesh, const std::vector<InstanceData3D> &instances, const Material &material)
+    {
+        if (instances.empty())
+            return true;
+        TransientInstanceBuffer *slot = nullptr;
+        for (TransientInstanceBuffer &candidate : transient_buffers)
+            if (candidate.buffer && !candidate.in_use && candidate.buffer->capacity >= instances.size())
+            {
+                slot = &candidate;
+                break;
+            }
+        if (!slot)
+        {
+            std::size_t capacity = min_transient_capacity;
+            while (capacity < instances.size())
+                capacity *= 2;
+            InstanceBuffer *created = create_instance_buffer(capacity);
+            if (!created)
+                return false;
+            transient_buffers.push_back({created, false});
+            slot = &transient_buffers.back();
+        }
+        slot->in_use = true;
+        if (!update_instance_buffer(slot->buffer, instances))
+            return false;
+        return draw_mesh_instanced(mesh, slot->buffer, material);
+    }
+
+    namespace detail
+    {
+        void recycle_transient_instance_buffers()
+        {
+            for (TransientInstanceBuffer &transient : transient_buffers)
+                transient.in_use = false;
+        }
+
+        void release_transient_instance_buffers()
+        {
+            std::vector<TransientInstanceBuffer> buffers;
+            buffers.swap(transient_buffers);
+            for (TransientInstanceBuffer &transient : buffers)
+                destroy_instance_buffer(transient.buffer);
+        }
+    } // namespace detail
 
 } // namespace sl

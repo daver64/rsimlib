@@ -119,13 +119,17 @@ namespace sl::detail
         bool record_3d_draw(VkPipeline pipeline, VkPipelineLayout layout,
                             VkBuffer vertex_buffer, std::uint32_t vertex_count,
                             const float *mvp, std::string &error);
-        /** vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats. */
+        /**
+         * vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats.
+         * With an instance_buffer, the pipeline must be an instanced one and it supplies instance_count instances.
+         */
         bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
                               VkBuffer vertex_buffer, VkBuffer index_buffer, std::uint32_t index_count,
                               VkDescriptorSet texture_descriptor, VkDescriptorSet normal_descriptor,
                               const float *vertex_constants, const float *fragment_constants,
                               const float *environment, std::size_t environment_size,
-                              std::string &error);
+                              std::string &error, VkBuffer instance_buffer = VK_NULL_HANDLE,
+                              std::uint32_t instance_count = 1);
         /** Fullscreen sky draw; sky_rows: 14 vec4 rows read from the per-draw environment block. */
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);
@@ -252,7 +256,8 @@ namespace sl::detail
                                       bool mesh_vertices = false,
                                       VkCullModeFlags cull_mode = VK_CULL_MODE_NONE,
                                       int samples = 1,
-                                      bool sky = false);
+                                      bool sky = false,
+                                      bool instanced = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,

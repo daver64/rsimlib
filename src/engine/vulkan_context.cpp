@@ -956,7 +956,8 @@ namespace sl::detail
                                          std::uint32_t index_count, VkDescriptorSet texture_descriptor,
                                          VkDescriptorSet normal_descriptor, const float *vertex_constants,
                                          const float *fragment_constants, const float *environment,
-                                         std::size_t environment_size, std::string &error)
+                                         std::size_t environment_size, std::string &error,
+                                         VkBuffer instance_buffer, std::uint32_t instance_count)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
@@ -985,10 +986,11 @@ namespace sl::detail
                            sizeof(float) * 28, vertex_constants);
         vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
                            sizeof(float) * 4, fragment_constants);
-        const VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
+        const VkBuffer vertex_buffers[2] = {vertex_buffer, instance_buffer};
+        const VkDeviceSize offsets[2] = {0, 0};
+        vkCmdBindVertexBuffers(command_buffer_, 0, instance_buffer != VK_NULL_HANDLE ? 2u : 1u, vertex_buffers, offsets);
         vkCmdBindIndexBuffer(command_buffer_, index_buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(command_buffer_, index_count, 1, 0, 0, 0);
+        vkCmdDrawIndexed(command_buffer_, index_count, instance_buffer != VK_NULL_HANDLE ? instance_count : 1, 0, 0, 0);
         return true;
     }
 
@@ -2750,7 +2752,8 @@ namespace sl::detail
                                                  bool mesh_vertices,
                                                  VkCullModeFlags cull_mode,
                                                  int samples,
-                                                 bool sky)
+                                                 bool sky,
+                                                 bool instanced)
     {
         result = {};
         if (mesh_vertices || sky)
@@ -2821,13 +2824,14 @@ namespace sl::detail
             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT, vertex.module, "main", nullptr},
             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fragment.module, "main", nullptr},
         };
-        VkVertexInputBindingDescription binding{};
+        VkVertexInputBindingDescription bindings[2]{};
+        VkVertexInputBindingDescription &binding = bindings[0];
         binding.binding = 0;
         binding.stride = mesh_vertices ? sizeof(Vulkan3DMeshVertex)
                          : three_dimensional ? sizeof(Vulkan3DVertex)
                                              : sizeof(Vertex2D);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        VkVertexInputAttributeDescription attributes[6] = {
+        VkVertexInputAttributeDescription attributes[11] = {
             {0, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, x))},
             {1, 0, VK_FORMAT_R32G32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, u))},
             {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vertex2D, r))},
@@ -2846,10 +2850,21 @@ namespace sl::detail
             attributes[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, position))};
             attributes[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, static_cast<std::uint32_t>(offsetof(Vulkan3DVertex, colour))};
         }
+        // Instanced meshes read a model matrix (four vec4 columns) and a tint from a second, per-instance binding.
+        const bool mesh_instances = instanced && mesh_vertices;
+        if (mesh_instances)
+        {
+            bindings[1].binding = 1;
+            bindings[1].stride = sizeof(float) * 20;
+            bindings[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+            for (std::uint32_t column = 0; column < 5; ++column)
+                attributes[6 + column] = {6 + column, 1, VK_FORMAT_R32G32B32A32_SFLOAT,
+                                          static_cast<std::uint32_t>(sizeof(float) * 4 * column)};
+        }
         VkPipelineVertexInputStateCreateInfo vertex_input{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
-        vertex_input.vertexBindingDescriptionCount = sky ? 0u : 1u;
-        vertex_input.pVertexBindingDescriptions = &binding;
-        vertex_input.vertexAttributeDescriptionCount = sky ? 0u : mesh_vertices ? 6u : three_dimensional ? 2u : 3u;
+        vertex_input.vertexBindingDescriptionCount = sky ? 0u : mesh_instances ? 2u : 1u;
+        vertex_input.pVertexBindingDescriptions = bindings;
+        vertex_input.vertexAttributeDescriptionCount = sky ? 0u : mesh_instances ? 11u : mesh_vertices ? 6u : three_dimensional ? 2u : 3u;
         vertex_input.pVertexAttributeDescriptions = attributes;
         VkPipelineInputAssemblyStateCreateInfo input_assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
         switch (topology)

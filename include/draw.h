@@ -321,6 +321,27 @@ namespace sl
     void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees);
     /** Draw a bitmap region scaled into a rectangle with optional flips; the diagonal flip (transpose) is applied first, as in Tiled. */
     void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal = false);
+    /** One sprite for draw_sprite_batch(). */
+    struct SpriteInstance
+    {
+        /** Centre of the sprite in screen pixels. */
+        float x = 0.0f, y = 0.0f;
+        /** Scale applied to the source rectangle; negative values mirror the sprite. */
+        float scale_x = 1.0f, scale_y = 1.0f;
+        /** Clockwise rotation about the centre, in degrees. */
+        float rotation = 0.0f;
+        /** Source rectangle in bitmap pixels; a zero width or height selects the whole bitmap. */
+        int source_x = 0, source_y = 0, source_width = 0, source_height = 0;
+        /** Multiplies the texel colour and alpha. */
+        Colour tint = White;
+    };
+    /**
+     * Draw many sprites from one bitmap. The sprites are generated in a single pass and submitted through the 2D
+     * batcher, so they cost one draw call per batch (not one per sprite) and respect the current blend mode and
+     * render target. This is not GPU instancing: the vertices are still built on the CPU. Instances are drawn in
+     * order. During a normal-map pass the tint is ignored.
+     */
+    void draw_sprite_batch(Bitmap *bitmap, const std::vector<SpriteInstance> &sprites);
     /** Draw a horizontally flipped bitmap. */
     void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
     /** Draw a vertically flipped bitmap. */

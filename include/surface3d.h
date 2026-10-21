@@ -3,6 +3,7 @@
 #include "draw.h"
 #include "scene3d.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -164,5 +165,48 @@ namespace sl
                              Colour colour = {255, 255, 255, 255});
     /** Draw a mesh into the active surface. */
     bool draw_mesh(const Mesh *mesh, const glm::mat4 &model, const Material &material = {});
+
+    /** One instance of draw_mesh_instanced(): where to place the mesh and how to colour it. */
+    struct InstanceData3D
+    {
+        /** Model matrix placing this copy in the world. */
+        glm::mat4 model{1.0f};
+        /** Multiplies the mesh's vertex colours (rgb and alpha), on top of Material::tint. */
+        Colour tint{255, 255, 255, 255};
+    };
+
+    /** GPU storage for per-instance data, reusable across frames. Create with create_instance_buffer(). */
+    struct InstanceBuffer
+    {
+        std::uint32_t handle = 0;
+        /** Most instances the buffer can hold; fixed at creation. */
+        std::size_t capacity = 0;
+        /** Instances written by the last update_instance_buffer(). */
+        std::size_t count = 0;
+    };
+
+    /**
+     * Allocate room for `capacity` instances; returns nullptr on failure, or when the backend cannot instance.
+     * Use this for groups that stay put or change rarely, and pass it to draw_mesh_instanced() every frame.
+     */
+    InstanceBuffer *create_instance_buffer(std::size_t capacity);
+    /**
+     * Replace the buffer's contents. Fails if there are more instances than its capacity. Call at most once per frame,
+     * before drawing it that frame; the previous contents stay in use by draws already issued on Vulkan and Direct3D 12.
+     */
+    bool update_instance_buffer(InstanceBuffer *buffer, const std::vector<InstanceData3D> &instances);
+    void destroy_instance_buffer(InstanceBuffer *buffer);
+
+    /**
+     * Draw every instance in `buffer` with one call using hardware instancing. The view-projection is applied once and
+     * each instance's model matrix in the vertex shader, so a buffer stays valid when the camera moves. Material
+     * `terrain` shading is not supported. Returns false when the backend cannot instance.
+     */
+    bool draw_mesh_instanced(const Mesh *mesh, const InstanceBuffer *buffer, const Material &material = {});
+    /**
+     * Draw `instances` in one call, uploading them for this frame only. Convenient when instances change every frame
+     * (it uploads each time); prefer a persistent InstanceBuffer for groups that rarely change.
+     */
+    bool draw_mesh_instanced(const Mesh *mesh, const std::vector<InstanceData3D> &instances, const Material &material = {});
 
 } // namespace sl

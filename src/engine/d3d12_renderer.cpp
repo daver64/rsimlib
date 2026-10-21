@@ -82,6 +82,13 @@ namespace sl::detail
             UINT index_count = 0;
         };
 
+        struct D3D12InstanceBuffer
+        {
+            ID3D12Resource *resource = nullptr;
+            std::size_t capacity = 0;
+            D3D12_VERTEX_BUFFER_VIEW view{};
+        };
+
         struct StorageBuffer
         {
             ID3D12Resource *resource = nullptr;
@@ -449,7 +456,17 @@ namespace sl::detail
                 for (auto &[handle, mesh] : meshes_)
                     release_mesh(mesh);
                 meshes_.clear();
+                for (auto &[handle, instances] : instance_buffers_)
+                    if (instances.resource)
+                        instances.resource->Release();
+                instance_buffers_.clear();
                 for (ID3D12PipelineState *&pipeline : mesh_pipelines_)
+                {
+                    if (pipeline)
+                        pipeline->Release();
+                    pipeline = nullptr;
+                }
+                for (ID3D12PipelineState *&pipeline : mesh_instanced_pipelines_)
                 {
                     if (pipeline)
                         pipeline->Release();
@@ -477,8 +494,11 @@ namespace sl::detail
                     mesh_vertex_blob_->Release();
                 if (mesh_pixel_blob_)
                     mesh_pixel_blob_->Release();
+                if (mesh_instanced_vertex_blob_)
+                    mesh_instanced_vertex_blob_->Release();
                 mesh_vertex_blob_ = nullptr;
                 mesh_pixel_blob_ = nullptr;
+                mesh_instanced_vertex_blob_ = nullptr;
                 for (auto &[handle, texture] : textures_)
                     release_texture(texture);
                 textures_.clear();
@@ -1137,6 +1157,71 @@ namespace sl::detail
             }
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
             {
+                return draw_mesh_common(handle, params, nullptr, 0);
+            }
+            bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
+            {
+                handle = 0;
+                if (capacity == 0 || capacity > UINT_MAX / sizeof(InstanceGpu) || !context_.device())
+                    return false;
+                D3D12InstanceBuffer instances;
+                const D3D12_HEAP_PROPERTIES upload_heap = heap_properties(D3D12_HEAP_TYPE_UPLOAD);
+                const D3D12_RESOURCE_DESC desc = buffer_description(sizeof(InstanceGpu) * capacity);
+                if (FAILED(context_.device()->CreateCommittedResource(
+                        &upload_heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                        IID_PPV_ARGS(&instances.resource))))
+                    return false;
+                instances.capacity = capacity;
+                instances.view.BufferLocation = instances.resource->GetGPUVirtualAddress();
+                instances.view.SizeInBytes = static_cast<UINT>(sizeof(InstanceGpu) * capacity);
+                instances.view.StrideInBytes = sizeof(InstanceGpu);
+                handle = next_instance_buffer_++;
+                if (handle == 0)
+                    handle = next_instance_buffer_++;
+                instance_buffers_.emplace(handle, instances);
+                return true;
+            }
+            bool update_instance_buffer(std::uint32_t handle, const InstanceGpu *instances, std::size_t count) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end() || count > found->second.capacity || (!instances && count > 0))
+                    return false;
+                if (count == 0)
+                    return true;
+                void *mapped = nullptr;
+                const D3D12_RANGE read_range{0, 0};
+                if (FAILED(found->second.resource->Map(0, &read_range, &mapped)))
+                    return false;
+                std::memcpy(mapped, instances, sizeof(InstanceGpu) * count);
+                const D3D12_RANGE written_range{0, sizeof(InstanceGpu) * count};
+                found->second.resource->Unmap(0, &written_range);
+                return true;
+            }
+            void destroy_instance_buffer(std::uint32_t handle) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end())
+                    return;
+                flush_2d();
+                if (context_.frame_open())
+                    present();
+                if (!context_.wait_idle())
+                    return;
+                found->second.resource->Release();
+                instance_buffers_.erase(found);
+            }
+            bool draw_mesh_instanced(std::uint32_t handle, const MeshDrawParams &params, std::uint32_t instance_buffer,
+                                     std::size_t count) override
+            {
+                const auto instances = instance_buffers_.find(instance_buffer);
+                if (instances == instance_buffers_.end() || count == 0 || count > instances->second.capacity ||
+                    params.terrain_albedo != 0)
+                    return false;
+                return draw_mesh_common(handle, params, &instances->second, count);
+            }
+            bool draw_mesh_common(std::uint32_t handle, const MeshDrawParams &params,
+                                  const D3D12InstanceBuffer *instances, std::size_t instance_count)
+            {
                 const auto mesh = meshes_.find(handle);
                 if (mesh == meshes_.end() || active_render_target_ == 0 ||
                     !initialise_2d() || !initialise_mesh_pipeline() || !ensure_frame())
@@ -1185,14 +1270,17 @@ namespace sl::detail
                 commands->SetGraphicsRootDescriptorTable(
                     4, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor));
                 ID3D12PipelineState *mesh_pipeline =
-                    get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples);
+                    get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr);
                 if (!mesh_pipeline)
                     return false;
                 commands->SetPipelineState(mesh_pipeline);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                commands->IASetVertexBuffers(0, 1, &mesh->second.vertex_view);
+                const D3D12_VERTEX_BUFFER_VIEW views[2] = {mesh->second.vertex_view,
+                                                           instances ? instances->view : D3D12_VERTEX_BUFFER_VIEW{}};
+                commands->IASetVertexBuffers(0, instances ? 2 : 1, views);
                 commands->IASetIndexBuffer(&mesh->second.index_view);
-                commands->DrawIndexedInstanced(mesh->second.index_count, 1, 0, 0, 0);
+                commands->DrawIndexedInstanced(mesh->second.index_count,
+                                               instances ? static_cast<UINT>(instance_count) : 1, 0, 0, 0);
                 return true;
             }
             bool draw_sky(const SkyDrawParams &params) override
@@ -2032,20 +2120,25 @@ namespace sl::detail
                     return false;
                 const std::string vertex_source = load_shader("mesh3d.vert.hlsl");
                 const std::string pixel_source = load_shader("mesh3d.frag.hlsl");
-                if (vertex_source.empty() || pixel_source.empty())
+                const std::string instanced_source = load_shader("mesh3d_instanced.vert.hlsl");
+                if (vertex_source.empty() || pixel_source.empty() || instanced_source.empty())
                 {
                     last_error_ = "Unable to load the D3D12 3D mesh shaders.";
                     return false;
                 }
                 ID3DBlob *vertex_blob = nullptr;
                 ID3DBlob *pixel_blob = nullptr;
+                ID3DBlob *instanced_blob = nullptr;
                 if (!compile_shader(vertex_source, "main", "vs_5_0", &vertex_blob, last_error_) ||
-                    !compile_shader(pixel_source, "main", "ps_5_0", &pixel_blob, last_error_))
+                    !compile_shader(pixel_source, "main", "ps_5_0", &pixel_blob, last_error_) ||
+                    !compile_shader(instanced_source, "main", "vs_5_0", &instanced_blob, last_error_))
                 {
                     if (vertex_blob)
                         vertex_blob->Release();
                     if (pixel_blob)
                         pixel_blob->Release();
+                    if (instanced_blob)
+                        instanced_blob->Release();
                     return false;
                 }
 
@@ -2088,6 +2181,7 @@ namespace sl::detail
                         messages->Release();
                     vertex_blob->Release();
                     pixel_blob->Release();
+                    instanced_blob->Release();
                     return false;
                 }
                 if (messages)
@@ -2100,6 +2194,7 @@ namespace sl::detail
                 {
                     vertex_blob->Release();
                     pixel_blob->Release();
+                    instanced_blob->Release();
                     last_error_ = "Unable to create the D3D12 mesh root signature.";
                     return false;
                 }
@@ -2107,12 +2202,14 @@ namespace sl::detail
                 // Pipeline states are created on demand per cull mode and render-target sample count.
                 mesh_vertex_blob_ = vertex_blob;
                 mesh_pixel_blob_ = pixel_blob;
+                mesh_instanced_vertex_blob_ = instanced_blob;
                 return true;
             }
 
-            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples)
+            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false)
             {
-                ID3D12PipelineState *&slot = mesh_pipelines_[sample_slot(samples) * 3 + cull];
+                ID3D12PipelineState *&slot =
+                    (instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)[sample_slot(samples) * 3 + cull];
                 if (slot)
                     return slot;
                 static const D3D12_INPUT_ELEMENT_DESC elements[] = {
@@ -2125,10 +2222,18 @@ namespace sl::detail
                     {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex3D, uv)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex3D, tangent)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+                     static_cast<UINT>(offsetof(Vertex3D, tangent)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    // Slot 1: the instance's model matrix columns and tint, advancing once per instance.
+                    {"INSTANCE", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+                    {"INSTANCE", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+                    {"INSTANCE", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+                    {"INSTANCE", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+                    {"INSTANCE", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 64, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1}};
+                constexpr UINT vertex_element_count = 5;
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
                 pipeline_desc.pRootSignature = mesh_root_signature_;
-                pipeline_desc.VS = {mesh_vertex_blob_->GetBufferPointer(), mesh_vertex_blob_->GetBufferSize()};
+                ID3DBlob *vertex_blob = instanced ? mesh_instanced_vertex_blob_ : mesh_vertex_blob_;
+                pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};
                 pipeline_desc.PS = {mesh_pixel_blob_->GetBufferPointer(), mesh_pixel_blob_->GetBufferSize()};
                 pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
                 pipeline_desc.SampleMask = UINT_MAX;
@@ -2142,7 +2247,7 @@ namespace sl::detail
                 pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
                 pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
                 pipeline_desc.DepthStencilState.StencilEnable = FALSE;
-                pipeline_desc.InputLayout = {elements, static_cast<UINT>(std::size(elements))};
+                pipeline_desc.InputLayout = {elements, instanced ? static_cast<UINT>(std::size(elements)) : vertex_element_count};
                 pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
                 pipeline_desc.NumRenderTargets = 1;
                 pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -3160,6 +3265,10 @@ namespace sl::detail
             bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
             std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_pipelines_{};
+            std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_instanced_pipelines_{};
+            ID3DBlob *mesh_instanced_vertex_blob_ = nullptr;
+            std::unordered_map<std::uint32_t, D3D12InstanceBuffer> instance_buffers_;
+            std::uint32_t next_instance_buffer_ = 1;
             ID3DBlob *mesh_vertex_blob_ = nullptr;
             ID3DBlob *mesh_pixel_blob_ = nullptr;
             ID3D12RootSignature *sky_root_signature_ = nullptr;

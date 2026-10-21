@@ -132,6 +132,13 @@ namespace sl::detail
                     glDeleteProgram(mesh_program_);
                     mesh_program_ = 0;
                 }
+                if (mesh_instanced_program_ != 0)
+                {
+                    glDeleteProgram(mesh_instanced_program_);
+                    mesh_instanced_program_ = 0;
+                }
+                while (!instance_buffers_.empty())
+                    destroy_instance_buffer(instance_buffers_.begin()->first);
                 if (terrain_program_ != 0)
                 {
                     glDeleteProgram(terrain_program_);
@@ -700,19 +707,89 @@ namespace sl::detail
                 return true;
             }
 
+            struct GLInstanceBuffer
+            {
+                GLuint buffer = 0;
+                std::size_t capacity = 0;
+            };
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
+            {
+                if (params.terrain_albedo != 0)
+                {
+                    if (meshes_.find(handle) == meshes_.end() || !initialise_2d())
+                        return false;
+                    return draw_terrain(handle, params);
+                }
+                return draw_mesh_common(handle, params, nullptr, 0);
+            }
+
+            bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
+            {
+                handle = 0;
+                GLuint buffer = 0;
+                glGenBuffers(1, &buffer);
+                if (buffer == 0)
+                    return false;
+                GLint previous_buffer = 0;
+                glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_buffer);
+                glBindBuffer(GL_ARRAY_BUFFER, buffer);
+                glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(InstanceGpu) * capacity), nullptr,
+                             GL_DYNAMIC_DRAW);
+                glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_buffer));
+                handle = next_instance_buffer_++;
+                instance_buffers_[handle] = {buffer, capacity};
+                return true;
+            }
+
+            bool update_instance_buffer(std::uint32_t handle, const InstanceGpu *instances, std::size_t count) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end() || count > found->second.capacity || (!instances && count > 0))
+                    return false;
+                GLint previous_buffer = 0;
+                glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_buffer);
+                glBindBuffer(GL_ARRAY_BUFFER, found->second.buffer);
+                // Orphan the storage so an in-flight draw using the old contents is not stalled.
+                glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(InstanceGpu) * found->second.capacity),
+                             nullptr, GL_DYNAMIC_DRAW);
+                if (count > 0)
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(sizeof(InstanceGpu) * count), instances);
+                glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_buffer));
+                return true;
+            }
+
+            void destroy_instance_buffer(std::uint32_t handle) override
+            {
+                const auto found = instance_buffers_.find(handle);
+                if (found == instance_buffers_.end())
+                    return;
+                glDeleteBuffers(1, &found->second.buffer);
+                instance_buffers_.erase(found);
+            }
+
+            bool draw_mesh_instanced(std::uint32_t handle, const MeshDrawParams &params, std::uint32_t instance_buffer,
+                                     std::size_t count) override
+            {
+                const auto instances = instance_buffers_.find(instance_buffer);
+                if (instances == instance_buffers_.end() || count == 0 || count > instances->second.capacity ||
+                    params.terrain_albedo != 0)
+                    return false;
+                return draw_mesh_common(handle, params, &instances->second, count);
+            }
+
+            bool draw_mesh_common(std::uint32_t handle, const MeshDrawParams &params,
+                                  const GLInstanceBuffer *instances, std::size_t instance_count)
             {
                 const auto found = meshes_.find(handle);
                 if (found == meshes_.end() || !initialise_2d())
                     return false;
-                if (params.terrain_albedo != 0)
-                    return draw_terrain(handle, params);
-                if (mesh_program_ == 0)
+                std::uint32_t &program = instances ? mesh_instanced_program_ : mesh_program_;
+                if (program == 0)
                 {
                     std::string error;
-                    if (!create_shader(ShaderSource::glsl(load_glsl_shader("mesh3d.vert")),
+                    if (!create_shader(ShaderSource::glsl(load_glsl_shader(instances ? "mesh3d_instanced.vert" : "mesh3d.vert")),
                                        ShaderSource::glsl(load_glsl_shader("mesh3d.frag")),
-                                       mesh_program_, error))
+                                       program, error))
                         return false;
                 }
                 flush_2d();
@@ -756,18 +833,43 @@ namespace sl::detail
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.normal_texture != 0 ? params.normal_texture : white_texture_));
                 glActiveTexture(GL_TEXTURE0);
-                glUseProgram(mesh_program_);
-                glUniform1i(glGetUniformLocation(mesh_program_, "uTexture"), 0);
-                glUniform1i(glGetUniformLocation(mesh_program_, "uNormalMap"), 1);
-                glUniformMatrix4fv(glGetUniformLocation(mesh_program_, "uMvp"), 1, GL_FALSE, params.mvp);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uNormalRows"), 3, &params.normal_rows[0][0]);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uLight"), 1, params.light);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uLightColour"), 1, params.light_colour);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogColour"), 1, params.fog_colour);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogBeta"), 1, params.fog_beta);
-                glUniform4fv(glGetUniformLocation(mesh_program_, "uFogView"), 1, params.fog_view);
+                glUseProgram(program);
+                glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
+                glUniform1i(glGetUniformLocation(program, "uNormalMap"), 1);
+                glUniformMatrix4fv(glGetUniformLocation(program, "uMvp"), 1, GL_FALSE, params.mvp);
+                glUniform4fv(glGetUniformLocation(program, "uNormalRows"), 3, &params.normal_rows[0][0]);
+                glUniform4fv(glGetUniformLocation(program, "uLight"), 1, params.light);
+                glUniform4fv(glGetUniformLocation(program, "uLightColour"), 1, params.light_colour);
+                glUniform4fv(glGetUniformLocation(program, "uFogColour"), 1, params.fog_colour);
+                glUniform4fv(glGetUniformLocation(program, "uFogBeta"), 1, params.fog_beta);
+                glUniform4fv(glGetUniformLocation(program, "uFogView"), 1, params.fog_view);
                 glBindVertexArray(found->second.vao);
-                glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
+                if (instances)
+                {
+                    GLint previous_array_buffer = 0;
+                    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previous_array_buffer);
+                    glBindBuffer(GL_ARRAY_BUFFER, instances->buffer);
+                    // Locations 6-9 are the model matrix columns, 10 the tint; all advance once per instance.
+                    for (GLuint attribute = 0; attribute < 5; ++attribute)
+                    {
+                        glEnableVertexAttribArray(6 + attribute);
+                        glVertexAttribPointer(6 + attribute, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceGpu),
+                                              reinterpret_cast<void *>(sizeof(float) * 4 * attribute));
+                        glVertexAttribDivisor(6 + attribute, 1);
+                    }
+                    glDrawElementsInstanced(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr,
+                                            static_cast<GLsizei>(instance_count));
+                    for (GLuint attribute = 0; attribute < 5; ++attribute)
+                    {
+                        glVertexAttribDivisor(6 + attribute, 0);
+                        glDisableVertexAttribArray(6 + attribute);
+                    }
+                    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previous_array_buffer));
+                }
+                else
+                {
+                    glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
+                }
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));
@@ -1495,6 +1597,9 @@ namespace sl::detail
             std::unordered_map<std::uint32_t, GLMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
             std::uint32_t mesh_program_ = 0;
+            std::uint32_t mesh_instanced_program_ = 0;
+            std::unordered_map<std::uint32_t, GLInstanceBuffer> instance_buffers_;
+            std::uint32_t next_instance_buffer_ = 1;
             std::uint32_t terrain_program_ = 0;
             std::uint32_t sky_program_ = 0;
             std::uint32_t sky_vao_ = 0;

@@ -1,5 +1,6 @@
 #include "sl.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <filesystem>
@@ -186,6 +187,89 @@ void test_backend(sl::GraphicsBackend backend)
         sl::destroy_bitmap(mip_bmp);
     }
 
+    // 6c. draw_sprite_batch must match the same sprites drawn one at a time, and handle tint and mirroring.
+    {
+        sl::Bitmap *sheet = sl::create_bitmap(16, 16);
+        assert(sheet != nullptr);
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; ++x)
+                sl::putpixel(sheet, x, y, x < 8 ? sl::Colour{static_cast<Uint8>(x * 30), static_cast<Uint8>(y * 15), 40, 255}
+                                                : sl::Colour{40, static_cast<Uint8>(y * 15), static_cast<Uint8>(x * 15), 255});
+        assert(sl::upload_bitmap(sheet));
+
+        auto render_to = [&](auto &&draw)
+        {
+            sl::Bitmap *target = sl::create_render_target(64, 64);
+            assert(target != nullptr);
+            assert(sl::begin_render_target(target));
+            sl::clear_render_target(sl::Colour{0, 0, 0, 255});
+            draw();
+            sl::end_render_target();
+            flush_frame();
+            assert(sl::download_bitmap(target));
+            return target;
+        };
+
+        std::vector<sl::SpriteInstance> sprites(3);
+        sprites[0].x = 16.0f;
+        sprites[0].y = 16.0f;
+        sprites[0].rotation = 30.0f;
+        sprites[1].x = 44.0f;
+        sprites[1].y = 18.0f;
+        sprites[1].scale_x = 1.5f;
+        sprites[1].scale_y = 0.75f;
+        sprites[1].source_x = 8;
+        sprites[1].source_y = 0;
+        sprites[1].source_width = 8;
+        sprites[1].source_height = 16;
+        sprites[2].x = 32.0f;
+        sprites[2].y = 46.0f;
+        sprites[2].rotation = -75.0f;
+        sprites[2].scale_x = 2.0f;
+        sprites[2].scale_y = 2.0f;
+
+        sl::Bitmap *batched = render_to([&] { sl::draw_sprite_batch(sheet, sprites); });
+        sl::Bitmap *single = render_to(
+            [&]
+            {
+                for (const sl::SpriteInstance &sprite : sprites)
+                {
+                    const int sw = sprite.source_width > 0 ? sprite.source_width : 16;
+                    const int sh = sprite.source_height > 0 ? sprite.source_height : 16;
+                    const float w = sw * sprite.scale_x;
+                    const float h = sh * sprite.scale_y;
+                    sl::draw_sprite_region_rotated(sheet, sprite.source_x, sprite.source_y, sw, sh, sprite.x - w * 0.5f,
+                                                   sprite.y - h * 0.5f, w, h, w * 0.5f, h * 0.5f, sprite.rotation);
+                }
+            });
+        int worst = 0;
+        for (int y = 0; y < 64; ++y)
+            for (int x = 0; x < 64; ++x)
+            {
+                const sl::Colour a = sl::getpixel(batched, x, y);
+                const sl::Colour b = sl::getpixel(single, x, y);
+                worst = std::max({worst, std::abs(a.red - b.red), std::abs(a.green - b.green), std::abs(a.blue - b.blue)});
+            }
+        assert(worst <= 2);
+        sl::destroy_bitmap(batched);
+        sl::destroy_bitmap(single);
+
+        // Left half red-ish, right half blue-ish: a mirrored, red-tinted sprite swaps them and drops green/blue.
+        std::vector<sl::SpriteInstance> mirrored(1);
+        mirrored[0].x = 32.0f;
+        mirrored[0].y = 32.0f;
+        mirrored[0].scale_x = -2.0f;
+        mirrored[0].scale_y = 2.0f;
+        mirrored[0].tint = {255, 0, 0, 255};
+        sl::Bitmap *mirror_result = render_to([&] { sl::draw_sprite_batch(sheet, mirrored); });
+        const sl::Colour mirror_left = sl::getpixel(mirror_result, 24, 32);
+        const sl::Colour mirror_right = sl::getpixel(mirror_result, 40, 32);
+        assert(mirror_left.green == 0 && mirror_left.blue == 0 && mirror_right.green == 0 && mirror_right.blue == 0);
+        assert(mirror_left.red <= 42 && mirror_right.red > 60);
+        sl::destroy_bitmap(mirror_result);
+        sl::destroy_bitmap(sheet);
+    }
+
     // 7. Test multitexturing shader
     sl::Shader multi_shader;
     const std::string vert_source =
@@ -277,6 +361,93 @@ void test_backend(sl::GraphicsBackend backend)
         comp_shader.reset();
     }
     storage_buf.destroy();
+
+    // 8b. Hardware instancing must match the same meshes drawn one by one.
+    if (sl::Surface3D *surface = sl::create_surface_3d(96, 96, 1))
+    {
+        sl::Mesh *cube = sl::create_cube_mesh(1.0f);
+        assert(cube != nullptr);
+        sl::Camera camera;
+        camera.position = {0.0f, 1.5f, 6.0f};
+        camera.target = {0.0f, 0.0f, 0.0f};
+
+        std::vector<sl::InstanceData3D> instances(3);
+        instances[0].model = sl::model_matrix({-1.6f, 0.0f, 0.0f}, {0.3f, 0.5f, 0.0f});
+        instances[1].model = sl::model_matrix({0.0f, 0.0f, -1.0f}, {0.0f, 0.2f, 0.0f}) *
+                             glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.8f, 0.7f));
+        instances[2].model = sl::model_matrix({1.6f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.4f});
+        instances[2].tint = {255, 128, 64, 255};
+
+        auto render = [&](auto &&draw)
+        {
+            sl::Bitmap *target = sl::surface_3d_bitmap(surface);
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({20, 30, 40});
+            sl::set_light_3d({{-0.4f, -1.0f, -0.6f}, 0.25f});
+            draw();
+            sl::end_surface_3d();
+            flush_frame();
+            assert(sl::download_bitmap(target));
+            return std::vector<sl::Colour>(
+                [&]
+                {
+                    std::vector<sl::Colour> pixels;
+                    for (int y = 0; y < target->height; ++y)
+                        for (int x = 0; x < target->width; ++x)
+                            pixels.push_back(sl::getpixel(target, x, y));
+                    return pixels;
+                }());
+        };
+        auto matches = [](const std::vector<sl::Colour> &a, const std::vector<sl::Colour> &b)
+        {
+            assert(a.size() == b.size());
+            for (std::size_t i = 0; i < a.size(); ++i)
+                if (std::abs(a[i].red - b[i].red) > 2 || std::abs(a[i].green - b[i].green) > 2 ||
+                    std::abs(a[i].blue - b[i].blue) > 2)
+                    return false;
+            return true;
+        };
+
+        const auto reference = render(
+            [&]
+            {
+                for (const sl::InstanceData3D &instance : instances)
+                {
+                    sl::Material material;
+                    material.tint = instance.tint;
+                    assert(sl::draw_mesh(cube, instance.model, material));
+                }
+            });
+        // The scene is not empty: some pixel differs from the clear colour.
+        bool drew = false;
+        for (const sl::Colour &pixel : reference)
+            drew = drew || pixel.red != 20 || pixel.green != 30 || pixel.blue != 40;
+        assert(drew);
+
+        sl::InstanceBuffer *buffer = sl::create_instance_buffer(8);
+        if (buffer)
+        {
+            assert(sl::update_instance_buffer(buffer, instances));
+            assert(!sl::update_instance_buffer(buffer, std::vector<sl::InstanceData3D>(9)));
+            assert(matches(reference, render([&] { assert(sl::draw_mesh_instanced(cube, buffer)); })));
+            sl::destroy_instance_buffer(buffer);
+            assert(matches(reference, render([&] { assert(sl::draw_mesh_instanced(cube, instances)); })));
+            // A second transient draw in the same frame must not overwrite the first.
+            const auto split = render(
+                [&]
+                {
+                    assert(sl::draw_mesh_instanced(cube, std::vector<sl::InstanceData3D>{instances[0], instances[1]}));
+                    assert(sl::draw_mesh_instanced(cube, std::vector<sl::InstanceData3D>{instances[2]}));
+                });
+            assert(matches(reference, split));
+        }
+        else
+        {
+            std::cout << "  Instancing not supported, skipping." << std::endl;
+        }
+        sl::destroy_mesh(cube);
+        sl::destroy_surface_3d(surface);
+    }
 
     // 9. Test Allegro-style do_* point-plotter callbacks, calc_spline, arc, and spline
     std::vector<std::pair<int, int>> plotted_points;

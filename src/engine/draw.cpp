@@ -2077,6 +2077,61 @@ namespace sl
 		draw_textured_region_flipped(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, flipHorizontal, flipVertical, flipDiagonal);
 	}
 
+	void draw_sprite_batch(Bitmap *bitmap, const std::vector<SpriteInstance> &sprites)
+	{
+		if (!bitmap || sprites.empty() || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0)
+			return;
+		bitmap = pass_bitmap(bitmap);
+		if (!upload_bitmap(bitmap) || bitmap->width <= 0 || bitmap->height <= 0)
+			return;
+
+		detail::gl2d_begin(screen_width(), screen_height());
+		if (detail::Renderer *renderer = detail::active_renderer())
+			renderer->set_premultiplied_alpha(bitmap->fbo != 0);
+
+		constexpr std::size_t chunk_sprites = 8192;
+		std::vector<detail::GLVertex> vertices;
+		vertices.reserve(std::min(sprites.size(), chunk_sprites) * 6);
+		const auto flush = [&]()
+		{
+			if (!vertices.empty())
+				detail::gl2d_submit(detail::PrimitiveType::triangles, vertices.data(), static_cast<int>(vertices.size()), bitmap->gpu_texture);
+			vertices.clear();
+		};
+		for (const SpriteInstance &sprite : sprites)
+		{
+			const int source_width = sprite.source_width > 0 && sprite.source_height > 0 ? sprite.source_width : bitmap->width;
+			const int source_height = sprite.source_width > 0 && sprite.source_height > 0 ? sprite.source_height : bitmap->height;
+			const int source_x = sprite.source_width > 0 && sprite.source_height > 0 ? sprite.source_x : 0;
+			const int source_y = sprite.source_width > 0 && sprite.source_height > 0 ? sprite.source_y : 0;
+			const float half_width = static_cast<float>(source_width) * sprite.scale_x * 0.5f;
+			const float half_height = static_cast<float>(source_height) * sprite.scale_y * 0.5f;
+			const float radians = sprite.rotation * pi / 180.0f;
+			const float cosine = std::cos(radians);
+			const float sine = std::sin(radians);
+			const float left_texture = static_cast<float>(source_x) / bitmap->width;
+			const float top_texture = static_cast<float>(source_y) / bitmap->height;
+			const float right_texture = static_cast<float>(source_x + source_width) / bitmap->width;
+			const float bottom_texture = static_cast<float>(source_y + source_height) / bitmap->height;
+			Tint tint = {sprite.tint.red / 255.0f, sprite.tint.green / 255.0f, sprite.tint.blue / 255.0f, sprite.tint.alpha / 255.0f};
+			if (normal_pass_active)
+				tint = normal_tint(cosine * (sprite.scale_x < 0.0f ? -1.0f : 1.0f), -sine * (sprite.scale_y < 0.0f ? -1.0f : 1.0f),
+								   sine * (sprite.scale_x < 0.0f ? -1.0f : 1.0f), cosine * (sprite.scale_y < 0.0f ? -1.0f : 1.0f));
+			const auto corner = [&](float dx, float dy, float u, float v)
+			{
+				return detail::GLVertex{sprite.x + dx * cosine - dy * sine, sprite.y + dx * sine + dy * cosine, u, v, tint.r, tint.g, tint.b, tint.a};
+			};
+			const detail::GLVertex top_left = corner(-half_width, -half_height, left_texture, top_texture);
+			const detail::GLVertex top_right = corner(half_width, -half_height, right_texture, top_texture);
+			const detail::GLVertex bottom_right = corner(half_width, half_height, right_texture, bottom_texture);
+			const detail::GLVertex bottom_left = corner(-half_width, half_height, left_texture, bottom_texture);
+			vertices.insert(vertices.end(), {top_left, top_right, bottom_right, top_left, bottom_right, bottom_left});
+			if (vertices.size() >= chunk_sprites * 6)
+				flush();
+		}
+		flush();
+	}
+
 	/** Draw a horizontally flipped bitmap. */
 	void draw_sprite_h_flip(Bitmap *bitmap, float x, float y)
 	{

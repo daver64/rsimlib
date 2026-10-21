@@ -47,6 +47,7 @@ namespace sl
 
 	void end_frame()
 	{
+		detail::recycle_transient_instance_buffers();
 		Uint64 now = SDL_GetTicks64();
 
 		// Skip the first call so the initial frame doesn't report a bogus elapsed time.

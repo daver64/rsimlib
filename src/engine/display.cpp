@@ -418,6 +418,7 @@ namespace sl
         detail::destroy_screen();
         if (renderer)
         {
+            detail::release_transient_instance_buffers();
             renderer->shutdown();
             renderer.reset();
         }
