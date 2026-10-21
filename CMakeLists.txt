@@ -610,6 +610,10 @@ add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
 add_executable(exlobby src/examples/exlobby/exlobby.cpp)
 target_link_libraries(exlobby PRIVATE simlib imgui)
+add_executable(expathfinding src/examples/expathfinding/expathfinding.cpp)
+target_link_libraries(expathfinding PRIVATE simlib)
+add_executable(exanimsprite src/examples/exanimsprite/exanimsprite.cpp)
+target_link_libraries(exanimsprite PRIVATE simlib)
 
 add_executable(exconfig src/examples/exconfig/exconfig.cpp)
 target_link_libraries(exconfig PRIVATE simlib)
@@ -630,6 +634,11 @@ if(BUILD_TESTING)
     target_link_libraries(lobby_test PRIVATE simlib)
     target_compile_definitions(lobby_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME lobby COMMAND lobby_test)
+
+    add_executable(pathfinder_test tests/pathfinder_test.cpp)
+    target_link_libraries(pathfinder_test PRIVATE simlib)
+    target_compile_definitions(pathfinder_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME pathfinder COMMAND pathfinder_test)
 
     add_executable(isometric_test tests/isometric_test.cpp)
     target_link_libraries(isometric_test PRIVATE simlib)
@@ -742,7 +751,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)

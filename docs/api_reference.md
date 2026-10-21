@@ -1143,7 +1143,7 @@ clutter.draw(origin);
 - `create_atlas(bitmap, tile_w, tile_h, spacing = 0, margin = 0)` / `load_atlas_from_file(path, tile_w, tile_h)`: slice a sprite sheet into numbered tiles. `atlas_tile_rect` returns a tile's pixel rectangle.
 - `atlas_blit`, `atlas_stretch_blit`, `atlas_rotate_sprite` and `atlas_rotate_stretch_sprite` draw tiles to a bitmap, with optional pivots.
 - `AnimatedSprite` plays a run of atlas tiles with a per-frame duration, optional one-shot playback and rotation. Create one with `create_animated_sprite(atlas, start_tile, frames, x, y, w, h, duration)` and draw it with `draw_animated_sprite` or `draw_rotated_animated_sprite`.
-- A sprite manager owns many sprites: `add_animated_sprite`, `update`, `draw_sprites`, `set_sprite_position`, `set_sprite_rotation`, `set_sprite_tiles`, `toggle_pause` and `remove_animated_sprite`.
+- A sprite manager owns many sprites: `add_animated_sprite`, `update`, `draw_sprites`, `set_sprite_position`, `set_sprite_rotation`, `set_sprite_tiles`, `toggle_pause` and `remove_animated_sprite`. See `src/examples/exanimsprite`.
 
 ---
 
@@ -1175,7 +1175,7 @@ MPEG1/MP2 playback into a bitmap.
 
 ## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
 
-A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it.
+A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it. See `src/examples/expathfinding`.
 
 - `Pathfinder::resize(columns, rows, tile_w, tile_h, blocked_fn)` sets up the grid; `update(player_col, player_row, player_moving)` rebuilds the chase field and updates scent and sound each frame.
 - `next_step(PathLayer, col, row, step)` returns the best neighbouring step: downhill on `PathLayer::chase`, uphill on `scent` or `sound`. Enemies read the field rather than searching.

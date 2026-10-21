@@ -14,7 +14,7 @@ struct AnimationFrame {
 
 struct AnimatedSprite {
     sl::Atlas atlas;
-    int current_frame;
+    int current_frame=0;
     int x=0;
     int y=0;
     int width=32;

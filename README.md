@@ -264,6 +264,8 @@ The full catalog of focused runnable examples follows.
 ./build/exmipmap         # Side-by-side bilinear vs mipmaps vs mipmaps + 16x anisotropy
 ./build/exinstancing     # 6400 cubes drawn per-mesh vs hardware-instanced (Space switches), plus a 2D sprite batch
 ./build/exlobby         # Game lobby: find games in an IRC channel, then play over UDP (--irc-host HOST to choose the server)
+./build/expathfinding   # Flow-field enemies (chase/scent/sound) with wall editing and heat-map overlays
+./build/exanimsprite    # AnimationManager: looping, rotated, paused and one-shot animated sprites from an atlas
 ./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
@@ -317,6 +319,8 @@ The full catalog of focused runnable examples follows.
 - **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`.
 - **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm.
 - **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena.
+- **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer.
+- **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions.
 - **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading.
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
