@@ -1,6 +1,6 @@
 # exprecip2d
 
-Rain, hail and snow over a scrolling night city: splashes, wind, snow that piles up on the rooftops, lens droplets and a matching sound bed.
+Rain, hail and snow over a scrolling night city: splashes, wind, snow that piles up on the rooftops, lens haze and a matching synthesised sound bed.
 
 ![exprecip2d screenshot](img/exprecip2d.png)
 
@@ -9,7 +9,8 @@ Rain, hail and snow over a scrolling night city: splashes, wind, snow that piles
 - Presets and smooth transitions between weather types (`transition_to`)
 - Wind that slants the fall, adjustable at run time
 - Snow accumulating on surfaces, then slumping and melting
-- `PrecipitationLens` raindrops/frost on the "camera", and `PrecipitationAudio` noise beds
+- `PrecipitationLens` haze, with optional raindrops and melting flakes on the "camera" (B)
+- `PrecipitationAudio`: a looped rain, hail or snow sound synthesised at run time (no sound files), at a quiet default volume
 
 ## Key code
 
@@ -36,7 +37,7 @@ Each frame, scroll the world, update, then draw on top of the scene:
 precipitation.scroll(move, 0.0f);
 precipitation.update(dt);
 lens.update(dt, precipitation.weather.current());
-sound.update(precipitation.weather.current());
+sound.update(precipitation.weather.current());   // optional 2nd argument: master volume 0-255, default 26 (about 0.1)
 // ... draw the scene ...
 precipitation.draw();
 ```

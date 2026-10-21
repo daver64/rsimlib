@@ -994,7 +994,19 @@ float cover = p3.snow_cover();             // 0-1; use snow_tinted(colour, cover
 precipitation_apply_environment(env, p3.weather.current());  // darker sky, denser fog
 ```
 
-Also: `Precipitation3D::wind_from_clouds`, `PrecipitationLens` (haze overlay; set `droplets = true` for raindrops and melting flakes on the lens) and `PrecipitationAudio` (looped noise beds). 3D particles are drawn with `draw_mesh_instanced` as alpha-blended quads (`MaterialBlend::alpha`), after your opaque geometry.
+Also: `Precipitation3D::wind_from_clouds` and `PrecipitationLens` (haze overlay; set `droplets = true` for raindrops and melting flakes on the lens).
+
+**Weather sound.** `PrecipitationAudio` plays a looped bed that is synthesised at run time with the audio synth, so no sound files are needed: a bright hiss for rain, a gated clatter for hail and a faint low wind for snow. Call `sl::audio_fx_init()` first, then `update()` each frame and `release()` before audio shutdown (the destructor also does this).
+
+```cpp
+sl::audio_fx_init();
+sl::PrecipitationAudio sound;
+sound.update(p3.weather.current());       // default master volume 26, about 0.1 of full scale
+sound.update(p3.weather.current(), 60);   // master 0-255; louder
+sound.update({sl::PrecipitationType::none, 0.0f});  // silence
+```
+
+Loudness follows the weather's intensity (snow is quieter than rain) scaled by `master`. The audio layer has no per-voice volume, so the loop restarts when the volume (in steps of 4) or the weather type changes. `PrecipitationAudio::volume_for(weather, master)` returns the chosen 0-255 volume. 3D particles are drawn with `draw_mesh_instanced` as alpha-blended quads (`MaterialBlend::alpha`), after your opaque geometry.
 
 ---
 

@@ -10,7 +10,7 @@ Rain, hail and snow falling around a 3D camera, driven by the cloud layer's wind
 - Wind taken from the `CloudLayer` (`wind_from_clouds`)
 - `precipitation_apply_environment` darkening the sky and thickening fog
 - `snow_cover()` and `snow_tinted()` to whiten surfaces as snow accumulates
-- Lens droplets and audio, as in the 2D example
+- Lens haze with optional droplets, and a synthesised weather sound (no sound files), as in the 2D example
 
 ## Key code
 
@@ -21,7 +21,7 @@ sl::Precipitation3D precipitation;
 precipitation.set_ground(surface_height);
 precipitation.set_accumulation(0.04f, 0.03f);
 sl::PrecipitationLens lens;
-sl::PrecipitationAudio sound;
+sl::PrecipitationAudio sound;   // sound.update(weather) each frame; optional master volume 0-255, default 26
 ```
 
 Wind follows the clouds, stronger in heavier weather:
