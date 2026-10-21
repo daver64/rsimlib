@@ -52,7 +52,9 @@ namespace sl
         }
         if (!graphics_backend_available(backend))
         {
-            sl::detail::set_error("Requested graphics backend is not available");
+            sl::detail::set_error(backend == GraphicsBackend::d3d12
+                                      ? "Direct3D 12 is only available on Windows"
+                                      : "Requested graphics backend is not available");
             return false;
         }
         selected_backend = backend;
@@ -77,7 +79,12 @@ namespace sl
                 return false;
             }
         }
-        return set_graphics_backend(requested);
+        if (!set_graphics_backend(requested))
+        {
+            std::fprintf(stderr, "%s\n", sl::last_error().c_str());
+            return false;
+        }
+        return true;
     }
 
     bool graphics_backend_available(GraphicsBackend backend)

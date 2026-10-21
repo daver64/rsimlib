@@ -124,7 +124,6 @@ int main(int argc, char **argv)
 {
     if (!sl::configure_graphics_backend_from_args(argc, argv))
     {
-        std::fprintf(stderr, "Invalid graphics backend arguments: %s\n", sl::last_error().c_str());
         return -1;
     }
     constexpr int screen_w = 1100;
