@@ -779,6 +779,29 @@ namespace sl
                         part.name = node.value("name", meshes[mesh_index].value("name", ""));
                         part.mesh = cached->second;
                         part.transform = world;
+                        part.node = node_index;
+                        const json &accessors = gltf.doc.value("accessors", json::array());
+                        const int position = primitives[p].value("attributes", json::object()).value("POSITION", -1);
+                        if (position >= 0 && position < static_cast<int>(accessors.size()) &&
+                            accessors[position].contains("min") && accessors[position].contains("max") &&
+                            accessors[position]["min"].size() == 3 && accessors[position]["max"].size() == 3)
+                        {
+                            glm::vec3 low, high;
+                            for (int c = 0; c < 3; ++c)
+                            {
+                                low[c] = accessors[position]["min"][c].get<float>();
+                                high[c] = accessors[position]["max"][c].get<float>();
+                            }
+                            for (int corner = 0; corner < 8; ++corner)
+                            {
+                                const glm::vec3 local((corner & 1) ? high.x : low.x, (corner & 2) ? high.y : low.y,
+                                                      (corner & 4) ? high.z : low.z);
+                                const glm::vec3 point = glm::vec3(world * glm::vec4(local, 1.0f));
+                                part.bounds_min = part.has_bounds ? glm::min(part.bounds_min, point) : point;
+                                part.bounds_max = part.has_bounds ? glm::max(part.bounds_max, point) : point;
+                                part.has_bounds = true;
+                            }
+                        }
                         const json &materials = gltf.doc.value("materials", json::array());
                         const int m = primitives[p].value("material", -1);
                         if (m >= 0 && m < static_cast<int>(materials.size()))
@@ -786,6 +809,8 @@ namespace sl
                             const json &material = materials[m];
                             if (material.value("doubleSided", false))
                                 part.material.cull = CullMode::none;
+                            if (material.value("alphaMode", "OPAQUE") == "MASK")
+                                part.material.alpha_cutoff = material.value("alphaCutoff", 0.5f);
                             if (material.contains("pbrMetallicRoughness"))
                             {
                                 const json &pbr = material["pbrMetallicRoughness"];
@@ -820,6 +845,193 @@ namespace sl
             if (node.contains("children"))
                 for (const json &child : node["children"])
                     visit_gltf_node(model, gltf, child.get<int>(), world, depth + 1, mesh_cache, image_cache);
+        }
+
+        glm::mat4 node_local(const ModelNode &node)
+        {
+            if (node.use_matrix && !node.animated)
+                return node.matrix;
+            return glm::translate(glm::mat4(1.0f), node.translation) * glm::mat4_cast(node.rotation) *
+                   glm::scale(glm::mat4(1.0f), node.scale);
+        }
+
+        glm::mat4 node_world(const Model &model, int index)
+        {
+            glm::mat4 world(1.0f);
+            const int limit = static_cast<int>(model.nodes.size());
+            for (int guard = 0; index >= 0 && index < limit && guard <= limit; ++guard)
+            {
+                world = node_local(model.nodes[index]) * world;
+                index = model.nodes[index].parent;
+            }
+            return world;
+        }
+
+        void refresh_model_parts(Model &model)
+        {
+            for (ModelPart &part : model.parts)
+                if (part.node >= 0 && part.node < static_cast<int>(model.nodes.size()))
+                    part.transform = node_world(model, part.node);
+        }
+
+        void build_gltf_nodes(Model &model, const Gltf &gltf)
+        {
+            const json &nodes = gltf.doc.value("nodes", json::array());
+            model.nodes.resize(nodes.size());
+            for (std::size_t i = 0; i < nodes.size(); ++i)
+            {
+                const json &source = nodes[i];
+                ModelNode &node = model.nodes[i];
+                node.name = source.value("name", "");
+                if (source.contains("matrix") && source["matrix"].is_array() && source["matrix"].size() == 16)
+                {
+                    node.use_matrix = true;
+                    node.matrix = node_matrix(source);
+                    const glm::mat4 &m = node.matrix;
+                    node.translation = glm::vec3(m[3]);
+                    glm::vec3 columns[3] = {glm::vec3(m[0]), glm::vec3(m[1]), glm::vec3(m[2])};
+                    glm::vec3 scale(glm::length(columns[0]), glm::length(columns[1]), glm::length(columns[2]));
+                    if (glm::determinant(glm::mat3(m)) < 0.0f)
+                        scale.x = -scale.x;
+                    for (int c = 0; c < 3; ++c)
+                        if (scale[c] != 0.0f)
+                            columns[c] /= scale[c];
+                    node.scale = scale;
+                    node.rotation = glm::normalize(glm::quat_cast(glm::mat3(columns[0], columns[1], columns[2])));
+                }
+                else
+                {
+                    if (source.contains("translation") && source["translation"].size() == 3)
+                        node.translation = {source["translation"][0].get<float>(), source["translation"][1].get<float>(),
+                                            source["translation"][2].get<float>()};
+                    if (source.contains("scale") && source["scale"].size() == 3)
+                        node.scale = {source["scale"][0].get<float>(), source["scale"][1].get<float>(),
+                                      source["scale"][2].get<float>()};
+                    if (source.contains("rotation") && source["rotation"].size() == 4)
+                        node.rotation = glm::normalize(glm::quat(
+                            source["rotation"][3].get<float>(), source["rotation"][0].get<float>(),
+                            source["rotation"][1].get<float>(), source["rotation"][2].get<float>()));
+                }
+                node.rest_translation = node.translation;
+                node.rest_rotation = node.rotation;
+                node.rest_scale = node.scale;
+            }
+            for (std::size_t i = 0; i < nodes.size(); ++i)
+                for (const json &child : nodes[i].value("children", json::array()))
+                {
+                    const int c = child.get<int>();
+                    if (c >= 0 && c < static_cast<int>(nodes.size()) && c != static_cast<int>(i) &&
+                        model.nodes[c].parent < 0)
+                        model.nodes[c].parent = static_cast<int>(i);
+                }
+        }
+
+        void load_gltf_clips(Model &model, const Gltf &gltf)
+        {
+            const json &animations = gltf.doc.value("animations", json::array());
+            for (std::size_t a = 0; a < animations.size(); ++a)
+            {
+                const json &source = animations[a];
+                ModelClip clip;
+                clip.name = source.value("name", "animation" + std::to_string(a));
+                const json &samplers = source.value("samplers", json::array());
+                for (const json &channel : source.value("channels", json::array()))
+                {
+                    const json target = channel.value("target", json::object());
+                    const int node = target.value("node", -1);
+                    const std::string path = target.value("path", "");
+                    const int sampler_index = channel.value("sampler", -1);
+                    if (node < 0 || node >= static_cast<int>(model.nodes.size()))
+                        continue;
+                    if (path != "translation" && path != "rotation" && path != "scale")
+                    {
+                        model.unsupported_animations.push_back(clip.name + ": " + path);
+                        continue;
+                    }
+                    if (sampler_index < 0 || sampler_index >= static_cast<int>(samplers.size()))
+                        continue;
+                    const json &sampler = samplers[sampler_index];
+                    const std::string mode = sampler.value("interpolation", "LINEAR");
+                    ModelChannel out;
+                    out.node = node;
+                    out.path = path == "translation" ? ModelChannelPath::translation
+                               : path == "rotation"  ? ModelChannelPath::rotation
+                                                     : ModelChannelPath::scale;
+                    out.interpolation = mode == "STEP"          ? ModelInterpolation::step
+                                        : mode == "CUBICSPLINE" ? ModelInterpolation::cubic_spline
+                                                                : ModelInterpolation::linear;
+                    std::vector<double> times, values;
+                    int time_components = 0, value_components = 0;
+                    const int expected = out.path == ModelChannelPath::rotation ? 4 : 3;
+                    const std::size_t per_key =
+                        static_cast<std::size_t>(expected) * (out.interpolation == ModelInterpolation::cubic_spline ? 3 : 1);
+                    bool valid = read_accessor(gltf, sampler.value("input", -1), times, time_components) &&
+                                 time_components == 1 &&
+                                 read_accessor(gltf, sampler.value("output", -1), values, value_components) &&
+                                 value_components == expected && !times.empty() && values.size() == times.size() * per_key;
+                    for (std::size_t i = 0; valid && i < times.size(); ++i)
+                        valid = std::isfinite(times[i]) && (i == 0 || times[i] >= times[i - 1]);
+                    for (std::size_t i = 0; valid && i < values.size(); ++i)
+                        valid = std::isfinite(values[i]);
+                    if (!valid)
+                    {
+                        model.unsupported_animations.push_back(clip.name + ": invalid " + path + " channel");
+                        continue;
+                    }
+                    out.times.assign(times.begin(), times.end());
+                    out.values.assign(values.begin(), values.end());
+                    clip.duration = std::max(clip.duration, out.times.back());
+                    clip.channels.push_back(std::move(out));
+                }
+                if (!clip.channels.empty())
+                    model.clips.push_back(std::move(clip));
+            }
+        }
+
+        // Writes the channel's value at `time` into out (3 floats, or 4 for rotation as x, y, z, w).
+        void sample_channel(const ModelChannel &channel, float time, float *out)
+        {
+            const int components = channel.path == ModelChannelPath::rotation ? 4 : 3;
+            const bool cubic = channel.interpolation == ModelInterpolation::cubic_spline;
+            const int stride = components * (cubic ? 3 : 1);
+            const int count = static_cast<int>(channel.times.size());
+            // part: 0 = in-tangent, 1 = value, 2 = out-tangent (cubic only)
+            const auto key = [&](int k, int part) { return &channel.values[static_cast<std::size_t>(k) * stride + (cubic ? part * components : 0)]; };
+            const auto copy = [&](const float *from) { std::copy(from, from + components, out); };
+            if (count == 1 || time <= channel.times.front())
+                return copy(key(0, 1));
+            if (time >= channel.times.back())
+                return copy(key(count - 1, 1));
+            const int i = static_cast<int>(std::upper_bound(channel.times.begin(), channel.times.end(), time) -
+                                           channel.times.begin()) - 1;
+            const float span = channel.times[i + 1] - channel.times[i];
+            if (channel.interpolation == ModelInterpolation::step || span <= 0.0f)
+                return copy(key(i, 1));
+            const float s = (time - channel.times[i]) / span;
+            const float *v0 = key(i, 1);
+            const float *v1 = key(i + 1, 1);
+            if (cubic)
+            {
+                const float *b0 = key(i, 2);     // out-tangent of the first key
+                const float *a1 = key(i + 1, 0); // in-tangent of the second key
+                const float s2 = s * s, s3 = s2 * s;
+                for (int c = 0; c < components; ++c)
+                    out[c] = (2 * s3 - 3 * s2 + 1) * v0[c] + span * (s3 - 2 * s2 + s) * b0[c] +
+                             (-2 * s3 + 3 * s2) * v1[c] + span * (s3 - s2) * a1[c];
+            }
+            else if (channel.path == ModelChannelPath::rotation)
+            {
+                const glm::quat q = glm::slerp(glm::quat(v0[3], v0[0], v0[1], v0[2]), glm::quat(v1[3], v1[0], v1[1], v1[2]), s);
+                out[0] = q.x;
+                out[1] = q.y;
+                out[2] = q.z;
+                out[3] = q.w;
+            }
+            else
+            {
+                for (int c = 0; c < components; ++c)
+                    out[c] = v0[c] + (v1[c] - v0[c]) * s;
+            }
         }
     } // namespace
 
@@ -1025,8 +1237,10 @@ namespace sl
             }
             std::map<std::pair<int, int>, Mesh *> mesh_cache;
             std::map<int, Bitmap *> image_cache;
+            build_gltf_nodes(*model, gltf);
             for (const int root : roots)
                 visit_gltf_node(*model, gltf, root, glm::mat4(1.0f), 0, mesh_cache, image_cache);
+            load_gltf_clips(*model, gltf);
         }
         catch (const json::exception &error)
         {
@@ -1067,6 +1281,159 @@ namespace sl
         for (Bitmap *texture : model->textures)
             destroy_bitmap(texture);
         delete model;
+    }
+
+    int find_model_clip(const Model *model, const std::string &name)
+    {
+        if (model)
+            for (std::size_t i = 0; i < model->clips.size(); ++i)
+                if (model->clips[i].name == name)
+                    return static_cast<int>(i);
+        return -1;
+    }
+
+    float model_clip_duration(const Model *model, int clip)
+    {
+        return model && clip >= 0 && clip < static_cast<int>(model->clips.size()) ? model->clips[clip].duration : 0.0f;
+    }
+
+    void reset_model_pose(Model *model)
+    {
+        if (!model)
+            return;
+        for (ModelNode &node : model->nodes)
+        {
+            node.translation = node.rest_translation;
+            node.rotation = node.rest_rotation;
+            node.scale = node.rest_scale;
+            node.animated = false;
+        }
+        refresh_model_parts(*model);
+    }
+
+    bool sample_model_clip(Model *model, int clip, float time, bool loop, bool reset_pose)
+    {
+        if (!model || clip < 0 || clip >= static_cast<int>(model->clips.size()))
+        {
+            detail::set_error("Unknown model clip");
+            return false;
+        }
+        const ModelClip &source = model->clips[clip];
+        if (!std::isfinite(time))
+            time = 0.0f;
+        if (loop && source.duration > 0.0f)
+        {
+            time = std::fmod(time, source.duration);
+            if (time < 0.0f)
+                time += source.duration;
+        }
+        else
+        {
+            time = std::clamp(time, 0.0f, source.duration);
+        }
+        if (reset_pose)
+            for (ModelNode &node : model->nodes)
+            {
+                node.translation = node.rest_translation;
+                node.rotation = node.rest_rotation;
+                node.scale = node.rest_scale;
+                node.animated = false;
+            }
+        for (const ModelChannel &channel : source.channels)
+        {
+            ModelNode &node = model->nodes[channel.node];
+            float value[4] = {0, 0, 0, 1};
+            sample_channel(channel, time, value);
+            if (!node.animated)
+            {
+                // A matrix node animates from its decomposed pose, so channels that do not touch every property keep the rest value.
+                node.animated = true;
+            }
+            switch (channel.path)
+            {
+            case ModelChannelPath::translation:
+                node.translation = {value[0], value[1], value[2]};
+                break;
+            case ModelChannelPath::scale:
+                node.scale = {value[0], value[1], value[2]};
+                break;
+            case ModelChannelPath::rotation:
+            {
+                const glm::quat q(value[3], value[0], value[1], value[2]);
+                node.rotation = glm::length(q) > 0.0f ? glm::normalize(q) : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                break;
+            }
+            }
+        }
+        refresh_model_parts(*model);
+        return true;
+    }
+
+    bool sample_model_clip(Model *model, const std::string &name, float time, bool loop, bool reset_pose)
+    {
+        const int clip = find_model_clip(model, name);
+        if (clip < 0)
+        {
+            detail::set_error("Unknown model clip: " + name);
+            return false;
+        }
+        return sample_model_clip(model, clip, time, loop, reset_pose);
+    }
+
+    bool play_model_clip(Model *model, const std::string &name, bool loop, float speed)
+    {
+        const int clip = find_model_clip(model, name);
+        if (clip < 0)
+        {
+            detail::set_error("Unknown model clip: " + name);
+            return false;
+        }
+        model->active_clip = clip;
+        model->clip_loop = loop;
+        model->clip_speed = std::isfinite(speed) ? speed : 1.0f;
+        model->clip_time = model->clip_speed < 0.0f ? model->clips[clip].duration : 0.0f;
+        return sample_model_clip(model, clip, model->clip_time, loop);
+    }
+
+    void stop_model_clip(Model *model)
+    {
+        if (!model)
+            return;
+        model->active_clip = -1;
+        reset_model_pose(model);
+    }
+
+    void update_model_clip(Model *model, float dt)
+    {
+        if (!model || model->active_clip < 0 || model->active_clip >= static_cast<int>(model->clips.size()))
+            return;
+        const float duration = model->clips[model->active_clip].duration;
+        model->clip_time += dt * model->clip_speed;
+        bool finished = false;
+        if (model->clip_loop && duration > 0.0f)
+        {
+            model->clip_time = std::fmod(model->clip_time, duration);
+            if (model->clip_time < 0.0f)
+                model->clip_time += duration;
+        }
+        else if (model->clip_time >= duration && model->clip_speed > 0.0f)
+        {
+            model->clip_time = duration;
+            finished = true;
+        }
+        else if (model->clip_time <= 0.0f && model->clip_speed < 0.0f)
+        {
+            model->clip_time = 0.0f;
+            finished = true;
+        }
+        sample_model_clip(model, model->active_clip, model->clip_time, model->clip_loop);
+        if (finished)
+            model->active_clip = -1;
+    }
+
+    bool model_clip_playing(const Model *model)
+    {
+        return model && model->active_clip >= 0;
     }
 
     bool model_part_is_visible(const Model *model, const ModelPart &part)

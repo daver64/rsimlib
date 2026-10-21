@@ -26,6 +26,53 @@ namespace
         assert(model->parts[1].mesh->index_count == 3);
         sl::destroy_model(model);
 
+        model = sl::load_model(std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_blender.glb");
+        if (!model)
+            std::cerr << "glTF fixture failed to load: " << sl::last_error() << std::endl;
+        assert(model != nullptr);
+        assert(model->parts.size() == 1);
+        assert(model->parts[0].name == "Hand");
+        assert(model->parts[0].material.texture != nullptr);
+        assert(model->parts[0].material.cull == sl::CullMode::none);
+        assert(model->parts[0].has_bounds);
+        assert(std::fabs((model->parts[0].bounds_max.y - model->parts[0].bounds_min.y) - 3.0f) < 0.001f);
+        const auto near_pos = [&](float x, float y, float z) {
+            const glm::vec4 p = model->parts[0].transform[3];
+            return std::fabs(p.x - x) < 0.01f && std::fabs(p.y - y) < 0.01f && std::fabs(p.z - z) < 0.01f;
+        };
+        assert(near_pos(1, 1, 0));
+        assert(model->clips.size() == 3);
+        const int swing = sl::find_model_clip(model, "Swing");
+        const int slide = sl::find_model_clip(model, "Slide");
+        const int hop = sl::find_model_clip(model, "Hop");
+        assert(swing >= 0 && slide >= 0 && hop >= 0 && sl::find_model_clip(model, "nope") < 0);
+        assert(std::fabs(sl::model_clip_duration(model, swing) - 1.0417f) < 0.01f);
+        assert(std::fabs(sl::model_clip_duration(model, slide) - 2.0417f) < 0.01f);
+        assert(std::fabs(sl::model_clip_duration(model, hop) - 1.0417f) < 0.01f);
+        assert(sl::sample_model_clip(model, "Swing", 1.0417f, false));
+        assert(near_pos(0, 1, -1));
+        assert(sl::sample_model_clip(model, "Swing", 5.0f, false));
+        assert(near_pos(0, 1, -1));
+        assert(sl::sample_model_clip(model, "Hop", 0.3f, false));
+        assert(near_pos(1, 1, 0));
+        assert(sl::sample_model_clip(model, "Hop", 0.6f, false));
+        assert(near_pos(2, 1, 0));
+        assert(sl::sample_model_clip(model, "Hop", 1.1f, false));
+        assert(near_pos(3, 1, 0));
+        assert(sl::sample_model_clip(model, "Slide", 0.5417f, false));
+        assert(near_pos(2, 1, 0));
+        assert(sl::sample_model_clip(model, "Slide", 1.0417f, false));
+        assert(near_pos(3, 1, 0));
+        assert(sl::sample_model_clip(model, "Slide", 2.0417f + 0.5417f, true));
+        assert(near_pos(2, 1, 0));
+        assert(!sl::sample_model_clip(model, "nope", 0.0f));
+        sl::reset_model_pose(model);
+        assert(near_pos(1, 1, 0));
+        assert(sl::play_model_clip(model, "Hop", false));
+        sl::update_model_clip(model, 10.0f);
+        assert(near_pos(3, 1, 0) && !sl::model_clip_playing(model));
+        sl::destroy_model(model);
+
         model = sl::load_flightgear_model(fixture + ".xml");
         assert(model != nullptr);
         assert(model->animations.size() == 5);

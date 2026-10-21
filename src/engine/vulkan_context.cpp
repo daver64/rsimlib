@@ -2163,7 +2163,8 @@ namespace sl::detail
         sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampler_info.anisotropyEnable = sampler_anisotropy_enabled_ && anisotropy > 1.0f ? VK_TRUE : VK_FALSE;
+        // Anisotropic filtering blurs nearest-filtered (pixel-art) textures on some drivers, so it needs linear filtering.
+        sampler_info.anisotropyEnable = sampler_anisotropy_enabled_ && anisotropy > 1.0f && filter == TextureFilter::linear ? VK_TRUE : VK_FALSE;
         sampler_info.maxAnisotropy = sampler_info.anisotropyEnable
                                          ? std::clamp(anisotropy, 1.0f, max_sampler_anisotropy_)
                                          : 1.0f;

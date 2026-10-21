@@ -731,6 +731,17 @@ A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then 
 - `draw_mesh_instanced(mesh, instances, material)`: draw many copies of a mesh in one hardware-instanced call. `instances` is a `std::vector<InstanceData3D>`, each a `model` matrix plus a `tint` that multiplies the vertex colours (rgb and alpha) on top of `Material::tint`. The view-projection is applied once and each model matrix in the vertex shader, with correct lighting for non-uniform scale and mirrored instances. This overload uploads the instances every call, so it suits instances that change each frame; calls in the same frame do not overwrite one another.
 - `create_instance_buffer(capacity)`, `update_instance_buffer(buffer, instances)`, `destroy_instance_buffer(buffer)` and `draw_mesh_instanced(mesh, buffer, material)`: keep the instance data on the GPU for groups that rarely change. The capacity is fixed at creation and `update_instance_buffer()` fails if given more instances. Update a buffer at most once per frame, before drawing it that frame. The buffer stays valid as the camera moves, so a static group needs no per-frame upload. `Material::terrain` shading is not supported with instancing. Supported on OpenGL, Vulkan and Direct3D 12 (the D3D12 path is untested on Linux).
 
+glTF 2.0 (`.glb`/`.gltf`) is the recommended format; export from Blender 4.x with File > Export > glTF 2.0 (Y-up). Node keyframe clips (translation/rotation/scale; linear, step, cubic-spline) are loaded into `Model::clips`:
+
+```cpp
+sl::play_model_clip(model, "Swing", /*loop=*/true, /*speed=*/1.0f);
+sl::update_model_clip(model, dt);          // each frame, before draw_model
+sl::sample_model_clip(model, "Slide", t);  // or pose at an explicit time
+sl::reset_model_pose(model);
+```
+
+Also `find_model_clip`, `model_clip_duration`, `stop_model_clip`, `model_clip_playing`. Blender key times start at 1/24 s. Convert old AC3D assets to glTF once.
+
 See `src/examples/ex3d_surface`. Skeletal animation, PBR materials and glTF cameras/lights are not yet supported.
 
 ---

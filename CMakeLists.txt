@@ -533,6 +533,7 @@ target_link_libraries(ex3d_surface PRIVATE simlib)
 
 add_executable(exmodel3d src/examples/exmodel3d/exmodel3d.cpp)
 target_link_libraries(exmodel3d PRIVATE simlib)
+target_compile_definitions(exmodel3d PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(exvoxel src/examples/exvoxel/exvoxel.cpp)
 target_link_libraries(exvoxel PRIVATE simlib)

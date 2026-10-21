@@ -276,7 +276,7 @@ The full catalog of focused runnable examples follows.
 ./build/exroguelike     # Coloured ASCII roguelike (512x512 overworld, dungeons, FOV, lights)
 ./build/exisometric     # 2.5D isometric projection, tile picking, elevation, and 2D lighting
 ./build/ex3d_surface    # Offscreen 3D surface with MSAA, models (OBJ/glTF/GLB), and 2D HUD
-./build/exmodel3d path/to/model.ac  # AC3D / FlightGear model viewer
+./build/exmodel3d [path/to/model.glb|.ac|.xml]  # glTF / AC3D / FlightGear viewer (default: animated glTF fixture; C/P/L/S/F control clips)
 ./build/exfluid3d       # 3D fluid simulation on a voxel world (water, lava, fire, sand...)
 ./build/exvoxel         # 16x16x16 voxel chunk rendering (Minecraft clone demo)
 ./build/ex3d_gl         # Direct OpenGL 3D escape hatch
@@ -327,7 +327,7 @@ The full catalog of focused runnable examples follows.
 - **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB, AC3D), directional lighting, and 2D HUD compositing.
-- **[`exmodel3d`](src/examples/exmodel3d/exmodel3d.cpp)** ([AC3D / FlightGear guide](docs/ac3d.md)) — Load and render an AC3D model or FlightGear model XML with imported transform animations; supports simlib JSON animation files.
+- **[`exmodel3d`](src/examples/exmodel3d/exmodel3d.cpp)** ([AC3D / FlightGear guide](docs/ac3d.md)) — Load and render a glTF model (with keyframe clip playback; defaults to the Blender-exported test fixture), an AC3D model or FlightGear model XML with imported transform animations; supports simlib JSON animation files.
 - **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool.
 - **[`exvoxel`](src/examples/exvoxel/exvoxel.cpp)** — Minecraft clone demo: 16x16x16 voxel chunk rendering, hidden-face culling, procedural terrain (FastNoiseLite), pixel-art texture atlas, first-person camera, and 3D DDA block break/place raycasting.
 - **[`ex3d_gl`](src/examples/ex3d_gl/ex3d_gl.cpp)** — Direct OpenGL 3D rendering with depth testing, VAO/VBOs, and GLM camera matrices.

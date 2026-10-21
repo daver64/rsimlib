@@ -138,8 +138,10 @@ int main(int argc, char **argv)
         }
     }
     if (model_path.empty())
+        model_path = std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_blender.glb";
+    if (model_path.empty())
     {
-        std::fprintf(stderr, "Usage: exmodel3d <model.ac|flightgear-model.xml> [--animations file.json] [--gl|--vulkan|--d3d12]\n");
+        std::fprintf(stderr, "Usage: exmodel3d [model.glb|model.ac|flightgear-model.xml] [--animations file.json] [--gl|--vulkan|--d3d12]\n");
         return 2;
     }
     if (!sl::configure_graphics_backend_from_args(static_cast<int>(backend_arguments.size()), backend_arguments.data()) ||
@@ -148,7 +150,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "Graphics initialization failed: %s\n", sl::last_error().c_str());
         return 1;
     }
-    sl::set_window_title("simlib - AC3D / FlightGear Model Viewer");
+    sl::set_window_title("simlib - glTF / AC3D / FlightGear Model Viewer");
     sl::Surface3D *surface = sl::create_surface_3d(960, 640, 4);
     if (!surface)
     {
@@ -221,6 +223,21 @@ int main(int argc, char **argv)
             apply_channel(channels[selected], static_cast<float>(std::atof(preset_value)));
     }
 
+    // glTF clips: C selects the next clip, P pauses, L toggles looping, S/F slow down or speed up.
+    int clip = -1;
+    bool paused = false;
+    bool clip_loop = true;
+    float clip_speed = 0.35f; // the fixture's clips are about half a second to a second long
+    auto start_clip = [&](int index) {
+        clip = index;
+        if (index < 0)
+            sl::stop_model_clip(model);
+        else
+            sl::play_model_clip(model, model->clips[static_cast<std::size_t>(index)].name, clip_loop, clip_speed);
+    };
+    if (!model->clips.empty())
+        start_clip(0);
+
     sl::Camera camera;
     camera.target = {1.5f, 0.0f, 0.0f};
     float camera_distance = 9.5f;
@@ -238,7 +255,7 @@ int main(int argc, char **argv)
         if (any)
         {
             camera.target = (low + high) * 0.5f;
-            camera_distance = std::max(0.05f, glm::length(high - low) * 0.9f);
+            camera_distance = std::max(0.05f, glm::length(high - low) * (model->clips.empty() ? 0.9f : 2.5f)); // leave room for animated motion
         }
     }
     float camera_yaw = -0.75f;
@@ -297,6 +314,21 @@ int main(int argc, char **argv)
                     const float step = (channel.maximum - channel.minimum) / 20.0f;
                     apply_channel(channel, channel.value + (event.key() == sl::Event::Key::period ? step : -step));
                 }
+                else if (event.key() == sl::Event::Key::letter_c && !model->clips.empty())
+                    start_clip(clip + 1 < static_cast<int>(model->clips.size()) ? clip + 1 : -1);
+                else if (event.key() == sl::Event::Key::letter_p)
+                    paused = !paused;
+                else if (event.key() == sl::Event::Key::letter_s || event.key() == sl::Event::Key::letter_f)
+                {
+                    clip_speed = std::clamp(clip_speed * (event.key() == sl::Event::Key::letter_f ? 1.25f : 0.8f), 0.05f, 4.0f);
+                    model->clip_speed = clip_speed;
+                }
+                else if (event.key() == sl::Event::Key::letter_l)
+                {
+                    clip_loop = !clip_loop;
+                    if (clip >= 0)
+                        start_clip(clip);
+                }
                 else if (event.key() == sl::Event::Key::home)
                     for (Channel &channel : channels)
                         apply_channel(channel, 0.0f);
@@ -305,6 +337,8 @@ int main(int argc, char **argv)
             sl::display_handle_event(event);
         }
 
+        if (!paused)
+            sl::update_model_clip(model, static_cast<float>(sl::get_frame_time() / 1000.0));
         if (sl::begin_surface_3d(surface, camera))
         {
             sl::clear_surface_3d({30, 40, 58});
@@ -315,9 +349,22 @@ int main(int argc, char **argv)
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
         sl::gprintf(16, 16, {255, 255, 255}, "Arrows: orbit  =/-: zoom  Esc: exit");
         int y = 36;
-        if (channels.empty())
+        if (!model->clips.empty())
+        {
+            if (clip >= 0)
+                sl::gprintf(16, y, {140, 230, 160}, "Clip %d/%zu \"%s\"  %.2f/%.2fs%s%s", clip + 1, model->clips.size(),
+                            model->clips[static_cast<std::size_t>(clip)].name.c_str(), model->clip_time,
+                            sl::model_clip_duration(model, clip), paused ? "  [paused]" : "",
+                            sl::model_clip_playing(model) ? "" : "  [finished]");
+            else
+                sl::gprintf(16, y, {140, 230, 160}, "Clip: none (rest pose)");
+            y += 16;
+            sl::gprintf(16, y, {255, 255, 255}, "C: next clip  P: pause  L: loop %s  S/F: speed %.2fx", clip_loop ? "on" : "off", clip_speed);
+            y += 24;
+        }
+        if (channels.empty() && model->clips.empty())
             sl::gprintf(16, y, {200, 200, 200}, "No animations in this model");
-        else
+        else if (!channels.empty())
         {
             sl::gprintf(16, y, {255, 255, 255}, "Tab/PgUp/PgDn: select  Space: toggle  ,/.: adjust  Home: reset");
             y += 20;
