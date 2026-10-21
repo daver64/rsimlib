@@ -125,13 +125,8 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; ++i)
     {
         const std::string argument(argv[i]);
-        if (argument == "--gl" || argument == "--vulkan")
+        if (argument == "--gl" || argument == "--vulkan" || argument == "--d3d12")
             backend_arguments.push_back(argv[i]);
-        else if (argument == "--d3d12")
-        {
-            std::fprintf(stderr, "exmodel3d requires the OpenGL or Vulkan backend.\n");
-            return 2;
-        }
         else if (argument == "--animations" && i + 1 < argc)
             animation_path = argv[++i];
         else if (model_path.empty())
@@ -144,7 +139,7 @@ int main(int argc, char **argv)
     }
     if (model_path.empty())
     {
-        std::fprintf(stderr, "Usage: exmodel3d <model.ac|flightgear-model.xml> [--animations file.json] [--gl|--vulkan]\n");
+        std::fprintf(stderr, "Usage: exmodel3d <model.ac|flightgear-model.xml> [--animations file.json] [--gl|--vulkan|--d3d12]\n");
         return 2;
     }
     if (!sl::configure_graphics_backend_from_args(static_cast<int>(backend_arguments.size()), backend_arguments.data()) ||

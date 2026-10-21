@@ -125,7 +125,7 @@ namespace sl
      * An offscreen 3D drawing target with a depth buffer. Draw into it between
      * begin_surface_3d() and end_surface_3d(), then composite surface_3d_bitmap()
      * into 2D drawing with draw_sprite().
-     * Supported on the OpenGL and Vulkan backends; creation fails with an error on others.
+     * Supported on the OpenGL, Vulkan and Direct3D 12 backends; creation fails with an error on others.
      */
     struct Surface3D
     {
