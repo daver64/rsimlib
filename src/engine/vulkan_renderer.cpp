@@ -410,6 +410,12 @@ namespace sl::detail
                 textures_.emplace(texture, std::move(resource));
                 return true;
             }
+            int max_texture_size() const override
+            {
+                const std::uint32_t size = context_.max_texture_size();
+                return size > 0 ? static_cast<int>(size) : 16384;
+            }
+
             int max_texture_array_layers() const override
             {
                 return static_cast<int>(context_.max_texture_array_layers());
@@ -1644,10 +1650,32 @@ namespace sl::detail
                 batch_vertices_.clear();
                 batch_vertices_.shrink_to_fit();
             }
+            void set_clip_rect_2d(const ClipRect2D &clip) override
+            {
+                flush_2d();
+                clip_ = clip;
+                if (!clip.enabled)
+                    context_.set_clip(false, 0, 0, 0, 0);
+            }
+
+            void apply_clip_2d()
+            {
+                if (!clip_.enabled)
+                    return;
+                const VkExtent2D extent = context_.active_extent();
+                int x = 0, y = 0, w = 0, h = 0;
+                clip_rect_to_pixels(clip_, last_2d_width_, last_2d_height_, static_cast<int>(extent.width),
+                                    static_cast<int>(extent.height), detail::screen_offset_x(),
+                                    detail::screen_offset_y(), x, y, w, h);
+                context_.set_clip(true, x, y, static_cast<std::uint32_t>(w), static_cast<std::uint32_t>(h));
+            }
+
             bool begin_2d(int width, int height) override
             {
                 if (!begin_frame(last_error_))
                     return false;
+                last_2d_width_ = width;
+                last_2d_height_ = height;
                 std::array<float, 16> new_proj{};
                 new_proj[0] = width > 0 ? 2.0f / width : 0.0f;
                 new_proj[5] = height > 0 ? -2.0f / height : 0.0f;
@@ -1668,6 +1696,8 @@ namespace sl::detail
                 flush_2d();
                 if (!begin_frame(last_error_) || width <= 0 || height <= 0 || !use_shader(program))
                     return false;
+                last_2d_width_ = width;
+                last_2d_height_ = height;
                 float projection[16] = {};
                 projection[0] = 2.0f / width;
                 projection[5] = -2.0f / height;
@@ -1697,6 +1727,7 @@ namespace sl::detail
             {
                 if (batch_vertices_.empty() || !frame_active_)
                     return;
+                apply_clip_2d();
 
                 const Vertex2D *upload_vertices = batch_vertices_.data();
                 const int upload_count = static_cast<int>(batch_vertices_.size());
@@ -2577,6 +2608,9 @@ namespace sl::detail
             std::vector<VulkanBuffer> vertex_buffers_;
             std::size_t vertex_buffer_cursor_ = 0;
             std::array<float, 16> projection_{};
+            ClipRect2D clip_;
+            int last_2d_width_ = 0;
+            int last_2d_height_ = 0;
             std::uint32_t white_texture_ = 0;
             bool frame_active_ = false;
             std::map<unsigned int, std::uint32_t> global_storage_bindings_;

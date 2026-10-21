@@ -906,7 +906,7 @@ namespace sl::detail
         viewport.width = static_cast<float>(active_extent_.width);
         viewport.height = -static_cast<float>(active_extent_.height);
         viewport.maxDepth = 1.0f;
-        VkRect2D scissor{{0, 0}, active_extent_};
+        VkRect2D scissor = clip_enabled_ ? clip_rect_ : VkRect2D{{0, 0}, active_extent_};
         vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
         vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
         vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -1490,6 +1490,15 @@ namespace sl::detail
         destroy_buffer(staging);
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         return true;
+    }
+
+    std::uint32_t VulkanContext::max_texture_size() const
+    {
+        if (physical_device_ == VK_NULL_HANDLE)
+            return 0;
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physical_device_, &properties);
+        return properties.limits.maxImageDimension2D;
     }
 
     std::uint32_t VulkanContext::max_texture_array_layers() const

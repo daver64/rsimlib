@@ -516,6 +516,8 @@ target_link_libraries(exgui PRIVATE simlib imgui)
 
 add_executable(exparticles src/examples/exparticles/exparticles.cpp)
 target_link_libraries(exparticles PRIVATE simlib)
+add_executable(excamera2d src/examples/excamera2d/excamera2d.cpp)
+target_link_libraries(excamera2d PRIVATE simlib)
 
 add_executable(exresources src/examples/exresources/exresources.cpp)
 target_link_libraries(exresources PRIVATE simlib)
@@ -658,6 +660,11 @@ if(BUILD_TESTING)
     target_compile_definitions(isometric_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME isometric COMMAND isometric_test)
 
+    add_executable(camera_collision_test tests/camera_collision_test.cpp)
+    target_link_libraries(camera_collision_test PRIVATE simlib)
+    target_compile_definitions(camera_collision_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME camera_collision COMMAND camera_collision_test)
+
     add_executable(tilemap_test tests/tilemap_test.cpp)
     target_link_libraries(tilemap_test PRIVATE simlib)
     target_compile_definitions(tilemap_test PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -776,7 +783,7 @@ if(BUILD_TESTING)
 
     # Tests rely on assert(); keep it active in Release builds, where NDEBUG would turn every check into a no-op.
     foreach(SIMLIB_TEST_TARGET
-            config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
+            config_test isometric_test camera_collision_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
             renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})

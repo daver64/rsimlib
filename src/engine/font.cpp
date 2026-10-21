@@ -21,6 +21,25 @@
 
 namespace sl
 {
+namespace
+{
+	/** Format printf-style arguments into a string of any length. */
+	std::string format_va(const char *format, va_list arguments)
+	{
+		va_list copy;
+		va_copy(copy, arguments);
+		const int length = std::vsnprintf(nullptr, 0, format, copy);
+		va_end(copy);
+		if (length <= 0)
+			return std::string();
+		std::string result(static_cast<std::size_t>(length) + 1, '\0');
+		std::vsnprintf(&result[0], result.size(), format, arguments);
+		result.resize(static_cast<std::size_t>(length));
+		return result;
+	}
+} // namespace
+
+
     /** Temporary renderer texture used to draw one rendered text string. */
     struct TextTexture
     {
@@ -152,6 +171,15 @@ namespace sl
         while (atlas_h < max_needed_h)
             atlas_h *= 2;
 
+        if (atlas_h > renderer->max_texture_size())
+        {
+            // The caller falls back to per-string text textures.
+            for (RenderedGlyph &glyph : rendered_glyphs)
+                if (glyph.surface)
+                    SDL_FreeSurface(glyph.surface);
+            return nullptr;
+        }
+
         atlas->atlas_width = atlas_w;
         atlas->atlas_height = atlas_h;
 
@@ -165,7 +193,7 @@ namespace sl
             info.min_y = rendered_glyphs[ch].min_y;
             info.max_y = rendered_glyphs[ch].max_y;
             info.advance = rendered_glyphs[ch].advance;
-            info.exists = true;
+            info.exists = ch == 32 || rendered_glyphs[ch].surface != nullptr;
 
             if (ch == 32 || !rendered_glyphs[ch].surface)
             {
@@ -340,6 +368,11 @@ namespace sl
         float pen_x = static_cast<float>(x);
         float pen_y = static_cast<float>(y);
 
+        // Reused across calls so a text run costs one submission and no allocation.
+        static thread_local std::vector<detail::GLVertex> glyph_vertices;
+        glyph_vertices.clear();
+        glyph_vertices.reserve(text.size() * 6);
+
         for (std::size_t i = 0; i < text.size(); ++i)
         {
             unsigned char c = static_cast<unsigned char>(text[i]);
@@ -371,11 +404,13 @@ namespace sl
                     {x1, y1, info.u1, info.v1, r, g, b, a},
                     {x0, y1, info.u0, info.v1, r, g, b, a},
                 };
-                detail::gl2d_submit(detail::PrimitiveType::triangle_fan, quad, 4, atlas->texture_id);
+                glyph_vertices.insert(glyph_vertices.end(), {quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]});
             }
 
             pen_x += static_cast<float>(info.advance);
         }
+        if (!glyph_vertices.empty())
+            detail::gl2d_submit(detail::PrimitiveType::triangles, glyph_vertices.data(), static_cast<int>(glyph_vertices.size()), atlas->texture_id);
     }
 
     /** Draw a solid rectangle behind rendered text. */
@@ -620,11 +655,11 @@ namespace sl
     {
         if (!format)
             return;
-        char buffer[1024];
         va_list arguments;
         va_start(arguments, format);
-        std::vsnprintf(buffer, sizeof(buffer), format, arguments);
+        const std::string formatted = format_va(format, arguments);
         va_end(arguments);
+        const char *buffer = formatted.c_str();
         textout(font, x, y, colour, buffer);
     }
 
@@ -632,11 +667,11 @@ namespace sl
     {
         if (!fmt)
             return;
-        char buffer[1024];
         va_list args;
         va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        const std::string formatted = format_va(fmt, args);
         va_end(args);
+        const char *buffer = formatted.c_str();
         draw_formatted_text(get_default_monospace_font(), x, y, colour, buffer);
     }
 
@@ -645,11 +680,11 @@ namespace sl
         if (!fmt)
             return;
         Font *font = get_default_monospace_font();
-        char buffer[1024];
         va_list args;
         va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        const std::string formatted = format_va(fmt, args);
         va_end(args);
+        const char *buffer = formatted.c_str();
         const int text_width = text_length(font, buffer);
         const int x = (screen->width - text_width) / 2;
         draw_formatted_text(font, x, y, colour, buffer);
@@ -659,11 +694,11 @@ namespace sl
     {
         if (!fmt)
             return;
-        char buffer[1024];
         va_list args;
         va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        const std::string formatted = format_va(fmt, args);
         va_end(args);
+        const char *buffer = formatted.c_str();
         draw_formatted_text(font, x, y, colour, buffer);
     }
     /** Format and draw text with the given font, horizontally centred on screen. */
@@ -671,11 +706,11 @@ namespace sl
     {
          if (!fmt)
             return;
-        char buffer[1024];
         va_list args;
         va_start(args, fmt);
-        std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+        const std::string formatted = format_va(fmt, args);
         va_end(args);
+        const char *buffer = formatted.c_str();
         const int text_width = text_length(font, buffer);
         const int x = (screen->width - text_width) / 2;
         draw_formatted_text(font, x, y, colour, buffer);     
@@ -720,7 +755,43 @@ namespace sl
             return;
         }
 
-        draw_formatted_text(font, x, y, colour, text);
+        const int width = screen_width();
+        const int height = screen_height();
+        const Colour effective = text_panel.enabled ? text_panel.text : colour;
+        if (!cache)
+        {
+            draw_panel_text(font, x, y, colour, text, width, height);
+            return;
+        }
+
+        const bool same = cache->has_texture && cache->font == font && cache->text == text &&
+                          cache->colour.red == effective.red && cache->colour.green == effective.green &&
+                          cache->colour.blue == effective.blue && cache->colour.alpha == effective.alpha;
+        if (!same)
+        {
+            if (cache->has_texture)
+            {
+                destroy_text_texture(cache->texture);
+                cache->has_texture = false;
+            }
+            const auto texture = build_text_texture(font, text, effective);
+            if (!texture)
+                return;
+            cache->texture = *texture;
+            cache->has_texture = true;
+            cache->font = font;
+            cache->text = text;
+            cache->colour = effective;
+        }
+
+        if (text_panel.enabled)
+        {
+            fill_rect(x - text_panel.padding_x, y - text_panel.padding_y, cache->texture.width + 2 * text_panel.padding_x,
+                      cache->texture.height + 2 * text_panel.padding_y, width, height, text_panel.background);
+        }
+        if (detail::Renderer *renderer = detail::active_renderer())
+            renderer->set_premultiplied_alpha(false);
+        draw_text_texture(cache->texture, x, y, width, height);
     }
 
 } // namespace sl

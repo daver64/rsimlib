@@ -45,7 +45,7 @@ namespace sl
     void gamepad_handle_event(const Event &event);
     /** Return the number of currently connected mapped gamepads. */
     int gamepad_count();
-    /** Return whether @p index identifies a connected gamepad. */
+    /** Return whether @p index identifies a connected gamepad. Indices are positions in the connected list, so unplugging a device shifts the indices of later ones; re-query after gamepad_removed events. */
     bool gamepad_connected(int index);
     /** Return a connected gamepad's descriptive name, or an empty string for an invalid index. */
     std::string gamepad_name(int index);

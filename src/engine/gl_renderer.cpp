@@ -373,6 +373,13 @@ namespace sl::detail
                 }
             }
 
+            int max_texture_size() const override
+            {
+                GLint size = 0;
+                glGetIntegerv(GL_MAX_TEXTURE_SIZE, &size);
+                return size > 0 ? size : 16384;
+            }
+
             int max_texture_array_layers() const override
             {
                 GLint layers = 0;
@@ -1317,10 +1324,32 @@ namespace sl::detail
                 return true;
             }
 
+            void set_clip_rect_2d(const ClipRect2D &clip) override
+            {
+                flush_2d();
+                clip_ = clip;
+                if (!clip.enabled)
+                    glDisable(GL_SCISSOR_TEST);
+            }
+
+            void apply_clip_2d()
+            {
+                if (!clip_.enabled)
+                    return;
+                GLint viewport[4] = {};
+                glGetIntegerv(GL_VIEWPORT, viewport);
+                int x = 0, y = 0, w = 0, h = 0;
+                clip_rect_to_pixels(clip_, last_2d_width_, last_2d_height_, viewport[2], viewport[3],
+                                    detail::screen_offset_x(), detail::screen_offset_y(), x, y, w, h);
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(viewport[0] + x, viewport[1] + viewport[3] - (y + h), w, h);
+            }
+
             void flush_2d() override
             {
                 if (batch_vertices_.empty() || !initialise_2d())
                     return;
+                apply_clip_2d();
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(batch_texture_ != 0 ? batch_texture_ : white_texture_));
                 glBindVertexArray(vao_);
@@ -1646,6 +1675,7 @@ namespace sl::detail
                     glBlendFunc(premultiplied_alpha_ ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             std::uint32_t active_2d_shader_ = 0;
+            ClipRect2D clip_;
             int last_2d_width_ = -1;
             int last_2d_height_ = -1;
             float last_offset_x_ = -1.0f;

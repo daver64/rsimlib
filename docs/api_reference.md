@@ -441,6 +441,23 @@ void draw_sprite_batch(Bitmap *bitmap, const std::vector<SpriteInstance> &sprite
 - **Description**: Hardware-accelerated sprite rendering with positioning, scaling, centre-point rotation (clockwise degrees), and horizontal/vertical flipping. Offscreen render targets are automatically orientation-corrected when drawn as sprites.
 - **`draw_sprite_batch`**: draws many sprites from one bitmap in a single call. Each `SpriteInstance` has a centre `x`/`y`, `scale_x`/`scale_y` (negative mirrors), `rotation` in clockwise degrees, an optional source rectangle (zero width or height means the whole bitmap) and a `tint` that multiplies the texel colour and alpha. Vertices are built on the CPU and sent through the normal 2D batcher, so the cost is one draw call per batch rather than per sprite, and blend modes and render targets behave as for `draw_sprite`. It is not GPU instancing, unlike `draw_mesh_instanced()` in 3D. The tint is ignored during a normal-map pass.
 
+### Sprite parameters, clipping, camera, collision and tweens
+
+```cpp
+struct SpriteParams { float x, y, origin_x = 0.5f, origin_y = 0.5f, scale_x = 1, scale_y = 1, rotation = 0;
+                      bool flip_x, flip_y; int source_x, source_y, source_width, source_height; Colour tint; };
+void draw_sprite_ex(Bitmap *bitmap, const SpriteParams &params);
+void set_clip_rect(int x, int y, int width, int height);
+void clear_clip_rect();
+bool get_clip_rect(int *x = nullptr, int *y = nullptr, int *width = nullptr, int *height = nullptr);
+```
+
+- **`draw_sprite_ex`**: one sprite with an origin (a fraction of its size, so `(0.5, 0.5)` is the centre and `(0, 0)` the top-left) that rotation and scale pivot about, scale, clockwise rotation, flips, a source rectangle and a tint. It uses the sprite batcher.
+- **`set_clip_rect`** / **`clear_clip_rect`**: restrict GPU drawing to a pixel rectangle on the screen or the active render target (a hardware scissor on OpenGL, Vulkan and D3D12). `begin_render_target()` and `end_render_target()` clear it. Software drawing into RAM bitmaps is not clipped.
+- **`Camera2D`** (`camera2d.h`): `x`/`y` (the world point at the centre of the viewport), `zoom`, clockwise `rotation`, an optional viewport, `set_bounds()`, frame-rate independent `follow()`, `shake()` plus `update()`, `world_to_screen()`, `screen_to_world()`, `visible_rect()` and `draw_sprite()` for world-space sprites. `top_left()` gives the position for `draw_tilemap()`, which supports panning and shake but not zoom or rotation. See `excamera2d`.
+- **Collision helpers** (`collision2d.h`): `Rect2D`, `Circle2D`, `Vec2D`; overlap tests; `collide_rects`, `collide_circles`, `collide_circle_rect` and `collide_polygons` (convex, SAT) returning a push-out normal and depth; `raycast_rect` and `raycast_circle`; and `SpatialHash2D` for broad-phase queries.
+- **Tweens and timers** (`tween.h`): `ease(Ease, t)` with 18 curves, `Tween` (delay, loop, ping-pong) and `Scheduler` (`after()`, `every()`, `cancel()`).
+
 #### Shape Primitives & Curves
 ```cpp
 void line(Bitmap *bitmap, float x1, float y1, float x2, float y2, Colour colour, float thickness = 1.0f);

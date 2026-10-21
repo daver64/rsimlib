@@ -112,6 +112,14 @@ namespace sl::detail
         int clamp_msaa_samples(int requested) const;
         bool end_offscreen_render_pass(std::string &error);
         bool prepare_image_for_sampling(VulkanImage &image, std::string &error);
+        /** Size in pixels of the framebuffer currently being drawn to. */
+        VkExtent2D active_extent() const { return active_extent_; }
+        /** Restrict 2D vertex draws to a pixel rectangle (top-left origin), or lift the restriction. */
+        void set_clip(bool enabled, std::int32_t x, std::int32_t y, std::uint32_t width, std::uint32_t height)
+        {
+            clip_enabled_ = enabled;
+            clip_rect_ = VkRect2D{{x, y}, {width, height}};
+        }
         bool record_vertex_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                 VkBuffer vertex_buffer, VkDescriptorSet descriptor_set,
                                 std::uint32_t vertex_count, PrimitiveType topology,
@@ -166,6 +174,7 @@ namespace sl::detail
                                      const std::uint8_t *pixels, std::string &error);
         bool create_terrain_sampler(VulkanSampler &result, std::string &error);
         std::uint32_t max_texture_array_layers() const;
+        std::uint32_t max_texture_size() const;
         bool download_image_rgba(VulkanImage &image, int width, int height,
                                  std::uint8_t *out_pixels, std::string &error);
         bool download_swapchain_rgba(int width, int height,
@@ -321,6 +330,8 @@ namespace sl::detail
         VkFence in_flight_ = VK_NULL_HANDLE;
         std::uint32_t current_image_ = 0;
         VkExtent2D active_extent_{};
+        bool clip_enabled_ = false;
+        VkRect2D clip_rect_{};
         VkRenderPass active_render_pass_ = VK_NULL_HANDLE;
         VkRenderPass active_resume_render_pass_ = VK_NULL_HANDLE;
         VkFramebuffer active_framebuffer_ = VK_NULL_HANDLE;

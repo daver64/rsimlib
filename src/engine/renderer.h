@@ -200,6 +200,39 @@ namespace sl::detail
 
     using GLVertex = Vertex2D;
 
+    /** A 2D clip rectangle in drawing coordinates (the space passed to begin_2d). */
+    struct ClipRect2D
+    {
+        bool enabled = false;
+        float x = 0.0f, y = 0.0f, width = 0.0f, height = 0.0f;
+    };
+
+    /**
+     * Convert a clip rectangle to a top-left-origin pixel rectangle inside a framebuffer of
+     * framebuffer_width x framebuffer_height pixels, given the drawing-space size and screen offset.
+     * The result is clamped to the framebuffer and may be empty.
+     */
+    inline void clip_rect_to_pixels(const ClipRect2D &clip, int drawing_width, int drawing_height,
+                                    int framebuffer_width, int framebuffer_height,
+                                    float offset_x, float offset_y,
+                                    int &out_x, int &out_y, int &out_width, int &out_height)
+    {
+        const float scale_x = drawing_width > 0 ? static_cast<float>(framebuffer_width) / drawing_width : 1.0f;
+        const float scale_y = drawing_height > 0 ? static_cast<float>(framebuffer_height) / drawing_height : 1.0f;
+        int left = static_cast<int>((clip.x + offset_x) * scale_x);
+        int top = static_cast<int>((clip.y + offset_y) * scale_y);
+        int right = static_cast<int>((clip.x + clip.width + offset_x) * scale_x + 0.999f);
+        int bottom = static_cast<int>((clip.y + clip.height + offset_y) * scale_y + 0.999f);
+        left = left < 0 ? 0 : (left > framebuffer_width ? framebuffer_width : left);
+        top = top < 0 ? 0 : (top > framebuffer_height ? framebuffer_height : top);
+        right = right < left ? left : (right > framebuffer_width ? framebuffer_width : right);
+        bottom = bottom < top ? top : (bottom > framebuffer_height ? framebuffer_height : bottom);
+        out_x = left;
+        out_y = top;
+        out_width = right - left;
+        out_height = bottom - top;
+    }
+
     inline int get_decomposed_vertex_count(PrimitiveType input_primitive, int count)
     {
         if (count <= 0)
@@ -350,6 +383,8 @@ namespace sl::detail
         virtual void destroy_texture(std::uint32_t texture) = 0;
         /** Most layers a texture array may have, or 0 if texture arrays (and so textured terrain) are unsupported. */
         virtual int max_texture_array_layers() const { return 0; }
+        /** Largest width or height a 2D texture may have. */
+        virtual int max_texture_size() const { return 16384; }
         /**
          * Create a texture array with repeat wrapping, trilinear filtering and the best anisotropic filtering available.
          * `pixels` holds RGBA8 for every mip level in turn, and within a level every layer in turn (see
@@ -433,6 +468,8 @@ namespace sl::detail
                                int count, std::uint32_t texture) = 0;
         /** Flush any batched 2D vertices to the GPU. */
         virtual void flush_2d() {}
+        /** Restrict subsequent 2D drawing to a rectangle in drawing coordinates, or remove the restriction. */
+        virtual void set_clip_rect_2d(const ClipRect2D &) {}
         /** Backend-neutral storage-buffer operations used by compute effects. */
         virtual bool create_storage_buffer(std::size_t size, std::uint32_t &buffer) = 0;
         virtual void destroy_storage_buffer(std::uint32_t buffer) = 0;

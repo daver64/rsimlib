@@ -883,6 +883,25 @@ namespace sl::detail
                 render_targets_.erase(target);
                 destroy_texture(texture);
             }
+            template <typename Target>
+            void bind_render_target_state(const Target &target, int width, int height)
+            {
+                D3D12_CPU_DESCRIPTOR_HANDLE handle =
+                    cpu_descriptor(render_target_heap_, render_target_descriptor_size_,
+                                   target.descriptor);
+                D3D12_CPU_DESCRIPTOR_HANDLE depth_handle{};
+                const bool has_depth = target.depth != nullptr;
+                if (has_depth)
+                    depth_handle = cpu_descriptor(depth_stencil_heap_, depth_stencil_descriptor_size_,
+                                                  target.depth_descriptor);
+                context_.command_list()->OMSetRenderTargets(1, &handle, FALSE,
+                                                            has_depth ? &depth_handle : nullptr);
+                D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(width),
+                                        static_cast<float>(height), 0.0f, 1.0f};
+                D3D12_RECT scissor{0, 0, width, height};
+                context_.command_list()->RSSetViewports(1, &viewport);
+                context_.command_list()->RSSetScissorRects(1, &scissor);
+            }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height,
                                      std::string &error) override
             {
@@ -891,9 +910,9 @@ namespace sl::detail
                                                                       : textures_.find(target->second.texture);
                 if (target == render_targets_.end() || texture == textures_.end() ||
                     target->second.width != width || target->second.height != height ||
-                    active_render_target_ != 0 || !ensure_frame())
+                    !ensure_frame())
                 {
-                    error = "Invalid or already-active D3D12 render target.";
+                    error = "Invalid D3D12 render target.";
                     return false;
                 }
                 flush_2d();
@@ -903,21 +922,9 @@ namespace sl::detail
                                         texture->second.state, D3D12_RESOURCE_STATE_RENDER_TARGET);
                     texture->second.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
                 }
-                D3D12_CPU_DESCRIPTOR_HANDLE handle =
-                    cpu_descriptor(render_target_heap_, render_target_descriptor_size_,
-                                   target->second.descriptor);
-                D3D12_CPU_DESCRIPTOR_HANDLE depth_handle{};
-                const bool has_depth = target->second.depth != nullptr;
-                if (has_depth)
-                    depth_handle = cpu_descriptor(depth_stencil_heap_, depth_stencil_descriptor_size_,
-                                                  target->second.depth_descriptor);
-                context_.command_list()->OMSetRenderTargets(1, &handle, FALSE,
-                                                            has_depth ? &depth_handle : nullptr);
-                D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(width),
-                                        static_cast<float>(height), 0.0f, 1.0f};
-                D3D12_RECT scissor{0, 0, width, height};
-                context_.command_list()->RSSetViewports(1, &viewport);
-                context_.command_list()->RSSetScissorRects(1, &scissor);
+                if (active_render_target_ != 0)
+                    render_target_stack_.push_back(active_render_target_);
+                bind_render_target_state(target->second, width, height);
                 active_render_target_ = framebuffer;
                 return true;
             }
@@ -956,6 +963,18 @@ namespace sl::detail
                                         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
                 texture->second.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
                 active_render_target_ = 0;
+                if (!render_target_stack_.empty())
+                {
+                    const std::uint32_t previous = render_target_stack_.back();
+                    render_target_stack_.pop_back();
+                    const auto outer = render_targets_.find(previous);
+                    if (outer != render_targets_.end())
+                    {
+                        bind_render_target_state(outer->second, outer->second.width, outer->second.height);
+                        active_render_target_ = previous;
+                        return true;
+                    }
+                }
                 context_.bind_backbuffer();
                 return true;
             }
@@ -1774,6 +1793,8 @@ namespace sl::detail
                 D3D12_VIEWPORT viewport{0.0f, 0.0f,
                                         static_cast<float>((std::max)(width, 0)),
                                         static_cast<float>((std::max)(height, 0)), 0.0f, 1.0f};
+                last_2d_width_ = width;
+                last_2d_height_ = height;
                 D3D12_RECT scissor{0, 0, (std::max)(width, 0), (std::max)(height, 0)};
                 auto *commands = context_.command_list();
                 commands->RSSetViewports(1, &viewport);
@@ -1844,10 +1865,30 @@ namespace sl::detail
                 return true;
             }
 
+            void set_clip_rect_2d(const ClipRect2D &clip) override
+            {
+                flush_2d();
+                clip_ = clip;
+                if (!clip.enabled && context_.frame_open() && last_2d_width_ > 0)
+                {
+                    D3D12_RECT scissor{0, 0, last_2d_width_, last_2d_height_};
+                    context_.command_list()->RSSetScissorRects(1, &scissor);
+                }
+            }
+
             void flush_2d() override
             {
                 if (batch_vertices_.empty() || !mapped_vertices_ || !context_.frame_open())
                     return;
+                if (clip_.enabled)
+                {
+                    // The D3D12 2D viewport is sized to the drawing space, so no scaling is needed.
+                    int x = 0, y = 0, w = 0, h = 0;
+                    clip_rect_to_pixels(clip_, last_2d_width_, last_2d_height_, last_2d_width_, last_2d_height_,
+                                        detail::screen_offset_x(), detail::screen_offset_y(), x, y, w, h);
+                    D3D12_RECT scissor{x, y, x + w, y + h};
+                    context_.command_list()->RSSetScissorRects(1, &scissor);
+                }
                 const std::size_t count = batch_vertices_.size();
                 if (vertex_frame_serial_ != context_.frame_serial())
                 {
@@ -1856,6 +1897,8 @@ namespace sl::detail
                 }
                 if (vertex_offset_ + count > vertex_capacity_)
                 {
+                    // The per-frame vertex region is full; report it instead of dropping geometry silently.
+                    last_error_ = "D3D12 2D vertex buffer is full for this frame; some 2D geometry was dropped.";
                     batch_vertices_.clear();
                     return;
                 }
@@ -3290,6 +3333,7 @@ namespace sl::detail
             std::uint32_t active_program_ = 0;
             std::array<std::uint32_t, max_storage_bindings> bound_storage_buffers_{};
             std::array<std::uint32_t, max_texture_units> bound_texture_units_{};
+            std::vector<std::uint32_t> render_target_stack_;
             std::array<std::uint32_t, max_image_units> bound_image_units_{};
             struct ImageRestore
             {
@@ -3339,6 +3383,9 @@ namespace sl::detail
             std::uint32_t white_texture_ = 0;
             std::uint32_t active_render_target_ = 0;
             std::array<float, 16> projection_{};
+            ClipRect2D clip_;
+            int last_2d_width_ = 0;
+            int last_2d_height_ = 0;
             std::vector<std::uint32_t> free_descriptors_;
             std::vector<std::uint32_t> free_render_target_descriptors_;
             std::vector<std::uint32_t> free_depth_stencil_descriptors_;

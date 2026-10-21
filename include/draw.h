@@ -342,6 +342,36 @@ namespace sl
      * order. During a normal-map pass the tint is ignored.
      */
     void draw_sprite_batch(Bitmap *bitmap, const std::vector<SpriteInstance> &sprites);
+    /** Parameters for draw_sprite_ex(). */
+    struct SpriteParams
+    {
+        /** Position of the origin point in screen pixels. */
+        float x = 0.0f, y = 0.0f;
+        /** Origin within the drawn sprite as a fraction of its size: (0,0) top-left, (0.5,0.5) centre. Rotation and scaling pivot here. */
+        float origin_x = 0.5f, origin_y = 0.5f;
+        /** Scale applied to the source rectangle. */
+        float scale_x = 1.0f, scale_y = 1.0f;
+        /** Clockwise rotation about the origin, in degrees. */
+        float rotation = 0.0f;
+        /** Mirror the sprite horizontally or vertically. */
+        bool flip_x = false, flip_y = false;
+        /** Source rectangle in bitmap pixels; a zero width or height selects the whole bitmap. */
+        int source_x = 0, source_y = 0, source_width = 0, source_height = 0;
+        /** Multiplies the texel colour and alpha. Use the alpha channel for transparency. */
+        Colour tint = White;
+    };
+    /** Draw one sprite with full control over origin, scale, rotation, flips, source rectangle and tint. */
+    void draw_sprite_ex(Bitmap *bitmap, const SpriteParams &params);
+    /**
+     * Restrict subsequent drawing to the rectangle (x, y, width, height) in screen pixels, so anything outside it is
+     * not drawn. This affects GPU drawing to the screen or the active render target and is reset to the whole target
+     * by clear_clip_rect(), begin_render_target() and end_render_target(). Pending batched drawing is flushed first.
+     */
+    void set_clip_rect(int x, int y, int width, int height);
+    /** Remove the clip rectangle so drawing covers the whole target again. */
+    void clear_clip_rect();
+    /** Return whether a clip rectangle is active, and optionally its bounds. */
+    bool get_clip_rect(int *x = nullptr, int *y = nullptr, int *width = nullptr, int *height = nullptr);
     /** Draw a horizontally flipped bitmap. */
     void draw_sprite_h_flip(Bitmap *bitmap, float x, float y);
     /** Draw a vertically flipped bitmap. */
