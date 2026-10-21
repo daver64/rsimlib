@@ -63,6 +63,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🏔️ **[Chunked-LOD Terrain](docs/terrain.md)** — Streamed quadtree terrain for flat arenas or planets: procedural, heightmap or editable sources, splat-textured layers with mipmapping and optional normal maps, geomorphing, exact height/normal/raycast queries, Lua bindings and `FlightWorld` ground integration.
 - 🌫️ **[World Flavour](docs/world_flavour.md)** — Sky, exponential fog, Rayleigh/Mie planetary atmosphere, 2D or volumetric clouds, and terrain-aware scattering of trees and rocks with mesh-to-impostor LOD, all scriptable from Lua.
 - 🛰️ **[Flight & Orbital Dynamics](docs/flight.md)** — Double-precision 3D rigid bodies with N-body gravity, Kepler rails and time warp, thrusters/RCS, atmosphere, lifting surfaces and landing gear for Orbiter-style or aircraft sims.
+- 🌐 **[Networking](docs/networking.md)** — ENet-based UDP client/server with reliable and unreliable channels, bounds-checked packet reading and writing, and a non-blocking TCP socket for talking to services such as IRC.
 - 🚀 **[Physics & Collision Integration](docs/physics.md)** — Opaque Box2D C++ wrapper and Lua physics bindings.
 - 📜 **[Sandboxed Lua Scripting & Canvas](docs/scripting_lua.md)** — Hardened Lua sandbox via sol2, persistent canvas drawing API, audio scripting, lighting and normal maps, tile maps, 2D/3D fluids, textured voxel worlds, resource limits, and C++ event dispatching.
 - 🧭 **[Showcase Guide](docs/showcases.md)** — A recommended tour through the interactive game, world, graphics, and tool examples.
@@ -262,6 +263,7 @@ The full catalog of focused runnable examples follows.
 ./build/exnormalmap3d   # Normal-mapped 3D meshes under an orbiting light (Space toggles)
 ./build/exmipmap         # Side-by-side bilinear vs mipmaps vs mipmaps + 16x anisotropy
 ./build/exinstancing     # 6400 cubes drawn per-mesh vs hardware-instanced (Space switches), plus a 2D sprite batch
+./build/exlobby         # Game lobby: find games in an IRC channel, then play over UDP (--irc-host HOST to choose the server)
 ./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
@@ -314,6 +316,7 @@ The full catalog of focused runnable examples follows.
 - **[`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)** — A cube and sphere with a procedural normal map under an orbiting light.
 - **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`.
 - **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm.
+- **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena.
 - **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading.
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.

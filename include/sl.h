@@ -40,6 +40,7 @@
 #include "model3d.h"
 #include "voxel.h"
 #include "particles.h"
+#include "net.h"
 #include "system.h"
 #include "video.h"
 #include "animated_sprite.h"

@@ -1172,6 +1172,12 @@ MPEG1/MP2 playback into a bitmap.
 
 ---
 
+## Networking ([include/net.h](../include/net.h))
+
+`NetServer` and `NetClient` give reliable and unreliable UDP messaging (ENet), `PacketWriter`/`PacketReader` encode packets with bounds-checked reads, and `TcpSocket`/`TcpListener` provide non-blocking TCP. Everything is polled from your frame loop and nothing blocks. See the [networking guide](networking.md) and `src/examples/exlobby`.
+
+---
+
 ## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
 
 A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it.

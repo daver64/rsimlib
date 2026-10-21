@@ -313,6 +313,7 @@ add_library(simlib STATIC
     src/engine/video.cpp
     src/engine/animated_sprite.cpp
     src/engine/voxel.cpp
+    src/engine/net.cpp
 )
 if(WIN32)
     target_sources(simlib PRIVATE
@@ -345,6 +346,11 @@ target_link_libraries(simlib PUBLIC OpenGL::GL PNG::PNG ZLIB::ZLIB imgui lua sol
 target_link_libraries(simlib PUBLIC box2d::box2d)
 target_link_libraries(simlib PRIVATE pugixml-static)
 target_link_libraries(simlib PRIVATE Vulkan::Vulkan)
+find_package(Threads REQUIRED)
+target_link_libraries(simlib PRIVATE Threads::Threads)
+if(WIN32)
+    target_link_libraries(simlib PRIVATE ws2_32 winmm)
+endif()
 if(WIN32)
     target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler GLEW::GLEW)
     # The D3D12 backend translates GLSL to HLSL (glslang -> SPIR-V -> SPIRV-Cross) at runtime.
@@ -602,6 +608,8 @@ add_executable(exmipmap src/examples/exmipmap/exmipmap.cpp)
 target_link_libraries(exmipmap PRIVATE simlib)
 add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
+add_executable(exlobby src/examples/exlobby/exlobby.cpp)
+target_link_libraries(exlobby PRIVATE simlib imgui)
 
 add_executable(exconfig src/examples/exconfig/exconfig.cpp)
 target_link_libraries(exconfig PRIVATE simlib)
@@ -611,6 +619,17 @@ if(BUILD_TESTING)
     target_link_libraries(config_test PRIVATE simlib)
     target_compile_definitions(config_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME config COMMAND config_test)
+
+    add_executable(net_test tests/net_test.cpp)
+    target_link_libraries(net_test PRIVATE simlib)
+    target_compile_definitions(net_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME net COMMAND net_test)
+
+    add_executable(lobby_test tests/lobby_test.cpp)
+    target_include_directories(lobby_test PRIVATE src/examples/exlobby)
+    target_link_libraries(lobby_test PRIVATE simlib)
+    target_compile_definitions(lobby_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME lobby COMMAND lobby_test)
 
     add_executable(isometric_test tests/isometric_test.cpp)
     target_link_libraries(isometric_test PRIVATE simlib)
@@ -723,7 +742,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test tilemap_test normalmap_test normalmap3d_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 target_compile_options(${SIMLIB_TEST_TARGET} PRIVATE /UNDEBUG)
