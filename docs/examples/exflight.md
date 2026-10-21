@@ -11,6 +11,50 @@ Aircraft flight with `FlightWorld`: lifting and control surfaces, a jet engine, 
 - Exponential atmosphere
 - Switchable cameras
 
+## Key code
+
+In `exflight.cpp`, the aircraft's forces come from `LiftingSurface` coefficients, and the exponential atmosphere and RK4 integrator are configured on the `FlightWorld`.
+
+```cpp
+        world.flat_atmosphere.surface_density = 1.225;
+        world.integrator = sl::FlightIntegrator::rk4;
+// ...
+        b.surfaces.push_back(make_surface("wing", {-2.5, 0.0, 0.0}, {0, 1, 0}, 8.0, 4.6, 0.3, 0.0));
+        b.surfaces.push_back(make_surface("wing", {2.5, 0.0, 0.0}, {0, 1, 0}, 8.0, 4.6, 0.3, 0.0));
+        // Ailerons on the outer wings: positive control rolls right.
+        b.surfaces.push_back(make_surface("aileron", {-4.5, 0.0, 0.0}, {0, 1, 0}, 1.4, 3.5, 0.0, 0.18));
+```
+
+The jet engine is a `Thruster`, and the landing gear is a set of `GearContact` spring-damper wheels.
+
+```cpp
+        sl::Thruster jet;
+        jet.position = {0.0, 0.0, 1.0};
+        jet.direction = {0.0, 0.0, -1.0};
+        jet.max_thrust = 4500.0;
+        jet.air_breathing = true;
+        b.thrusters.push_back(jet);
+// ...
+            sl::GearContact g;
+            g.position = p;
+            g.stiffness = 6.0e4;
+            g.damping = 8.0e3;
+            b.gear.push_back(g);
+```
+
+Each frame, the throttle, control surfaces, brakes and nosewheel steering are driven from the keyboard before stepping the simulation.
+
+```cpp
+        world.set_control(id, "elevator", axis(sl::Key::arrow_up, sl::Key::arrow_down));
+        world.set_control(id, "aileron", axis(sl::Key::arrow_right, sl::Key::arrow_left));
+        world.set_control(id, "rudder", rudder);
+        world.set_brakes(id, sl::key_down(sl::Key::letter_b) ? 1.0 : 0.0);
+        // Nosewheel steering follows the rudder pedals.
+        plane.gear[0].forward = {std::sin(-rudder * 0.5), 0.0, -std::cos(rudder * 0.5)};
+
+        world.step(dt);
+```
+
 ## Running
 ```bash
 ./build/exflight

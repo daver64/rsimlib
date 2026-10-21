@@ -11,6 +11,38 @@ GPU compute: a compute shader updates 1,000 particles stored in a shader storage
 - Passing parameters with `ShaderUniform`
 - Reading the buffer back to draw particles on the CPU side
 
+## Key code
+
+In `excompute.cpp`, the particle data is uploaded into a `StorageBuffer`, and `ShaderUniform` entries describe the push-constant layout used on Vulkan.
+
+```cpp
+static const std::vector<sl::ShaderUniform> compute_vulkan_uniforms = {
+    {"uDeltaTime", 0, 4},
+    {"uWidth", 4, 4},
+    {"uHeight", 8, 4},
+};
+// ...
+    sl::StorageBuffer particle_buffer(num_particles * sizeof(Particle));
+    if (!particle_buffer.upload(host_particles))
+    {
+        std::cerr << "Failed to upload particle storage buffer.\n";
+        return -1;
+    }
+```
+
+Each frame, the shader is dispatched with `dispatch_compute_for`, synchronised with `compute_barrier`, and the results are read back for CPU-side drawing.
+
+```cpp
+        particle_buffer.bind(0);
+        compute_shader.set_uniform("uDeltaTime", delta);
+        compute_shader.set_uniform("uWidth", 800.0f);
+        compute_shader.set_uniform("uHeight", 600.0f);
+        sl::dispatch_compute_for(compute_shader, static_cast<unsigned int>(num_particles), 1, 1, 16, 1, 1);
+        sl::compute_barrier();
+
+        particle_buffer.readback(host_particles);
+```
+
 ## Running
 ```bash
 ./build/excompute

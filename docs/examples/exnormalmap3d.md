@@ -10,6 +10,40 @@
 - Normal-mapped lighting with `set_light_3d`
 - Showing the 3D surface bitmap on the 2D screen
 
+## Key code
+
+In `exnormalmap3d.cpp`, a `Surface3D` and the cube and sphere meshes are created up front.
+
+```cpp
+    sl::Surface3D *surface = sl::create_surface_3d(640, 480, 4);
+    sl::Mesh *cube = sl::create_cube_mesh(1.2f);
+    sl::Mesh *sphere = sl::create_sphere_mesh(0.7f, 48, 24);
+```
+
+Between `begin_surface_3d` and `end_surface_3d`, a moving light and a `Material` with a normal map are used to draw both meshes.
+
+```cpp
+        if (sl::begin_surface_3d(surface, camera))
+        {
+            sl::clear_surface_3d({15, 18, 30});
+            // The light circles the scene so the studs' shading visibly moves.
+            sl::set_light_3d({{-std::cos(time), -0.5f, -std::sin(time)}, 0.12f});
+            sl::Material material;
+            material.texture = colour;
+            material.normal_map = use_normals ? normal : nullptr;
+            sl::draw_mesh(cube, sl::model_matrix({-1.1f, 0, 0}, {0.4f, 0.6f, 0}), material);
+            sl::draw_mesh(sphere, sl::model_matrix({1.1f, 0, 0}, {0, time * 0.3f, 0}), material);
+            sl::end_surface_3d();
+        }
+```
+
+The 3D surface's bitmap is then shown on the 2D screen.
+
+```cpp
+        sl::clear_to_colour(sl::screen, {40, 40, 40});
+        sl::draw_sprite(sl::surface_3d_bitmap(surface), 80, 60);
+```
+
 ## Running
 ```bash
 ./build/exnormalmap3d

@@ -9,6 +9,37 @@ A minimal raw OpenGL 3D example: a spinning model drawn with a custom shader and
 - Compiling a custom 3D shader
 - `Camera` and `model_matrix` transforms
 
+## Key code
+
+In `ex3d_gl.cpp`, the example requires the OpenGL backend and then compiles its own shader program through raw GL calls alongside simlib.
+
+```cpp
+if (!sl::set_graphics_backend(sl::GraphicsBackend::opengl))
+{
+    std::fprintf(stderr, "ex3d_gl requires the OpenGL backend; use --gl.\n");
+    return -1;
+}
+// ...
+const GLuint program = create_program();
+```
+
+```cpp
+const GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, load_file("shaders/glsl/ex3d.vert"));
+const GLuint fragment_shader = compile_shader(GL_FRAGMENT_SHADER, load_file("shaders/glsl/ex3d.frag"));
+```
+
+Each frame in `ex3d_gl.cpp`, `sl::model_matrix` and `sl::Camera` produce the matrices that are combined into the MVP uniform for the custom shader.
+
+```cpp
+const glm::mat4 model = sl::model_matrix({0.0f, 0.0f, 0.0f}, {time * 0.7f, time, time * 0.35f});
+const glm::mat4 view = camera.view_matrix();
+const glm::mat4 projection = camera.projection_matrix(
+    static_cast<float>(sl::screen_width()) / std::max(1, sl::screen_height()));
+glUseProgram(program);
+glUniformMatrix4fv(glGetUniformLocation(program, "uMvp"), 1, GL_FALSE,
+                   glm::value_ptr(projection * view * model));
+```
+
 ## Running
 ```bash
 ./build/ex3d_gl

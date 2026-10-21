@@ -10,6 +10,36 @@
 - A `LightingPass` light that follows the mouse
 - Procedurally built bitmaps via `create_bitmap` and `putpixel`
 
+## Key code
+
+In `exnormalmap.cpp`, the generated normal bitmap is attached to the brick sprite, and the lighting pass sets its ambient level and light height.
+```cpp
+    make_bump_tile(brick, brick_normal);
+    sl::set_normal_map(brick, brick_normal);
+    lighting.set_ambient(0.12f);
+    lighting.set_light_height(48.0f);
+```
+
+In `exnormalmap.cpp`, sprites are redrawn in the normal pass and a mouse-following light is applied to the scene and its normal map.
+```cpp
+        if (sl::begin_normal_pass(normals))
+        {
+            draw_tiles();
+            sl::end_normal_pass();
+        }
+
+        sl::Light light;
+        light.x = static_cast<float>(sl::mouse_x());
+        light.y = static_cast<float>(sl::mouse_y());
+        light.radius = 300.0f;
+        light.intensity = 1.6f;
+        light.colour = {255, 210, 150};
+
+        if (use_normals)
+        {
+            lighting.apply(scene, normals, {light});
+        }
+```
 ## Running
 ```bash
 ./build/exnormalmap

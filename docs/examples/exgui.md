@@ -9,6 +9,33 @@ Dear ImGui integration: the retained and debug GUI drawn on top of simlib, with 
 - Widgets drawing over the 2D scene
 - Backend and window readout
 
+## Key code
+
+In `exgui.cpp`, the GUI is initialised with `gui_init` and window events are forwarded to ImGui.
+
+```cpp
+    sl::gui_init();
+// ...
+            sl::gui_handle_event(event);
+            sl::display_handle_event(event);
+```
+
+Each frame, an ImGui window with widgets and a backend/window readout is built between `gui_new_frame` and `gui_render`, drawn over the 2D scene.
+
+```cpp
+        sl::clear_to_colour(sl::screen, {18, 23, 32});
+        sl::gui_new_frame();
+        ImGui::SetNextWindowBgAlpha(panel_alpha);
+        ImGui::Begin("simlib GUI example", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text("Backend: %s", backend_name(sl::graphics_backend()));
+        ImGui::Text("Window: %d x %d", sl::screen_width(), sl::screen_height());
+        ImGui::SliderFloat("Panel alpha", &panel_alpha, 0.25f, 1.0f);
+        ImGui::End();
+        if (show_demo)
+            sl::gui_show_demo_window();
+        sl::gui_render();
+```
+
 ## Running
 ```bash
 ./build/exgui

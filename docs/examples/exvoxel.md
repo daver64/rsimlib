@@ -11,6 +11,63 @@ A Minecraft-style voxel world: fly around, break and place blocks, with chunk me
 - Mouse-look with a locked cursor
 - Chunk and triangle counters
 
+## Key code
+
+In `exvoxel.cpp`, a `VoxelWorld` is generated and meshed into chunks against a texture atlas by `update_dirty_chunks`.
+
+```cpp
+sl::VoxelAtlas atlas;
+atlas.texture = atlas_bitmap;
+atlas.tiles_per_row = 16;
+atlas.tiles_per_col = 16;
+
+sl::VoxelWorld world;
+generate_asteroid(world);
+world.update_dirty_chunks(&atlas);
+```
+
+The cursor is locked and the mouse delta drives the look direction.
+
+```cpp
+sl::set_relative_mouse_mode(true);
+// ...
+int dx = 0, dy = 0;
+sl::mouse_delta(dx, dy);
+constexpr float sensitivity = 0.003f;
+yaw += static_cast<float>(dx) * sensitivity;
+pitch -= static_cast<float>(dy) * sensitivity;
+```
+
+Each frame a block raycast finds the targeted block; left click breaks it and right click places a block, with dirty chunks re-meshed after each edit.
+
+```cpp
+const sl::VoxelRaycastResult ray_hit = world.raycast(cam_pos, forward, 7.5f);
+// ...
+if (mouse_captured && left_down && !prev_left_down && ray_hit.hit)
+{
+    // ...
+    if (destroyed_block != sl::BLOCK_AIR &&
+        world.set_block(ray_hit.hit_block.x, ray_hit.hit_block.y, ray_hit.hit_block.z, sl::BLOCK_AIR))
+    {
+        world.update_dirty_chunks(&atlas);
+        // ...
+    }
+}
+// ...
+if (world.set_block(ray_hit.place_block.x, ray_hit.place_block.y, ray_hit.place_block.z, new_block))
+{
+    world.update_dirty_chunks(&atlas);
+    // ...
+}
+```
+
+The chunk and triangle counters are shown as live text.
+
+```cpp
+sl::gprintf(20, 36, {160, 210, 255}, "Chunks: %zu | Triangles: %d",
+            world.chunk_count(), world.total_triangles());
+```
+
 ## Running
 ```bash
 ./build/exvoxel

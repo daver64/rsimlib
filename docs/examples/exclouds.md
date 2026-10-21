@@ -11,6 +11,44 @@ A sky viewer for procedural cloud types, with altitude, sun position, planet cur
 - Planet curvature on and off
 - Volumetric cloud rendering
 
+## Key code
+
+In `exclouds.cpp`, an `Environment3D` is built each frame from the altitude, sun elevation and planet toggle, then enabled cloud types are added as layers (volumetric can be switched off):
+
+```cpp
+sl::Environment3D environment;
+environment.sun_direction = glm::normalize(glm::vec3(-0.5f, -sun_elevation, 0.4f));
+environment.camera_altitude = altitude;
+environment.camera_position = {0.0, altitude, 0.0};
+if (planet)
+{
+    environment.planet = true;
+    environment.sun_intensity = 20.0f;
+}
+int layers = 0;
+for (const Entry &entry : entries)
+{
+    if (!entry.on || layers >= 4)
+        continue;
+    sl::CloudLayer layer = sl::cloud_layer(entry.type);
+    // With volumetric off, the 3D types fall back to their flat layer.
+    if (!volumetric)
+        layer.volumetric = false;
+    (layers == 0 ? environment.clouds : environment.more_clouds[layers - 1]) = layer;
+    ++layers;
+}
+```
+
+The environment is applied to the 3D surface and the sky is drawn:
+
+```cpp
+sl::set_environment_3d(environment);
+sl::draw_sky_3d();
+sl::Light3D light;
+light.direction = environment.sun_direction;
+light.colour = sl::atmosphere_sun_colour(environment);
+```
+
 ## Running
 ```bash
 ./build/exclouds [--types cirrus,cumulus,...]

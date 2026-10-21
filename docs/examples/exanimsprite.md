@@ -11,6 +11,50 @@ Animated sprites: looping sprites at different frame rates, a rotated pulsing ba
 - One-shot explosion animations managed by `AnimationManager`
 - Frame timing with `get_frame_time`
 
+## Key code
+
+In `exanimsprite.cpp`, the atlas feeds looping sprites at different frame durations, and the bar is configured to rotate around its centre.
+```cpp
+    const sl::Atlas atlas = sl::create_atlas(bitmap, tile, tile);
+    sl::AnimationManager manager;
+    std::vector<int> orbs;
+    // Orbs share one animation at different speeds; the first index of each row is its start tile.
+    const float durations[] = {0.12f, 0.06f, 0.03f, 0.016f};
+    for (int i = 0; i < 4; ++i)
+    {
+        sl::AnimatedSprite orb = sl::create_animated_sprite(atlas, 0, frames, 120 + i * 180, 120, 96, 96, durations[i]);
+        orbs.push_back(manager.add_animated_sprite(orb));
+    }
+
+    // A rotated sprite: the bar uses its tiles from row 1 and is also turned every frame.
+    sl::AnimatedSprite bar = sl::create_animated_sprite(atlas, atlas.columns, frames, 450, 360, 128, 128, 0.04f);
+    bar.draw_rotated = true;
+    bar.pivotx = 64.0f;
+    bar.pivoty = 64.0f;
+```
+
+In `exanimsprite.cpp`, a mouse click adds a one-shot explosion sprite, then `get_frame_time` drives rotation while the manager advances and draws animations.
+```cpp
+            else if (event.type() == sl::Event::Type::mouse_button_down)
+            {
+                // One-shot: plays the ring once (counts = frames - 1 advances) and then removes itself.
+                sl::AnimatedSprite boom = sl::create_animated_sprite(
+                    atlas, 2 * atlas.columns, frames, sl::mouse_x() - 48, sl::mouse_y() - 48, 96, 96, 0.03f, true,
+                    frames - 1);
+                manager.add_animated_sprite(boom);
+                ++explosions;
+            }
+            sl::display_handle_event(event);
+        }
+
+        if (spin)
+            angle += 120.0f * sl::get_frame_time() / 1000.0f;
+        manager.set_sprite_rotation(bar_index, angle);
+        manager.update();
+
+        sl::clear_to_colour(sl::screen, {20, 24, 34});
+        manager.draw_sprites(sl::screen);
+```
 ## Running
 ```bash
 ./build/exanimsprite

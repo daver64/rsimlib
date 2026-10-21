@@ -9,6 +9,41 @@ A Vulkan smoke test: a textured, rotating sprite and primitives rendered into a 
 - `draw_sprite_rotated` and primitives
 - `Bloom` post effect on a render target
 
+## Key code
+
+In `exvulkan.cpp`, the Vulkan backend is selected before the window is created:
+
+```cpp
+if (!sl::set_graphics_backend(sl::GraphicsBackend::vulkan) ||
+    !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
+{
+    return -1;
+}
+```
+
+The scene (rotated sprite and primitives) is drawn into a render target, then `Bloom` is applied to it:
+
+```cpp
+sl::Bloom bloom;
+if (!bloom.initialise())
+{
+    sl::gprintf(0, 0, {255, 60, 60}, "Bloom init failed: %s", bloom.error().c_str());
+}
+bloom.set_threshold(0.4f);
+bloom.set_intensity(1.2f);
+// ...
+sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, static_cast<float>(sl::time_ms() % 3600) * 0.1f);
+sl::line(sl::screen, 80.0f, 500.0f, 220.0f, 500.0f, {255, 180, 80});
+sl::circlefill(sl::screen, 600.0f, 480.0f, 42.0f, {220, 100, 150});
+if (has_scene)
+    sl::end_render_target();
+
+if (has_scene && bloom.is_valid())
+{
+    bloom.apply(scene, 0, 0, sl::screen_width(), sl::screen_height());
+}
+```
+
 ## Running
 ```bash
 ./build/exvulkan

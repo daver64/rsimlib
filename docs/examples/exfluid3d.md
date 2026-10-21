@@ -10,6 +10,32 @@
 - Live cell, changed-voxel and triangle counters
 - Orbit, tilt and zoom camera
 
+## Key code
+
+In `exfluid3d.cpp`, a camera ray selects a voxel surface and the chosen brush writes cells into the 3D fluid grid before it is exported to the voxel world.
+```cpp
+        const sl::VoxelRaycastResult hit = world.raycast(eye, ray_dir, 200.0f);
+
+        if (hit.hit && sl::mouse_button_down(sl::MouseButton::left))
+        {
+            const Brush &b = BRUSHES[brush];
+            for (int dz = 0; dz < 2; ++dz)
+                for (int dx = 0; dx < 2; ++dx)
+                {
+                    const int gx = hit.place_block.x - ORIGIN_X + dx;
+                    const int gy = hit.place_block.y + 1;
+                    const int gz = hit.place_block.z - ORIGIN_Z + dz;
+                    if (gx > 0 && gy > 0 && gz > 0 && gx < GRID_W - 1 && gy < GRID_H - 1 && gz < GRID_D - 1 &&
+                        sl::fluid3d_get_cell(sim, gx, gy, gz).type == sl::FluidElement::empty)
+                        sl::fluid3d_set_cell(sim, gx, gy, gz, b.element, 1.0f, b.temp, b.life);
+                }
+        }
+
+        if (!paused)
+            sl::fluid3d_step(sim);
+        const std::size_t changed = sl::fluid3d_export_to_voxels(sim, world, fluid_blocks);
+        world.update_dirty_chunks();
+```
 ## Running
 ```bash
 ./build/exfluid3d

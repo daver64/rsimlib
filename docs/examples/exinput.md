@@ -11,6 +11,53 @@ Input mapping: one `InputMap` binds keyboard, mouse and gamepad inputs to named 
 - Reading mouse position and buttons
 - Gamepad initialisation, dead zones and connected-controller listing
 
+## Key code
+
+In `exinput.cpp`, keys, gamepad axes and buttons and mouse buttons are bound to named actions on an `InputMap`.
+
+```cpp
+input.bind_key("left", Key::arrow_left);
+input.bind_key("left", Key::letter_a);
+input.bind_gamepad_axis("left", sl::GamepadAxis::left_x, -1);
+// ...
+input.bind_gamepad_button("fire", sl::GamepadButton::south);
+input.bind_mouse("fire", sl::MouseButton::left);
+input.bind_key("fire", Key::space);
+```
+
+Each frame the actions move the square, and F2 rebinds `fire` to whatever input is captured next.
+
+```cpp
+if (state.input.pressed("remap"))
+{
+    state.remapping = true;
+    state.input.clear_bindings("fire");
+}
+else if (state.remapping)
+{
+    if (const auto captured = sl::InputMap::capture();
+        captured && !captured->is_key(Key::f2))
+    {
+        state.input.bind("fire", *captured);
+        state.remapping = false;
+    }
+}
+
+float horizontal = 0.0f, vertical = 0.0f;
+state.input.vector("left", "right", "up", "down", horizontal, vertical);
+```
+
+The gamepad dead zone and subsystem are set up in `main`, and the mouse state is read for display.
+
+```cpp
+sl::gamepad_set_deadzone(0.15f);
+if (!sl::gamepad_init())
+    sl::gprintf_center(580, {240, 130, 120}, "Gamepad subsystem unavailable");
+// ...
+sl::gprintf(24, 72, {170, 185, 205}, "Mouse: %d, %d    Buttons: 0x%02X", mouse_x, mouse_y, mouse_buttons);
+sl::gprintf(24, 96, {170, 185, 205}, "Gamepads connected: %d    Escape: exit", sl::gamepad_count());
+```
+
 ## Running
 ```bash
 ./build/exinput

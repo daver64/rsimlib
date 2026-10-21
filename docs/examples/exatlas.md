@@ -10,6 +10,39 @@ Texture atlas browser: pick a tile from a grid atlas and see it drawn at 4x next
 - Mapping mouse position to a grid cell
 - Showing tile index, grid position, atlas size and tile size as live text
 
+## Key code
+
+In `exatlas.cpp`, the atlas is built from a loaded bitmap by slicing it into 32x32 tiles with `create_atlas`.
+
+```cpp
+sl::Bitmap *bitmap = sl::load_bitmap("assets/textures/atlas_grid.png");
+const sl::Atlas atlas = sl::create_atlas(bitmap, 32, 32);
+```
+
+The selected tile is drawn at 1x with `atlas_blit` and scaled to 128x128 with `atlas_stretch_blit`.
+
+```cpp
+sl::atlas_blit(atlas, sl::screen, selected_tile, 33, 295);
+// ...
+sl::atlas_stretch_blit(atlas, sl::screen, selected_tile, 121, 295, 128, 128);
+```
+
+Mouse clicks are mapped to a grid cell by dividing the mouse offset by the tile size, and the live text shows the tile index, grid position and sizes.
+
+```cpp
+const int col = (mx - atlas_x) / atlas.tile_width;
+const int row = (my - atlas_y) / atlas.tile_height;
+if (col >= 0 && col < atlas.columns && row >= 0 && row < atlas.rows)
+{
+    const int index = row * atlas.columns + col;
+    // ...
+}
+// ...
+sl::gprintf(32, 144, text, "Selected Tile: %d / %d", selected_tile + 1, atlas.tile_count);
+sl::gprintf(32, 192, muted, "Atlas Size:    %d x %d (%d cols x %d rows)",
+            bitmap->width, bitmap->height, atlas.columns, atlas.rows);
+```
+
 ## Running
 ```bash
 ./build/exatlas

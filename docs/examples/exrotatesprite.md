@@ -10,6 +10,19 @@ Loads a bitmap and spins it with rotation and scaling at a fixed frame rate.
 - Limiting the frame rate with `set_fps` and animating from `time_ms`
 - Text overlays with `gprintf_center`
 
+## Key code
+
+In `exrotatesprite.cpp`, the frame rate is capped with `set_fps`, the angle is derived from `time_ms`, and the sprite and overlay text are drawn each frame:
+
+```cpp
+sl::set_fps(60);
+// ...
+const float angle_degrees = static_cast<float>(sl::time_ms() % 3600) * 0.1f;
+sl::clear_to_colour(sl::screen, {45, 48, 56});
+sl::gprintf_center(32, {0, 255, 0}, "Rotating sprite - press Escape to exit");
+sl::draw_sprite_rotated(balloon, 400.0f, 300.0f, angle_degrees);
+```
+
 ## Running
 ```bash
 ./build/exrotatesprite

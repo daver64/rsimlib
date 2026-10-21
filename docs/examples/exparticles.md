@@ -11,6 +11,43 @@ CPU particle emitter that follows the mouse, with gravity, blur and glow post ef
 - Blur and glow effects applied to a render target
 - Live particle count
 
+## Key code
+
+In `exparticles.cpp`, an `EmitterConfig` describes the particles and a `ParticleEmitter` is built from it:
+
+```cpp
+sl::EmitterConfig config;
+config.emit_rate = 180.0f;
+config.particle_lifetime = 1.6f;
+config.min_speed = 40.0f;
+config.max_speed = 180.0f;
+config.direction_degrees = -90.0f;
+config.spread_degrees = 34.0f;
+config.start_colour = {255, 220, 105, 235};
+config.end_colour = {235, 75, 48, 0};
+config.gravity = 95.0f;
+config.max_particles = 900;
+
+sl::ParticleEmitter emitter(config, 400.0f, 500.0f);
+```
+
+Each frame the emitter follows the mouse, is updated and rendered into a render target, and glow or blur is applied to that target:
+
+```cpp
+emitter.set_position(static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y()));
+emitter.update(elapsed);
+// ...
+sl::begin_render_target(particles);
+sl::clear_render_target({0, 0, 0, 0});
+emitter.render();
+sl::end_render_target();
+// ...
+if (use_glow)
+{
+    glow.apply(particles, 0, 0, 800, 600);
+}
+```
+
 ## Running
 ```bash
 ./build/exparticles

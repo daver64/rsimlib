@@ -11,6 +11,24 @@ The smallest simlib program: open a window, draw centred text on a cleared backg
 - Presenting a frame with `show_video_bitmap` and `end_frame`
 - Clean shutdown with `wait_for_graphics` and `shutdown`
 
+## Key code
+
+In `exhello.cpp`, the program clears the screen, draws centered greeting and backend text, then presents the frame and waits for input before shutdown.
+```cpp
+    sl::Font *font = sl::get_default_monospace_font();
+    const int fontheight = sl::text_height(font);
+    sl::Colour text_colour{0, 255, 0};
+    sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
+
+    sl::gprintf_center(1 + fontheight, text_colour, "Hello, world!");
+    sl::gprintf_center(3 + fontheight * 2, text_colour, "Backend = %s",sl::graphics_backend_name().c_str());
+    sl::draw_renderer_label();
+    sl::show_video_bitmap();
+    sl::end_frame();
+    process_input();
+    sl::wait_for_graphics();
+    sl::shutdown();
+```
 ## Running
 ```bash
 ./build/exhello

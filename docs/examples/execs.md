@@ -11,6 +11,71 @@ A header-only archetype ECS (`recs.h`) driving thousands of simulated entities, 
 - Live archetype count and update and render timings
 - ECS memory usage reporting
 
+## Key code
+
+In `execs.cpp`, resources are registered on the `recs::World` and wanderer and seeker entities are spawned into it at start-up:
+
+```cpp
+world.set_resource<GameTime>();
+
+world.set_resource<MouseState>();
+
+world.set_resource<Settings>();
+
+world.set_resource<Stats>();
+// ...
+spawn_wanderers(
+    world,
+    500,
+    350.0f,
+    430.0f);
+
+spawn_seekers(
+    world,
+    250,
+    550.0f,
+    430.0f);
+```
+
+The movement system switches between chunked and parallel iteration over `Position` and `Velocity` components:
+
+```cpp
+if (mode == 1)
+{
+    world.for_each_chunk<
+        Position,
+        Velocity>(
+        [&](Position *positions,
+            Velocity *velocities,
+            size_t count)
+        {
+            for (
+                size_t i = 0;
+                i < count;
+                ++i)
+            {
+                positions[i].x +=
+                    velocities[i].x *
+                    delta;
+```
+
+```cpp
+world.parallel_for_each<
+    Position,
+    Velocity>(
+    [&](Position &position,
+        Velocity &velocity)
+    {
+        position.x +=
+            velocity.x *
+            delta;
+
+        position.y +=
+            velocity.y *
+            delta;
+    });
+```
+
 ## Running
 ```bash
 ./build/execs

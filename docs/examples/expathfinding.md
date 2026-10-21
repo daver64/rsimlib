@@ -11,6 +11,54 @@ Layered pathfinding: enemies pick between chase, scent and sound maps to hunt a 
 - Switching the visualised overlay
 - Editing walls at runtime and recomputing
 
+## Key code
+
+In `expathfinding.cpp`, the `Pathfinder` is sized to the tile grid, and each frame it is updated from the player's position, with the last argument feeding the sound layer when the player moves noisily.
+
+```cpp
+    Pathfinder pathfinder;
+    pathfinder.resize(columns, rows, cell, cell, blocked);
+// ...
+        pathfinder.update(player_col, player_row, moved && noisy);
+```
+
+Enemies never search: they read the next step from the chase layer first, then scent, then sound.
+
+```cpp
+            const PathLayer layers[] = {PathLayer::chase, PathLayer::scent, PathLayer::sound};
+            const char *names[] = {"chase", "scent", "sound"};
+            enemy.mode = "idle";
+            enemy.dx = enemy.dy = 0;
+            for (int i = 0; i < 3; ++i)
+            {
+                if (pathfinder.next_step(layers[i], enemy.col, enemy.row, step))
+                {
+                    enemy.col += step.dx;
+                    enemy.row += step.dy;
+                    enemy.dx = step.dx;
+                    enemy.dy = step.dy;
+                    enemy.mode = names[i];
+                    break;
+                }
+            }
+```
+
+Clicking toggles a wall at runtime, and Space cycles the visualised overlay.
+
+```cpp
+            else if (event.type() == sl::Event::Type::key_down && event.key() == sl::Event::Key::space)
+            {
+                overlay = (overlay + 1) % 4;
+            }
+            else if (event.type() == sl::Event::Type::mouse_button_down)
+            {
+                const int col = static_cast<int>((sl::mouse_x() - origin_x) / cell);
+                const int row = static_cast<int>((sl::mouse_y() - origin_y) / cell);
+                if (col >= 0 && row >= 0 && col < columns && row < rows && !(col == player_col && row == player_row))
+                    walls[row * columns + col] ^= 1;
+            }
+```
+
 ## Running
 ```bash
 ./build/expathfinding

@@ -10,6 +10,32 @@ Loads a GLSL vertex and fragment shader from files and uses it to tint a sprite.
 - Binding the shader while drawing a bitmap
 - Reporting shader errors with `Shader::error`
 
+## Key code
+
+In `exshader.cpp`, the vertex shader is chosen per backend and `Shader::load_files` loads it with the fragment shader, with `Shader::error` reporting failures.
+
+```cpp
+    sl::Shader shader;
+    const char *vertex_shader = sl::graphics_backend() == sl::GraphicsBackend::vulkan
+                                    ? "shaders/vulkan/vulkan_2d.vert"
+                                    : "shaders/glsl/default_2d.vert";
+    const bool loaded = shader.load_files(
+        vertex_shader,
+        "shaders/glsl/tint.frag",
+        {"uTexture"});
+    // ...
+    if (!loaded)
+    {
+        std::fprintf(stderr, "Shader error: %s\n", shader.error().c_str());
+    }
+```
+
+Each frame, the shader is used to draw the bitmap with `draw_textured_quad`.
+
+```cpp
+            shader.draw_textured_quad(texture, x - 96.0f, y, 192.0f, 192.0f);
+```
+
 ## Running
 ```bash
 ./build/exshader

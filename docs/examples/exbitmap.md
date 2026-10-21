@@ -10,6 +10,34 @@ Bitmap loading and blitting: loads a PNG and blits it to the screen at 60 FPS.
 - Frame pacing with `set_fps`
 - Forwarding window events with `display_handle_event`
 
+## Key code
+
+In `exbitmap.cpp`, the image is loaded with `load_bitmap` and the frame rate is capped with `set_fps`.
+
+```cpp
+    sl::Bitmap *bitmap = sl::load_bitmap("assets/textures/balloon_red.png");
+    if (!bitmap)
+    {
+        std::cerr << "Failed to load bitmap!" << std::endl;
+        return -2;
+    }
+    sl::set_fps(60);
+```
+
+Each frame, events are forwarded with `display_handle_event` and the bitmap is copied to the screen with `blit`.
+
+```cpp
+        sl::Event event;
+        while (sl::poll_event(&event))
+        {
+            // ...
+            sl::display_handle_event(event);
+        }
+
+        sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});
+        sl::blit(bitmap, sl::screen, 0, 0, 100, 100, bitmap->width, bitmap->height);
+```
+
 ## Running
 ```bash
 ./build/exbitmap

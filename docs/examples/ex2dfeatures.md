@@ -12,6 +12,65 @@ A tour of newer 2D features: text blocks, blend modes, clip rects, sprite animat
 - An 80x45 render target scaled with `compute_scale_fit` and `draw_scaled_target`
 - Unicode text rendering
 
+## Key code
+
+In `ex2dfeatures.cpp`, atlas frames become named `Animator` clips, while an infinite tile map stores cells at signed coordinates.
+```cpp
+    sl::SpriteSheet sheet = sl::sprite_sheet_from_atlas(sl::create_atlas(ball_sheet_bitmap, 24, 24), 0.12f);
+    sheet.add_clip("bounce", 0, 3);
+    sheet.add_clip("pingpong", 0, 3, true, sl::PlayDirection::ping_pong);
+    sheet.add_clip("drop", 0, 2, false);
+    sl::Animator animator(&sheet);
+    int event_count = 0;
+    animator.on_event = [&](const std::string &) { ++event_count; };
+    sheet.add_event("bounce", 2, "land");
+    animator.play("bounce");
+    // ...
+    sl::TileMap *world = sl::create_infinite_tilemap(32, 32);
+    sl::tilemap_add_tileset(world, sl::create_atlas(hex_green, 32, 32));
+    const int world_layer = sl::tilemap_add_layer(world, "ground");
+    for (int i = -40; i < 40; ++i)
+        sl::tilemap_set(world, world_layer, i, (i * 7) % 5, 1);
+```
+
+In `ex2dfeatures.cpp`, `TextStyle` configures wrapped text and the blend loop demonstrates additive, multiply and screen compositing.
+```cpp
+        sl::TextStyle wrapped;
+        wrapped.wrap_width = 280;
+        wrapped.align = sl::TextAlign::center;
+        wrapped.outline = true;
+        wrapped.shadow = true;
+        wrapped.shadow_offset_x = 2;
+        wrapped.shadow_offset_y = 2;
+        sl::draw_text_block(font, 10, 10, {255, 240, 170},
+                            "Word wrapping, centre alignment, an outline and a drop shadow, all from one call.", wrapped);
+        // ...
+        const sl::BlendMode modes[4] = {sl::BlendMode::normal, sl::BlendMode::additive, sl::BlendMode::multiply, sl::BlendMode::screen};
+        const char *names[4] = {"normal", "additive", "multiply", "screen"};
+        for (int i = 0; i < 4; ++i)
+        {
+            sl::set_blend_mode(modes[i]);
+            sl::circlefill(sl::screen, bx + i * 150.0f + 50.0f, by + 70.0f, 35.0f, sl::Colour{230, 120, 60});
+            sl::circlefill(sl::screen, bx + i * 150.0f + 90.0f, by + 70.0f, 35.0f, sl::Colour{80, 200, 230});
+            sl::set_blend_mode(sl::BlendMode::normal);
+            sl::gprintf(bx + i * 150, by, {255, 240, 170}, "%s", names[i]);
+        }
+```
+
+In `ex2dfeatures.cpp`, the 80x45 scene is drawn into a render target and fitted to an integer scale for display.
+```cpp
+        sl::begin_render_target(lowres);
+        sl::clear_render_target({40, 60, 90});
+        sl::circlefill(lowres, 40.0f + std::cos(t * 2.0f) * 25.0f, 22.0f + std::sin(t * 3.0f) * 12.0f, 8.0f, sl::Colour{250, 220, 100});
+        sl::rect(lowres, 0.0f, 0.0f, 79.0f, 44.0f, sl::Colour{255, 255, 255});
+        sl::end_render_target();
+        sl::ScaleFit fit = sl::compute_scale_fit(80, 45, 300, 200, sl::ScaleMode::integer);
+        fit.x += 620;
+        fit.y += 330;
+        sl::rectfill(sl::screen, 620, 330, 919, 529, sl::Colour{10, 12, 18});
+        sl::draw_scaled_target(lowres, fit);
+```
+
 ## Running
 ```bash
 ./build/ex2dfeatures

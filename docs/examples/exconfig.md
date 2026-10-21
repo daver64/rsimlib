@@ -9,6 +9,26 @@ The JSON configuration subsystem (`sl::Config`): nested dotted-path keys and typ
 - Editing resolution, vsync and audio levels
 - Reset to defaults
 
+## Key code
+
+In `exconfig.cpp`, `Config` loads the JSON file or initializes dotted-path defaults, then reads and writes a typed value while editing.
+```cpp
+    sl::Config config;
+    if (!config.load(CONFIG_FILE))
+    {
+        init_default_config(config);
+        config.save(CONFIG_FILE);
+    }
+    // ...
+                else if (event.key() == sl::Event::Key::digit_1 || event.key() == sl::Event::Key::keypad_1)
+                {
+                    double vol = config.get<double>("audio.master_volume", 0.5);
+                    vol = std::max(0.0, vol - 0.05);
+                    config.set("audio.master_volume", vol);
+                    status_message = "Master volume decreased";
+                    status_colour = {218, 226, 235};
+                }
+```
 ## Running
 ```bash
 ./build/exconfig

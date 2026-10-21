@@ -10,6 +10,32 @@ Loads TrueType fonts, measures text, and draws proportional and monospace sample
 - Drawing text with `textout`
 - Releasing fonts with `close_font`
 
+## Key code
+
+In `exfont.cpp`, the Open Sans font and the built-in monospace font are selected.
+
+```cpp
+sl::Font *sans_font = sl::open_sans_font(28);
+sl::Font *monospace_font = sl::get_default_monospace_font();
+```
+
+Strings are measured with `text_length` to centre them and drawn with `textout`, showing wide and narrow glyph widths.
+
+```cpp
+const std::string text = "Proportional TrueType: wide W, narrow i";
+const int x = (sl::screen->width - sl::text_length(sans_font, text)) / 2;
+sl::textout(sans_font, x, 150, {255, 220, 90}, text);
+```
+
+The loaded font is released with `close_font` on exit.
+
+```cpp
+if (sans_font)
+{
+    sl::close_font(sans_font);
+}
+```
+
 ## Running
 ```bash
 ./build/exfont

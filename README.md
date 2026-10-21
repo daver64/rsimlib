@@ -73,18 +73,34 @@ For in-depth guides and detailed API tables, see the documentation topics:
 
 ## Prerequisites & Building
 
+**Always required**
 - CMake 3.16+
 - A C++17 compiler
 - SDL2, SDL2_ttf, SDL2_image, SDL2_mixer (development packages)
-- OpenGL, Vulkan, libpng, zlib
-- `glslangValidator` (from `glslang-tools`), also required at runtime for compiling arbitrary user GLSL shaders on the Vulkan backend
+- libpng, zlib
+
+**Per renderer** (see `SIMLIB_RENDERERS` below; you only need the ones you build)
+- `gl`: OpenGL development headers/libraries (GLEW as well on Windows)
+- `vulkan`: Vulkan headers/loader, plus `glslangValidator` (from `glslang-tools`) and `spirv-tools`, which are also needed at runtime to compile arbitrary user GLSL shaders on the Vulkan backend
+- `d3d12`: Windows only, the Windows SDK; optional `glslang`/`spirv-cross`/`directx-dxc` for runtime shader translation
+
+**Optional features**
+- `SIMLIB_VIDEO=ffmpeg`: FFmpeg 5.1+ development packages (`libavformat`, `libavcodec`, `libavutil`, `libswscale`, `libswresample`)
 
 ### Debian / Ubuntu Setup:
 
+Base packages plus the default renderers (OpenGL and Vulkan):
+
 ```bash
 sudo apt install cmake build-essential libsdl2-dev libsdl2-ttf-dev \
-    libsdl2-image-dev libsdl2-mixer-dev libpng-dev zlib1g-dev libgl1-mesa-dev \
-    libvulkan-dev glslang-tools spirv-tools
+    libsdl2-image-dev libsdl2-mixer-dev libpng-dev zlib1g-dev \
+    libgl1-mesa-dev libvulkan-dev glslang-tools spirv-tools
+```
+
+An OpenGL-only build (`-DSIMLIB_RENDERERS=gl`) can drop `libvulkan-dev glslang-tools spirv-tools`; a Vulkan-only build (`-DSIMLIB_RENDERERS=vulkan`) can drop `libgl1-mesa-dev`. For FFmpeg video add:
+
+```bash
+sudo apt install libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev
 ```
 
 Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's `FetchContent` — no manual setup required.

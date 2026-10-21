@@ -9,6 +9,25 @@ Runs a sandboxed Lua script (`assets/scripts/scene.lua`) on a `LuaCanvas` and sh
 - Lua drawing bindings rendered into a bitmap
 - Reporting script errors via `LuaScriptResult`
 
+## Key code
+
+In `exlua.cpp`, `LuaCanvas::run_file` executes the scene script and reports failure through `LuaScriptResult` before rendering the canvas.
+```cpp
+    sl::LuaCanvas canvas;
+
+    const sl::LuaScriptResult result = canvas.run_file("assets/scripts/scene.lua");
+    if (!result.success)
+    {
+        // Handle result.error
+    }
+
+    canvas.render(sl::screen);
+    sl::draw_renderer_label();
+    sl::show_video_bitmap();
+    process_input();
+    sl::wait_for_graphics();
+    sl::shutdown();
+```
 ## Running
 ```bash
 ./build/exlua

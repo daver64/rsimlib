@@ -11,6 +11,67 @@ A pixel sprite and animation editor with a resizable canvas, undo, zoom, frames 
 - Animation frames with playback
 - Horizontal PNG spritesheet save and load
 
+## Key code
+
+In `exspriteeditor.cpp`, undo and redo keep per-frame pixel snapshots and restore the selected frame's bitmap.
+```cpp
+        void undo()
+        {
+            if (selecting || selection)
+            {
+                cancel_selection();
+                return;
+            }
+
+            Frame &f = current();
+            if (f.undo_stack.empty())
+                return;
+
+            f.redo_stack.push_back(f.bitmap->pixels);
+            restore_pixels(f.undo_stack.back());
+            f.undo_stack.pop_back();
+            status = "Undo";
+        }
+```
+
+In `exspriteeditor.cpp`, playback uses the configured frame rate and wraps the active frame index to loop the animation.
+```cpp
+        void update_playback()
+        {
+            if (!playing || doc.frames.size() <= 1)
+                return;
+
+            const double interval = 1.0 / std::max(1, doc.fps);
+            play_timer += sl::get_frame_time() / 1000.0; // get_frame_time() is milliseconds.
+
+            while (play_timer >= interval)
+            {
+                play_timer -= interval;
+                current_frame = (current_frame + 1) % static_cast<int>(doc.frames.size());
+            }
+        }
+```
+
+In `exspriteeditor.cpp`, saving blits every frame into a horizontal bitmap and writes the spritesheet.
+```cpp
+            for (int i = 0; i < frame_count; ++i)
+            {
+                sl::blit(
+                    frame_bitmap(i),
+                    sheet,
+                    0,
+                    0,
+                    static_cast<float>(i * doc.width),
+                    0,
+                    doc.width,
+                    doc.height);
+            }
+
+            const bool ok = sl::save_bitmap(sheet, path);
+            sl::destroy_bitmap(sheet);
+
+            status = ok ? ("Saved: " + path) : "Save failed";
+```
 ## Running
 ```bash
 ./build/exspriteeditor

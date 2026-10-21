@@ -10,6 +10,47 @@ A game lobby that finds games through an IRC channel and connects players direct
 - Readying up and moving a dot in a shared arena
 - ImGui lobby UI
 
+## Key code
+
+In `exlobby.cpp`, a hosting player announces the game in the IRC channel with a `!host` command, re-announcing periodically:
+
+```cpp
+irc.update();
+// ...
+if (hosting_open && online && (now >= next_announce || (announce_now && now - last_announce > 5000)))
+{
+    irc.say(lobby::make_host_command(advertise, session.port(), max_players, title));
+    announced = true;
+    last_announce = now;
+    next_announce = now + 30000;
+}
+```
+
+The ImGui lobby UI hosts or joins a game and toggles readiness:
+
+```cpp
+if (ImGui::Button("Join"))
+{
+    if (session.join(game.address, game.port, nick))
+        notice.clear();
+}
+// ...
+if (ImGui::Button("Host game"))
+{
+    if (session.host(static_cast<std::uint16_t>(port), max_players, nick))
+// ...
+if (ImGui::Checkbox("Ready", &ready))
+    session.set_ready(ready);
+```
+
+Once playing, arrow/WASD input moves the player's dot in the shared arena:
+
+```cpp
+for (const lobby::Player &p : session.players())
+    if (p.id == session.my_id())
+        session.set_position(p.x + dx * 0.4f * dt, p.y + dy * 0.4f * dt);
+```
+
 ## Running
 ```bash
 ./build/exlobby [--irc-host HOST] [--irc-port PORT] [--channel #CHANNEL] [--nick NAME] [--advertise ADDRESS] [--game-port PORT]
