@@ -125,7 +125,7 @@ To prepare footage for the default backend:
 ffmpeg -i input.mp4 -c:v mpeg1video -q:v 2 -c:a mp2 -format mpeg cutscene.mpg
 ```
 
-Play with `./build/exvideo cutscene.mpg [--loop]` (Space pauses, Left/Right seek 5 s). Small test clips live in
+Play with `./build/exvideo cutscene.mpg [--loop]` (on-screen controls: Space pauses, Left/Right seek 5 s, Up/Down or the slider set volume, M mutes, click the bar to scrub, I toggles the overlay). Small test clips live in
 `tests/data/`.
 
 ### Build Commands:
