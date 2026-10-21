@@ -541,6 +541,9 @@ add_executable(exmodel3d src/examples/exmodel3d/exmodel3d.cpp)
 target_link_libraries(exmodel3d PRIVATE simlib)
 target_compile_definitions(exmodel3d PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(exclouds src/examples/exclouds/exclouds.cpp)
+target_link_libraries(exclouds PRIVATE simlib)
+
 add_executable(expbr src/examples/expbr/expbr.cpp)
 target_link_libraries(expbr PRIVATE simlib)
 

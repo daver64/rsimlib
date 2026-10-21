@@ -27,6 +27,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     if (!sl::set_graphics_backend(sl::GraphicsBackend::d3d12) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {

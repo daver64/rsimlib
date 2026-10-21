@@ -7,6 +7,7 @@
 
 int main(int argc, char **argv)
 {
+    sl::set_text_panel_style({true});
     std::string path;
     bool loop = false;
 

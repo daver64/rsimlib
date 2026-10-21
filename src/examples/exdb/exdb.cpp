@@ -118,6 +118,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
 	constexpr const char *database_filename = "exdb.sqlite";
 	std::vector<Product> products;
 	try

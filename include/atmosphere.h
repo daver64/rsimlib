@@ -7,10 +7,33 @@
 
 namespace sl
 {
+    /**
+     * The kind of cloud a layer draws. It sets the shape of the noise (feature size, streaking along the wind) and, for
+     * volumetric layers, the vertical profile. cloud_layer() returns a layer with matching altitude, thickness,
+     * coverage and density.
+     */
+    enum class CloudType
+    {
+        /** Puffy heaps with flat bases and rounded tops. */
+        cumulus,
+        /** Low, lumpy rolls stretched along the wind. */
+        stratocumulus,
+        /** A low, broad, featureless sheet. */
+        stratus,
+        /** A high layer of small cells. */
+        altocumulus,
+        /** Thin, high, wispy streaks along the wind. */
+        cirrus,
+        /** A tall dark tower that spreads into an anvil at its top. */
+        cumulonimbus
+    };
+
     /** A procedural cloud layer drawn in the sky: a plane above flat worlds, a shell around planets. */
     struct CloudLayer
     {
         bool enabled = false;
+        /** Shapes the clouds; see CloudType. */
+        CloudType type = CloudType::cumulus;
         /** Height of the layer above the surface, in metres. */
         float altitude = 2500.0f;
         /** 0 = clear sky, 1 = overcast. */
@@ -32,6 +55,12 @@ namespace sl
         /** Vertical size of the volumetric slab in metres, above `altitude`. */
         float thickness = 1500.0f;
     };
+
+    /**
+     * A typical enabled layer of `type`: its usual altitude, thickness, feature scale, coverage and density, and
+     * ray-marched where the type is three-dimensional (cumulus, stratocumulus, cumulonimbus). Adjust the fields after.
+     */
+    CloudLayer cloud_layer(CloudType type);
 
     /**
      * Sky, fog and light settings for a 3D surface. Flat worlds use a gradient sky and exponential height fog; with
@@ -83,7 +112,13 @@ namespace sl
         /** Colour of the ground seen from space or through gaps in terrain. */
         glm::vec3 ground_albedo{0.18f, 0.2f, 0.15f};
 
+        /** The first cloud layer. */
         CloudLayer clouds;
+        /**
+         * Up to three more layers, for example cirrus above cumulus. Layers are drawn from the farthest to the nearest,
+         * judged by altitude relative to the camera. Each volumetric layer costs another ray march.
+         */
+        CloudLayer more_clouds[3];
     };
 
     /**

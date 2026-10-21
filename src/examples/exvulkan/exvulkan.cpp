@@ -2,6 +2,7 @@
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     if (!sl::set_graphics_backend(sl::GraphicsBackend::vulkan) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {

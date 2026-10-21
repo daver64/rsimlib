@@ -188,7 +188,7 @@ namespace sl::detail
     /** Per-draw data for Renderer::draw_sky(): vec4 rows laid out as documented in atmosphere.cpp. */
     struct SkyDrawParams
     {
-        static constexpr int rows = 15;
+        static constexpr int rows = 28;
         float data[rows][4] = {};
     };
 

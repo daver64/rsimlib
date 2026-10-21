@@ -234,7 +234,7 @@ terrain.view("t", 0, 0, 800, 600, eye, target, {
 })
 ```
 
-Other `environment` keys: `fog`, `fog_height_falloff`, `sky_zenith`, `sky_horizon`, `sun_diameter`, `atmosphere_height`; cloud keys `enabled`, `thickness`, `density`, `scale`, `softness`. Clutter keys: `radius`, `shape_seed`, `colour`, `impostor`, `min_height`, `min_slope`, `min_scale`, `max_scale`, `lean`, `tint_variation`, `seed`. Pass `clear_environment = true` in the view options to remove the environment.
+Other `environment` keys: `fog`, `fog_height_falloff`, `sky_zenith`, `sky_horizon`, `sun_diameter`, `atmosphere_height`; cloud keys `type` (`cumulus`, `stratocumulus`, `stratus`, `altocumulus`, `cirrus`, `cumulonimbus`; sets that type's usual altitude, thickness and coverage, which the other keys override), pass a list (`clouds = {{type = "cirrus"}, {type = "cumulus"}}`) for up to four layers, `enabled`, `thickness`, `density`, `scale`, `softness`. Clutter keys: `radius`, `shape_seed`, `colour`, `impostor`, `min_height`, `min_slope`, `min_scale`, `max_scale`, `lean`, `tint_variation`, `seed`. Pass `clear_environment = true` in the view options to remove the environment.
 
 ## Lighting & Normal Maps (`lighting`)
 

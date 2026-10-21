@@ -6,6 +6,7 @@
 // otherwise a map is generated from assets/textures/atlas_grid.png.
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     std::string map_path;
     for (int index = 1; index < argc; ++index)
     {

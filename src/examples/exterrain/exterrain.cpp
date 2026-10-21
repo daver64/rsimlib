@@ -115,6 +115,7 @@ namespace
 
 int main(int argc, char **argv)
 {
+    sl::set_text_panel_style({true});
     bool planet = false;
     std::vector<char *> args;
     for (int i = 0; i < argc; ++i)

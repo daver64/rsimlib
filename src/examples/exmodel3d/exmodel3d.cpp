@@ -118,6 +118,7 @@ namespace
 
 int main(int argc, char **argv)
 {
+    sl::set_text_panel_style({true});
     std::string model_path;
     std::string animation_path;
     std::vector<char *> backend_arguments{argv[0]};

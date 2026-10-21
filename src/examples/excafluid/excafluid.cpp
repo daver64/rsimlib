@@ -735,6 +735,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     if (!sl::configure_graphics_backend_from_args(argc, argv) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, SCREEN_W, SCREEN_H))
     {

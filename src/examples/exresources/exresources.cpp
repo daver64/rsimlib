@@ -59,6 +59,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     const std::string archive_path = argc > 1 ? argv[1] : "resource_demo.zip";
     sl::Archive archive;
     if (!archive.open(archive_path))

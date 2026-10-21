@@ -1009,7 +1009,7 @@ namespace sl::detail
         }
         std::uint32_t environment_offset = 0;
         if (!ensure_environment_block(error) ||
-            !write_environment(sky_rows, sizeof(float) * 60, environment_offset, error))
+            !write_environment(sky_rows, sizeof(float) * 112, environment_offset, error))
             return false;
         VkViewport viewport{0.0f, static_cast<float>(active_extent_.height),
                             static_cast<float>(active_extent_.width),
@@ -1067,7 +1067,7 @@ namespace sl::detail
             return false;
         }
         environment_mapped_ = static_cast<std::uint8_t *>(mapped);
-        // Each draw sees one 256-byte slot; the largest block (the sky rows) is 240 bytes.
+        // Each draw sees one 512-byte slot; the largest block (the 28 sky rows) is 448 bytes.
         const VkDescriptorBufferInfo buffer_info{environment_buffer_.buffer, 0, environment_slot_size};
         VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
         write.dstSet = environment_set_;

@@ -52,6 +52,27 @@ namespace sl
         int windowHeight,
         const std::string &text);
 
+    /**
+     * Optional backing panel for text, so it stays readable over busy scenes. While enabled, text drawn by gprintf(),
+     * gprintf_center(), textout(), textprintf(), textout_cached() and draw_renderer_label() sits on a translucent
+     * rectangle and is drawn in `text` instead of the colour passed in. gl_printf() with its own background is unchanged.
+     */
+    struct TextPanelStyle
+    {
+        bool enabled = false;
+        /** Panel fill; the alpha makes it translucent. */
+        Colour background{38, 34, 58, 210};
+        /** Text colour used in place of the caller's. */
+        Colour text{255, 240, 170, 255};
+        /** Space between the text and the panel edge, in pixels. */
+        int padding_x = 5;
+        int padding_y = 1;
+    };
+    /** Set the text panel style used by later text calls. */
+    void set_text_panel_style(const TextPanelStyle &style);
+    /** The style set by set_text_panel_style(); disabled by default. */
+    TextPanelStyle text_panel_style();
+
     /** Draw UTF-8 text at a screen position without a background. */
     void textout(Font *font, int x, int y, const Colour &colour, const std::string &text);
     /** Format and draw UTF-8 text at a screen position without a background. */

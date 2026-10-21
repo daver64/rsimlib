@@ -164,21 +164,54 @@ namespace sl
         {
             row_right = 0,       // xyz: camera right, w: tan(fov / 2) * aspect
             row_camera_up,       // xyz: camera up, w: tan(fov / 2)
-            row_forward,         // xyz: camera forward, w: flags (1 planet, 2 clouds, 4 volumetric)
+            row_forward,         // xyz: camera forward, w: flags (1 planet)
             row_sun,             // xyz: toward the sun, w: intensity
             row_local_up,        // xyz: local vertical, w: camera altitude
             row_zenith,          // rgb: zenith colour, w: cos of the sun's angular radius
             row_horizon,         // rgb: horizon colour, w: Mie g
             row_rayleigh,        // rgb: Rayleigh coefficients, w: Rayleigh scale height
             row_planet,          // x: Mie coefficient, y: Mie scale height, z: planet radius, w: atmosphere height
-            row_cloud,           // x: altitude, y: coverage, z: density, w: feature scale
-            row_cloud_extra,     // x: softness, yz: wind offset in metres
             row_camera_position, // xyz: camera world position
             row_ground,          // rgb: ground albedo
             row_sun_colour,      // rgb: sunlight colour after the atmosphere
-            row_volume           // x: slab thickness, y: extinction per metre, z: phase anisotropy
+            row_layers,          // four rows per cloud layer, farthest layer first (see CloudRows)
+            max_cloud_layers = 4,
+            row_end = row_layers + max_cloud_layers * 4
         };
-        static_assert(SkyRows::row_volume + 1 == detail::SkyDrawParams::rows, "sky row count");
+        static_assert(SkyRows::row_end == detail::SkyDrawParams::rows, "sky row count");
+
+        enum CloudRows
+        {
+            cloud_main,  // x: altitude, y: coverage, z: density, w: feature scale
+            cloud_extra, // x: softness, yz: wind offset in metres, w: slab thickness
+            cloud_flags, // x: extinction per metre, y: phase anisotropy, z: flags (1 on, 2 volumetric), w: wind angle
+            cloud_shape  // x: stretch along the wind, y: feature frequency, z: vertical profile, w: coverage bias
+        };
+
+        struct TypeShape
+        {
+            float stretch, frequency, profile, coverage_bias;
+        };
+
+        TypeShape type_shape(CloudType type)
+        {
+            switch (type)
+            {
+            case CloudType::stratocumulus:
+                return {1.7f, 1.3f, 1.0f, 0.0f};
+            case CloudType::stratus:
+                return {1.0f, 0.6f, 1.0f, -0.08f};
+            case CloudType::altocumulus:
+                return {1.0f, 1.8f, 1.0f, 0.0f};
+            case CloudType::cirrus:
+                return {5.0f, 1.6f, 3.0f, 0.04f};
+            case CloudType::cumulonimbus:
+                return {1.0f, 0.7f, 2.0f, 0.0f};
+            case CloudType::cumulus:
+            default:
+                return {1.0f, 1.0f, 0.0f, 0.0f};
+            }
+        }
 
         void set_row(detail::SkyDrawParams &params, int row, const glm::vec3 &v, float w)
         {
@@ -217,6 +250,42 @@ namespace sl
             sky = glm::mix(horizon, horizon * 0.55f, glm::smoothstep(0.0f, 0.25f, -elevation));
         const float mu = std::max(glm::dot(rd, to_sun(environment)), 0.0f);
         return sky + atmosphere_sun_colour(environment) * (std::pow(mu, 48.0f) * 0.18f + std::pow(mu, 600.0f) * 0.4f);
+    }
+
+    CloudLayer cloud_layer(CloudType type)
+    {
+        CloudLayer layer;
+        layer.enabled = true;
+        layer.type = type;
+        switch (type)
+        {
+        case CloudType::cumulus:
+            layer.altitude = 1500.0f; layer.thickness = 1200.0f; layer.scale = 3500.0f;
+            layer.coverage = 0.45f; layer.density = 0.9f; layer.softness = 0.35f; layer.volumetric = true;
+            break;
+        case CloudType::stratocumulus:
+            layer.altitude = 1300.0f; layer.thickness = 600.0f; layer.scale = 5000.0f;
+            layer.coverage = 0.6f; layer.density = 0.85f; layer.softness = 0.4f; layer.volumetric = true;
+            break;
+        case CloudType::stratus:
+            layer.altitude = 700.0f; layer.thickness = 400.0f; layer.scale = 12000.0f;
+            layer.coverage = 0.8f; layer.density = 0.8f; layer.softness = 0.6f; layer.volumetric = false;
+            break;
+        case CloudType::altocumulus:
+            layer.altitude = 4500.0f; layer.thickness = 500.0f; layer.scale = 4000.0f;
+            layer.coverage = 0.5f; layer.density = 0.6f; layer.softness = 0.45f; layer.volumetric = false;
+            break;
+        case CloudType::cirrus:
+            layer.altitude = 9000.0f; layer.thickness = 300.0f; layer.scale = 9000.0f;
+            layer.coverage = 0.5f; layer.density = 0.6f; layer.softness = 0.85f; layer.volumetric = false;
+            layer.wind = {30.0f, 8.0f};
+            break;
+        case CloudType::cumulonimbus:
+            layer.altitude = 1000.0f; layer.thickness = 9000.0f; layer.scale = 8000.0f;
+            layer.coverage = 0.42f; layer.density = 1.0f; layer.softness = 0.3f; layer.volumetric = true;
+            break;
+        }
+        return layer;
     }
 
     void set_environment_3d(const Environment3D &environment)
@@ -274,7 +343,7 @@ namespace sl
         const float aspect = static_cast<float>(info.width) / static_cast<float>(std::max(info.height, 1));
 
         detail::SkyDrawParams params;
-        const int flags = (e.planet ? 1 : 0) | (e.clouds.enabled ? 2 : 0) | (e.clouds.enabled && e.clouds.volumetric ? 4 : 0);
+        const int flags = e.planet ? 1 : 0;
         set_row(params, row_right, right, tan_y * aspect);
         set_row(params, row_camera_up, camera_up, tan_y);
         set_row(params, row_forward, forward, static_cast<float>(flags));
@@ -285,17 +354,39 @@ namespace sl
         set_row(params, row_horizon, colour_to_vec(e.sky_horizon), e.mie_g);
         set_row(params, row_rayleigh, e.rayleigh, e.rayleigh_scale_height);
         set_row(params, row_planet, glm::vec3(e.mie, e.mie_scale_height, e.planet_radius), e.atmosphere_height);
-        set_row(params, row_cloud, glm::vec3(e.clouds.altitude, e.clouds.coverage, e.clouds.density), std::max(e.clouds.scale, 1.0f));
-        // Keep the offset small so float precision holds over long sessions.
-        const double wrap = static_cast<double>(std::max(e.clouds.scale, 1.0f)) * 1024.0;
-        const glm::vec2 wind_offset(static_cast<float>(std::fmod(static_cast<double>(e.clouds.wind.x) * e.time, wrap)),
-                                    static_cast<float>(std::fmod(static_cast<double>(e.clouds.wind.y) * e.time, wrap)));
-        set_row(params, row_cloud_extra, glm::vec3(e.clouds.softness, -wind_offset.x, -wind_offset.y), 0.0f);
         set_row(params, row_camera_position, glm::vec3(e.camera_position), 0.0f);
         set_row(params, row_ground, e.ground_albedo, 0.0f);
         set_row(params, row_sun_colour, atmosphere_sun_colour(e), 0.0f);
-        const float thickness = std::max(e.clouds.thickness, 1.0f);
-        set_row(params, row_volume, glm::vec3(thickness, 5.0f * std::max(e.clouds.density, 0.05f) / thickness, 0.5f), 0.0f);
+
+        // Farthest layer first, so nearer layers are composited over it.
+        const CloudLayer *layers[max_cloud_layers];
+        int layer_count = 0;
+        if (e.clouds.enabled)
+            layers[layer_count++] = &e.clouds;
+        for (const CloudLayer &layer : e.more_clouds)
+            if (layer.enabled && layer_count < max_cloud_layers)
+                layers[layer_count++] = &layer;
+        std::stable_sort(layers, layers + layer_count, [&](const CloudLayer *a, const CloudLayer *b) {
+            return std::abs(a->altitude - e.camera_altitude) > std::abs(b->altitude - e.camera_altitude);
+        });
+        for (int i = 0; i < layer_count; ++i)
+        {
+            const CloudLayer &c = *layers[i];
+            const int row = row_layers + i * 4;
+            const float scale = std::max(c.scale, 1.0f);
+            const float thickness = std::max(c.thickness, 1.0f);
+            set_row(params, row + cloud_main, glm::vec3(c.altitude, c.coverage, c.density), scale);
+            // Keep the offset small so float precision holds over long sessions.
+            const double wrap = static_cast<double>(scale) * 1024.0;
+            const glm::vec2 wind_offset(static_cast<float>(std::fmod(static_cast<double>(c.wind.x) * e.time, wrap)),
+                                        static_cast<float>(std::fmod(static_cast<double>(c.wind.y) * e.time, wrap)));
+            set_row(params, row + cloud_extra, glm::vec3(c.softness, -wind_offset.x, -wind_offset.y), thickness);
+            const float angle = glm::length(c.wind) > 1e-4f ? std::atan2(-c.wind.y, -c.wind.x) : 0.0f;
+            const float flags = 1.0f + (c.volumetric ? 2.0f : 0.0f);
+            set_row(params, row + cloud_flags, glm::vec3(5.0f * std::max(c.density, 0.05f) / thickness, 0.5f, flags), angle);
+            const TypeShape shape = type_shape(c.type);
+            set_row(params, row + cloud_shape, glm::vec3(shape.stretch, shape.frequency, shape.profile), shape.coverage_bias);
+        }
         if (!renderer->draw_sky(params))
         {
             detail::set_error("The active graphics backend cannot draw the sky");

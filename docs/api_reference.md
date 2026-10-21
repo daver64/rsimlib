@@ -526,6 +526,13 @@ void gprintf_center(int y, const Colour &colour, const char *fmt, ...);
 ```
 - **Description**: Convenience functions that format and render text using the default monospace font, positioned at `(x, y)` or horizontally centred on screen.
 
+#### `set_text_panel_style(style)` / `text_panel_style()`
+```cpp
+struct TextPanelStyle { bool enabled; Colour background; Colour text; int padding_x, padding_y; };
+void set_text_panel_style(const TextPanelStyle &style);
+```
+- **Description**: Optional backing panel so text stays readable over busy scenes. While `enabled`, `gprintf`, `gprintf_center`, `textout`, `textprintf`, `textout_cached` and `draw_renderer_label` draw each string on a translucent dark rectangle in the style's `text` colour (pastel yellow by default), ignoring the colour passed in. Off by default; the examples turn it on with `sl::set_text_panel_style({true});`.
+
 ---
 
 ## Shaders, Compute & Storage Buffers ([include/graphics_fx.h](../include/graphics_fx.h))
@@ -1148,7 +1155,7 @@ clutter.update(view);                        // outside begin_surface_3d
 clutter.draw(origin);
 ```
 
-- `Environment3D`: gradient sky and exponential fog for flat worlds, Rayleigh/Mie scattering for planets, a 2D cloud layer or ray-marched volumetric clouds (`clouds.volumetric`).
+- `Environment3D`: gradient sky and exponential fog for flat worlds, Rayleigh/Mie scattering for planets, up to four cloud layers (`clouds` plus `more_clouds[3]`), each a flat layer or ray-marched volumetric clouds (`volumetric`) of a `CloudType` (cumulus, stratocumulus, stratus, altocumulus, cirrus, cumulonimbus; `cloud_layer(type)` gives typical settings). See `src/examples/exclouds`.
 - `atmosphere_sun_colour`, `atmosphere_sky_colour`, `atmosphere_transmittance`: CPU mirrors of the shader maths.
 - `bake_instances`, `bake_impostor`, `bake_billboards`: merge copies of a mesh, or render view-dependent billboards.
 - `Material::alpha_cutoff` and `Material::fog` control cut-outs and fog per material.

@@ -43,6 +43,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     if (!sl::configure_graphics_backend_from_args(argc, argv))
         return -1;
     if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))

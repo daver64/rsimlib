@@ -19,6 +19,8 @@
 
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 
@@ -613,6 +615,38 @@ namespace sl
     {
         constexpr int max_terrain_grid = 4096;
 
+        CloudLayer cloud_layer_from_table(const sol::table &clouds, CloudLayer layer)
+        {
+            // A type starts from that type's usual layer, so any other key overrides it.
+            if (const auto type = clouds.get<sol::optional<std::string>>("type"))
+            {
+                static const std::pair<const char *, CloudType> types[] = {
+                    {"cumulus", CloudType::cumulus},           {"stratocumulus", CloudType::stratocumulus},
+                    {"stratus", CloudType::stratus},           {"altocumulus", CloudType::altocumulus},
+                    {"cirrus", CloudType::cirrus},             {"cumulonimbus", CloudType::cumulonimbus}};
+                bool known = false;
+                for (const auto &[name, value] : types)
+                    if (*type == name)
+                    {
+                        layer = cloud_layer(value);
+                        known = true;
+                    }
+                if (!known)
+                    throw std::runtime_error("unknown cloud type '" + *type + "'");
+            }
+            layer.enabled = clouds.get_or("enabled", true);
+            layer.volumetric = clouds.get_or("volumetric", layer.volumetric);
+            layer.altitude = clouds.get_or("altitude", layer.altitude);
+            layer.thickness = clouds.get_or("thickness", layer.thickness);
+            layer.coverage = std::clamp(clouds.get_or("coverage", layer.coverage), 0.0f, 1.0f);
+            layer.density = std::clamp(clouds.get_or("density", layer.density), 0.0f, 1.0f);
+            layer.scale = clouds.get_or("scale", layer.scale);
+            layer.softness = std::clamp(clouds.get_or("softness", layer.softness), 0.0f, 1.0f);
+            if (const auto wind = clouds.get<sol::optional<sol::table>>("wind"))
+                layer.wind = {wind->get_or(1, layer.wind.x), wind->get_or(2, layer.wind.y)};
+            return layer;
+        }
+
         Environment3D environment_from_table(const sol::table &t, Environment3D e)
         {
             e.fog_enabled = t.get_or("fog", e.fog_enabled);
@@ -629,16 +663,19 @@ namespace sl
             e.haze_scale = t.get_or("haze_scale", e.haze_scale);
             if (const auto clouds = t.get<sol::optional<sol::table>>("clouds"))
             {
-                e.clouds.enabled = clouds->get_or("enabled", true);
-                e.clouds.volumetric = clouds->get_or("volumetric", e.clouds.volumetric);
-                e.clouds.altitude = clouds->get_or("altitude", e.clouds.altitude);
-                e.clouds.thickness = clouds->get_or("thickness", e.clouds.thickness);
-                e.clouds.coverage = std::clamp(clouds->get_or("coverage", e.clouds.coverage), 0.0f, 1.0f);
-                e.clouds.density = std::clamp(clouds->get_or("density", e.clouds.density), 0.0f, 1.0f);
-                e.clouds.scale = clouds->get_or("scale", e.clouds.scale);
-                e.clouds.softness = std::clamp(clouds->get_or("softness", e.clouds.softness), 0.0f, 1.0f);
-                if (const auto wind = clouds->get<sol::optional<sol::table>>("wind"))
-                    e.clouds.wind = {wind->get_or(1, e.clouds.wind.x), wind->get_or(2, e.clouds.wind.y)};
+                // Either one layer ({type = "cumulus", ...}) or a list of up to four ({{...}, {...}}).
+                if (clouds->get<sol::optional<sol::table>>(1))
+                {
+                    CloudLayer *slots[4] = {&e.clouds, &e.more_clouds[0], &e.more_clouds[1], &e.more_clouds[2]};
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        *slots[i] = CloudLayer{};
+                        if (const auto layer = clouds->get<sol::optional<sol::table>>(i + 1))
+                            *slots[i] = cloud_layer_from_table(*layer, *slots[i]);
+                    }
+                }
+                else
+                    e.clouds = cloud_layer_from_table(*clouds, e.clouds);
             }
             return e;
         }

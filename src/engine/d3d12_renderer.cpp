@@ -1332,7 +1332,11 @@ namespace sl::detail
                 flush_2d();
                 ID3D12GraphicsCommandList *commands = context_.command_list();
                 commands->SetGraphicsRootSignature(sky_root_signature_);
-                commands->SetGraphicsRoot32BitConstants(0, SkyDrawParams::rows * 4, &params.data[0][0], 0);
+                const D3D12_GPU_VIRTUAL_ADDRESS sky_address =
+                    allocate_constants(&params.data[0][0], sizeof(params.data));
+                if (sky_address == 0)
+                    return false;
+                commands->SetGraphicsRootConstantBufferView(0, sky_address);
                 commands->SetPipelineState(pipeline);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 commands->DrawInstanced(3, 1, 0, 0);
@@ -2326,11 +2330,10 @@ namespace sl::detail
                         pixel_blob->Release();
                     return false;
                 }
-                // The 15 sky rows are the only root parameter (60 DWORDs).
+                // The sky rows are too large for root constants, so they live in a constant buffer.
                 D3D12_ROOT_PARAMETER parameter{};
-                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-                parameter.Constants.ShaderRegister = 0;
-                parameter.Constants.Num32BitValues = SkyDrawParams::rows * 4;
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                parameter.Descriptor.ShaderRegister = 0;
                 parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 D3D12_ROOT_SIGNATURE_DESC signature_desc{};
                 signature_desc.NumParameters = 1;

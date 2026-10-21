@@ -551,9 +551,37 @@ namespace sl
         bool has_texture = false;
     };
 
+    namespace
+    {
+        TextPanelStyle text_panel;
+    }
+
+    void set_text_panel_style(const TextPanelStyle &style)
+    {
+        text_panel = style;
+    }
+
+    TextPanelStyle text_panel_style()
+    {
+        return text_panel;
+    }
+
+    // Draws text, on the text panel when one is enabled.
+    void draw_panel_text(Font *font, int x, int y, const Colour &colour, const std::string &text, int width, int height)
+    {
+        if (!text_panel.enabled || !font || text.empty())
+        {
+            draw_text_atlas(font, x, y, colour, text, width, height);
+            return;
+        }
+        fill_rect(x - text_panel.padding_x, y - text_panel.padding_y, text_length(font, text) + 2 * text_panel.padding_x,
+                  text_height(font) + 2 * text_panel.padding_y, width, height, text_panel.background);
+        draw_text_atlas(font, x, y, text_panel.text, text, width, height);
+    }
+
     void draw_formatted_text(Font *font, int x, int y, const Colour &colour, const std::string &text)
     {
-        draw_text_atlas(font, x, y, colour, text, screen_width(), screen_height());
+        draw_panel_text(font, x, y, colour, text, screen_width(), screen_height());
     }
 
     void gl_printf(
@@ -576,9 +604,11 @@ namespace sl
             const int width = text_length(font, text);
             const int height = text_height(font);
             fill_rect(x, y, width, height, windowWidth, windowHeight, background);
+            draw_text_atlas(font, x, y, foreground, text, windowWidth, windowHeight);
+            return;
         }
 
-        draw_text_atlas(font, x, y, foreground, text, windowWidth, windowHeight);
+        draw_panel_text(font, x, y, foreground, text, windowWidth, windowHeight);
     }
 
     void textout(Font *font, int x, int y, const Colour &colour, const std::string &text)
@@ -690,7 +720,7 @@ namespace sl
             return;
         }
 
-        draw_text_atlas(font, x, y, colour, text, screen_width(), screen_height());
+        draw_formatted_text(font, x, y, colour, text);
     }
 
 } // namespace sl

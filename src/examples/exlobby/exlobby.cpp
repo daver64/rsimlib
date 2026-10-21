@@ -115,6 +115,7 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     Options options;
     std::vector<char *> backend_args;
     if (!parse_args(argc, argv, options, backend_args))

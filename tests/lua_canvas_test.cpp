@@ -72,6 +72,8 @@ int main()
         "assert(not terrain.add_clutter('nowhere', {}))\n"
         "assert(terrain.clear_clutter('hills') and not terrain.clear_clutter('nowhere'))\n"
         "assert(terrain.view('hills', 0, 0, 64, 48, {0, 300, 0}, {0, 250, 100}, {environment = {fog_density = 1e-4, clouds = {volumetric = true, coverage = 0.6, wind = {5, 2}}}}))\n"
+        "assert(terrain.view('hills', 0, 0, 64, 48, {0, 300, 0}, {0, 250, 100}, {environment = {clouds = {{type = 'cirrus'}, {type = 'cumulonimbus', coverage = 0.5}}}}))\n"
+        "assert(not pcall(terrain.view, 'hills', 0, 0, 64, 48, {0, 300, 0}, {0, 250, 100}, {environment = {clouds = {type = 'fog'}}}))\n"
         "assert(terrain.stats('hills').visible_chunks == 0)\n"
         "assert(terrain.destroy('hills') and terrain.destroy('pit') and terrain.destroy('moon'))\n"
         "assert(not terrain.destroy('hills') and terrain.height_at('hills', 0, 0) == nil)\n"

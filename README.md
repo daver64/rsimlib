@@ -328,6 +328,7 @@ The full catalog of focused runnable examples follows.
 - **[`exgpuparticles`](src/examples/exgpuparticles/exgpuparticles.cpp)** — 150k GPU compute particles with mouse-driven gravity wells, explosions, and additive glow.
 - **[`exisometric`](src/examples/exisometric/exisometric.cpp)** — 2.5D dimetric isometric projection, elevation carving, mouse tile-picking, depth sorting, and soft lighting.
 - **[`ex3d_surface`](src/examples/ex3d_surface/ex3d_surface.cpp)** — High-level 3D surface target with MSAA, primitive meshes, model loading (OBJ with MTL, glTF, GLB, AC3D), directional lighting, and 2D HUD compositing.
+- **[`exclouds`](src/examples/exclouds/exclouds.cpp)** — Cloud types and layers (cirrus, altocumulus, cumulus, stratocumulus, stratus, cumulonimbus) over a flat world or a planet; `--types cirrus,cumulus` picks the starting set.
 - **[`expbr`](src/examples/expbr/expbr.cpp)** — PBR material showcase: metallic/roughness sphere grid plus an emissive sphere, orbit camera, rotating light and a PBR on/off toggle.
 - **[`exmodel3d`](src/examples/exmodel3d/exmodel3d.cpp)** ([AC3D / FlightGear guide](docs/ac3d.md)) — Load and render a glTF model (with keyframe clip playback; defaults to the Blender-exported test fixture), an AC3D model or FlightGear model XML with imported transform animations; supports simlib JSON animation files.
 - **[`exfluid3d`](src/examples/exfluid3d/exfluid3d.cpp)** — 3D cellular automata fluids (water, oil, lava, acid, sand, fire, gas...) simulated on a voxel world, with an orbit camera and spray tool.

@@ -7,6 +7,7 @@
 
 int main(int argc, char *argv[])
 {
+    sl::set_text_panel_style({true});
     bool disable_shadows = false;
     bool hard_shadows = false;
     for (int index = 1; index < argc; ++index)

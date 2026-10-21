@@ -1138,6 +1138,7 @@ int main(
     int argc,
     char *argv[])
 {
+    sl::set_text_panel_style({true});
     std::srand(
         static_cast<unsigned int>(
             std::time(nullptr)));

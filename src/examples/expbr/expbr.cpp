@@ -11,6 +11,7 @@
 // The bottom row adds an emissive sphere. P toggles PBR against plain Lambert shading.
 int main(int argc, char **argv)
 {
+    sl::set_text_panel_style({true});
     std::vector<char *> backend_arguments{argv[0]};
     for (int i = 1; i < argc; ++i)
     {
