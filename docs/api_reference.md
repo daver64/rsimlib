@@ -35,7 +35,8 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 26. [Video Playback](#video-playback-includevideoh)
 27. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
 28. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
-29. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
+29. [Networking](#networking-includeneth)
+30. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
 
 ---
 
@@ -1172,6 +1173,16 @@ MPEG1/MP2 playback into a bitmap.
 
 ---
 
+## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
+
+A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it.
+
+- `Pathfinder::resize(columns, rows, tile_w, tile_h, blocked_fn)` sets up the grid; `update(player_col, player_row, player_moving)` rebuilds the chase field and updates scent and sound each frame.
+- `next_step(PathLayer, col, row, step)` returns the best neighbouring step: downhill on `PathLayer::chase`, uphill on `scent` or `sound`. Enemies read the field rather than searching.
+- `open(col, row)` and `value(layer, col, row)` inspect the grid.
+
+---
+
 ## Networking ([include/net.h](../include/net.h))
 
 ENet-based UDP messaging plus non-blocking TCP. Everything is polled from your frame loop and nothing blocks. The objects initialise the library while open, so `net_initialise()` / `net_shutdown()` (reference counted) are optional. See the [networking guide](networking.md) and `src/examples/exlobby`.
@@ -1248,16 +1259,6 @@ public:
 ```
 
 Packets from the network are untrusted: check every `read`, and clamp or range-check values before use. Peer ids are never 0. UDP and TCP do not interoperate (a `NetClient` cannot talk to an IRC server).
-
----
-
-## Tile-Grid Pathfinding ([include/pathfinding.h](../include/pathfinding.h))
-
-A header-only, global-namespace flow-field helper. Define `PATHFINDING_IMPLEMENTATION` in exactly one source file before including it.
-
-- `Pathfinder::resize(columns, rows, tile_w, tile_h, blocked_fn)` sets up the grid; `update(player_col, player_row, player_moving)` rebuilds the chase field and updates scent and sound each frame.
-- `next_step(PathLayer, col, row, step)` returns the best neighbouring step: downhill on `PathLayer::chase`, uphill on `scent` or `sound`. Enemies read the field rather than searching.
-- `open(col, row)` and `value(layer, col, row)` inspect the grid.
 
 ---
 
