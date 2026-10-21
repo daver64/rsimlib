@@ -34,6 +34,7 @@ In `expbr.cpp`, metallic and roughness vary across a sphere grid, while the emis
             glow.emissive[0] = 0.1f;
             glow.emissive[1] = 0.9f;
             glow.emissive[2] = 0.3f;
+            sl::draw_mesh(sphere, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.5f, 0.0f)), glow);
 ```
 
 ## Running

@@ -31,6 +31,17 @@ In `exresources.cpp`, `Archive` opens the ZIP, locates its script entry, reads i
     const std::vector<std::uint8_t> script_bytes = archive.read(script_entry);
 ```
 
+In `exresources.cpp`, `Archive::entries` supplies the names rendered in the archive directory.
+```cpp
+        const std::vector<std::string> entries = archive.entries();
+        const int visible_entries = std::min(13, static_cast<int>(entries.size()));
+        for (int index = 0; index < visible_entries; ++index)
+            sl::gprintf(24, 134 + index * 22, text, "%s", entries[static_cast<std::size_t>(index)].c_str());
+        if (entries.size() > static_cast<std::size_t>(visible_entries))
+            sl::gprintf(24, 134 + visible_entries * 22, muted, "... and %d more",
+                        static_cast<int>(entries.size()) - visible_entries);
+```
+
 ## Running
 ```bash
 ./build/exresources

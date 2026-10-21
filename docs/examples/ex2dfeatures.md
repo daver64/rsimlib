@@ -14,7 +14,7 @@ A tour of newer 2D features: text blocks, blend modes, clip rects, sprite animat
 
 ## Key code
 
-In `ex2dfeatures.cpp`, atlas frames become named `Animator` clips, while an infinite tile map stores cells at signed coordinates.
+In `ex2dfeatures.cpp`, atlas frames become named `Animator` clips, and populated hex and infinite tile maps store the demo's cells.
 ```cpp
     sl::SpriteSheet sheet = sl::sprite_sheet_from_atlas(sl::create_atlas(ball_sheet_bitmap, 24, 24), 0.12f);
     sheet.add_clip("bounce", 0, 3);
@@ -25,6 +25,13 @@ In `ex2dfeatures.cpp`, atlas frames become named `Animator` clips, while an infi
     animator.on_event = [&](const std::string &) { ++event_count; };
     sheet.add_event("bounce", 2, "land");
     animator.play("bounce");
+    sl::TileMap *hex_map = sl::create_hex_tilemap(7, 5, 32, 32, 16, true, true);
+    sl::tilemap_add_tileset(hex_map, sl::create_atlas(hex_green, 32, 32));
+    const int hex_layer = sl::tilemap_add_layer(hex_map, "ground");
+    for (int r = 0; r < 5; ++r)
+        for (int c = 0; c < 7; ++c)
+            if ((c + r) % 3 != 0)
+                sl::tilemap_set(hex_map, hex_layer, c, r, 1);
     // ...
     sl::TileMap *world = sl::create_infinite_tilemap(32, 32);
     sl::tilemap_add_tileset(world, sl::create_atlas(hex_green, 32, 32));

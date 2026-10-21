@@ -13,9 +13,14 @@ The smallest simlib program: open a window, draw centred text on a cleared backg
 
 ## Key code
 
-In `exhello.cpp`, the program clears the screen, draws centered greeting and backend text, then presents the frame and waits for input before shutdown.
+In `exhello.cpp`, `set_gfx_mode` opens the windowed display; the program clears it, draws centered text, presents the frame and waits for input before shutdown.
 ```cpp
     sl::Font *font = sl::get_default_monospace_font();
+    if (!sl::configure_graphics_backend_from_args(argc, argv) ||
+        !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
+    {
+        return -1;
+    }
     const int fontheight = sl::text_height(font);
     sl::Colour text_colour{0, 255, 0};
     sl::clear_to_colour(sl::screen, sl::Colour{45, 48, 56});

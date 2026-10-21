@@ -13,7 +13,7 @@ A pixel sprite and animation editor with a resizable canvas, undo, zoom, frames 
 
 ## Key code
 
-In `exspriteeditor.cpp`, undo and redo keep per-frame pixel snapshots and restore the selected frame's bitmap.
+In `exspriteeditor.cpp`, per-frame undo saves current pixels for redo, restores the previous snapshot, then pops it from the undo stack.
 ```cpp
         void undo()
         {
