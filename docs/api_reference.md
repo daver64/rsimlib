@@ -1174,7 +1174,80 @@ MPEG1/MP2 playback into a bitmap.
 
 ## Networking ([include/net.h](../include/net.h))
 
-`NetServer` and `NetClient` give reliable and unreliable UDP messaging (ENet), `PacketWriter`/`PacketReader` encode packets with bounds-checked reads, and `TcpSocket`/`TcpListener` provide non-blocking TCP. Everything is polled from your frame loop and nothing blocks. See the [networking guide](networking.md) and `src/examples/exlobby`.
+ENet-based UDP messaging plus non-blocking TCP. Everything is polled from your frame loop and nothing blocks. The objects initialise the library while open, so `net_initialise()` / `net_shutdown()` (reference counted) are optional. See the [networking guide](networking.md) and `src/examples/exlobby`.
+
+```cpp
+enum class NetEventType { connected, disconnected, received };
+struct NetEvent { NetEventType type; std::uint32_t peer; std::uint8_t channel; std::vector<std::uint8_t> data; };
+
+class NetServer {
+public:
+    bool start(std::uint16_t port, std::size_t max_clients = 32, std::size_t channels = 2); // port 0 = pick one
+    void stop();
+    bool running() const;
+    std::uint16_t port() const;
+    std::size_t client_count() const;
+    bool poll(NetEvent &event);                      // call until false, every frame
+    bool send(std::uint32_t peer, const std::vector<std::uint8_t> &data, std::uint8_t channel = 0, bool reliable = true);
+    void broadcast(const std::vector<std::uint8_t> &data, std::uint8_t channel = 0, bool reliable = true);
+    void disconnect(std::uint32_t peer);
+};
+
+class NetClient {
+public:
+    bool connect(const std::string &host, std::uint16_t port, std::size_t channels = 2); // result arrives via poll()
+    void disconnect();
+    bool connected() const;
+    bool active() const;                             // connecting or connected
+    bool poll(NetEvent &event);
+    bool send(const std::vector<std::uint8_t> &data, std::uint8_t channel = 0, bool reliable = true);
+    std::uint32_t ping_ms() const;
+};
+
+class PacketWriter {
+public:
+    template <typename T> void write(T value);       // arithmetic/enum, little-endian
+    void write_string(std::string_view text);        // 16-bit length prefix
+    void write_bytes(const void *data, std::size_t size);
+    const std::vector<std::uint8_t> &bytes() const;
+};
+
+class PacketReader {                                 // reads never overrun; check every result
+public:
+    PacketReader(const std::vector<std::uint8_t> &data);
+    template <typename T> bool read(T &value);
+    bool read_string(std::string &text);
+    bool read_bytes(void *out, std::size_t size);
+    std::size_t remaining() const;
+    bool ok() const;
+};
+
+enum class TcpState { closed, connecting, connected };
+
+class TcpSocket {                                    // move-only, plain text (no TLS)
+public:
+    bool connect(const std::string &host, std::uint16_t port, int timeout_ms = 15000); // DNS on a worker thread
+    TcpState update();                               // call every frame
+    TcpState state() const;
+    bool connected() const;
+    bool send(std::string_view data);                // queued, 1 MiB backlog cap
+    std::size_t receive(std::string &out);           // appends what has arrived
+    bool wait_readable(int timeout_ms);              // for tools and tests
+    void close();
+    const std::string &error() const;
+};
+
+class TcpListener {
+public:
+    bool listen(std::uint16_t port, int backlog = 16);
+    bool accept(TcpSocket &out);
+    void close();
+    bool listening() const;
+    std::uint16_t port() const;
+};
+```
+
+Packets from the network are untrusted: check every `read`, and clamp or range-check values before use. Peer ids are never 0. UDP and TCP do not interoperate (a `NetClient` cannot talk to an IRC server).
 
 ---
 
