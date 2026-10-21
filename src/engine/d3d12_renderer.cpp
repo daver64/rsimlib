@@ -95,8 +95,8 @@ namespace sl::detail
             std::size_t size = 0;
         };
 
-        // Blend variants: 0 straight alpha, 1 premultiplied alpha, 2 additive.
-        constexpr std::size_t blend_variant_count = 3;
+        // Blend variants: 0 straight alpha, 1 premultiplied alpha, 2 additive, 3 multiply, 4 screen.
+        constexpr std::size_t blend_variant_count = 5;
         constexpr std::size_t primitive_pipeline_count = 3;
         // Pipelines are built per render-target sample count (1, 2, 4 or 8).
         constexpr std::size_t sample_slot_count = 4;
@@ -138,8 +138,8 @@ namespace sl::detail
             D3D12_BLEND_DESC desc{};
             auto &blend = desc.RenderTarget[0];
             blend.BlendEnable = TRUE;
-            blend.SrcBlend = variant == 0 ? D3D12_BLEND_SRC_ALPHA : D3D12_BLEND_ONE;
-            blend.DestBlend = variant == 2 ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
+            blend.SrcBlend = variant == 0 ? D3D12_BLEND_SRC_ALPHA : variant == 3 ? D3D12_BLEND_DEST_COLOR : D3D12_BLEND_ONE;
+            blend.DestBlend = variant == 2 ? D3D12_BLEND_ONE : variant == 4 ? D3D12_BLEND_INV_SRC_COLOR : D3D12_BLEND_INV_SRC_ALPHA;
             blend.BlendOp = D3D12_BLEND_OP_ADD;
             blend.SrcBlendAlpha = D3D12_BLEND_ONE;
             blend.DestBlendAlpha = variant == 2 ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
@@ -1919,9 +1919,12 @@ namespace sl::detail
                     pipeline_index = 2;
                     topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
                 }
-                const std::size_t variant = blend_mode_ == BlendMode::additive ? 2
-                                            : premultiplied_alpha_            ? 1
-                                                                              : 0;
+                const std::size_t variant = blend_mode_ == BlendMode::additive        ? 2
+                                            : blend_mode_ == BlendMode::multiply      ? 3
+                                            : blend_mode_ == BlendMode::screen        ? 4
+                                            : blend_mode_ == BlendMode::premultiplied ? 1
+                                            : premultiplied_alpha_                    ? 1
+                                                                                      : 0;
                 const auto program = active_program_ != 0 ? programs_.find(active_program_) : programs_.end();
                 const bool bound = program != programs_.end() && !program->second.compute
                                        ? bind_program_for_draw(program->second, pipeline_index, variant)

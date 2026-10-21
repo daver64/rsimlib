@@ -1,6 +1,8 @@
 #include "camera2d.h"
 #include "collision2d.h"
 #include "tween.h"
+#include "pixel_scale.h"
+#include "animation2d.h"
 
 #include <cassert>
 #include <cmath>
@@ -161,6 +163,79 @@ int main()
         scheduler.cancel(id);
         scheduler.update(2.0f);
         assert(repeated == 2 && scheduler.pending() == 0);
+    }
+
+    // Pixel scaling: integer, aspect-fit and stretch placement and coordinate conversion.
+    {
+        const sl::ScaleFit integer = sl::compute_scale_fit(320, 180, 1000, 700, sl::ScaleMode::integer);
+        assert(integer.width == 960 && integer.height == 540 && integer.x == 20 && integer.y == 80);
+        assert(near(integer.scale_x, 3.0f) && near(integer.scale_y, 3.0f));
+        float gx = 0.0f, gy = 0.0f;
+        integer.window_to_game(20.0f + 30.0f, 80.0f + 60.0f, gx, gy);
+        assert(near(gx, 10.0f) && near(gy, 20.0f));
+        assert(integer.contains(500.0f, 300.0f) && !integer.contains(5.0f, 300.0f));
+        // A window smaller than the image still gets scale 1 rather than 0.
+        assert(sl::compute_scale_fit(320, 180, 200, 100, sl::ScaleMode::integer).scale_x == 1.0f);
+        const sl::ScaleFit fit = sl::compute_scale_fit(320, 180, 1000, 700, sl::ScaleMode::aspect_fit);
+        assert(fit.width == 1000 && fit.height == 563 && fit.x == 0);
+        const sl::ScaleFit stretch = sl::compute_scale_fit(320, 180, 1000, 700, sl::ScaleMode::stretch);
+        assert(stretch.width == 1000 && stretch.height == 700 && stretch.x == 0 && stretch.y == 0);
+        assert(sl::compute_scale_fit(0, 180, 1000, 700).width == 0);
+    }
+
+    // Animation: JSON import (frame tags, durations, hash form) and playback.
+    {
+        const char *json = R"({"frames":[
+            {"filename":"a","frame":{"x":0,"y":0,"w":16,"h":16},"duration":100},
+            {"filename":"b","frame":{"x":16,"y":0,"w":16,"h":16},"duration":200},
+            {"filename":"c","frame":{"x":32,"y":0,"w":16,"h":16},"duration":100},
+            {"filename":"d","frame":{"x":48,"y":0,"w":16,"h":16},"duration":100}],
+            "meta":{"frameTags":[{"name":"walk","from":0,"to":2,"direction":"forward"},
+                                  {"name":"bounce","from":0,"to":2,"direction":"pingpong"},
+                                  {"name":"back","from":1,"to":3,"direction":"reverse"}]}})";
+        sl::SpriteSheet sheet;
+        std::string error;
+        assert(sl::parse_sprite_sheet_json(json, sheet, &error));
+        assert(sheet.frames.size() == 4 && sheet.frames[1].x == 16 && near(sheet.frames[1].duration, 0.2f));
+        assert(sheet.clips.size() == 3 && sheet.find_clip("bounce")->direction == sl::PlayDirection::ping_pong);
+        assert(!sl::parse_sprite_sheet_json("{}", sheet, &error) && !error.empty());
+
+        assert(sl::parse_sprite_sheet_json(json, sheet));
+        sl::Animator animator(&sheet);
+        assert(!animator.play("missing"));
+        std::vector<std::string> events;
+        animator.on_event = [&](const std::string &name) { events.push_back(name); };
+        assert(sheet.add_event("walk", 2, "footstep"));
+        assert(animator.play("walk") && animator.frame_index() == 0);
+        animator.update(0.11f);
+        assert(animator.frame_index() == 1);
+        animator.update(0.2f);
+        assert(animator.frame_index() == 2 && events.size() == 1 && events[0] == "footstep");
+        animator.update(0.1f);
+        assert(animator.frame_index() == 0);
+
+        // Ping-pong visits 0,1,2,1,0.
+        animator.play("bounce");
+        std::vector<int> visited;
+        for (int i = 0; i < 5; ++i)
+        {
+            visited.push_back(animator.frame_index());
+            animator.update(animator.frame()->duration + 0.001f);
+        }
+        assert((visited == std::vector<int>{0, 1, 2, 1, 0}));
+
+        // Reverse starts at the last frame; a non-looping clip finishes and holds.
+        assert(sheet.add_clip("once", 0, 1, false));
+        bool finished = false;
+        animator.on_finished = [&](const std::string &) { finished = true; };
+        animator.play("back");
+        assert(animator.frame_index() == 3);
+        animator.play("once");
+        animator.update(0.11f);
+        animator.update(0.21f);
+        assert(finished && animator.finished() && animator.frame_index() == 1);
+        animator.update(1.0f);
+        assert(animator.frame_index() == 1);
     }
 
     std::cout << "camera_collision_test passed\n";

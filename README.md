@@ -258,6 +258,8 @@ The full catalog of focused runnable examples follows.
 ./build/exgui           # Dear ImGui widgets and integration
 ./build/exparticles     # Particle emitters, fades, and gravity
 ./build/excamera2d      # Camera2D, clip rectangle and draw_sprite_ex
+./build/exjoints        # Box2D joints (bridge, spring, wheels, mouse drag) and debug draw
+./build/ex2dfeatures    # text layout, blend modes, animation clips, hex/infinite maps, integer scaling
 ./build/exresources     # Encrypted/compressed ZIP asset archive loading
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
 ./build/exnormalmap     # Normal-mapped 2D lighting (Space toggles)
@@ -315,6 +317,8 @@ The full catalog of focused runnable examples follows.
 - **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialisation, event forwarding, widgets, and rendering.
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity.
 - **[`excamera2d`](src/examples/excamera2d/excamera2d.cpp)** — `Camera2D` follow, zoom, rotation and shake, a clipped inset with `set_clip_rect()`, and `draw_sprite_ex()` origins and tints.
+- **[`exjoints`](src/examples/exjoints/exjoints.cpp)** — revolute, distance (spring), wheel and mouse joints, with `debug_draw_physics()`.
+- **[`ex2dfeatures`](src/examples/ex2dfeatures/ex2dfeatures.cpp)** — word-wrapped text blocks, multiply/screen blending, `Animator` clips, hexagonal and infinite tile maps, and integer-scaled low-resolution targets.
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
 - **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass.

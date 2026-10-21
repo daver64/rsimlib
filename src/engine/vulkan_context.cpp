@@ -2767,7 +2767,8 @@ namespace sl::detail
                                                  VkCullModeFlags cull_mode,
                                                  int samples,
                                                  bool sky,
-                                                 bool instanced)
+                                                 bool instanced,
+                                                 int blend_variant)
     {
         result = {};
         if (mesh_vertices || sky)
@@ -2919,6 +2920,22 @@ namespace sl::detail
         blend_attachment.srcAlphaBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstAlphaBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        // blend_variant: 1 multiply, 2 screen, 3 premultiplied alpha (overrides the flags above).
+        if (blend_variant == 1)
+        {
+            blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+            blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        }
+        else if (blend_variant == 2)
+        {
+            blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+            blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+        }
+        else if (blend_variant == 3)
+        {
+            blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+            blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        }
         blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         VkPipelineColorBlendStateCreateInfo blending{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};

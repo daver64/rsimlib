@@ -39,6 +39,9 @@ namespace sl
         std::vector<TileAnimationFrame> animation;
     };
 
+    /** Width and height, in cells, of one storage chunk of an infinite layer. */
+    constexpr int tile_chunk_size = 16;
+
     /** A tile atlas plus the first global tile id it covers. */
     struct TileSet
     {
@@ -71,6 +74,10 @@ namespace sl
         float parallax_x = 1.0f;
         /** Vertical camera scroll multiplier. */
         float parallax_y = 1.0f;
+        /** True for an unbounded layer: cells live in sparse chunks (see tile_chunk_size) and may have negative coordinates. */
+        bool infinite = false;
+        /** Chunk storage for infinite layers, keyed by chunk coordinate; each chunk holds tile_chunk_size squared cells. */
+        std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> chunks;
     };
 
     /** A point, rectangle or tile placed in an object layer (spawn points, triggers). */
@@ -105,7 +112,9 @@ namespace sl
     enum class TileMapOrientation
     {
         orthogonal,
-        isometric
+        isometric,
+        /** Hexagonal cells in staggered rows or columns, as in Tiled. */
+        hexagonal
     };
 
     /** A multi-layer tile map. Create with create_tilemap() or load_tiled_map(); free with destroy_tilemap(). */
@@ -131,13 +140,32 @@ namespace sl
         std::vector<Bitmap *> owned_bitmaps;
         /** Animation clock advanced by update_tilemap(). */
         double animation_time_ms = 0.0;
+        /** True for an unbounded map; width and height are then unused and out-of-range cells are empty, not solid. */
+        bool infinite = false;
+        /** Hexagonal maps: length in pixels of the hexagon's flat side. */
+        int hex_side_length = 0;
+        /** Hexagonal maps: true when rows are staggered (pointy-top hexes), false when columns are (flat-top). */
+        bool hex_stagger_y = true;
+        /** Hexagonal maps: true when odd rows/columns (counting from 0) are shifted, false for even. */
+        bool hex_stagger_odd = true;
     };
 
     /** Create an empty map; returns nullptr for non-positive dimensions. */
     TileMap *create_tilemap(int width, int height, int tile_width, int tile_height,
                             TileMapOrientation orientation = TileMapOrientation::orthogonal);
     /** Destroy a map and any bitmaps it owns. */
+    /** Create an unbounded map (orthogonal or hexagonal); cells may be set at any coordinate, including negative ones. */
+    TileMap *create_infinite_tilemap(int tile_width, int tile_height,
+                                     TileMapOrientation orientation = TileMapOrientation::orthogonal);
+    /**
+     * Create a hexagonal map. tile_width x tile_height is the hexagon's bounding box and side_length the flat side,
+     * as in Tiled. stagger_y selects pointy-top hexes in staggered rows (false: flat-top, staggered columns).
+     */
+    TileMap *create_hex_tilemap(int width, int height, int tile_width, int tile_height, int side_length,
+                                bool stagger_y = true, bool stagger_odd = true);
     void destroy_tilemap(TileMap *map);
+    /** Inclusive extent of non-empty cells in a layer; returns false when an infinite layer is empty or the index is invalid. */
+    bool tilemap_layer_bounds(const TileMap *map, int layer, int &min_column, int &min_row, int &max_column, int &max_row);
 
     /** Append a tileset. A first_gid of 0 continues after the previous tileset. Returns its index. */
     int tilemap_add_tileset(TileMap *map, const Atlas &atlas, int first_gid = 0);
@@ -160,12 +188,12 @@ namespace sl
     std::string tilemap_tile_property(const TileMap *map, std::uint32_t gid, const std::string &key);
     /** Return true if the cell holds a solid tile on any layer (or the given layer when layer >= 0). Out of bounds is solid. */
     bool tilemap_is_solid(const TileMap *map, int column, int row, int layer = -1);
-    /** Return true if a rectangle in map pixels overlaps a solid tile (orthogonal maps). */
+    /** Return true if a rectangle in map pixels overlaps a solid tile (orthogonal and hexagonal maps; hex maps sample the rectangle). */
     bool tilemap_rect_blocked(const TileMap *map, float x, float y, float width, float height, int layer = -1);
 
-    /** Convert map pixels to a cell coordinate (orthogonal). Isometric maps use the diamond projection with origin (0, 0). */
+    /** Convert map pixels to a cell coordinate (orthogonal; hexagonal maps pick the nearest hexagon centre). Isometric maps use the diamond projection with origin (0, 0). */
     void tilemap_world_to_tile(const TileMap *map, float x, float y, int &column, int &row);
-    /** Return the pixel position of a cell's top-left corner (orthogonal) or the diamond centre (isometric). */
+    /** Return the pixel position of a cell's top-left corner (orthogonal and hexagonal) or the diamond centre (isometric). */
     void tilemap_tile_to_world(const TileMap *map, int column, int row, float &x, float &y);
 
     /** Advance animated tiles by dt seconds. */

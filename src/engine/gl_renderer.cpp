@@ -1671,6 +1671,12 @@ namespace sl::detail
             {
                 if (blend_mode_ == BlendMode::additive)
                     glBlendFunc(GL_ONE, GL_ONE);
+                else if (blend_mode_ == BlendMode::multiply)
+                    glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+                else if (blend_mode_ == BlendMode::screen)
+                    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_COLOR);
+                else if (blend_mode_ == BlendMode::premultiplied)
+                    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 else
                     glBlendFunc(premultiplied_alpha_ ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }

@@ -413,17 +413,17 @@ void draw_points(Bitmap *bitmap, const PointVertex *points, int count);
 
 #### `set_blend_mode(mode)`
 ```cpp
-enum class BlendMode { normal, additive };
+enum class BlendMode { normal, additive, multiply, screen, premultiplied };
 void set_blend_mode(BlendMode mode);
 ```
-- **Description**: Selects the colour-blending mode for subsequent draws (e.g. additive glow for particles). `BlendMode::additive` is fully supported on both OpenGL and Vulkan, for points and triangle-based draws (including post-process effects like `sl::Blur`).
+- **Description**: Selects the colour-blending mode for subsequent draws (e.g. additive glow for particles). `BlendMode::additive` is fully supported on both OpenGL and Vulkan, for points and triangle-based draws (including post-process effects like `sl::Blur`). `multiply`, `screen` and `premultiplied` (source already multiplied by alpha) are also available; on Vulkan and D3D12 the extra modes apply to triangle-based draws (sprites, filled shapes, text), and other primitives fall back to normal blending. See `ex2dfeatures`.
 
 #### `draw_points(bitmap, points, count)` / `set_blend_mode(mode)`
 ```cpp
 struct PointVertex { float x = 0.0f, y = 0.0f; Colour colour; };
 void draw_points(Bitmap *bitmap, const PointVertex *points, int count);
 
-enum class BlendMode { normal, additive };
+enum class BlendMode { normal, additive, multiply, screen, premultiplied };
 void set_blend_mode(BlendMode mode);
 ```
 - **Description**: `draw_points` submits many single-pixel points to the screen in one batched GPU call, for use cases like rendering large GPU-simulated particle systems (see `excompute`/`exgpuparticles`) without a per-point draw call. `set_blend_mode` selects additive (`GL_ONE, GL_ONE`) vs. normal alpha blending for subsequent draws, supported on both OpenGL and Vulkan.
@@ -457,6 +457,10 @@ bool get_clip_rect(int *x = nullptr, int *y = nullptr, int *width = nullptr, int
 - **`Camera2D`** (`camera2d.h`): `x`/`y` (the world point at the centre of the viewport), `zoom`, clockwise `rotation`, an optional viewport, `set_bounds()`, frame-rate independent `follow()`, `shake()` plus `update()`, `world_to_screen()`, `screen_to_world()`, `visible_rect()` and `draw_sprite()` for world-space sprites. `top_left()` gives the position for `draw_tilemap()`, which supports panning and shake but not zoom or rotation. See `excamera2d`.
 - **Collision helpers** (`collision2d.h`): `Rect2D`, `Circle2D`, `Vec2D`; overlap tests; `collide_rects`, `collide_circles`, `collide_circle_rect` and `collide_polygons` (convex, SAT) returning a push-out normal and depth; `raycast_rect` and `raycast_circle`; and `SpatialHash2D` for broad-phase queries.
 - **Tweens and timers** (`tween.h`): `ease(Ease, t)` with 18 curves, `Tween` (delay, loop, ping-pong) and `Scheduler` (`after()`, `every()`, `cancel()`).
+
+- **Pixel-perfect scaling** (`pixel_scale.h`): `compute_scale_fit(game_w, game_h, window_w, window_h, ScaleMode)` with `ScaleMode::{stretch, aspect_fit, integer}` returns a `ScaleFit` (destination rectangle, scale, `window_to_game()`, `game_to_window()`, `contains()`). Render to a `create_render_target()` bitmap at the low resolution, then `draw_scaled_target(target, fit)`. `present_scaled_target(target, mode)` does the fit, the draw and `set_mouse_scale_fit()` in one call each frame, so it follows window resizes and fullscreen toggles and `mouse_x()`/`mouse_y()` return game-image coordinates (`set_mouse_mapping()` / `clear_mouse_mapping()` in `input.h` are the underlying calls). It is a helper rather than a viewport change, so 3D and post-processing are unaffected.
+- **Animation clips** (`animation2d.h`): `SpriteSheet` holds frames, named `AnimationClip`s (loop, `PlayDirection::{forward, reverse, ping_pong}`, per-frame durations) and frame events (`add_event`). Build one with `sprite_sheet_from_atlas()` or import Aseprite/TexturePacker JSON with `load_sprite_sheet_json()` / `parse_sprite_sheet_json()` (array or hash frames, `frameTags`). `Animator` plays a clip: `play()`, `update(dt)`, `pause()`/`resume()`, `finished()`, `on_event`, `on_finished`, `draw()`.
+- **Text layout** (`font.h`): `TextStyle` (`align`, `wrap_width`, `line_spacing`, `shadow`, `outline`), `wrap_text()`, `text_block_width()`, `text_block_height()` and `draw_text_block()`. Wrapping is UTF-8 aware and breaks over-long words. All text drawing is UTF-8: glyphs are rasterised into the font's atlas the first time they are used, so any code point the font provides (accents, Greek, Cyrillic, symbols) works. Missing glyphs draw as `?`. With the text panel enabled, one panel is drawn behind the whole block.
 
 #### Shape Primitives & Curves
 ```cpp
@@ -738,6 +742,38 @@ bool add_polygon_fixture(PhysicsBody *body, const std::vector<Vec2> &vertices, f
 std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 ```
 - **Description**: Returns and clears all collision contact events (`begin` / `end` overlap, bodies involved, contact point, and normal) generated since the last step.
+
+---
+
+#### Joints and debug drawing
+```cpp
+PhysicsJoint *create_distance_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor_a, Vec2 anchor_b, float frequency_hz = 0.0f, float damping_ratio = 0.0f);
+PhysicsJoint *create_revolute_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor);
+PhysicsJoint *create_prismatic_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor, Vec2 axis);
+PhysicsJoint *create_weld_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor, float frequency_hz = 0.0f, float damping_ratio = 0.0f);
+PhysicsJoint *create_wheel_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor, Vec2 axis, float frequency_hz = 4.0f, float damping_ratio = 0.7f);
+PhysicsJoint *create_mouse_joint(PhysicsWorld *world, PhysicsBody *body, Vec2 target, float max_force = 10000.0f);
+void destroy_physics_joint(PhysicsJoint *joint);
+bool physics_joint_active(const PhysicsJoint *joint);
+void set_mouse_joint_target(PhysicsJoint *joint, Vec2 target);
+void set_joint_motor(PhysicsJoint *joint, float speed, float max_torque);       // revolute, wheel
+void set_prismatic_motor(PhysicsJoint *joint, float speed, float max_force);
+void set_revolute_limits(PhysicsJoint *joint, float lower, float upper);
+void set_prismatic_limits(PhysicsJoint *joint, float lower, float upper);
+void debug_draw_physics(PhysicsWorld *world, const PhysicsDebugDraw &options = {});
+```
+- **Description**: Anchors and axes are pixel-space world coordinates in the bodies' starting pose. A joint handle stays valid until `destroy_physics_joint()`; if a connected body is destroyed first the joint goes inactive (`physics_joint_active()` is false) and is ignored. A non-zero `frequency_hz` turns distance and weld joints into damped springs. The mouse joint drags a dynamic body toward a target for grab-and-throw interaction. `debug_draw_physics()` draws shapes (filled and outlined), joints, optional bounding boxes and centres of mass to the screen with the 2D primitives; `PhysicsDebugDraw::offset` and `scale` follow a camera. See `exphysics`.
+
+#### Ray casts, queries, sensors and filters
+```cpp
+PhysicsRayHit physics_raycast(PhysicsWorld *world, Vec2 from, Vec2 to, bool include_sensors = false, const PhysicsBody *ignore = nullptr);
+std::vector<PhysicsRayHit> physics_raycast_all(PhysicsWorld *world, Vec2 from, Vec2 to, bool include_sensors = false, const PhysicsBody *ignore = nullptr);
+std::vector<PhysicsBody *> physics_query_box(PhysicsWorld *world, Vec2 corner_a, Vec2 corner_b, bool include_sensors = false);
+std::vector<PhysicsBody *> physics_query_point(PhysicsWorld *world, Vec2 point, bool include_sensors = false);
+void set_physics_body_sensor(PhysicsBody *body, bool sensor);
+void set_physics_body_filter(PhysicsBody *body, std::uint16_t category_bits, std::uint16_t mask_bits, std::int16_t group_index = 0);
+```
+- **Description**: `PhysicsRayHit` reports `hit`, the body, point and normal; `physics_raycast_all()` returns hits nearest first. Sensors detect overlaps without colliding; their contacts have `PhysicsContact::sensor` set and a zero point and normal. Filters use Box2D category/mask/group bits and also apply to fixtures added later. Ray casts and queries skip sensors unless `include_sensors` is true.
 
 ---
 
@@ -1067,8 +1103,9 @@ Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled 
 
 ### Functions
 - `tilemap_add_tileset(map, atlas, first_gid = 0)`, `tilemap_add_layer(map, name)`, `tilemap_layer()`, `tilemap_get()`, `tilemap_set()`.
-- `tilemap_set_solid()`, `tilemap_tile_info()`, `tilemap_tile_property()`, `tilemap_is_solid()`, `tilemap_rect_blocked()`: collision queries (out of bounds counts as solid).
+- `tilemap_set_solid()`, `tilemap_tile_info()`, `tilemap_tile_property()`, `tilemap_is_solid()`, `tilemap_rect_blocked()`: collision queries (out of bounds counts as solid on finite maps, and as empty on infinite maps).
 - `tilemap_world_to_tile()`, `tilemap_tile_to_world()`: coordinate conversion.
+- `create_hex_tilemap(width, height, tile_w, tile_h, side_length, stagger_y, stagger_odd)`, `create_infinite_tilemap(tile_w, tile_h)`, `tilemap_layer_bounds()`: hexagonal maps and sparse, chunked infinite maps (negative coordinates allowed, grown on `tilemap_set`). `load_tiled_map()` reads Tiled hexagonal maps and infinite maps (`chunks`); infinite isometric maps are rejected. Hex `tilemap_world_to_tile()` picks the nearest hex centre.
 - `update_tilemap(map, dt_seconds)`: advances tile animations.
 - `draw_tilemap(map, camera_x, camera_y, view_width = 0, view_height = 0, first_layer = 0, last_layer = -1)`: draws visible cells only. For isometric maps the camera is the screen offset of cell (0, 0).
 - `load_tiled_map(path)`: loads Tiled JSON (`.tmj`/`.json`) with embedded or external `.tsj` tilesets, CSV (array) layer data, group layers, flips, tile properties (a boolean `solid` property sets `TileInfo::solid`), animations and object layers. Infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets are rejected with an error.

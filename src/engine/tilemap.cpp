@@ -99,6 +99,89 @@ namespace sl
             return static_cast<int>(cell);
         }
 
+        std::uint64_t chunk_key(int chunk_x, int chunk_y)
+        {
+            return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(chunk_x)) << 32) |
+                   static_cast<std::uint32_t>(chunk_y);
+        }
+
+        int floor_div(int value, int divisor)
+        {
+            int quotient = value / divisor;
+            if ((value % divisor != 0) && ((value < 0) != (divisor < 0)))
+                --quotient;
+            return quotient;
+        }
+
+        std::uint32_t layer_cell(const TileLayer &layer, int column, int row)
+        {
+            if (layer.infinite)
+            {
+                const int chunk_x = floor_div(column, tile_chunk_size);
+                const int chunk_y = floor_div(row, tile_chunk_size);
+                const auto found = layer.chunks.find(chunk_key(chunk_x, chunk_y));
+                if (found == layer.chunks.end())
+                    return 0;
+                return found->second[static_cast<std::size_t>(row - chunk_y * tile_chunk_size) * tile_chunk_size +
+                                     (column - chunk_x * tile_chunk_size)];
+            }
+            if (column < 0 || row < 0 || column >= layer.width || row >= layer.height)
+                return 0;
+            return layer.cells[static_cast<std::size_t>(row) * layer.width + column];
+        }
+
+        bool layer_set_cell(TileLayer &layer, int column, int row, std::uint32_t cell)
+        {
+            if (layer.infinite)
+            {
+                const int chunk_x = floor_div(column, tile_chunk_size);
+                const int chunk_y = floor_div(row, tile_chunk_size);
+                auto found = layer.chunks.find(chunk_key(chunk_x, chunk_y));
+                if (found == layer.chunks.end())
+                {
+                    if (cell == 0)
+                        return true;
+                    found = layer.chunks.emplace(chunk_key(chunk_x, chunk_y),
+                                                 std::vector<std::uint32_t>(static_cast<std::size_t>(tile_chunk_size) * tile_chunk_size, 0)).first;
+                }
+                found->second[static_cast<std::size_t>(row - chunk_y * tile_chunk_size) * tile_chunk_size +
+                              (column - chunk_x * tile_chunk_size)] = cell;
+                return true;
+            }
+            if (column < 0 || row < 0 || column >= layer.width || row >= layer.height)
+                return false;
+            layer.cells[static_cast<std::size_t>(row) * layer.width + column] = cell;
+            return true;
+        }
+
+        float hex_column_width(const TileMap *map)
+        {
+            return map->hex_stagger_y ? static_cast<float>(map->tile_width)
+                                      : (static_cast<float>(map->tile_width) + map->hex_side_length) * 0.5f;
+        }
+
+        float hex_row_height(const TileMap *map)
+        {
+            return map->hex_stagger_y ? (static_cast<float>(map->tile_height) + map->hex_side_length) * 0.5f
+                                      : static_cast<float>(map->tile_height);
+        }
+
+        // Top-left pixel of a hexagon's bounding box.
+        void hex_origin(const TileMap *map, int column, int row, float &x, float &y)
+        {
+            const bool shifted = (((map->hex_stagger_y ? row : column) & 1) != 0) == map->hex_stagger_odd;
+            if (map->hex_stagger_y)
+            {
+                x = static_cast<float>(column) * map->tile_width + (shifted ? map->tile_width * 0.5f : 0.0f);
+                y = static_cast<float>(row) * hex_row_height(map);
+            }
+            else
+            {
+                x = static_cast<float>(column) * hex_column_width(map);
+                y = static_cast<float>(row) * map->tile_height + (shifted ? map->tile_height * 0.5f : 0.0f);
+            }
+        }
+
         IsometricTransform make_iso(const TileMap *map, float origin_x, float origin_y)
         {
             IsometricTransform iso;
@@ -123,6 +206,42 @@ namespace sl
         map->tile_width = tile_width;
         map->tile_height = tile_height;
         map->orientation = orientation;
+        return map;
+    }
+
+    TileMap *create_infinite_tilemap(int tile_width, int tile_height, TileMapOrientation orientation)
+    {
+        if (orientation == TileMapOrientation::isometric)
+        {
+            detail::set_error("Infinite isometric tile maps are not supported");
+            return nullptr;
+        }
+        TileMap *map = create_tilemap(1, 1, tile_width, tile_height, orientation);
+        if (map)
+        {
+            map->infinite = true;
+            map->width = map->height = 0;
+            if (orientation == TileMapOrientation::hexagonal)
+                map->hex_side_length = tile_height / 2;
+        }
+        return map;
+    }
+
+    TileMap *create_hex_tilemap(int width, int height, int tile_width, int tile_height, int side_length,
+                                bool stagger_y, bool stagger_odd)
+    {
+        if (side_length < 0 || side_length > (stagger_y ? tile_height : tile_width))
+        {
+            detail::set_error("Invalid hexagon side length");
+            return nullptr;
+        }
+        TileMap *map = create_tilemap(width, height, tile_width, tile_height, TileMapOrientation::hexagonal);
+        if (map)
+        {
+            map->hex_side_length = side_length;
+            map->hex_stagger_y = stagger_y;
+            map->hex_stagger_odd = stagger_odd;
+        }
         return map;
     }
 
@@ -167,7 +286,9 @@ namespace sl
         layer.name = name;
         layer.width = map->width;
         layer.height = map->height;
-        layer.cells.assign(static_cast<std::size_t>(map->width) * map->height, 0);
+        layer.infinite = map->infinite;
+        if (!layer.infinite)
+            layer.cells.assign(static_cast<std::size_t>(map->width) * map->height, 0);
         map->layers.push_back(std::move(layer));
         return static_cast<int>(map->layers.size()) - 1;
     }
@@ -195,21 +316,52 @@ namespace sl
     {
         if (!map || layer < 0 || layer >= static_cast<int>(map->layers.size()))
             return 0;
+        return layer_cell(map->layers[layer], column, row);
+    }
+
+    bool tilemap_layer_bounds(const TileMap *map, int layer, int &min_column, int &min_row, int &max_column, int &max_row)
+    {
+        min_column = min_row = max_column = max_row = 0;
+        if (!map || layer < 0 || layer >= static_cast<int>(map->layers.size()))
+            return false;
         const TileLayer &data = map->layers[layer];
-        if (column < 0 || row < 0 || column >= data.width || row >= data.height)
-            return 0;
-        return data.cells[static_cast<std::size_t>(row) * data.width + column];
+        if (!data.infinite)
+        {
+            max_column = data.width - 1;
+            max_row = data.height - 1;
+            return data.width > 0 && data.height > 0;
+        }
+        bool found = false;
+        for (const auto &[key, cells] : data.chunks)
+        {
+            const int chunk_x = static_cast<int>(static_cast<std::uint32_t>(key >> 32));
+            const int chunk_y = static_cast<int>(static_cast<std::uint32_t>(key & 0xFFFFFFFFu));
+            for (int index = 0; index < tile_chunk_size * tile_chunk_size; ++index)
+            {
+                if ((cells[index] & tile_id_mask) == 0)
+                    continue;
+                const int column = chunk_x * tile_chunk_size + index % tile_chunk_size;
+                const int row = chunk_y * tile_chunk_size + index / tile_chunk_size;
+                if (!found)
+                {
+                    min_column = max_column = column;
+                    min_row = max_row = row;
+                    found = true;
+                }
+                min_column = std::min(min_column, column);
+                max_column = std::max(max_column, column);
+                min_row = std::min(min_row, row);
+                max_row = std::max(max_row, row);
+            }
+        }
+        return found;
     }
 
     bool tilemap_set(TileMap *map, int layer, int column, int row, std::uint32_t cell)
     {
         if (!map || layer < 0 || layer >= static_cast<int>(map->layers.size()))
             return false;
-        TileLayer &data = map->layers[layer];
-        if (column < 0 || row < 0 || column >= data.width || row >= data.height)
-            return false;
-        data.cells[static_cast<std::size_t>(row) * data.width + column] = cell;
-        return true;
+        return layer_set_cell(map->layers[layer], column, row, cell);
     }
 
     TileInfo *tilemap_tile_info(TileMap *map, std::uint32_t gid)
@@ -248,7 +400,9 @@ namespace sl
 
     bool tilemap_is_solid(const TileMap *map, int column, int row, int layer)
     {
-        if (!map || column < 0 || row < 0 || column >= map->width || row >= map->height)
+        if (!map)
+            return true;
+        if (!map->infinite && (column < 0 || row < 0 || column >= map->width || row >= map->height))
             return true;
         const int first = layer >= 0 ? layer : 0;
         const int last = layer >= 0 ? layer : static_cast<int>(map->layers.size()) - 1;
@@ -270,6 +424,26 @@ namespace sl
             return false;
         const float right = std::nextafter(x + width, -std::numeric_limits<float>::infinity());
         const float bottom = std::nextafter(y + height, -std::numeric_limits<float>::infinity());
+        if (map->orientation == TileMapOrientation::hexagonal)
+        {
+            const float step = std::max(1.0f, std::min(hex_column_width(map), hex_row_height(map)) * 0.5f);
+            for (float sy = y;; sy += step)
+            {
+                const float py = std::min(sy, bottom);
+                for (float sx = x;; sx += step)
+                {
+                    int column = 0, row = 0;
+                    tilemap_world_to_tile(map, std::min(sx, right), py, column, row);
+                    if (tilemap_is_solid(map, column, row, layer))
+                        return true;
+                    if (sx >= right)
+                        break;
+                }
+                if (sy >= bottom)
+                    break;
+            }
+            return false;
+        }
         const int first_column = pixel_to_tile(x, map->tile_width);
         const int last_column = pixel_to_tile(right, map->tile_width);
         const int first_row = pixel_to_tile(y, map->tile_height);
@@ -297,6 +471,30 @@ namespace sl
             row = cell.y;
             return;
         }
+        if (map->orientation == TileMapOrientation::hexagonal)
+        {
+            const int guess_column = pixel_to_tile(x, std::max(1, static_cast<int>(hex_column_width(map))));
+            const int guess_row = pixel_to_tile(y, std::max(1, static_cast<int>(hex_row_height(map))));
+            float best = std::numeric_limits<float>::max();
+            for (int test_row = guess_row - 1; test_row <= guess_row + 1; ++test_row)
+            {
+                for (int test_column = guess_column - 1; test_column <= guess_column + 1; ++test_column)
+                {
+                    float origin_x = 0.0f, origin_y = 0.0f;
+                    hex_origin(map, test_column, test_row, origin_x, origin_y);
+                    const float dx = x - (origin_x + map->tile_width * 0.5f);
+                    const float dy = y - (origin_y + map->tile_height * 0.5f);
+                    const float distance = dx * dx + dy * dy;
+                    if (distance < best)
+                    {
+                        best = distance;
+                        column = test_column;
+                        row = test_row;
+                    }
+                }
+            }
+            return;
+        }
         column = pixel_to_tile(x, map->tile_width);
         row = pixel_to_tile(y, map->tile_height);
     }
@@ -310,6 +508,11 @@ namespace sl
         {
             make_iso(map, 0.0f, 0.0f).world_to_screen(static_cast<float>(column) + 0.5f,
                                                       static_cast<float>(row) + 0.5f, 0.0f, x, y);
+            return;
+        }
+        if (map->orientation == TileMapOrientation::hexagonal)
+        {
+            hex_origin(map, column, row, x, y);
             return;
         }
         x = static_cast<float>(column) * map->tile_width;
@@ -343,7 +546,7 @@ namespace sl
         for (int index = first_layer; index <= last_layer; ++index)
         {
             const TileLayer &layer = map->layers[index];
-            if (!layer.visible || layer.width <= 0 || layer.height <= 0)
+            if (!layer.visible || (!layer.infinite && (layer.width <= 0 || layer.height <= 0)))
                 continue;
             // Snap to whole pixels so neighbouring tiles never show seams.
             const float scroll_x = std::floor(camera_x * layer.parallax_x - layer.offset_x);
@@ -378,17 +581,52 @@ namespace sl
                 continue;
             }
 
-            const int min_col = std::max(static_cast<int>(std::floor(scroll_x / map->tile_width)) - 1, 0);
-            const int max_col = std::min(static_cast<int>(std::floor((scroll_x + view_width + overhang_side) / map->tile_width)),
-                                         layer.width - 1);
-            const int min_row = std::max(static_cast<int>(std::floor(scroll_y / map->tile_height)), 0);
-            const int max_row = std::min(static_cast<int>(std::floor((scroll_y + view_height + overhang_up) / map->tile_height)),
-                                         layer.height - 1);
+            if (map->orientation == TileMapOrientation::hexagonal)
+            {
+                const float column_width = hex_column_width(map);
+                const float row_height = hex_row_height(map);
+                int min_col = static_cast<int>(std::floor(scroll_x / column_width)) - 1;
+                int max_col = static_cast<int>(std::floor((scroll_x + view_width + overhang_side + map->tile_width) / column_width)) + 1;
+                int min_row = static_cast<int>(std::floor(scroll_y / row_height)) - 1;
+                int max_row = static_cast<int>(std::floor((scroll_y + view_height + overhang_up + map->tile_height) / row_height)) + 1;
+                if (!layer.infinite)
+                {
+                    min_col = std::max(min_col, 0);
+                    min_row = std::max(min_row, 0);
+                    max_col = std::min(max_col, layer.width - 1);
+                    max_row = std::min(max_row, layer.height - 1);
+                }
+                for (int row = min_row; row <= max_row; ++row)
+                {
+                    for (int column = min_col; column <= max_col; ++column)
+                    {
+                        const std::uint32_t cell = layer_cell(layer, column, row);
+                        if ((cell & tile_id_mask) == 0)
+                            continue;
+                        float origin_x = 0.0f, origin_y = 0.0f;
+                        hex_origin(map, column, row, origin_x, origin_y);
+                        draw_cell(map, cell, origin_x - scroll_x, origin_y + static_cast<float>(map->tile_height) - scroll_y);
+                    }
+                }
+                continue;
+            }
+
+            int min_col = static_cast<int>(std::floor(scroll_x / map->tile_width)) - 1;
+            int max_col = static_cast<int>(std::floor((scroll_x + view_width + overhang_side) / map->tile_width));
+            int min_row = static_cast<int>(std::floor(scroll_y / map->tile_height));
+            int max_row = static_cast<int>(std::floor((scroll_y + view_height + overhang_up) / map->tile_height));
+            if (!layer.infinite)
+            {
+                min_col = std::max(min_col, 0);
+                min_row = std::max(min_row, 0);
+                max_col = std::min(max_col, layer.width - 1);
+                max_row = std::min(max_row, layer.height - 1);
+            }
             for (int row = min_row; row <= max_row; ++row)
             {
                 for (int column = min_col; column <= max_col; ++column)
                 {
-                    const std::uint32_t cell = layer.cells[static_cast<std::size_t>(row) * layer.width + column];
+                    const std::uint32_t cell = layer_cell(layer, column, row);
                     if ((cell & tile_id_mask) == 0)
                         continue;
                     draw_cell(map, cell, static_cast<float>(column * map->tile_width) - scroll_x,
@@ -539,8 +777,46 @@ namespace sl
                 {
                     if (node.contains("chunks"))
                     {
-                        error = "Infinite Tiled maps are not supported";
-                        return false;
+                        if (map->orientation == TileMapOrientation::isometric)
+                        {
+                            error = "Infinite isometric Tiled maps are not supported";
+                            return false;
+                        }
+                        map->infinite = true;
+                        TileLayer layer;
+                        layer.name = node.value("name", std::string{});
+                        layer.infinite = true;
+                        layer.visible = node.value("visible", true);
+                        layer.offset_x = node.value("offsetx", 0.0f);
+                        layer.offset_y = node.value("offsety", 0.0f);
+                        layer.parallax_x = node.value("parallaxx", 1.0f);
+                        layer.parallax_y = node.value("parallaxy", 1.0f);
+                        for (const Json &chunk : node["chunks"])
+                        {
+                            if (!chunk.contains("data") || !chunk["data"].is_array())
+                            {
+                                error = "Tile layer data must use CSV encoding (uncompressed array)";
+                                return false;
+                            }
+                            const int start_x = chunk.value("x", 0);
+                            const int start_y = chunk.value("y", 0);
+                            const int chunk_width = chunk.value("width", 0);
+                            if (chunk_width <= 0 || chunk["data"].size() % static_cast<std::size_t>(chunk_width) != 0)
+                            {
+                                error = "Tile layer '" + layer.name + "' has an invalid chunk";
+                                return false;
+                            }
+                            int index = 0;
+                            for (const Json &cell : chunk["data"])
+                            {
+                                const std::uint32_t value = cell.get<std::uint32_t>();
+                                if (value != 0)
+                                    layer_set_cell(layer, start_x + index % chunk_width, start_y + index / chunk_width, value);
+                                ++index;
+                            }
+                        }
+                        map->layers.push_back(std::move(layer));
+                        continue;
                     }
                     if (!node.contains("data") || !node["data"].is_array())
                     {
@@ -603,17 +879,40 @@ namespace sl
         try
         {
             const std::string orientation = root.value("orientation", std::string("orthogonal"));
-            if (orientation != "orthogonal" && orientation != "isometric")
+            if (orientation != "orthogonal" && orientation != "isometric" && orientation != "hexagonal")
             {
                 detail::set_error("Unsupported Tiled orientation: " + orientation);
                 return nullptr;
             }
-            map = create_tilemap(root.value("width", 0), root.value("height", 0), root.value("tilewidth", 0),
+            const bool infinite = root.value("infinite", false);
+            map = create_tilemap(std::max(root.value("width", 0), infinite ? 1 : 0),
+                                 std::max(root.value("height", 0), infinite ? 1 : 0), root.value("tilewidth", 0),
                                  root.value("tileheight", 0),
-                                 orientation == "isometric" ? TileMapOrientation::isometric
-                                                            : TileMapOrientation::orthogonal);
+                                 orientation == "isometric"   ? TileMapOrientation::isometric
+                                 : orientation == "hexagonal" ? TileMapOrientation::hexagonal
+                                                              : TileMapOrientation::orthogonal);
             if (!map)
                 return nullptr;
+            map->infinite = infinite;
+            if (orientation == "hexagonal")
+            {
+                map->hex_stagger_y = root.value("staggeraxis", std::string("y")) != "x";
+                map->hex_stagger_odd = root.value("staggerindex", std::string("odd")) != "even";
+                map->hex_side_length = root.value("hexsidelength", 0);
+                if (map->hex_side_length < 0 ||
+                    map->hex_side_length > (map->hex_stagger_y ? map->tile_height : map->tile_width))
+                {
+                    detail::set_error("Invalid Tiled hexsidelength");
+                    destroy_tilemap(map);
+                    return nullptr;
+                }
+            }
+            if (infinite && orientation == "isometric")
+            {
+                detail::set_error("Infinite isometric Tiled maps are not supported");
+                destroy_tilemap(map);
+                return nullptr;
+            }
             const std::filesystem::path base_dir = map_path.parent_path();
             if (root.contains("tilesets"))
             {

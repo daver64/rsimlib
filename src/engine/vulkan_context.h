@@ -268,7 +268,8 @@ namespace sl::detail
                                       VkCullModeFlags cull_mode = VK_CULL_MODE_NONE,
                                       int samples = 1,
                                       bool sky = false,
-                                      bool instanced = false);
+                                      bool instanced = false,
+                                      int blend_variant = 0);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,

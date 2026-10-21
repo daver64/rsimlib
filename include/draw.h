@@ -234,7 +234,13 @@ namespace sl
     enum class BlendMode
     {
         normal,
-        additive
+        additive,
+        /** Multiply the destination by the source colour (shadows, tinting); transparent texels leave it unchanged. */
+        multiply,
+        /** Inverse multiply: lightens the destination (glows, light shafts). */
+        screen,
+        /** Source colour is already multiplied by its alpha. */
+        premultiplied
     };
     /** Select the blend mode used when compositing subsequent draws onto the screen. */
     void set_blend_mode(BlendMode mode);

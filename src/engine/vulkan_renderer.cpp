@@ -2060,7 +2060,15 @@ namespace sl::detail
                     batch_vertices_.clear();
                     return;
                 }
-                const std::size_t pipeline_index = want_additive_points
+                const int extra_variant = primitive == PrimitiveType::triangles ? extra_blend_variant(blend_mode_) : 0;
+                if (extra_variant != 0 && !ensure_extra_blend_pipeline(target_samples, extra_variant))
+                {
+                    batch_vertices_.clear();
+                    return;
+                }
+                const std::size_t pipeline_index = extra_variant != 0
+                                                        ? extra_blend_pipeline_index_ + static_cast<std::size_t>(extra_variant - 1)
+                                                        : want_additive_points
                                                         ? points_additive_pipeline_index_
                                                         : want_additive_triangles
                                                               ? triangles_additive_pipeline_index_
@@ -2373,6 +2381,24 @@ namespace sl::detail
                                                          set[triangles_additive_pipeline_index_], last_error_, nullptr, 0, false, false, true, false, VK_CULL_MODE_NONE, samples);
             }
 
+            static int extra_blend_variant(BlendMode mode)
+            {
+                return mode == BlendMode::multiply ? 1 : mode == BlendMode::screen ? 2 : mode == BlendMode::premultiplied ? 3 : 0;
+            }
+
+            // Multiply, screen and premultiplied pipelines exist for triangles only (sprites, quads and filled shapes).
+            bool ensure_extra_blend_pipeline(int samples, int variant)
+            {
+                if (!ensure_2d_pipelines(samples, last_error_))
+                    return false;
+                VulkanGraphicsPipeline &slot = pipelines_2d_[samples][extra_blend_pipeline_index_ + static_cast<std::size_t>(variant - 1)];
+                if (slot.pipeline != VK_NULL_HANDLE)
+                    return true;
+                return context_.create_graphics_pipeline(vertex_module_, fragment_module_, descriptor_layout_, PrimitiveType::triangles,
+                                                         slot, last_error_, nullptr, 0, false, false, false, false, VK_CULL_MODE_NONE, samples,
+                                                         false, false, variant);
+            }
+
             bool ensure_additive_blur_pipeline()
             {
                 if (blur_effect_additive_pipeline_.pipeline != VK_NULL_HANDLE)
@@ -2600,7 +2626,8 @@ namespace sl::detail
             std::uint32_t next_shader_module_ = 1;
             static constexpr std::size_t points_additive_pipeline_index_ = 5;
             static constexpr std::size_t triangles_additive_pipeline_index_ = 6;
-            using PipelineSet2D = std::array<VulkanGraphicsPipeline, 7>;
+            static constexpr std::size_t extra_blend_pipeline_index_ = 7;
+            using PipelineSet2D = std::array<VulkanGraphicsPipeline, 10>;
             std::map<int, PipelineSet2D> pipelines_2d_;
             BlendMode blend_mode_ = BlendMode::normal;
             VulkanComputePipeline cull_pipeline_;

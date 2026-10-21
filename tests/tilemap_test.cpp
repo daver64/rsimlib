@@ -86,6 +86,90 @@ int main()
     assert(spawn && spawn->type == "spawn" && spawn->x == 10.0f && spawn->properties.at("team") == "red");
     sl::destroy_tilemap(loaded);
 
+    // Infinite maps: sparse chunks, negative coordinates, bounds and solidity.
+    {
+        sl::TileMap *infinite = sl::create_infinite_tilemap(16, 16);
+        assert(infinite && infinite->infinite);
+        assert(!sl::create_infinite_tilemap(16, 16, sl::TileMapOrientation::isometric));
+        sl::Bitmap *infinite_image = sl::create_bitmap(96, 16);
+        assert(sl::tilemap_add_tileset(infinite, sl::create_atlas(infinite_image, 16, 16)) == 0);
+        const int ground = sl::tilemap_add_layer(infinite, "ground");
+        assert(sl::tilemap_set(infinite, ground, -1, -1, 5));
+        assert(sl::tilemap_set(infinite, ground, 100, 40, 6));
+        assert(sl::tilemap_set(infinite, ground, -17, 0, 7));
+        assert(sl::tilemap_get(infinite, ground, -1, -1) == 5 && sl::tilemap_get(infinite, ground, 100, 40) == 6);
+        assert(sl::tilemap_get(infinite, ground, -17, 0) == 7 && sl::tilemap_get(infinite, ground, 3, 3) == 0);
+        assert(infinite->layers[ground].chunks.size() == 3);
+        int min_col = 0, min_row = 0, max_col = 0, max_row = 0;
+        assert(sl::tilemap_layer_bounds(infinite, ground, min_col, min_row, max_col, max_row));
+        assert(min_col == -17 && min_row == -1 && max_col == 100 && max_row == 40);
+        assert(!sl::tilemap_is_solid(infinite, 5000, -5000));
+        sl::tilemap_set_solid(infinite, 5, true);
+        assert(sl::tilemap_is_solid(infinite, -1, -1));
+        assert(sl::tilemap_rect_blocked(infinite, -12.0f, -12.0f, 4.0f, 4.0f));
+        sl::destroy_tilemap(infinite);
+        sl::destroy_bitmap(infinite_image);
+
+        std::ofstream(directory / "infinite.tmj") << R"({"type":"map","orientation":"orthogonal","infinite":true,
+            "width":0,"height":0,"tilewidth":16,"tileheight":16,"layers":[
+            {"type":"tilelayer","name":"a","chunks":[
+              {"x":-16,"y":0,"width":2,"height":2,"data":[3,0,0,4]},
+              {"x":32,"y":16,"width":2,"height":1,"data":[0,9]}]}]})";
+        sl::TileMap *loaded_infinite = sl::load_tiled_map((directory / "infinite.tmj").string());
+        assert(loaded_infinite && loaded_infinite->infinite);
+        assert(sl::tilemap_get(loaded_infinite, 0, -16, 0) == 3 && sl::tilemap_get(loaded_infinite, 0, -15, 1) == 4);
+        assert(sl::tilemap_get(loaded_infinite, 0, 33, 16) == 9 && sl::tilemap_get(loaded_infinite, 0, 32, 16) == 0);
+        sl::destroy_tilemap(loaded_infinite);
+    }
+
+    // Hexagonal maps: geometry for both stagger axes and the Tiled loader.
+    {
+        // Pointy-top: 32x32 bounding box with 16 px side, so rows step 24 px and odd rows shift 16 px.
+        sl::TileMap *hex = sl::create_hex_tilemap(4, 4, 32, 32, 16, true, true);
+        assert(hex && hex->orientation == sl::TileMapOrientation::hexagonal);
+        assert(!sl::create_hex_tilemap(4, 4, 32, 32, 40));
+        float hx = 0.0f, hy = 0.0f;
+        sl::tilemap_tile_to_world(hex, 1, 0, hx, hy);
+        assert(hx == 32.0f && hy == 0.0f);
+        sl::tilemap_tile_to_world(hex, 1, 1, hx, hy);
+        assert(hx == 48.0f && hy == 24.0f);
+        int hc = 0, hr = 0;
+        for (int row = 0; row < 4; ++row)
+            for (int column = 0; column < 4; ++column)
+            {
+                sl::tilemap_tile_to_world(hex, column, row, hx, hy);
+                sl::tilemap_world_to_tile(hex, hx + 16.0f, hy + 16.0f, hc, hr);
+                assert(hc == column && hr == row);
+            }
+        sl::Bitmap *hex_image = sl::create_bitmap(32, 32);
+        assert(sl::tilemap_add_tileset(hex, sl::create_atlas(hex_image, 32, 32)) == 0);
+        const int layer_index = sl::tilemap_add_layer(hex, "g");
+        sl::tilemap_set(hex, layer_index, 2, 1, 1);
+        sl::tilemap_set_solid(hex, 1, true);
+        sl::tilemap_tile_to_world(hex, 2, 1, hx, hy);
+        assert(sl::tilemap_rect_blocked(hex, hx + 12.0f, hy + 12.0f, 8.0f, 8.0f));
+        assert(!sl::tilemap_rect_blocked(hex, 12.0f, 12.0f, 8.0f, 8.0f));
+        sl::destroy_tilemap(hex);
+        sl::destroy_bitmap(hex_image);
+
+        // Flat-top, even columns shifted.
+        sl::TileMap *flat = sl::create_hex_tilemap(4, 4, 32, 32, 16, false, false);
+        assert(flat);
+        sl::tilemap_tile_to_world(flat, 1, 0, hx, hy);
+        assert(hx == 24.0f && hy == 0.0f);
+        sl::tilemap_tile_to_world(flat, 0, 0, hx, hy);
+        assert(hx == 0.0f && hy == 16.0f);
+        sl::destroy_tilemap(flat);
+
+        std::ofstream(directory / "hex.tmj") << R"({"type":"map","orientation":"hexagonal","width":2,"height":2,
+            "tilewidth":32,"tileheight":32,"hexsidelength":16,"staggeraxis":"x","staggerindex":"even",
+            "layers":[{"type":"tilelayer","name":"a","width":2,"height":2,"data":[1,2,3,4]}]})";
+        sl::TileMap *loaded_hex = sl::load_tiled_map((directory / "hex.tmj").string());
+        assert(loaded_hex && loaded_hex->orientation == sl::TileMapOrientation::hexagonal);
+        assert(!loaded_hex->hex_stagger_y && !loaded_hex->hex_stagger_odd && loaded_hex->hex_side_length == 16);
+        sl::destroy_tilemap(loaded_hex);
+    }
+
     assert(!sl::load_tiled_map((directory / "missing.tmj").string()));
     std::filesystem::remove_all(directory);
     return 0;

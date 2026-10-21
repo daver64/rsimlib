@@ -33,6 +33,8 @@
 #include "camera2d.h"
 #include "collision2d.h"
 #include "tween.h"
+#include "pixel_scale.h"
+#include "animation2d.h"
 #include "lua_canvas.h"
 #include "lua_runtime.h"
 #include "noise.h"

@@ -34,6 +34,14 @@ namespace sl
     int mouse_x();
     /** Return the current mouse Y coordinate in window pixels. */
     int mouse_y();
+    /**
+     * Make mouse_x()/mouse_y() report positions inside a scaled image drawn at (x, y) in screen coordinates with the
+     * given scale, for example a letterboxed or integer-scaled render target. See present_scaled_target().
+     * Positions over the bars fall outside the image's coordinate range.
+     */
+    void set_mouse_mapping(int x, int y, float scale_x, float scale_y);
+    /** Return mouse_x()/mouse_y() to plain screen coordinates. */
+    void clear_mouse_mapping();
     /** Return the current mouse button bitmask. */
     std::uint32_t mouse_buttons();
     /** Return whether a mouse button is currently held down. */

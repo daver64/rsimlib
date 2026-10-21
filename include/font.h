@@ -105,4 +105,42 @@ namespace sl
      */
     void textout_cached(TextCache *cache, Font *font, int x, int y, const Colour &colour, const std::string &text);
 
+    /** Horizontal alignment of lines within a text block. */
+    enum class TextAlign
+    {
+        left,
+        center,
+        right
+    };
+    /** Layout and decoration options for draw_text_block(). */
+    struct TextStyle
+    {
+        TextAlign align = TextAlign::left;
+        /** Wrap lines at this width in pixels (0 = only break at '\n'). The block is this wide for alignment. */
+        int wrap_width = 0;
+        /** Extra pixels between lines. */
+        int line_spacing = 0;
+        /** Draw a drop shadow behind the text. */
+        bool shadow = false;
+        Colour shadow_colour{0, 0, 0, 160};
+        int shadow_offset_x = 1;
+        int shadow_offset_y = 1;
+        /** Draw an outline of outline_size pixels around the glyphs. */
+        bool outline = false;
+        Colour outline_colour{0, 0, 0, 255};
+        int outline_size = 1;
+    };
+    /** Split text into lines no wider than max_width pixels, breaking at spaces and '\n' (and inside words too long to fit). max_width <= 0 only splits at '\n'. */
+    std::vector<std::string> wrap_text(Font *font, const std::string &text, int max_width);
+    /** Width in pixels of the block draw_text_block() would produce. */
+    int text_block_width(Font *font, const std::string &text, const TextStyle &style = {});
+    /** Height in pixels of the block draw_text_block() would produce. */
+    int text_block_height(Font *font, const std::string &text, const TextStyle &style = {});
+    /**
+     * Draw wrapped, aligned text with an optional shadow or outline. (x, y) is the block's top-left corner and the
+     * block is style.wrap_width wide (or as wide as its longest line when wrap_width is 0). When the text panel is
+     * enabled one panel is drawn behind the whole block and the panel text colour is used.
+     */
+    void draw_text_block(Font *font, int x, int y, const Colour &colour, const std::string &text, const TextStyle &style = {});
+
 } // namespace sl
