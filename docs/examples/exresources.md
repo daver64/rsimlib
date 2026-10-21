@@ -30,6 +30,7 @@ In `exresources.cpp`, `Archive` opens the ZIP, locates its script entry, reads i
     sl::Bitmap *texture = sl::load_bitmap(archive, texture_entry);
     const std::vector<std::uint8_t> script_bytes = archive.read(script_entry);
 ```
+
 ## Running
 ```bash
 ./build/exresources

@@ -55,6 +55,7 @@ In `exanimsprite.cpp`, a mouse click adds a one-shot explosion sprite, then `get
         sl::clear_to_colour(sl::screen, {20, 24, 34});
         manager.draw_sprites(sl::screen);
 ```
+
 ## Running
 ```bash
 ./build/exanimsprite

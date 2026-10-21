@@ -32,6 +32,7 @@ In `extriangle.cpp`, `triangle` outlines and `trianglefill` fills triangles; the
             texture);
     }
 ```
+
 ## Running
 ```bash
 ./build/extriangle

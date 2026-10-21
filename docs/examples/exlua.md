@@ -28,6 +28,7 @@ In `exlua.cpp`, `LuaCanvas::run_file` executes the scene script and reports fail
     sl::wait_for_graphics();
     sl::shutdown();
 ```
+
 ## Running
 ```bash
 ./build/exlua

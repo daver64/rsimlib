@@ -72,6 +72,7 @@ In `exspriteeditor.cpp`, saving blits every frame into a horizontal bitmap and w
 
             status = ok ? ("Saved: " + path) : "Save failed";
 ```
+
 ## Running
 ```bash
 ./build/exspriteeditor

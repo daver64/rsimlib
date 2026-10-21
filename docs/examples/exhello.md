@@ -29,6 +29,7 @@ In `exhello.cpp`, the program clears the screen, draws centered greeting and bac
     sl::wait_for_graphics();
     sl::shutdown();
 ```
+
 ## Running
 ```bash
 ./build/exhello

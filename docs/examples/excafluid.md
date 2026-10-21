@@ -68,7 +68,7 @@ In `excafluid.cpp`, submerged fluid density applies buoyancy to Box2D bodies, wh
                     }
 ```
 
-## Running
+
 ## Running
 ```bash
 ./build/excafluid

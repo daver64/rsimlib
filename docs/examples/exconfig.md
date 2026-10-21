@@ -29,6 +29,7 @@ In `exconfig.cpp`, `Config` loads the JSON file or initializes dotted-path defau
                     status_colour = {218, 226, 235};
                 }
 ```
+
 ## Running
 ```bash
 ./build/exconfig

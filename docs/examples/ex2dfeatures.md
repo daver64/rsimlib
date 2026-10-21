@@ -71,6 +71,7 @@ In `ex2dfeatures.cpp`, the 80x45 scene is drawn into a render target and fitted 
         sl::draw_scaled_target(lowres, fit);
 ```
 
+
 ## Running
 ```bash
 ./build/ex2dfeatures

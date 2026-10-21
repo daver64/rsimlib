@@ -35,6 +35,7 @@ In `expbr.cpp`, metallic and roughness vary across a sphere grid, while the emis
             glow.emissive[1] = 0.9f;
             glow.emissive[2] = 0.3f;
 ```
+
 ## Running
 ```bash
 ./build/expbr

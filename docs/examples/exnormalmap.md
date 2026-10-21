@@ -14,6 +14,8 @@
 
 In `exnormalmap.cpp`, the generated normal bitmap is attached to the brick sprite, and the lighting pass sets its ambient level and light height.
 ```cpp
+    sl::LightingPass lighting;
+    // ...
     make_bump_tile(brick, brick_normal);
     sl::set_normal_map(brick, brick_normal);
     lighting.set_ambient(0.12f);
@@ -40,6 +42,7 @@ In `exnormalmap.cpp`, sprites are redrawn in the normal pass and a mouse-followi
             lighting.apply(scene, normals, {light});
         }
 ```
+
 ## Running
 ```bash
 ./build/exnormalmap
