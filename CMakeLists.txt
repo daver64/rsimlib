@@ -360,6 +360,7 @@ add_library(simlib STATIC
     src/engine/shader_paths.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
+    src/engine/precipitation.cpp
     src/engine/physics.cpp
     src/engine/flight.cpp
     src/engine/atmosphere.cpp
@@ -720,6 +721,10 @@ add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)
 target_link_libraries(exnormalmap3d PRIVATE simlib)
 add_executable(exmipmap src/examples/exmipmap/exmipmap.cpp)
 target_link_libraries(exmipmap PRIVATE simlib)
+add_executable(exprecip2d src/examples/exprecip2d/exprecip2d.cpp)
+target_link_libraries(exprecip2d PRIVATE simlib)
+add_executable(exprecip3d src/examples/exprecip3d/exprecip3d.cpp)
+target_link_libraries(exprecip3d PRIVATE simlib)
 add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
 if(SIMLIB_GUI STREQUAL "imgui")
@@ -763,6 +768,11 @@ if(BUILD_TESTING)
         SIMLIB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
         $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME video COMMAND video_test)
+
+    add_executable(precipitation_test tests/precipitation_test.cpp)
+    target_link_libraries(precipitation_test PRIVATE simlib)
+    target_compile_definitions(precipitation_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME precipitation COMMAND precipitation_test)
 
     add_executable(pathfinder_test tests/pathfinder_test.cpp)
     target_link_libraries(pathfinder_test PRIVATE simlib)

@@ -656,7 +656,8 @@ namespace sl::detail
                 // Convert GL-style clip depth [-1, 1] to Vulkan's [0, 1].
                 for (int column = 0; column < 4; ++column)
                     adjusted.mvp[column * 4 + 2] = 0.5f * (params.mvp[column * 4 + 2] + params.mvp[column * 4 + 3]);
-                const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
+                const VulkanGraphicsPipeline &pipeline =
+                    (*pipelines)[static_cast<int>(params.cull) + 3 * static_cast<int>(std::min<std::uint32_t>(params.blend, 2))];
                 if (terrain)
                 {
                     const auto albedo = texture_arrays_.find(params.terrain_albedo);
@@ -817,7 +818,8 @@ namespace sl::detail
                 std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
                 std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
                 std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
-                const VulkanGraphicsPipeline &pipeline = (*pipelines)[static_cast<int>(params.cull)];
+                const VulkanGraphicsPipeline &pipeline =
+                    (*pipelines)[static_cast<int>(params.cull) + 3 * static_cast<int>(std::min<std::uint32_t>(params.blend, 2))];
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp,
@@ -2768,7 +2770,7 @@ namespace sl::detail
             };
             std::unordered_map<std::uint32_t, VulkanMesh> meshes_;
             std::uint32_t next_mesh_ = 1;
-            using MeshPipelineSet = std::array<VulkanGraphicsPipeline, 3>; // Indexed by CullMode.
+            using MeshPipelineSet = std::array<VulkanGraphicsPipeline, 9>; // Indexed by CullMode + 3 * blend mode (opaque, alpha, additive).
             std::map<int, MeshPipelineSet> mesh_pipelines_; // Keyed by sample count.
             VulkanShaderModule mesh_vertex_module_;
             VulkanShaderModule mesh_fragment_module_;
@@ -2803,11 +2805,13 @@ namespace sl::detail
                     return &existing->second;
                 MeshPipelineSet set{};
                 const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
-                for (int mode = 0; mode < 3; ++mode)
+                for (int mode = 0; mode < 9; ++mode)
                 {
+                    const int blend = mode / 3;
                     if (!context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
                                                            PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
-                                                           true, false, false, true, flags[mode], samples))
+                                                           true, false, blend == 2, true, flags[mode % 3], samples, false,
+                                                           false, 0, blend == 0))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);
@@ -2847,12 +2851,13 @@ namespace sl::detail
                     return &existing->second;
                 MeshPipelineSet set{};
                 const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
-                for (int mode = 0; mode < 3; ++mode)
+                for (int mode = 0; mode < 9; ++mode)
                 {
+                    const int blend = mode / 3;
                     if (!context_.create_graphics_pipeline(mesh_instanced_vertex_module_, mesh_fragment_module_,
                                                            descriptor_layout_, PrimitiveType::triangles, set[mode],
-                                                           last_error_, nullptr, 0, true, false, false, true,
-                                                           flags[mode], samples, false, true))
+                                                           last_error_, nullptr, 0, true, false, blend == 2, true,
+                                                           flags[mode % 3], samples, false, true, 0, blend == 0))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);

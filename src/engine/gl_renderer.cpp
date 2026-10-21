@@ -837,7 +837,24 @@ namespace sl::detail
                 const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
                 glEnable(GL_DEPTH_TEST);
                 glDepthFunc(GL_LESS);
-                glDepthMask(GL_TRUE);
+                glDepthMask(params.blend == 0 ? GL_TRUE : GL_FALSE);
+                const GLboolean blend_was_enabled = glIsEnabled(GL_BLEND);
+                GLint previous_blend_src_rgb = GL_SRC_ALPHA, previous_blend_dst_rgb = GL_ONE_MINUS_SRC_ALPHA;
+                GLint previous_blend_src_alpha = GL_ONE, previous_blend_dst_alpha = GL_ONE_MINUS_SRC_ALPHA;
+                glGetIntegerv(GL_BLEND_SRC_RGB, &previous_blend_src_rgb);
+                glGetIntegerv(GL_BLEND_DST_RGB, &previous_blend_dst_rgb);
+                glGetIntegerv(GL_BLEND_SRC_ALPHA, &previous_blend_src_alpha);
+                glGetIntegerv(GL_BLEND_DST_ALPHA, &previous_blend_dst_alpha);
+                if (params.blend == 0)
+                {
+                    glDisable(GL_BLEND);
+                }
+                else
+                {
+                    glEnable(GL_BLEND);
+                    glBlendFuncSeparate(GL_SRC_ALPHA, params.blend == 2 ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+                                        GL_ONE_MINUS_SRC_ALPHA);
+                }
                 const GLboolean cull_was_enabled = glIsEnabled(GL_CULL_FACE);
                 if (params.cull == CullMode::none)
                 {
@@ -903,6 +920,12 @@ namespace sl::detail
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));
                 glDepthMask(static_cast<GLboolean>(previous_depth_mask));
+                glBlendFuncSeparate(static_cast<GLenum>(previous_blend_src_rgb), static_cast<GLenum>(previous_blend_dst_rgb),
+                                    static_cast<GLenum>(previous_blend_src_alpha), static_cast<GLenum>(previous_blend_dst_alpha));
+                if (blend_was_enabled)
+                    glEnable(GL_BLEND);
+                else
+                    glDisable(GL_BLEND);
                 glCullFace(static_cast<GLenum>(previous_cull_mode));
                 glFrontFace(static_cast<GLenum>(previous_front_face));
                 if (cull_was_enabled)

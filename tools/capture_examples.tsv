@@ -21,6 +21,8 @@ exgpuparticles	exgpuparticles	-	3
 exgui	exgui	-	3
 exhello	exhello	-	3
 exinput	exinput	-	3
+exprecip2d	exprecip2d	-	4	key:Up;key:Up;sleep:8
+exprecip3d	exprecip3d	-	4	key:space;key:3;key:Prior;sleep:22
 exinstancing	exinstancing	-	3
 exisometric	exisometric	-	3
 exjoints	exjoints	-	3

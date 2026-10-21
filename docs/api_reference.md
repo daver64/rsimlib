@@ -21,6 +21,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 12. [Audio Subsystem (Samples & Streams)](#audio-subsystem-samples--streams-includeaudioh)
 13. [Cellular Automata Fluid & Granular Simulation](#cellular-automata-fluid--granular-simulation-includefluidh)
 14. [Particle Systems & Emitters](#particle-systems--emitters-includeparticlesh)
+    - [Precipitation](#precipitation-includeprecipitationh)
 15. [Procedural FastNoise Generation](#procedural-fastnoise-generation-includenoiseh)
 16. [Embedded SQLite Persistence](#embedded-sqlite-persistence-srcexamplesexdbrdbh)
 17. [Resource Archives](#resource-archives-includeresourceh)
@@ -970,6 +971,33 @@ public:
 
 ---
 
+## Precipitation ([include/precipitation.h](../include/precipitation.h))
+
+Rain, hail and snow in 2D (`Precipitation2D`, drawn on `sl::screen`) and 3D (`Precipitation3D`, drawn around a `Camera3D`). Both share a `PrecipitationController` that fades smoothly between weather states.
+
+```cpp
+enum class PrecipitationType { none, rain, hail, snow };
+enum class PrecipitationLevel { light, moderate, heavy, storm };
+
+struct PrecipitationConfig { PrecipitationType type; float intensity; glm::vec2 wind; float fall_speed, size; Colour colour; bool splashes; };
+PrecipitationConfig precipitation_preset(PrecipitationType type, PrecipitationLevel level);
+
+// weather.transition_to(cfg, seconds) fades the old type out, then the new one in
+Precipitation2D p2(width, height);
+p2.set_ground([](float x) { return ground_y(x); });
+p2.update(dt);  p2.draw();
+
+Precipitation3D p3;
+p3.set_ground(height_fn);
+p3.update(dt, camera);  p3.draw(camera);  // call p3.release() before sl::shutdown()
+float cover = p3.snow_cover();             // 0-1; use snow_tinted(colour, cover) to whiten surfaces
+precipitation_apply_environment(env, p3.weather.current());  // darker sky, denser fog
+```
+
+Also: `Precipitation3D::wind_from_clouds`, `PrecipitationLens` (droplets/frost overlay) and `PrecipitationAudio` (looped noise beds). 3D particles are drawn with `draw_mesh_instanced` as alpha-blended quads (`MaterialBlend::alpha`), after your opaque geometry.
+
+---
+
 ## Procedural FastNoise Generation ([include/noise.h](../include/noise.h))
 
 A wrapper around FastNoiseLite for procedural terrain and texture generation.
@@ -1238,6 +1266,7 @@ clutter.draw(origin);
 - `atmosphere_sun_colour`, `atmosphere_sky_colour`, `atmosphere_transmittance`: CPU mirrors of the shader maths.
 - `bake_instances`, `bake_impostor`, `bake_billboards`: merge copies of a mesh, or render view-dependent billboards.
 - `Material::alpha_cutoff` and `Material::fog` control cut-outs and fog per material.
+- `Material::blend` (`MaterialBlend::opaque`, `alpha`, `additive`) makes a material translucent, with the opacity taken from `tint.alpha`, vertex alpha and texture alpha. Blended draws test depth but do not write it and are not sorted: draw opaque geometry first, then blended meshes farthest first.
 
 ---
 

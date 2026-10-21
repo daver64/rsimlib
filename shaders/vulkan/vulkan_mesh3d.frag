@@ -43,6 +43,7 @@ void main()
 {
     vec3 normal = normalize(vNormal);
     vec3 albedo;
+    float textureAlpha = 1.0;
     if (vTerrain >= 0.0)
     {
         albedo = vColour.rgb;
@@ -59,6 +60,7 @@ void main()
         }
         vec4 sampled = texture(uTexture, vUv);
         albedo = vColour.rgb * sampled.rgb;
+        textureAlpha = sampled.a;
         if (environment.lightColour.w > 0.0 && vColour.a * sampled.a < environment.lightColour.w)
             discard;
     }
@@ -85,5 +87,9 @@ void main()
         float distance_to_eye = vViewDepth * length(vec3(ndc * environment.fogView.xy, 1.0));
         colour = mix(environment.fogColour.rgb, colour, exp(-environment.fogBeta.rgb * distance_to_eye));
     }
-    fragColor = vec4(colour, 1.0);
+    // emissive.w > 0 marks a blended draw: its opacity multiplies the vertex and texture alpha.
+    float alpha = 1.0;
+    if (environment.emissive.w > 0.0 && vTerrain < 0.0)
+        alpha = clamp(vColour.a * textureAlpha * environment.emissive.w, 0.0, 1.0);
+    fragColor = vec4(colour, alpha);
 }

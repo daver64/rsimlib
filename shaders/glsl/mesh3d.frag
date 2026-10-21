@@ -105,5 +105,9 @@ void main()
         float distance_to_eye = vViewDepth * length(vec3(ndc * uFogView.xy, 1.0));
         colour = mix(uFogColour.rgb, colour, exp(-uFogBeta.rgb * distance_to_eye));
     }
-    fragColor = vec4(colour, 1.0);
+    // emissive.w > 0 marks a blended draw: its opacity multiplies the vertex and texture alpha.
+    float alpha = 1.0;
+    if (uEmissive.w > 0.0 && vTerrain < 0.0)
+        alpha = clamp(vColour.a * texture(uTexture, vUv).a * uEmissive.w, 0.0, 1.0);
+    fragColor = vec4(colour, alpha);
 }

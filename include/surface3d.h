@@ -101,6 +101,17 @@ namespace sl
         const TerrainTextures *textures = nullptr;
     };
 
+    /** How a material's colour combines with what is already in the framebuffer. */
+    enum class MaterialBlend
+    {
+        /** Replaces the pixel (the default); alpha_cutoff can still cut holes. */
+        opaque,
+        /** Translucent: the pixel's opacity is tint alpha times vertex alpha times texture alpha. */
+        alpha,
+        /** Adds the colour, scaled by the same opacity, for glows, fire and light shafts. */
+        additive
+    };
+
     /** Surface appearance for draw_mesh(). The tint and texture multiply the mesh vertex colours. */
     struct Material
     {
@@ -122,6 +133,12 @@ namespace sl
          * Gives hard-edged cut-outs for foliage cards and impostors without sorting. Not applied to terrain.
          */
         float alpha_cutoff = 0.0f;
+        /**
+         * Blending. Blended draws test against depth but do not write it, so draw all opaque geometry first and the
+         * blended meshes afterwards, farthest first, as the draws are not sorted for you. Not applied to terrain.
+         * With MaterialBlend::additive set `fog` to false unless you want distant glows to fade towards the fog colour.
+         */
+        MaterialBlend blend = MaterialBlend::opaque;
         /**
          * Physically based shading (glTF metallic-roughness): GGX specular with the scene's directional light, ambient
          * light scaled by occlusion, and emission. Only for lit materials; the texture is the base colour. Available

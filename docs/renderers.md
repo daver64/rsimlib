@@ -108,6 +108,8 @@ limited to 16 samplers per shader. Ship both DLLs next to your executable.
 
 The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and D3D12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
 
+**Blending:** `Material::blend` (`MaterialBlend::alpha` or `additive`) works for 3D meshes and instanced meshes on all three backends (the Direct3D 12 path has not been tested on Windows yet). Blended draws do not write depth and are not sorted, so draw them after the opaque geometry, farthest first.
+
 ## Direct 3D Escape Hatches
 
 `simlib` provides examples demonstrating direct 3D graphics without imposing a rigid 3D engine layer:

@@ -309,6 +309,8 @@ The full catalog of focused runnable examples follows.
 ./build/exnormalmap     # Normal-mapped 2D lighting (Space toggles)
 ./build/exnormalmap3d   # Normal-mapped 3D meshes under an orbiting light (Space toggles)
 ./build/exmipmap         # Side-by-side bilinear vs mipmaps vs mipmaps + 16x anisotropy
+./build/exprecip2d      # Rain, hail and snow over a scrolling city (1/2/3, Up/Down strength, Q/E wind)
+./build/exprecip3d      # 3D precipitation with cloud wind, fog, lens droplets and snow cover
 ./build/exinstancing     # 6400 cubes drawn per-mesh vs hardware-instanced (Space switches), plus a 2D sprite batch
 ./build/exlobby         # Game lobby: find games in an IRC channel, then play over UDP (--irc-host HOST to choose the server)
 ./build/expathfinding   # Flow-field enemies (chase/scent/sound) with wall editing and heat-map overlays
@@ -370,6 +372,8 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass. [Screenshot & guide](docs/examples/exnormalmap.md).
 - **[`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)** — A cube and sphere with a procedural normal map under an orbiting light. [Screenshot & guide](docs/examples/exnormalmap3d.md).
 - **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`. [Screenshot & guide](docs/examples/exmipmap.md).
+- **[`exprecip2d`](src/examples/exprecip2d/exprecip2d.cpp)** — 2D rain, hail and snow with splashes, wind, snow accumulation on rooftops, lens droplets and audio. [Screenshot & guide](docs/examples/exprecip2d.md).
+- **[`exprecip3d`](src/examples/exprecip3d/exprecip3d.cpp)** — 3D precipitation around the camera driven by cloud wind, with weather-tinted fog and snow cover. [Screenshot & guide](docs/examples/exprecip3d.md).
 - **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm. [Screenshot & guide](docs/examples/exinstancing.md).
 - **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena. [Screenshot & guide](docs/examples/exlobby.md).
 - **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer. [Screenshot & guide](docs/examples/expathfinding.md).

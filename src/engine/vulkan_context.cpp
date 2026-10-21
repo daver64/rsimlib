@@ -2768,7 +2768,8 @@ namespace sl::detail
                                                  int samples,
                                                  bool sky,
                                                  bool instanced,
-                                                 int blend_variant)
+                                                 int blend_variant,
+                                                 bool depth_write)
     {
         result = {};
         if (mesh_vertices || sky)
@@ -2943,7 +2944,7 @@ namespace sl::detail
         blending.pAttachments = &blend_attachment;
         VkPipelineDepthStencilStateCreateInfo depth{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
         depth.depthTestEnable = three_dimensional ? VK_TRUE : VK_FALSE;
-        depth.depthWriteEnable = three_dimensional && !sky ? VK_TRUE : VK_FALSE;
+        depth.depthWriteEnable = three_dimensional && !sky && depth_write ? VK_TRUE : VK_FALSE;
         // The sky sits exactly on the far plane, so it must pass at equal depth.
         depth.depthCompareOp = sky ? VK_COMPARE_OP_LESS_OR_EQUAL : VK_COMPARE_OP_LESS;
         const VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};

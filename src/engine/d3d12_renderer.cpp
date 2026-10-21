@@ -1326,7 +1326,8 @@ namespace sl::detail
                     6, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor));
                 commands->SetGraphicsRootConstantBufferView(7, pbr_address);
                 ID3D12PipelineState *mesh_pipeline =
-                    get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr);
+                    get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr,
+                                      std::min<std::uint32_t>(params.blend, 2));
                 if (!mesh_pipeline)
                     return false;
                 commands->SetPipelineState(mesh_pipeline);
@@ -2300,10 +2301,10 @@ namespace sl::detail
                 return true;
             }
 
-            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false)
+            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false, std::uint32_t blend = 0)
             {
                 ID3D12PipelineState *&slot =
-                    (instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)[sample_slot(samples) * 3 + cull];
+                    (instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)[sample_slot(samples) * 9 + blend * 3 + cull];
                 if (slot)
                     return slot;
                 static const D3D12_INPUT_ELEMENT_DESC elements[] = {
@@ -2330,6 +2331,18 @@ namespace sl::detail
                 pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};
                 pipeline_desc.PS = {mesh_pixel_blob_->GetBufferPointer(), mesh_pixel_blob_->GetBufferSize()};
                 pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+                if (blend != 0)
+                {
+                    // 1 alpha, 2 additive; blended draws test depth but do not write it.
+                    D3D12_RENDER_TARGET_BLEND_DESC &target = pipeline_desc.BlendState.RenderTarget[0];
+                    target.BlendEnable = TRUE;
+                    target.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+                    target.DestBlend = blend == 2 ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
+                    target.BlendOp = D3D12_BLEND_OP_ADD;
+                    target.SrcBlendAlpha = D3D12_BLEND_ONE;
+                    target.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+                    target.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+                }
                 pipeline_desc.SampleMask = UINT_MAX;
                 pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
                 pipeline_desc.RasterizerState.CullMode =
@@ -2338,7 +2351,8 @@ namespace sl::detail
                 pipeline_desc.RasterizerState.FrontCounterClockwise = TRUE;
                 pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
                 pipeline_desc.DepthStencilState.DepthEnable = TRUE;
-                pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+                pipeline_desc.DepthStencilState.DepthWriteMask =
+                    blend == 0 ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
                 pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
                 pipeline_desc.DepthStencilState.StencilEnable = FALSE;
                 pipeline_desc.InputLayout = {elements, instanced ? static_cast<UINT>(std::size(elements)) : vertex_element_count};
@@ -3360,8 +3374,8 @@ namespace sl::detail
             BlendMode blend_mode_ = BlendMode::normal;
             bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
-            std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_pipelines_{};
-            std::array<ID3D12PipelineState *, 3 * sample_slot_count> mesh_instanced_pipelines_{};
+            std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_pipelines_{};
+            std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_instanced_pipelines_{};
             ID3DBlob *mesh_instanced_vertex_blob_ = nullptr;
             std::unordered_map<std::uint32_t, D3D12InstanceBuffer> instance_buffers_;
             std::uint32_t next_instance_buffer_ = 1;

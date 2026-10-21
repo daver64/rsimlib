@@ -72,6 +72,7 @@ float4 main(PixelInput input) : SV_TARGET
 {
     float3 normal = normalize(input.normal);
     float3 albedo;
+    float texture_alpha = 1.0;
     if (input.terrain.x >= 0.0)
     {
         albedo = input.color.rgb;
@@ -88,6 +89,7 @@ float4 main(PixelInput input) : SV_TARGET
         }
         float4 sampled = texture_value.Sample(texture_sampler, input.texcoord);
         albedo = input.color.rgb * sampled.rgb;
+        texture_alpha = sampled.a;
         // light_colour.w is the alpha cutoff of cut-out materials such as foliage and impostors (0 disables it).
         if (light_colour.w > 0.0 && input.color.a * sampled.a < light_colour.w)
             discard;
@@ -115,5 +117,9 @@ float4 main(PixelInput input) : SV_TARGET
         float distance_to_eye = input.view_depth * length(float3(ndc * fog_view.xy, 1.0));
         colour = lerp(fog_colour.rgb, colour, exp(-fog_beta.rgb * distance_to_eye));
     }
-    return float4(colour, 1.0);
+    // emissive.w > 0 marks a blended draw: its opacity multiplies the vertex and texture alpha.
+    float alpha = 1.0;
+    if (emissive.w > 0.0 && input.terrain.x < 0.0)
+        alpha = saturate(input.color.a * texture_alpha * emissive.w);
+    return float4(colour, alpha);
 }

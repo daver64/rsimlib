@@ -434,6 +434,12 @@ namespace sl
         }
         params.normal_texture = normal_map->gpu_texture;
         params.cull = material.cull;
+        if (material.blend != MaterialBlend::opaque && !material.terrain.enabled)
+        {
+            params.blend = material.blend == MaterialBlend::additive ? 2u : 1u;
+            // The mesh shaders treat a positive emissive w as the opacity of a blended draw.
+            params.emissive[3] = std::max(material.tint.alpha / 255.0f, 1.0e-4f);
+        }
         params.normal_rows[0][3] = material.tint.red / 255.0f;
         params.normal_rows[1][3] = material.tint.green / 255.0f;
         params.normal_rows[2][3] = material.tint.blue / 255.0f;

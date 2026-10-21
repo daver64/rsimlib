@@ -48,6 +48,7 @@
 #include "model3d.h"
 #include "voxel.h"
 #include "particles.h"
+#include "precipitation.h"
 #include "net.h"
 #include "system.h"
 #include "video.h"

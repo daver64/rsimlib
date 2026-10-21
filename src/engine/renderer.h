@@ -142,6 +142,11 @@ namespace sl::detail
         /** Backend handle of the tangent-space normal map; a flat-normal texture when the material has none. */
         std::uint32_t normal_texture = 0;
         CullMode cull = CullMode::back;
+        /**
+         * Blending: 0 opaque, 1 alpha (src alpha, one minus src alpha), 2 additive. Blended draws do not write depth. The
+         * shaders output alpha (vertex alpha times texture alpha times emissive[3]) only when emissive[3] is above 0.
+         */
+        std::uint32_t blend = 0;
         /** rgb: colour fogged surfaces fade to. */
         float fog_colour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         /** rgb: extinction per metre for each channel (all zero means no fog). */
