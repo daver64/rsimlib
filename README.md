@@ -260,6 +260,7 @@ The full catalog of focused runnable examples follows.
 ./build/exatlas         # Texture atlas slicing and sprite grid navigation
 ./build/exnormalmap     # Normal-mapped 2D lighting (Space toggles)
 ./build/exnormalmap3d   # Normal-mapped 3D meshes under an orbiting light (Space toggles)
+./build/exmipmap         # Side-by-side bilinear vs mipmaps vs mipmaps + 16x anisotropy
 ./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
@@ -310,6 +311,7 @@ The full catalog of focused runnable examples follows.
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering.
 - **[`exnormalmap`](src/examples/exnormalmap/exnormalmap.cpp)** — Normal-mapped sprites lit by `LightingPass` with a normal pass.
 - **[`exnormalmap3d`](src/examples/exnormalmap3d/exnormalmap3d.cpp)** — A cube and sphere with a procedural normal map under an orbiting light.
+- **[`exmipmap`](src/examples/exmipmap/exmipmap.cpp)** — Three ground planes comparing plain bilinear, `Bitmap::mipmaps`, and mipmaps with `Bitmap::anisotropy`.
 - **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading.
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters.
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback.
