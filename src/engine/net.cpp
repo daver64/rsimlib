@@ -624,7 +624,7 @@ namespace sl
 
     bool TcpSocket::wait_readable(int timeout_ms)
     {
-        return impl_->state == TcpState::connected && impl_->readable(std::max(timeout_ms, 0));
+        return impl_->state == TcpState::connected && impl_->readable((std::max)(timeout_ms, 0));
     }
 
     void TcpSocket::close()

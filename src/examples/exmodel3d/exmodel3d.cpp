@@ -120,8 +120,7 @@ int main(int argc, char **argv)
 {
     std::string model_path;
     std::string animation_path;
-    char default_backend[] = "--gl";
-    std::vector<char *> backend_arguments{argv[0], default_backend};
+    std::vector<char *> backend_arguments{argv[0]};
     for (int i = 1; i < argc; ++i)
     {
         const std::string argument(argv[i]);
