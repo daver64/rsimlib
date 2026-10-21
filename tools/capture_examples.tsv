@@ -24,7 +24,7 @@ exinput	exinput	-	3
 exinstancing	exinstancing	-	3
 exisometric	exisometric	-	3
 exjoints	exjoints	-	3
-exlighting	exlighting	-	3
+exlighting	exlighting	-	3	move:400,300;sleep:1
 exlobby	exlobby	-	3
 exlua	exlua	-	3
 exluaconsole	exluaconsole	-	3	keys:print(6*7);key:Return;sleep:1
