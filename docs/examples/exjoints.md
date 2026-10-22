@@ -1,18 +1,18 @@
 # exjoints
 
-Physics joints: a revolute bridge, a spring pendulum and a wheel-jointed car, all draggable with the mouse.
+Physics joints: a bridge of hinged planks (revolute joints), a spring pendulum and a wheel-jointed car, all draggable with the mouse.
 
 ![exjoints screenshot](img/exjoints.png)
 
 ## What it shows
-- Revolute, distance (spring) and wheel joints
+- Revolute (hinge), distance (spring) and wheel joints
 - Motor control with `set_joint_motor`
 - Mouse dragging with `create_mouse_joint` and `physics_query_point`
 - Debug drawing with `debug_draw_physics`
 
 ## Key code
 
-In `exjoints.cpp`, revolute joints connect the bridge planks end to end.
+In `exjoints.cpp`, revolute joints (hinges that let two bodies rotate about a shared point) connect the bridge planks end to end.
 ```cpp
     const int planks = 8;
     const float plank_width = 44.0f, bridge_y = 250.0f, bridge_x = 60.0f;

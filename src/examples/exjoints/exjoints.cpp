@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
         sl::PhysicsDebugDraw options;
         options.centers_of_mass = true;
         sl::debug_draw_physics(world, options);
-        sl::gprintf(10, 10, {255, 240, 170}, "Joints: bridge (revolute), pendulum (spring), car (wheel). Drag with the left mouse button.");
+        sl::gprintf(10, 10, {255, 240, 170}, "Joints: bridge (hinges), pendulum (spring), car (wheel). Drag with the left mouse button.");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
