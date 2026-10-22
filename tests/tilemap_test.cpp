@@ -170,6 +170,84 @@ int main()
         sl::destroy_tilemap(loaded_hex);
     }
 
+    // Compressed layer data, .tsx tilesets and image-collection tilesets.
+    {
+        const auto layer_map = [&](const std::string &layer_json) {
+            std::ofstream(directory / "enc.tmj") << R"({"orientation":"orthogonal","width":2,"height":2,"tilewidth":32,"tileheight":32,
+                "tilesets":[{"firstgid":1,"image":")" << image_path << R"(","tilewidth":32,"tileheight":32}],
+                "layers":[)" << layer_json << "]}";
+            return sl::load_tiled_map((directory / "enc.tmj").string());
+        };
+        const char *encodings[] = {
+            R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","data":"AQAAAAIAAAADAAAABAAAgA=="})",
+            R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","compression":"zlib","data":"eJxjZGBgYAJiZiBmYWBoAAAA4ACL"})",
+            R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","compression":"gzip","data":"H4sIACSH2WoC/2NkYGBgAmJmIGZhYGgAAM9XvUIQAAAA"})"};
+        for (const char *layer_json : encodings)
+        {
+            sl::TileMap *encoded = layer_map(layer_json);
+            assert(encoded);
+            assert(sl::tilemap_get(encoded, 0, 0, 0) == 1 && sl::tilemap_get(encoded, 0, 1, 0) == 2);
+            assert(sl::tilemap_get(encoded, 0, 0, 1) == 3 && (sl::tilemap_get(encoded, 0, 1, 1) & sl::tile_flip_horizontal) != 0);
+            sl::destroy_tilemap(encoded);
+        }
+        // zstd, wrong cell counts and corrupt data are reported, not accepted.
+        assert(!layer_map(R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","compression":"zstd","data":"AAAA"})"));
+        assert(!layer_map(R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","data":"AQAAAA=="})"));
+        assert(!layer_map(R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","compression":"zlib","data":"AQAAAAIAAAADAAAABAAAgA=="})"));
+        assert(!layer_map(R"({"type":"tilelayer","name":"a","width":2,"height":2,"encoding":"base64","data":"@@@@"})"));
+
+        // Infinite chunks with compressed data.
+        std::ofstream(directory / "chunky.tmj") << R"({"orientation":"orthogonal","infinite":true,"width":0,"height":0,"tilewidth":16,"tileheight":16,
+            "layers":[{"type":"tilelayer","name":"a","encoding":"base64","compression":"zlib","chunks":[
+              {"x":-16,"y":0,"width":2,"height":2,"data":"eJxjZkAAFiAGAABQAAg="}]}]})";
+        sl::TileMap *chunky = sl::load_tiled_map((directory / "chunky.tmj").string());
+        assert(chunky && sl::tilemap_get(chunky, 0, -16, 0) == 3 && sl::tilemap_get(chunky, 0, -15, 1) == 4);
+        sl::destroy_tilemap(chunky);
+
+        // External .tsx tileset with properties and animation (XML escapes included).
+        std::ofstream(directory / "ground.tsx") << R"(<?xml version="1.0" encoding="UTF-8"?>
+<!-- a comment -->
+<tileset version="1.10" name="ground" tilewidth="32" tileheight="32" tilecount="4" columns="2">
+ <image source=")" << image_path << R"(" width="64" height="64"/>
+ <tile id="1">
+  <properties><property name="solid" type="bool" value="true"/><property name="hp" type="int" value="5"/>
+   <property name="label">a &amp; b &lt;c&gt;</property></properties>
+  <animation><frame tileid="1" duration="200"/><frame tileid="2" duration="300"/></animation>
+ </tile>
+</tileset>)";
+        std::ofstream(directory / "tsx.tmj") << R"({"orientation":"orthogonal","width":1,"height":1,"tilewidth":32,"tileheight":32,
+            "tilesets":[{"firstgid":1,"source":"ground.tsx"}],
+            "layers":[{"type":"tilelayer","name":"a","width":1,"height":1,"data":[2]}]})";
+        sl::TileMap *with_tsx = sl::load_tiled_map((directory / "tsx.tmj").string());
+        assert(with_tsx && with_tsx->tilesets.size() == 1 && with_tsx->tilesets[0].atlas.tile_count >= 3);
+        assert(sl::tilemap_is_solid(with_tsx, 1, 0));
+        assert(sl::tilemap_tile_property(with_tsx, 2, "hp") == "5");
+        assert(sl::tilemap_tile_property(with_tsx, 2, "label") == "a & b <c>");
+        assert(with_tsx->tilesets[0].tiles.at(1).animation.size() == 2 &&
+               with_tsx->tilesets[0].tiles.at(1).animation[1].duration_ms == 300);
+        sl::destroy_tilemap(with_tsx);
+        std::ofstream(directory / "bad.tsx") << "<tileset tilewidth=\"32\"><image source=\"x.png\"";
+        std::ofstream(directory / "badtsx.tmj") << R"({"orientation":"orthogonal","width":1,"height":1,"tilewidth":32,"tileheight":32,
+            "tilesets":[{"firstgid":1,"source":"bad.tsx"}],"layers":[]})";
+        assert(!sl::load_tiled_map((directory / "badtsx.tmj").string()));
+
+        // Image-collection tileset, both inline (JSON) and as .tsx.
+        std::ofstream(directory / "bag.tsx") << R"(<tileset name="bag" tilewidth="32" tileheight="32" tilecount="2">
+ <tile id="0"><image source=")" << image_path << R"(" width="64" height="64"/></tile>
+ <tile id="5"><image source=")" << image_path << R"(" width="64" height="64"/></tile>
+</tileset>)";
+        std::ofstream(directory / "collection.tmj") << R"({"orientation":"orthogonal","width":1,"height":1,"tilewidth":32,"tileheight":32,
+            "tilesets":[{"firstgid":1,"source":"bag.tsx"},
+              {"firstgid":10,"tilewidth":32,"tileheight":32,"tiles":[{"id":3,"image":")" << image_path << R"("}]}],
+            "layers":[{"type":"tilelayer","name":"a","width":1,"height":1,"data":[7]}]})";
+        sl::TileMap *collection = sl::load_tiled_map((directory / "collection.tmj").string());
+        assert(collection && collection->tilesets.size() == 2);
+        assert(collection->tilesets[0].images.size() == 2 && collection->tilesets[0].atlas.tile_count == 6);
+        assert(collection->tilesets[1].images.size() == 1 && collection->tilesets[1].images.count(3) == 1);
+        assert(collection->tilesets[0].atlas.tile_width > 0);
+        sl::destroy_tilemap(collection);
+    }
+
     assert(!sl::load_tiled_map((directory / "missing.tmj").string()));
     std::filesystem::remove_all(directory);
     return 0;

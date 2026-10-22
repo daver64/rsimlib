@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-// Scrolling tile map with collision and an animated tile. Pass a Tiled .tmj/.json path to view your own map,
+// Scrolling tile map with collision and an animated tile. Pass a Tiled .tmj/.json/.tmx path to view your own map,
 // otherwise a map is generated from assets/textures/atlas_grid.png.
 int main(int argc, char *argv[])
 {

@@ -10,10 +10,15 @@
 #include "json.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstring>
+#include <iterator>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
+#include <zlib.h>
 
 namespace sl
 {
@@ -62,9 +67,19 @@ namespace sl
             const TileSet &set = map->tilesets[set_index];
             const int local = animated_tile(set, static_cast<int>(gid) - set.first_gid, map->animation_time_ms);
             int source_x = 0, source_y = 0, width = 0, height = 0;
-            if (!atlas_tile_rect(set.atlas, local, source_x, source_y, width, height))
+            Bitmap *source = set.atlas.bitmap;
+            if (!set.images.empty())
+            {
+                const auto image = set.images.find(local);
+                if (image == set.images.end() || !image->second)
+                    return;
+                source = image->second;
+                width = source->width;
+                height = source->height;
+            }
+            else if (!atlas_tile_rect(set.atlas, local, source_x, source_y, width, height))
                 return;
-            draw_sprite_region_flipped(set.atlas.bitmap, source_x, source_y, width, height,
+            draw_sprite_region_flipped(source, source_x, source_y, width, height,
                                        x, bottom_y - static_cast<float>(height),
                                        static_cast<float>(width), static_cast<float>(height),
                                        (cell & tile_flip_horizontal) != 0, (cell & tile_flip_vertical) != 0,
@@ -701,6 +716,653 @@ namespace sl
             return node.value("type", std::string{});
         }
 
+
+        // ---- Tile layer data: CSV arrays, or base64 optionally compressed with zlib or gzip ----
+
+        bool base64_decode(const std::string &text, std::string &out)
+        {
+            int value = 0, bits = -8;
+            for (const char c : text)
+            {
+                int digit;
+                if (c >= 'A' && c <= 'Z')
+                    digit = c - 'A';
+                else if (c >= 'a' && c <= 'z')
+                    digit = c - 'a' + 26;
+                else if (c >= '0' && c <= '9')
+                    digit = c - '0' + 52;
+                else if (c == '+')
+                    digit = 62;
+                else if (c == '/')
+                    digit = 63;
+                else if (c == '=')
+                    break;
+                else if (c == ' ' || c == '\n' || c == '\r' || c == '\t')
+                    continue;
+                else
+                    return false;
+                value = (value << 6) | digit;
+                bits += 6;
+                if (bits >= 0)
+                {
+                    out.push_back(static_cast<char>((value >> bits) & 0xFF));
+                    bits -= 8;
+                }
+            }
+            return true;
+        }
+
+        /** Inflate zlib or gzip data (auto-detected); `limit` caps the output size. */
+        bool inflate_bytes(const std::string &in, std::size_t limit, std::string &out)
+        {
+            z_stream stream{};
+            if (inflateInit2(&stream, 15 + 32) != Z_OK)
+                return false;
+            stream.next_in = reinterpret_cast<Bytef *>(const_cast<char *>(in.data()));
+            stream.avail_in = static_cast<uInt>(in.size());
+            char buffer[16384];
+            int status = Z_OK;
+            while (status == Z_OK)
+            {
+                stream.next_out = reinterpret_cast<Bytef *>(buffer);
+                stream.avail_out = sizeof(buffer);
+                status = inflate(&stream, Z_NO_FLUSH);
+                out.append(buffer, sizeof(buffer) - stream.avail_out);
+                if (out.size() > limit)
+                {
+                    inflateEnd(&stream);
+                    return false;
+                }
+            }
+            inflateEnd(&stream);
+            return status == Z_STREAM_END;
+        }
+
+        /** Read the cells of a layer or chunk node; `format` is the layer node holding encoding and compression. */
+        bool read_cells(const Json &node, const Json &format, std::size_t expected, std::vector<std::uint32_t> &cells,
+                        std::string &error)
+        {
+            if (!node.contains("data"))
+            {
+                error = "Tile layer has no data";
+                return false;
+            }
+            const Json &data = node["data"];
+            if (data.is_array())
+            {
+                for (const Json &cell : data)
+                    cells.push_back(cell.get<std::uint32_t>());
+                return true;
+            }
+            const std::string encoding = format.value("encoding", std::string("csv"));
+            const std::string compression = format.value("compression", std::string{});
+            if (!data.is_string() || encoding != "base64")
+            {
+                error = "Unsupported tile layer encoding '" + encoding + "'; use CSV or base64";
+                return false;
+            }
+            if (!compression.empty() && compression != "zlib" && compression != "gzip")
+            {
+                error = "Unsupported tile layer compression '" + compression +
+                        "'; choose zlib, gzip or none in Tiled (zstd is not supported)";
+                return false;
+            }
+            std::string bytes;
+            if (!base64_decode(data.get<std::string>(), bytes))
+            {
+                error = "Tile layer data is not valid base64";
+                return false;
+            }
+            if (!compression.empty())
+            {
+                std::string inflated;
+                if (!inflate_bytes(bytes, expected * 4 + 4, inflated))
+                {
+                    error = "Tile layer data could not be decompressed";
+                    return false;
+                }
+                bytes.swap(inflated);
+            }
+            if (bytes.size() % 4 != 0)
+            {
+                error = "Tile layer data has a partial cell";
+                return false;
+            }
+            for (std::size_t i = 0; i < bytes.size(); i += 4)
+            {
+                cells.push_back(static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i])) |
+                                (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i + 1])) << 8) |
+                                (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i + 2])) << 16) |
+                                (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i + 3])) << 24));
+            }
+            return true;
+        }
+
+        // ---- Minimal XML reader, enough for Tiled .tsx tilesets ----
+
+        struct XmlNode
+        {
+            std::string name;
+            std::map<std::string, std::string> attributes;
+            std::vector<XmlNode> children;
+            std::string text;
+
+            std::string attr(const std::string &key, const std::string &fallback = {}) const
+            {
+                const auto found = attributes.find(key);
+                return found == attributes.end() ? fallback : found->second;
+            }
+            const XmlNode *child(const std::string &tag) const
+            {
+                for (const XmlNode &node : children)
+                    if (node.name == tag)
+                        return &node;
+                return nullptr;
+            }
+        };
+
+        std::string xml_unescape(const std::string &text)
+        {
+            std::string out;
+            for (std::size_t i = 0; i < text.size(); ++i)
+            {
+                if (text[i] != '&')
+                {
+                    out.push_back(text[i]);
+                    continue;
+                }
+                const std::size_t end = text.find(';', i);
+                if (end == std::string::npos || end - i > 10)
+                {
+                    out.push_back('&');
+                    continue;
+                }
+                const std::string entity = text.substr(i + 1, end - i - 1);
+                if (entity == "amp")
+                    out.push_back('&');
+                else if (entity == "lt")
+                    out.push_back('<');
+                else if (entity == "gt")
+                    out.push_back('>');
+                else if (entity == "quot")
+                    out.push_back('"');
+                else if (entity == "apos")
+                    out.push_back('\'');
+                else if (entity.size() > 1 && entity[0] == '#')
+                {
+                    const bool hex = entity[1] == 'x' || entity[1] == 'X';
+                    const long code = std::strtol(entity.c_str() + (hex ? 2 : 1), nullptr, hex ? 16 : 10);
+                    if (code > 0 && code < 0x80)
+                        out.push_back(static_cast<char>(code));
+                    else if (code >= 0x80 && code < 0x800)
+                    {
+                        out.push_back(static_cast<char>(0xC0 | (code >> 6)));
+                        out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                    }
+                    else if (code >= 0x800 && code < 0x10000)
+                    {
+                        out.push_back(static_cast<char>(0xE0 | (code >> 12)));
+                        out.push_back(static_cast<char>(0x80 | ((code >> 6) & 0x3F)));
+                        out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                    }
+                    else if (code >= 0x10000 && code < 0x110000)
+                    {
+                        out.push_back(static_cast<char>(0xF0 | (code >> 18)));
+                        out.push_back(static_cast<char>(0x80 | ((code >> 12) & 0x3F)));
+                        out.push_back(static_cast<char>(0x80 | ((code >> 6) & 0x3F)));
+                        out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                    }
+                }
+                else
+                {
+                    out.push_back('&');
+                    continue;
+                }
+                i = end;
+            }
+            return out;
+        }
+
+        class XmlParser
+        {
+        public:
+            explicit XmlParser(const std::string &source) : s_(source) {}
+
+            bool parse(XmlNode &root, std::string &error)
+            {
+                if (s_.compare(0, 3, "\xEF\xBB\xBF") == 0)
+                    pos_ = 3;
+                while (skip_misc())
+                {
+                }
+                if (pos_ >= s_.size() || s_[pos_] != '<')
+                    return fail(error, "no root element");
+                if (!element(root, 0))
+                    return fail(error, "malformed element near offset " + std::to_string(pos_));
+                return true;
+            }
+
+        private:
+            const std::string &s_;
+            std::size_t pos_ = 0;
+
+            static bool fail(std::string &error, const std::string &why)
+            {
+                error = why;
+                return false;
+            }
+            void skip_space()
+            {
+                while (pos_ < s_.size() && std::isspace(static_cast<unsigned char>(s_[pos_])))
+                    ++pos_;
+            }
+            bool starts(const char *text) const { return s_.compare(pos_, std::strlen(text), text) == 0; }
+            /** Skip one comment, declaration or doctype; false when none is next. */
+            bool skip_misc()
+            {
+                skip_space();
+                const char *close = nullptr;
+                if (starts("<?"))
+                    close = "?>";
+                else if (starts("<!--"))
+                    close = "-->";
+                else if (starts("<!"))
+                    close = ">";
+                if (!close)
+                    return false;
+                const std::size_t end = s_.find(close, pos_);
+                pos_ = end == std::string::npos ? s_.size() : end + std::strlen(close);
+                return true;
+            }
+            static bool name_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == ':' || c == '.'; }
+
+            bool element(XmlNode &node, int depth)
+            {
+                if (depth > 64 || pos_ >= s_.size() || s_[pos_] != '<')
+                    return false;
+                ++pos_;
+                const std::size_t name_start = pos_;
+                while (pos_ < s_.size() && name_char(s_[pos_]))
+                    ++pos_;
+                node.name = s_.substr(name_start, pos_ - name_start);
+                if (node.name.empty())
+                    return false;
+                for (;;)
+                {
+                    skip_space();
+                    if (pos_ >= s_.size())
+                        return false;
+                    if (s_[pos_] == '/')
+                        return starts("/>") ? (pos_ += 2, true) : false;
+                    if (s_[pos_] == '>')
+                    {
+                        ++pos_;
+                        break;
+                    }
+                    const std::size_t key_start = pos_;
+                    while (pos_ < s_.size() && name_char(s_[pos_]))
+                        ++pos_;
+                    const std::string key = s_.substr(key_start, pos_ - key_start);
+                    skip_space();
+                    if (key.empty() || pos_ >= s_.size() || s_[pos_] != '=')
+                        return false;
+                    ++pos_;
+                    skip_space();
+                    if (pos_ >= s_.size() || (s_[pos_] != '"' && s_[pos_] != '\''))
+                        return false;
+                    const char quote = s_[pos_++];
+                    const std::size_t value_end = s_.find(quote, pos_);
+                    if (value_end == std::string::npos)
+                        return false;
+                    node.attributes[key] = xml_unescape(s_.substr(pos_, value_end - pos_));
+                    pos_ = value_end + 1;
+                }
+                for (;;)
+                {
+                    const std::size_t text_end = s_.find('<', pos_);
+                    if (text_end == std::string::npos)
+                        return false;
+                    node.text += xml_unescape(s_.substr(pos_, text_end - pos_));
+                    pos_ = text_end;
+                    if (starts("</"))
+                    {
+                        const std::size_t end = s_.find('>', pos_);
+                        if (end == std::string::npos || s_.compare(pos_ + 2, node.name.size(), node.name) != 0)
+                            return false;
+                        pos_ = end + 1;
+                        return true;
+                    }
+                    if (starts("<![CDATA["))
+                    {
+                        const std::size_t end = s_.find("]]>", pos_);
+                        if (end == std::string::npos)
+                            return false;
+                        node.text += s_.substr(pos_ + 9, end - pos_ - 9);
+                        pos_ = end + 3;
+                    }
+                    else if (starts("<?") || starts("<!"))
+                        skip_misc();
+                    else
+                    {
+                        node.children.emplace_back();
+                        if (!element(node.children.back(), depth + 1))
+                            return false;
+                    }
+                }
+            }
+        };
+
+        Json xml_properties(const XmlNode &owner)
+        {
+            Json list = Json::array();
+            const XmlNode *properties = owner.child("properties");
+            if (!properties)
+                return list;
+            for (const XmlNode &property : properties->children)
+            {
+                if (property.name != "property")
+                    continue;
+                const std::string type = property.attr("type", "string");
+                std::string value = property.attributes.count("value") ? property.attr("value") : property.text;
+                Json entry;
+                entry["name"] = property.attr("name");
+                entry["type"] = type;
+                try
+                {
+                    if (type == "bool")
+                        entry["value"] = value == "true";
+                    else if (type == "int")
+                        entry["value"] = std::stoll(value);
+                    else if (type == "float")
+                        entry["value"] = std::stod(value);
+                    else
+                        entry["value"] = value;
+                }
+                catch (const std::exception &)
+                {
+                    entry["value"] = value;
+                }
+                list.push_back(std::move(entry));
+            }
+            return list;
+        }
+
+        int xml_int(const XmlNode &node, const char *key, int fallback = 0)
+        {
+            const std::string value = node.attr(key);
+            if (value.empty())
+                return fallback;
+            try
+            {
+                return std::stoi(value);
+            }
+            catch (const std::exception &)
+            {
+                return fallback;
+            }
+        }
+
+        bool read_xml_file(const std::filesystem::path &path, const char *expected_root, XmlNode &root)
+        {
+            std::ifstream file(path, std::ios::binary);
+            if (!file)
+            {
+                detail::set_error("Unable to open Tiled file: " + path.string());
+                return false;
+            }
+            const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            std::string problem;
+            if (!XmlParser(text).parse(root, problem) || root.name != expected_root)
+            {
+                detail::set_error("Invalid Tiled file " + path.string() + ": " +
+                                  (problem.empty() ? std::string("root element is not <") + expected_root + ">" : problem));
+                return false;
+            }
+            return true;
+        }
+
+        /** Convert a <tileset> element into the JSON shape used by Tiled JSON tilesets. */
+        Json tileset_to_json(const XmlNode &root)
+        {
+            Json out = Json::object();
+            for (const char *key : {"tilewidth", "tileheight", "spacing", "margin", "tilecount", "columns"})
+            {
+                if (root.attributes.count(key))
+                    out[key] = xml_int(root, key);
+            }
+            if (const XmlNode *image = root.child("image"))
+                out["image"] = image->attr("source");
+            Json tiles = Json::array();
+            for (const XmlNode &tile : root.children)
+            {
+                if (tile.name != "tile")
+                    continue;
+                Json entry;
+                entry["id"] = xml_int(tile, "id");
+                Json properties = xml_properties(tile);
+                if (!properties.empty())
+                    entry["properties"] = std::move(properties);
+                if (const XmlNode *image = tile.child("image"))
+                    entry["image"] = image->attr("source");
+                if (const XmlNode *animation = tile.child("animation"))
+                {
+                    Json frames = Json::array();
+                    for (const XmlNode &frame : animation->children)
+                    {
+                        if (frame.name == "frame")
+                            frames.push_back({{"tileid", xml_int(frame, "tileid")}, {"duration", xml_int(frame, "duration", 100)}});
+                    }
+                    entry["animation"] = std::move(frames);
+                }
+                tiles.push_back(std::move(entry));
+            }
+            if (!tiles.empty())
+                out["tiles"] = std::move(tiles);
+            return out;
+        }
+
+        bool read_tsx_file(const std::filesystem::path &path, Json &out)
+        {
+            XmlNode root;
+            if (!read_xml_file(path, "tileset", root))
+                return false;
+            out = tileset_to_json(root);
+            return true;
+        }
+
+        double xml_double(const XmlNode &node, const char *key, double fallback)
+        {
+            const std::string value = node.attr(key);
+            if (value.empty())
+                return fallback;
+            try
+            {
+                return std::stod(value);
+            }
+            catch (const std::exception &)
+            {
+                return fallback;
+            }
+        }
+
+        /** Tile data of a <data> element: CSV and per-tile gids become arrays, base64 stays a string. */
+        bool tmx_data(const XmlNode &data, Json &into, Json &format, std::string &error)
+        {
+            const std::string encoding = data.attr("encoding");
+            if (!encoding.empty())
+                format["encoding"] = encoding;
+            if (!data.attr("compression").empty())
+                format["compression"] = data.attr("compression");
+            if (encoding == "csv")
+            {
+                Json cells = Json::array();
+                std::size_t i = 0;
+                while (i < data.text.size())
+                {
+                    while (i < data.text.size() && !std::isdigit(static_cast<unsigned char>(data.text[i])))
+                        ++i;
+                    if (i >= data.text.size())
+                        break;
+                    std::size_t used = 0;
+                    try
+                    {
+                        cells.push_back(static_cast<std::uint32_t>(std::stoull(data.text.substr(i), &used)));
+                    }
+                    catch (const std::exception &)
+                    {
+                        error = "Invalid CSV tile data";
+                        return false;
+                    }
+                    i += used;
+                }
+                into["data"] = std::move(cells);
+            }
+            else if (encoding.empty())
+            {
+                Json cells = Json::array();
+                for (const XmlNode &tile : data.children)
+                {
+                    if (tile.name == "tile")
+                        cells.push_back(static_cast<std::uint32_t>(std::strtoull(tile.attr("gid", "0").c_str(), nullptr, 10)));
+                }
+                into["data"] = std::move(cells);
+            }
+            else
+            {
+                std::string text;
+                for (const char c : data.text)
+                    if (!std::isspace(static_cast<unsigned char>(c)))
+                        text.push_back(c);
+                into["data"] = text;
+            }
+            return true;
+        }
+
+        bool tmx_layers(const XmlNode &parent, Json &layers, std::string &error)
+        {
+            for (const XmlNode &node : parent.children)
+            {
+                Json entry = Json::object();
+                if (node.name == "layer")
+                {
+                    entry["type"] = "tilelayer";
+                    entry["width"] = xml_int(node, "width");
+                    entry["height"] = xml_int(node, "height");
+                    const XmlNode *data = node.child("data");
+                    if (!data)
+                    {
+                        error = "Tile layer '" + node.attr("name") + "' has no data";
+                        return false;
+                    }
+                    Json format = Json::object();
+                    bool has_chunks = false;
+                    Json chunks = Json::array();
+                    for (const XmlNode &chunk : data->children)
+                    {
+                        if (chunk.name != "chunk")
+                            continue;
+                        has_chunks = true;
+                        Json chunk_entry = Json::object();
+                        chunk_entry["x"] = xml_int(chunk, "x");
+                        chunk_entry["y"] = xml_int(chunk, "y");
+                        chunk_entry["width"] = xml_int(chunk, "width");
+                        chunk_entry["height"] = xml_int(chunk, "height");
+                        XmlNode as_data = chunk;
+                        as_data.attributes = data->attributes;
+                        if (!tmx_data(as_data, chunk_entry, format, error))
+                            return false;
+                        chunks.push_back(std::move(chunk_entry));
+                    }
+                    if (has_chunks)
+                        entry["chunks"] = std::move(chunks);
+                    else if (!tmx_data(*data, entry, format, error))
+                        return false;
+                    for (auto it = format.begin(); it != format.end(); ++it)
+                        entry[it.key()] = it.value();
+                }
+                else if (node.name == "objectgroup")
+                {
+                    entry["type"] = "objectgroup";
+                    Json objects = Json::array();
+                    for (const XmlNode &object : node.children)
+                    {
+                        if (object.name != "object")
+                            continue;
+                        Json item = Json::object();
+                        item["name"] = object.attr("name");
+                        item["class"] = object.attributes.count("class") ? object.attr("class") : object.attr("type");
+                        item["x"] = xml_double(object, "x", 0.0);
+                        item["y"] = xml_double(object, "y", 0.0);
+                        item["width"] = xml_double(object, "width", 0.0);
+                        item["height"] = xml_double(object, "height", 0.0);
+                        Json properties = xml_properties(object);
+                        if (!properties.empty())
+                            item["properties"] = std::move(properties);
+                        objects.push_back(std::move(item));
+                    }
+                    entry["objects"] = std::move(objects);
+                }
+                else if (node.name == "group")
+                {
+                    entry["type"] = "group";
+                    Json children = Json::array();
+                    if (!tmx_layers(node, children, error))
+                        return false;
+                    entry["layers"] = std::move(children);
+                }
+                else
+                    continue;
+                entry["name"] = node.attr("name");
+                entry["visible"] = node.attr("visible", "1") != "0";
+                entry["offsetx"] = xml_double(node, "offsetx", 0.0);
+                entry["offsety"] = xml_double(node, "offsety", 0.0);
+                entry["parallaxx"] = xml_double(node, "parallaxx", 1.0);
+                entry["parallaxy"] = xml_double(node, "parallaxy", 1.0);
+                layers.push_back(std::move(entry));
+            }
+            return true;
+        }
+
+        /** Read a .tmx map into the same JSON shape as a Tiled JSON map. */
+        bool read_tmx_file(const std::filesystem::path &path, Json &out, std::string &error)
+        {
+            XmlNode root;
+            if (!read_xml_file(path, "map", root))
+            {
+                error = last_error();
+                return false;
+            }
+            out = Json::object();
+            out["orientation"] = root.attr("orientation", "orthogonal");
+            out["infinite"] = root.attr("infinite") == "1";
+            for (const char *key : {"width", "height", "tilewidth", "tileheight", "hexsidelength"})
+            {
+                if (root.attributes.count(key))
+                    out[key] = xml_int(root, key);
+            }
+            if (root.attributes.count("staggeraxis"))
+                out["staggeraxis"] = root.attr("staggeraxis");
+            if (root.attributes.count("staggerindex"))
+                out["staggerindex"] = root.attr("staggerindex");
+            Json tilesets = Json::array();
+            for (const XmlNode &node : root.children)
+            {
+                if (node.name != "tileset")
+                    continue;
+                Json set = node.attributes.count("source") ? Json::object() : tileset_to_json(node);
+                if (node.attributes.count("source"))
+                    set["source"] = node.attr("source");
+                set["firstgid"] = xml_int(node, "firstgid", 1);
+                tilesets.push_back(std::move(set));
+            }
+            out["tilesets"] = std::move(tilesets);
+            Json layers = Json::array();
+            if (!tmx_layers(root, layers, error))
+                return false;
+            out["layers"] = std::move(layers);
+            return true;
+        }
+
         bool load_tileset(TileMap *map, const Json &node, const std::filesystem::path &base_dir, int first_gid,
                           std::string &error)
         {
@@ -710,12 +1372,8 @@ namespace sl
             if (node.contains("source"))
             {
                 const std::filesystem::path source = base_dir / node["source"].get<std::string>();
-                if (source.extension() == ".tsx")
-                {
-                    error = "XML tilesets (.tsx) are not supported; export the tileset as JSON: " + source.string();
-                    return false;
-                }
-                if (!read_json_file(source, external))
+                const bool xml = source.extension() == ".tsx";
+                if (!(xml ? read_tsx_file(source, external) : read_json_file(source, external)))
                 {
                     error = "Unable to read tileset " + source.string();
                     return false;
@@ -723,28 +1381,64 @@ namespace sl
                 set = &external;
                 set_dir = source.parent_path();
             }
-            if (!set->contains("image"))
+            Atlas atlas;
+            std::unordered_map<int, Bitmap *> images;
+            if (set->contains("image"))
             {
-                error = "Image-collection tilesets are not supported";
-                return false;
+                const std::filesystem::path image_path = set_dir / (*set)["image"].get<std::string>();
+                Bitmap *bitmap = load_bitmap(image_path.string());
+                if (!bitmap)
+                {
+                    error = "Unable to load tileset image " + image_path.string();
+                    return false;
+                }
+                map->owned_bitmaps.push_back(bitmap);
+                atlas = create_atlas(bitmap, set->value("tilewidth", 0), set->value("tileheight", 0),
+                                     set->value("spacing", 0), set->value("margin", 0));
+                if (atlas.tile_count <= 0)
+                {
+                    error = "Tileset image does not contain any complete tiles: " + image_path.string();
+                    return false;
+                }
             }
-            const std::filesystem::path image_path = set_dir / (*set)["image"].get<std::string>();
-            Bitmap *bitmap = load_bitmap(image_path.string());
-            if (!bitmap)
+            else
             {
-                error = "Unable to load tileset image " + image_path.string();
-                return false;
-            }
-            map->owned_bitmaps.push_back(bitmap);
-            const Atlas atlas = create_atlas(bitmap, set->value("tilewidth", 0), set->value("tileheight", 0),
-                                             set->value("spacing", 0), set->value("margin", 0));
-            if (atlas.tile_count <= 0)
-            {
-                error = "Tileset image does not contain any complete tiles: " + image_path.string();
-                return false;
+                // Image-collection tileset: every tile has its own image.
+                int max_id = -1, max_width = 0, max_height = 0;
+                if (set->contains("tiles") && (*set)["tiles"].is_array())
+                {
+                    for (const Json &tile : (*set)["tiles"])
+                    {
+                        if (!tile.contains("image") || !tile["image"].is_string())
+                            continue;
+                        const std::filesystem::path image_path = set_dir / tile["image"].get<std::string>();
+                        Bitmap *bitmap = load_bitmap(image_path.string());
+                        if (!bitmap)
+                        {
+                            error = "Unable to load tile image " + image_path.string();
+                            return false;
+                        }
+                        map->owned_bitmaps.push_back(bitmap);
+                        const int id = tile.value("id", 0);
+                        images[id] = bitmap;
+                        max_id = std::max(max_id, id);
+                        max_width = std::max(max_width, bitmap->width);
+                        max_height = std::max(max_height, bitmap->height);
+                    }
+                }
+                if (images.empty())
+                {
+                    error = "Tileset has neither an image nor per-tile images";
+                    return false;
+                }
+                atlas.bitmap = images.begin()->second;
+                atlas.tile_width = max_width;
+                atlas.tile_height = max_height;
+                atlas.tile_count = max_id + 1;
             }
             const int index = tilemap_add_tileset(map, atlas, first_gid);
             TileSet &target = map->tilesets[index];
+            target.images = std::move(images);
             if (set->contains("tiles") && (*set)["tiles"].is_array())
             {
                 for (const Json &tile : (*set)["tiles"])
@@ -793,23 +1487,22 @@ namespace sl
                         layer.parallax_y = node.value("parallaxy", 1.0f);
                         for (const Json &chunk : node["chunks"])
                         {
-                            if (!chunk.contains("data") || !chunk["data"].is_array())
-                            {
-                                error = "Tile layer data must use CSV encoding (uncompressed array)";
-                                return false;
-                            }
                             const int start_x = chunk.value("x", 0);
                             const int start_y = chunk.value("y", 0);
                             const int chunk_width = chunk.value("width", 0);
-                            if (chunk_width <= 0 || chunk["data"].size() % static_cast<std::size_t>(chunk_width) != 0)
+                            const std::size_t expected =
+                                static_cast<std::size_t>(chunk_width) * static_cast<std::size_t>(std::max(chunk.value("height", 0), 0));
+                            std::vector<std::uint32_t> chunk_cells;
+                            if (!read_cells(chunk, node, expected, chunk_cells, error))
+                                return false;
+                            if (chunk_width <= 0 || chunk_cells.size() % static_cast<std::size_t>(chunk_width) != 0)
                             {
                                 error = "Tile layer '" + layer.name + "' has an invalid chunk";
                                 return false;
                             }
                             int index = 0;
-                            for (const Json &cell : chunk["data"])
+                            for (const std::uint32_t value : chunk_cells)
                             {
-                                const std::uint32_t value = cell.get<std::uint32_t>();
                                 if (value != 0)
                                     layer_set_cell(layer, start_x + index % chunk_width, start_y + index / chunk_width, value);
                                 ++index;
@@ -817,11 +1510,6 @@ namespace sl
                         }
                         map->layers.push_back(std::move(layer));
                         continue;
-                    }
-                    if (!node.contains("data") || !node["data"].is_array())
-                    {
-                        error = "Tile layer data must use CSV encoding (uncompressed array)";
-                        return false;
                     }
                     TileLayer layer;
                     layer.name = node.value("name", std::string{});
@@ -832,13 +1520,15 @@ namespace sl
                     layer.offset_y = node.value("offsety", 0.0f);
                     layer.parallax_x = node.value("parallaxx", 1.0f);
                     layer.parallax_y = node.value("parallaxy", 1.0f);
-                    if (node["data"].size() != static_cast<std::size_t>(layer.width) * layer.height)
+                    const std::size_t expected = static_cast<std::size_t>(std::max(layer.width, 0)) *
+                                                 static_cast<std::size_t>(std::max(layer.height, 0));
+                    if (!read_cells(node, node, expected, layer.cells, error))
+                        return false;
+                    if (layer.cells.size() != expected)
                     {
                         error = "Tile layer '" + layer.name + "' has the wrong number of cells";
                         return false;
                     }
-                    for (const Json &cell : node["data"])
-                        layer.cells.push_back(cell.get<std::uint32_t>());
                     map->layers.push_back(std::move(layer));
                 }
                 else if (kind == "objectgroup")
@@ -871,7 +1561,17 @@ namespace sl
     {
         Json root;
         const std::filesystem::path map_path(path);
-        if (!read_json_file(map_path, root))
+        if (map_path.extension() == ".tmx")
+        {
+            std::string tmx_error;
+            if (!read_tmx_file(map_path, root, tmx_error))
+            {
+                if (!tmx_error.empty())
+                    detail::set_error(tmx_error);
+                return nullptr;
+            }
+        }
+        else if (!read_json_file(map_path, root))
             return nullptr;
 
         TileMap *map = nullptr;

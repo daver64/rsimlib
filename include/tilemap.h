@@ -51,6 +51,12 @@ namespace sl
         int first_gid = 1;
         /** Metadata for individual tiles. */
         std::unordered_map<int, TileInfo> tiles;
+        /**
+         * Per-tile images for an image-collection tileset, keyed by tileset-local id. When not empty these are drawn
+         * instead of atlas cells (the bitmaps are owned by the map when it came from load_tiled_map()), and
+         * atlas.tile_count is the highest id plus one.
+         */
+        std::unordered_map<int, Bitmap *> images;
     };
 
     /** A grid of tile cells; each cell is a GID plus optional flip flags, 0 meaning empty. */
@@ -208,7 +214,7 @@ namespace sl
                       int first_layer = 0, int last_layer = -1);
 
     /**
-     * Load a Tiled JSON map (.tmj/.json) with embedded or external JSON (.tsj) tilesets, CSV layer data, flips,
+     * Load a Tiled map (JSON .tmj/.json, or XML .tmx) with embedded or external (.tsj/.tsx) tilesets including image collections, CSV or base64 (zlib/gzip) layer data, flips,
      * tile properties, animations and object layers. Returns nullptr and sets the error on failure.
      */
     TileMap *load_tiled_map(const std::string &path);

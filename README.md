@@ -245,7 +245,7 @@ sl::draw_tilemap(map, camera_x, camera_y);          // draws only the visible ce
 sl::destroy_tilemap(map);
 ```
 
-Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Not supported yet: infinite maps, compressed/base64 layer data, `.tsx` tilesets and image-collection tilesets (these report an error). See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-includetilemaph).
+Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Tiled maps (`.tmj`/`.json` and native `.tmx`) load with CSV or base64 layer data (uncompressed, zlib or gzip), infinite maps, external `.tsj`/`.tsx` tilesets and image-collection tilesets. Not supported: zstd-compressed layers (choose zlib in Tiled), and infinite isometric maps. See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` or `.tmx` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-includetilemaph).
 
 ## 3D Graphics: Surfaces, Models & Voxel Worlds
 
