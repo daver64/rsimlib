@@ -1,6 +1,6 @@
 # exlights3d
 
-A moonlit courtyard lit by up to 16 coloured point lights and a sweeping spotlight, with soft sun shadows.
+A moonlit courtyard lit by up to 16 coloured point lights and a sweeping spotlight, with soft sun shadows and shadows from the sweeping spotlight and one orbiting point light.
 
 ![exlights3d screenshot](img/exlights3d.png)
 
@@ -41,11 +41,12 @@ if (sl::begin_shadow_pass_3d(shadow_map, {0, 0, 0}, 16.0f))
 - Up / Down: number of lights
 - P: PBR or Lambert
 - S: sun shadows on or off
+- L: spot and point light shadows on or off (`LocalShadowMap3D`: a perspective map for the spotlight, a six-face cube for the point light)
 - Space: pause
 - Right-drag: look; `[` / `]`: zoom
 - Esc: exit
 
 ## Key APIs
 - `sl::LocalLight3D`, `sl::set_local_lights_3d`, `sl::max_local_lights_3d`
-- `sl::create_shadow_map_3d`, `sl::begin_shadow_pass_3d`, `sl::end_shadow_pass_3d`, `sl::set_shadow_map_3d`
+- `sl::create_shadow_map_3d`, `sl::begin_shadow_pass_3d`, `sl::end_shadow_pass_3d`, `sl::set_shadow_map_3d`, `sl::create_local_shadow_map_3d`, `sl::render_local_shadows_3d`, `sl::set_local_shadow_map_3d`
 - `sl::Light3D`, `sl::Material` (`pbr`, `metallic`, `roughness`)

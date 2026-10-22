@@ -35,7 +35,7 @@ cbuffer PbrParameters : register(b1)
     // x: 0 off, 1 receive shadows, 2 shadow-pass draw (writes packed depth); y: depth bias; z: texel world size.
     float4 shadow;
     float4x4 shadow_matrix;
-    float4 locals[48];
+    float4 locals[64];
 };
 
 static const float PI = 3.14159265359;
@@ -198,9 +198,9 @@ float4 main(PixelInput input) : SV_TARGET
         int count = (int)camera_position.w;
         for (int i = 0; i < count; ++i)
         {
-            float4 position = locals[i * 3];
-            float4 local_colour = locals[i * 3 + 1];
-            float4 spot = locals[i * 3 + 2];
+            float4 position = locals[i * 4];
+            float4 local_colour = locals[i * 4 + 1];
+            float4 spot = locals[i * 4 + 2];
             float3 to_light = position.xyz - world;
             float distance_to_light = length(to_light);
             if (distance_to_light >= position.w)

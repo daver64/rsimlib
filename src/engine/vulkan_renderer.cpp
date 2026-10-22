@@ -27,7 +27,8 @@ namespace sl::detail
     {
         // Mesh environment block: [0] light colour, fog, pbr, emissive, camera vectors (9 vec4s), then the eye position
         // (w = local light count), the shadow parameters and matrix, and three vec4s per local light. Returns the number of bytes in use.
-        constexpr std::size_t mesh_environment_floats = 60 + 16 * 12;
+        constexpr std::size_t mesh_environment_floats = 60 + local_light_vec4s * 4;
+        constexpr std::size_t terrain_environment_floats = 108 + local_light_vec4s * 4;
         std::size_t fill_mesh_environment(float *environment, const MeshDrawParams &params)
         {
             std::memcpy(environment, params.light_colour, sizeof(float) * 4);
@@ -43,8 +44,13 @@ namespace sl::detail
             std::memcpy(environment + 40, params.shadow, sizeof(float) * 4);
             std::memcpy(environment + 44, params.shadow_matrix, sizeof(float) * 16);
             const std::size_t lights = static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
-            std::memcpy(environment + 60, params.local_lights, sizeof(float) * 12 * lights);
-            return sizeof(float) * (60 + 12 * lights);
+            std::memcpy(environment + 60, params.local_lights, sizeof(float) * 16 * lights);
+            if (params.shadow[3] < 0.5f)
+                return sizeof(float) * (60 + 16 * lights);
+            const std::size_t matrices = static_cast<std::size_t>(std::clamp(params.shadow[3], 0.0f, float(local_shadow_slots))) * 24;
+            std::memcpy(environment + 60 + local_shadow_matrix_base * 4, params.local_lights[local_shadow_matrix_base],
+                        sizeof(float) * 4 * matrices);
+            return sizeof(float) * (60 + (local_shadow_matrix_base + matrices) * 4);
         }
     }
 
@@ -721,7 +727,7 @@ namespace sl::detail
                     float vertex_constants[28];
                     std::memcpy(vertex_constants, adjusted.mvp, sizeof(float) * 16);
                     std::memcpy(vertex_constants + 16, adjusted.normal_rows, sizeof(float) * 12);
-                    float environment[84]{};
+                    float environment[terrain_environment_floats]{};
                     std::memcpy(environment, params.light_colour, sizeof(float) * 4);
                     std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
                     std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
@@ -730,11 +736,34 @@ namespace sl::detail
                     std::memcpy(environment + 48, params.terrain_average, sizeof(float) * 32);
                     std::memcpy(environment + 80, params.terrain_macro, sizeof(float) * 4);
                     environment[83] = params.terrain_normals != 0 ? 1.0f : 0.0f;
+                    // The shader works in the eye's chunk-local space; the lights and shadows are in eye-relative space.
+                    std::memcpy(environment + 84, params.normal_rows[1], sizeof(float) * 3);
+                    const std::size_t lights = static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
+                    environment[87] = static_cast<float>(lights);
+                    std::memcpy(environment + 88, params.shadow, sizeof(float) * 4);
+                    std::memcpy(environment + 92, params.shadow_matrix, sizeof(float) * 16);
+                    std::memcpy(environment + 108, params.local_lights, sizeof(float) * 16 * lights);
+                    std::size_t environment_bytes = sizeof(float) * (108 + 16 * lights);
+                    if (params.shadow[3] >= 0.5f)
+                    {
+                        const std::size_t matrices =
+                            static_cast<std::size_t>(std::clamp(params.shadow[3], 0.0f, float(local_shadow_slots))) * 24;
+                        std::memcpy(environment + 108 + local_shadow_matrix_base * 4,
+                                    params.local_lights[local_shadow_matrix_base], sizeof(float) * 4 * matrices);
+                        environment_bytes = sizeof(float) * (108 + (local_shadow_matrix_base + matrices) * 4);
+                    }
+                    VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
+                    VkDescriptorSet local_shadow_descriptor = VK_NULL_HANDLE;
+                    if (!sampled_descriptor(params.shadow_texture != 0 ? params.shadow_texture : white_texture_, shadow_descriptor) ||
+                        !sampled_descriptor(params.local_shadow_texture != 0 ? params.local_shadow_texture : white_texture_,
+                                            local_shadow_descriptor))
+                        return false;
                     return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                      found->second.vertices.buffer, found->second.indices.buffer,
                                                      found->second.index_count, albedo->second.descriptor, normal_descriptor,
-                                                     vertex_constants, params.light, environment,
-                                                     sizeof(environment), last_error_);
+                                                     vertex_constants, params.light, environment, environment_bytes, last_error_,
+                                                     VK_NULL_HANDLE, 1, VK_NULL_HANDLE, shadow_descriptor,
+                                                     local_shadow_descriptor);
                 }
                 VkDescriptorSet descriptor = VK_NULL_HANDLE;
                 VkDescriptorSet normal_descriptor = VK_NULL_HANDLE;
@@ -748,13 +777,17 @@ namespace sl::detail
                 VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
                 if (!sampled_descriptor(params.shadow_texture != 0 ? params.shadow_texture : white_texture_, shadow_descriptor))
                     return false;
+                VkDescriptorSet local_shadow_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.local_shadow_texture != 0 ? params.local_shadow_texture : white_texture_,
+                                        local_shadow_descriptor))
+                    return false;
                 float environment[mesh_environment_floats];
                 const std::size_t environment_bytes = fill_mesh_environment(environment, params);
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
                                                  environment, environment_bytes, last_error_, VK_NULL_HANDLE, 1,
-                                                 material_descriptor, shadow_descriptor);
+                                                 material_descriptor, shadow_descriptor, local_shadow_descriptor);
             }
             bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
             {
@@ -843,6 +876,10 @@ namespace sl::detail
                 VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
                 if (!sampled_descriptor(params.shadow_texture != 0 ? params.shadow_texture : white_texture_, shadow_descriptor))
                     return false;
+                VkDescriptorSet local_shadow_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.local_shadow_texture != 0 ? params.local_shadow_texture : white_texture_,
+                                        local_shadow_descriptor))
+                    return false;
                 float environment[mesh_environment_floats];
                 const std::size_t environment_bytes = fill_mesh_environment(environment, params);
                 const VulkanGraphicsPipeline &pipeline =
@@ -852,7 +889,7 @@ namespace sl::detail
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp,
                                                  adjusted.light, environment, environment_bytes, last_error_,
                                                  instances->second.buffer.buffer, static_cast<std::uint32_t>(count),
-                                                 material_descriptor, shadow_descriptor);
+                                                 material_descriptor, shadow_descriptor, local_shadow_descriptor);
             }
             bool draw_sky(const SkyDrawParams &params) override
             {

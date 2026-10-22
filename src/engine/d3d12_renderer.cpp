@@ -1318,8 +1318,8 @@ namespace sl::detail
                 if (shadow_map == textures_.end())
                     return false;
                 // After the PBR block: the eye position (w = local light count), the shadow parameters and matrix, then
-                // three float4s per local light.
-                float pbr_constants[44 + 16 * 12];
+                // four float4s per local light (local light shadows are not implemented on Direct3D 12).
+                float pbr_constants[44 + 16 * 16];
                 std::copy(std::begin(params.pbr), std::end(params.pbr), pbr_constants);
                 std::copy(std::begin(params.emissive), std::end(params.emissive), pbr_constants + 4);
                 std::copy(std::begin(params.camera_right), std::end(params.camera_right), pbr_constants + 8);
@@ -1330,9 +1330,9 @@ namespace sl::detail
                     static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
                 std::copy(std::begin(params.shadow), std::end(params.shadow), pbr_constants + 24);
                 std::copy(std::begin(params.shadow_matrix), std::end(params.shadow_matrix), pbr_constants + 28);
-                std::copy(&params.local_lights[0][0][0], &params.local_lights[0][0][0] + 12 * local_lights, pbr_constants + 44);
+                std::copy(&params.local_lights[0][0], &params.local_lights[0][0] + 16 * local_lights, pbr_constants + 44);
                 const D3D12_GPU_VIRTUAL_ADDRESS pbr_address =
-                    allocate_constants(pbr_constants, sizeof(float) * (44 + 12 * local_lights));
+                    allocate_constants(pbr_constants, sizeof(float) * (44 + 16 * local_lights));
                 if (pbr_address == 0)
                     return false;
 

@@ -43,7 +43,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exmodel3d](img/exmodel3d.png)<br>**exmodel3d**](exmodel3d.md) | A model viewer for glTF/GLB, AC3D and FlightGear XML models with clip playback and property-driven animations. |
 | [![exnormalmap](img/exnormalmap.png)<br>**exnormalmap**](exnormalmap.md) | 2D normal mapping: sprites lit by a mouse-driven light using per-sprite normal maps, with a toggle to compare against flat lighting. |
 | [![exnormalmap3d](img/exnormalmap3d.png)<br>**exnormalmap3d**](exnormalmap3d.md) | 3D normal mapping: a cube and sphere with a procedural normal-mapped material under a 3D light, with a toggle to compare. |
-| [![exlights3d](img/exlights3d.png)<br>**exlights3d**](exlights3d.md) | Up to 16 point and spot lights plus soft sun shadows in a moonlit courtyard. |
+| [![exlights3d](img/exlights3d.png)<br>**exlights3d**](exlights3d.md) | Up to 16 point and spot lights plus soft sun and light shadows in a moonlit courtyard. |
 | [![exocean](img/exocean.png)<br>**exocean**](exocean.md) | An ocean of Gerstner waves under volumetric clouds with a dreadnought heaving, pitching and rolling on the swell. |
 | [![exorbit](img/exorbit.png)<br>**exorbit**](exorbit.md) | Spaceflight: a craft with main engine, retro thrust and RCS, orbit prediction, time warp and a Moon on rails. |
 | [![exparticles](img/exparticles.png)<br>**exparticles**](exparticles.md) | CPU particle emitter that follows the mouse, with gravity, blur and glow post effects. |

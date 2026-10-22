@@ -36,7 +36,8 @@ uniform vec4 uCameraForward;
 
 // World-space eye position (xyz) and the number of local lights (w); three vec4s per light, see MeshDrawParams.
 uniform vec4 uCameraPosition;
-uniform vec4 uLocals[48];
+uniform vec4 uLocals[160];
+uniform sampler2D uLocalShadowMap;
 
 out vec4 fragColor;
 
@@ -115,6 +116,61 @@ float sun_visibility(vec3 world, vec3 normal)
     return sum / total;
 }
 
+// Local light shadow atlas: 3 faces across, 2 per slot down. Matrices follow the lights in uLocals from vec4 64.
+float local_depth(ivec2 texel)
+{
+    vec3 c = texelFetch(uLocalShadowMap, texel, 0).rgb;
+    return c.r + c.g / 255.0 + c.b / 65025.0;
+}
+
+float local_visibility(vec3 world, vec3 normal, vec3 light_position, bool spot, float slot, float near_plane, float far_plane)
+{
+    vec3 d = world - light_position;
+    float dist = length(d);
+    int face = 0;
+    if (!spot)
+    {
+        vec3 a = abs(d);
+        if (a.x >= a.y && a.x >= a.z)
+            face = d.x > 0.0 ? 0 : 1;
+        else if (a.y >= a.z)
+            face = d.y > 0.0 ? 2 : 3;
+        else
+            face = d.z > 0.0 ? 4 : 5;
+    }
+    int size = textureSize(uLocalShadowMap, 0).x / 3;
+    float texel_world = 2.0 * dist / float(size);
+    vec4 clip = mat4(uLocals[64 + (int(slot) * 6 + face) * 4], uLocals[65 + (int(slot) * 6 + face) * 4],
+                     uLocals[66 + (int(slot) * 6 + face) * 4], uLocals[67 + (int(slot) * 6 + face) * 4]) *
+                vec4(world + normal * (texel_world * 1.5), 1.0);
+    if (clip.w <= 0.0)
+        return 1.0;
+    vec3 coord = clip.xyz / clip.w * 0.5 + 0.5;
+    if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z > 1.0)
+        return 1.0;
+    float reference = near_plane * far_plane / (far_plane - coord.z * (far_plane - near_plane)) - texel_world * 1.5;
+    ivec2 origin = ivec2((face % 3) * size, (int(slot) * 2 + face / 3) * size);
+    vec2 pixel = vec2(coord.x, 1.0 - coord.y) * float(size) - 0.5;
+    ivec2 base = ivec2(floor(pixel));
+    vec2 f = pixel - vec2(base);
+    float sum = 0.0;
+    float total = 0.0;
+    for (int y = -1; y <= 2; ++y)
+        for (int x = -1; x <= 2; ++x)
+        {
+            ivec2 t = clamp(base + ivec2(x, y), ivec2(0), ivec2(size - 1));
+            // Render targets are stored bottom-up in OpenGL, so the atlas rows run the other way.
+            ivec2 texel = origin + t;
+            texel.y = textureSize(uLocalShadowMap, 0).y - 1 - texel.y;
+            float stored = local_depth(texel);
+            float linear_depth = near_plane * far_plane / (far_plane - stored * (far_plane - near_plane));
+            float w = (x == -1 ? 1.0 - f.x : (x == 2 ? f.x : 1.0)) * (y == -1 ? 1.0 - f.y : (y == 2 ? f.y : 1.0));
+            sum += w * (reference <= linear_depth ? 1.0 : 0.0);
+            total += w;
+        }
+    return sum / total;
+}
+
 void main()
 {
     vec3 normal = normalize(vNormal);
@@ -185,9 +241,10 @@ void main()
         int count = int(uCameraPosition.w);
         for (int i = 0; i < count; ++i)
         {
-            vec4 position = uLocals[i * 3];
-            vec4 light_colour = uLocals[i * 3 + 1];
-            vec4 spot = uLocals[i * 3 + 2];
+            vec4 position = uLocals[i * 4];
+            vec4 light_colour = uLocals[i * 4 + 1];
+            vec4 spot = uLocals[i * 4 + 2];
+            vec4 shadow_info = uLocals[i * 4 + 3];
             vec3 to_light = position.xyz - world;
             float distance_to_light = length(to_light);
             if (distance_to_light >= position.w)
@@ -196,6 +253,8 @@ void main()
             float strength = local_attenuation(distance_to_light, position.w);
             if (light_colour.w > -0.5)
                 strength *= clamp((dot(-L, spot.xyz) - light_colour.w) * spot.w, 0.0, 1.0);
+            if (shadow_info.x > -0.5)
+                strength *= local_visibility(world, normal, position.xyz, light_colour.w > -0.5, shadow_info.x, shadow_info.y, shadow_info.z);
             vec3 reflected = pbr ? pbr_direct(normal, view, L, albedo, metallic, roughness)
                                   : albedo * max(dot(normal, L), 0.0);
             colour += reflected * light_colour.rgb * strength;

@@ -128,6 +128,10 @@ namespace sl::detail
 
     /** Number of surface types a terrain draw can blend (weights are carried in two vertex attributes). */
     constexpr int terrain_layer_count = 8;
+    /** Shadow-casting local lights, the vec4 index where their matrices start, and the size of MeshDrawParams::local_lights. */
+    constexpr int local_shadow_slots = 4;
+    constexpr int local_shadow_matrix_base = 64;
+    constexpr int local_light_vec4s = local_shadow_matrix_base + local_shadow_slots * 6 * 4;
 
     /** Per-draw data for Renderer::draw_mesh(). Matrices are column-major, as in GLM. */
     struct MeshDrawParams
@@ -167,18 +171,23 @@ namespace sl::detail
         float camera_up[4] = {};
         float camera_forward[4] = {};
         /**
-         * World-space eye position in xyz and the number of local lights in w. Each local light is three vec4s:
+         * World-space eye position in xyz and the number of local lights in w. Each local light is four vec4s:
          * [0] position xyz and range, [1] colour (already multiplied by intensity) and cos(outer cone) or -1 for a point
-         * light, [2] spot direction xyz and 1 / (cos(inner) - cos(outer)). Needs the camera vectors above.
+         * light, [2] spot direction xyz and 1 / (cos(inner) - cos(outer)), [3] shadow slot in x (-1 for none) and the
+         * near and far planes of its shadow projection in y and z. Needs the camera vectors above.
+         * The array continues at vec4 local_shadow_matrix_base with the shadow matrices: slot s, cube face f is the
+         * mat4 (four column vec4s) starting at local_shadow_matrix_base + (s * 6 + f) * 4.
          */
         float camera_position[4] = {};
-        float local_lights[16][3][4] = {};
+        float local_lights[local_light_vec4s][4] = {};
         /** World-to-light clip matrix for sun shadows. */
         float shadow_matrix[16] = {};
         /** x: 0 none, 1 receive shadows, 2 shadow-pass draw that writes packed depth; y: depth bias; z: texel world size. */
         float shadow[4] = {};
-        /** Backend texture handle of the shadow map colour image (packed depth), or 0. */
+        /** Backend texture handle of the shadow map colour image (packed depth), or 0. shadow[3] is the number of local shadow slots in use. */
         std::uint32_t shadow_texture = 0;
+        /** Atlas of local light shadow faces (3 faces wide, 2 per slot tall), packed depth like shadow_texture, or 0. */
+        std::uint32_t local_shadow_texture = 0;
         std::uint32_t material_texture = 0;
         /**
          * Terrain splatting. When terrain_albedo is not 0 the mesh is drawn with the terrain pipeline instead: texture and

@@ -131,7 +131,7 @@ namespace sl::detail
         /**
          * vertex_constants: 28 floats (mvp, then three normal-matrix rows with tint in w); fragment_constants: 4 floats.
          * material_descriptor (set 3, the PBR occlusion-roughness-metalness texture) is bound when not null; shaders that
-         * sample it need it. shadow_descriptor (set 4, the packed-depth sun shadow map) is likewise bound when not null.
+         * sample it need it. shadow_descriptor (set 4, the packed-depth sun shadow map) is likewise bound when not null, as is local_shadow_descriptor (set 5, the local light shadow atlas).
          * With an instance_buffer, the pipeline must be an instanced one and it supplies instance_count instances.
          */
         bool record_mesh_draw(VkPipeline pipeline, VkPipelineLayout layout,
@@ -141,7 +141,8 @@ namespace sl::detail
                               const float *environment, std::size_t environment_size,
                               std::string &error, VkBuffer instance_buffer = VK_NULL_HANDLE,
                               std::uint32_t instance_count = 1, VkDescriptorSet material_descriptor = VK_NULL_HANDLE,
-                              VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE);
+                              VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE,
+                              VkDescriptorSet local_shadow_descriptor = VK_NULL_HANDLE);
         /** Fullscreen sky draw; sky_rows: 14 vec4 rows read from the per-draw environment block. */
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);
@@ -369,7 +370,7 @@ namespace sl::detail
         // Per-draw environment (light colour, fog, sky rows) lives in a host-visible uniform buffer bound with a
         // dynamic offset as the last descriptor set of mesh and sky pipelines. The single frame fence makes
         // reusing the buffer from the start of every frame safe.
-        static constexpr VkDeviceSize environment_slot_size = 1024;
+        static constexpr VkDeviceSize environment_slot_size = 3072;
         static constexpr std::uint32_t environment_slot_count = 1024;
         // A fully resolved mesh draw: everything workers need to record it without touching shared state.
         struct MeshDrawRecord
@@ -383,6 +384,7 @@ namespace sl::detail
             VkDescriptorSet normal = VK_NULL_HANDLE;
             VkDescriptorSet material = VK_NULL_HANDLE;
             VkDescriptorSet shadow = VK_NULL_HANDLE;
+            VkDescriptorSet local_shadow = VK_NULL_HANDLE;
             std::uint32_t index_count = 0;
             std::uint32_t instance_count = 1;
             std::uint32_t environment_offset = 0;

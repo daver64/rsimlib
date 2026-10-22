@@ -973,7 +973,8 @@ namespace sl::detail
                                          const float *fragment_constants, const float *environment,
                                          std::size_t environment_size, std::string &error,
                                          VkBuffer instance_buffer, std::uint32_t instance_count,
-                                         VkDescriptorSet material_descriptor, VkDescriptorSet shadow_descriptor)
+                                         VkDescriptorSet material_descriptor, VkDescriptorSet shadow_descriptor,
+                                         VkDescriptorSet local_shadow_descriptor)
     {
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || index_buffer == VK_NULL_HANDLE ||
@@ -993,6 +994,7 @@ namespace sl::detail
         draw.normal = normal_descriptor;
         draw.material = material_descriptor;
         draw.shadow = shadow_descriptor;
+        draw.local_shadow = local_shadow_descriptor;
         draw.index_count = index_count;
         draw.instance_count = instance_count;
         if (!ensure_environment_block(error) ||
@@ -1040,6 +1042,9 @@ namespace sl::detail
                                     nullptr);
         if (draw.shadow != VK_NULL_HANDLE)
             vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.layout, 4, 1, &draw.shadow, 0, nullptr);
+        if (draw.local_shadow != VK_NULL_HANDLE)
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.layout, 5, 1, &draw.local_shadow, 0,
+                                    nullptr);
         vkCmdPushConstants(command, draw.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(draw.vertex_constants),
                            draw.vertex_constants);
         vkCmdPushConstants(command, draw.layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(draw.vertex_constants),
@@ -3016,10 +3021,10 @@ namespace sl::detail
                 {VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28, sizeof(float) * 4}};
             VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
             // Meshes sample a second texture (the normal map) from set 1 and read the environment from set 2.
-            const VkDescriptorSetLayout mesh_layouts[5] = {descriptor_layout.layout, descriptor_layout.layout,
+            const VkDescriptorSetLayout mesh_layouts[6] = {descriptor_layout.layout, descriptor_layout.layout,
                                                            environment_layout_, descriptor_layout.layout,
-                                                           descriptor_layout.layout};
-            layout_info.setLayoutCount = mesh_vertices ? 5u : 1u;
+                                                           descriptor_layout.layout, descriptor_layout.layout};
+            layout_info.setLayoutCount = mesh_vertices ? 6u : 1u;
             layout_info.pSetLayouts = mesh_vertices ? mesh_layouts : &descriptor_layout.layout;
             layout_info.pushConstantRangeCount = mesh_vertices ? 2u : 1u;
             layout_info.pPushConstantRanges = ranges;

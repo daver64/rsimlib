@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace sl
@@ -202,6 +203,8 @@ namespace sl
 
     /** The most local lights lit materials will use per draw; extra lights passed to set_local_lights_3d() are ignored. */
     constexpr int max_local_lights_3d = 16;
+    /** The most local lights that can cast shadows at once. */
+    constexpr int max_local_shadow_lights_3d = 4;
 
     /**
      * A point or spot light placed in the scene, added to the directional light from set_light_3d(). Positions are in
@@ -221,6 +224,11 @@ namespace sl
         /** Inner (full strength) and outer (zero) cone half-angles in degrees. A zero outer angle makes a point light. */
         float inner_angle = 0.0f;
         float outer_angle = 0.0f;
+        /**
+         * Cast shadows. Only the first max_local_shadow_lights_3d lights with this set get a shadow map, rendered by
+         * render_local_shadows_3d().
+         */
+        bool cast_shadow = false;
     };
 
     /** Replace the point and spot lights used by lit materials on subsequent draws. Pass an empty list to clear. */
@@ -258,6 +266,48 @@ namespace sl
      * `bias` is a depth offset in 0-1 light-depth units that prevents self-shadowing acne.
      */
     void set_shadow_map_3d(const ShadowMap3D *map, float bias = 0.0015f);
+
+    /**
+     * Shadow maps for point and spot lights: an atlas holding one perspective depth map per spotlight and a six-face
+     * cube for each point light (see LocalLight3D::cast_shadow). Supported on OpenGL and Vulkan; the Direct3D 12
+     * implementation is untested.
+     */
+    struct LocalShadowMap3D
+    {
+        /** Scratch surface each face is rendered into before being copied to the atlas. */
+        Surface3D *face = nullptr;
+        /** Packed-depth atlas: 3 faces across, 2 faces down per shadow slot. */
+        Bitmap *atlas = nullptr;
+        int face_size = 0;
+        int max_lights = 0;
+        /** Number of slots filled by the last render_local_shadows_3d(). */
+        int slots_used = 0;
+        /** Shadow slot of each light passed to set_local_lights_3d() at the last render, or -1. */
+        int light_slot[max_local_lights_3d] = {};
+        /** Number of faces rendered for each slot: 1 for a spotlight, 6 for a point light. */
+        int slot_faces[max_local_shadow_lights_3d] = {};
+        /** Near and far plane of each slot's shadow projection. */
+        float slot_near[max_local_shadow_lights_3d] = {};
+        float slot_far[max_local_shadow_lights_3d] = {};
+        /** World-to-light clip matrix of each slot and cube face. */
+        glm::mat4 view_projection[max_local_shadow_lights_3d][6];
+    };
+
+    /** Create local light shadow maps with square faces (e.g. 512) for up to max_lights lights, or nullptr (see last_error()). */
+    LocalShadowMap3D *create_local_shadow_map_3d(int face_size = 512, int max_lights = max_local_shadow_lights_3d);
+    void destroy_local_shadow_map_3d(LocalShadowMap3D *map);
+    /**
+     * Render the shadow maps for the lights most recently passed to set_local_lights_3d(). `draw_casters` is called once
+     * per face (one for each spotlight, six for each point light) and should draw every caster with draw_mesh(); the
+     * same rules as begin_shadow_pass_3d() apply. Call it again whenever the lights or casters move, and not between
+     * begin_surface_3d() and end_surface_3d().
+     */
+    bool render_local_shadows_3d(LocalShadowMap3D *map, const std::function<void()> &draw_casters);
+    /**
+     * Make lit materials drawn from now on receive the shadows of the lights in the map (nullptr turns them off). The
+     * lights must be unchanged since render_local_shadows_3d().
+     */
+    void set_local_shadow_map_3d(const LocalShadowMap3D *map);
 
     /** Create a mesh from indexed triangles; returns nullptr on failure. */
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices);

@@ -9,7 +9,8 @@
 // Chunked-LOD terrain. Fly over procedural fractal terrain: a flat arena (default) or a planet (run with "planet").
 //
 //   W/S/A/D: move   Space/C: up/down   Shift: fast   Right-drag: look
-//   1-4: speed presets   R: new seed   Esc: exit
+//   1-4: speed presets   R: new seed   L: lantern lighting the terrain and shadowing it (best at dusk, Z lowers the sun)
+//   Esc: exit
 
 namespace
 {
@@ -162,6 +163,11 @@ int main(int argc, char **argv)
     double sun_elevation = 0.8;
     int seed = 7;
     bool use_clutter = true;
+    bool lantern = false;
+    sl::dvec3 lantern_anchor{};
+    bool place_lantern = false;
+    sl::Mesh *crate = sl::create_cube_mesh(1.6f);
+    sl::LocalShadowMap3D *lantern_shadows = sl::create_local_shadow_map_3d(512, 1);
     std::unique_ptr<sl::Terrain> terrain;
     std::unique_ptr<sl::ClutterLayer> clutter;
     auto build_clutter = [&]()
@@ -257,6 +263,11 @@ int main(int argc, char **argv)
                 {
                     ++seed;
                     build();
+                }
+                else if (key == sl::Event::Key::letter_l)
+                {
+                    lantern = !lantern;
+                    place_lantern = lantern;
                 }
                 else if (key == sl::Event::Key::letter_n)
                 {
@@ -365,6 +376,31 @@ int main(int argc, char **argv)
         environment.clouds.enabled = use_atmosphere && use_clouds;
         environment.clouds.volumetric = volumetric;
 
+        // A lantern hangs over a hovering crate; both the terrain and the crate's shadow on it are lit by it.
+        if (place_lantern)
+        {
+            // Hang the lantern 5 m above the ground 12 m ahead and leave it there as the camera moves.
+            const sl::dvec3 ahead = position + forward * 12.0;
+            lantern_anchor = ahead - up * (terrain->altitude_of(ahead) - 5.0);
+            place_lantern = false;
+        }
+        sl::set_local_shadow_map_3d(nullptr);
+        sl::set_local_lights_3d({});
+        const glm::vec3 lantern_ground = glm::vec3(lantern_anchor - position);
+        if (lantern && crate && lantern_shadows)
+        {
+            sl::LocalLight3D lamp;
+            lamp.position = lantern_ground;
+            lamp.colour = {1.0f, 0.75f, 0.45f};
+            lamp.intensity = 220.0f;
+            lamp.range = 45.0f;
+            lamp.cast_shadow = true;
+            sl::set_local_lights_3d({lamp});
+            const glm::mat4 crate_model = glm::translate(glm::mat4(1.0f), lantern_ground - glm::vec3(up) * 2.2f);
+            sl::Material crate_material;
+            if (sl::render_local_shadows_3d(lantern_shadows, [&]() { sl::draw_mesh(crate, crate_model, crate_material); }))
+                sl::set_local_shadow_map_3d(lantern_shadows);
+        }
         if (sl::begin_surface_3d(surface, camera))
         {
             sl::clear_surface_3d({150, 185, 230, 255});
@@ -387,6 +423,15 @@ int main(int argc, char **argv)
             terrain->draw(position, material);
             if (use_clutter)
                 clutter->draw(position);
+            if (lantern && crate)
+            {
+                sl::Material crate_material;
+                sl::draw_mesh(crate, glm::translate(glm::mat4(1.0f), lantern_ground - glm::vec3(up) * 2.2f), crate_material);
+                sl::Material bulb;
+                bulb.lit = false;
+                bulb.tint = {255, 200, 120, 255};
+                sl::draw_mesh(crate, glm::translate(glm::mat4(1.0f), lantern_ground) * glm::scale(glm::mat4(1.0f), glm::vec3(0.12f)), bulb);
+            }
             sl::end_surface_3d();
         }
         sl::clear_to_colour(sl::screen, {150, 185, 230});
@@ -405,7 +450,7 @@ int main(int argc, char **argv)
                         cs.drawn_billboards, cs.drawn_meshes, cs.cached_cells);
         }
         sl::gprintf_center(screen_h - 22, {20, 20, 20},
-                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  V vol  T trees  Z/X sun");
+                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  V vol  T trees  Z/X sun  L lantern");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
@@ -420,6 +465,10 @@ int main(int argc, char **argv)
         sl::destroy_bitmap(layer_albedo[i]);
         sl::destroy_bitmap(layer_normal[i]);
     }
+    sl::set_local_shadow_map_3d(nullptr);
+    sl::set_local_lights_3d({});
+    sl::destroy_local_shadow_map_3d(lantern_shadows);
+    sl::destroy_mesh(crate);
     sl::destroy_surface_3d(surface);
     sl::shutdown();
     return 0;

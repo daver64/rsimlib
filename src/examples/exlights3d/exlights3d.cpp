@@ -8,7 +8,7 @@
 
 // Many lights in a 3D scene: coloured point lights orbit a courtyard of pillars and spheres, and a spotlight sweeps the
 // floor, all added to a dim moonlight directional light with set_local_lights_3d().
-//   Up/Down: number of lights   P: PBR or Lambert   S: sun shadows   Space: pause   Right-drag: look   [ / ]: zoom   Esc: exit
+//   Up/Down: number of lights   P: PBR or Lambert   S: sun shadows   L: light shadows   Space: pause   Right-drag: look   [ / ]: zoom   Esc: exit
 int main(int argc, char **argv)
 {
     sl::set_text_panel_style({true});
@@ -27,6 +27,7 @@ int main(int argc, char **argv)
     sl::Mesh *cube = sl::create_cube_mesh(1.0f);
     sl::Mesh *sphere = sl::create_sphere_mesh(1.0f, 40, 24);
     sl::ShadowMap3D *shadow_map = sl::create_shadow_map_3d(2048);
+    sl::LocalShadowMap3D *local_shadows = sl::create_local_shadow_map_3d(512, 2);
     if (!surface || !floor || !cube || !sphere)
     {
         std::fprintf(stderr, "3D unavailable: %s\n", sl::last_error().c_str());
@@ -36,7 +37,7 @@ int main(int argc, char **argv)
 
     float yaw = 0.6f, pitch = 0.45f, distance = 26.0f;
     int light_count = 10;
-    bool pbr = true, shadows = true, paused = false, running = true;
+    bool pbr = true, shadows = true, light_shadows = true, paused = false, running = true;
     double clock = 0.0;
     int last_x = 0, last_y = 0;
     std::uint32_t last_time = sl::time_ms();
@@ -57,6 +58,8 @@ int main(int argc, char **argv)
                     running = false;
                 else if (key == sl::Event::Key::letter_p)
                     pbr = !pbr;
+                else if (key == sl::Event::Key::letter_l)
+                    light_shadows = !light_shadows;
                 else if (key == sl::Event::Key::letter_s)
                     shadows = !shadows;
                 else if (key == sl::Event::Key::space)
@@ -116,6 +119,7 @@ int main(int argc, char **argv)
                 light.intensity = 6.0f;
                 light.range = 11.0f;
             }
+            light.cast_shadow = i < 2;
             lights.push_back(light);
         }
 
@@ -163,6 +167,9 @@ int main(int argc, char **argv)
         }
         };
 
+        sl::set_local_shadow_map_3d(nullptr);
+        if (light_shadows && local_shadows && sl::render_local_shadows_3d(local_shadows, draw_scene))
+            sl::set_local_shadow_map_3d(local_shadows);
         sl::set_shadow_map_3d(nullptr);
         if (shadows && sl::begin_shadow_pass_3d(shadow_map, {0.0f, 0.0f, 0.0f}, 16.0f))
         {
@@ -178,9 +185,9 @@ int main(int argc, char **argv)
         }
         sl::clear_to_colour(sl::screen, {0, 0, 0});
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
-        sl::gprintf(16, 12, {255, 255, 255}, "exlights3d - %d local lights   %s%s%s", light_count, pbr ? "PBR" : "Lambert", shadows ? "   shadows" : "",
+        sl::gprintf(16, 12, {255, 255, 255}, "exlights3d - %d local lights   %s%s%s%s", light_count, pbr ? "PBR" : "Lambert", shadows ? "   shadows" : "", light_shadows ? "   light shadows" : "",
                     paused ? "   (paused)" : "");
-        sl::gprintf_center(screen_h - 22, {235, 240, 250}, "[Up/Down] Lights  [P] PBR/Lambert  [S] Shadows  [Space] Pause  [R-drag] Look  [ [ ] ] Zoom");
+        sl::gprintf_center(screen_h - 22, {235, 240, 250}, "[Up/Down] Lights  [P] PBR/Lambert  [S] Sun shadows  [L] Light shadows  [Space] Pause  [R-drag] Look  [ [ ] ] Zoom");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
@@ -188,6 +195,7 @@ int main(int argc, char **argv)
     sl::destroy_mesh(floor);
     sl::destroy_mesh(cube);
     sl::destroy_mesh(sphere);
+    sl::destroy_local_shadow_map_3d(local_shadows);
     sl::destroy_shadow_map_3d(shadow_map);
     sl::destroy_surface_3d(surface);
     sl::shutdown();

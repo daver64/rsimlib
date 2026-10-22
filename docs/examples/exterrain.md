@@ -10,6 +10,7 @@ A fly-over procedural terrain with normals, atmosphere, clouds, volumetrics, and
 - Atmosphere and sun control
 - Cloud layers and volumetric clouds
 - Trees and rocks as objects and billboards with draw statistics
+- A lantern (`L`) placed in the world: a shadow-casting point light that lights the terrain and casts a crate's shadow on it (`LocalShadowMap3D`)
 
 ## Key code
 
