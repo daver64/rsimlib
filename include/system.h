@@ -20,4 +20,19 @@ namespace sl
     /** Return the duration of the last completed frame in milliseconds. */
     double get_frame_time();
 
+    /** Per-frame diagnostics captured by end_frame(). Counts cover the frame that just finished. */
+    struct FrameStats
+    {
+        double frame_time_ms = 0.0;    ///< Duration of the last frame.
+        double average_fps = 0.0;      ///< Frames per second averaged over roughly half a second.
+        std::uint32_t mesh_draws = 0;  ///< draw_mesh() calls issued on 3D surfaces.
+        std::uint32_t instanced_draws = 0; ///< draw_mesh_instanced() calls issued.
+        std::uint32_t instances = 0;   ///< Total instances submitted by instanced draws.
+        std::uint32_t blended_draws = 0;   ///< Mesh draws (plain or instanced) using alpha or additive blending.
+        std::uint64_t frame_number = 0;    ///< Number of frames completed since start-up.
+    };
+
+    /** Return the diagnostics for the last completed frame. */
+    FrameStats get_frame_stats();
+
 } // namespace sl

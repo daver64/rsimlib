@@ -2,6 +2,20 @@
 
 `simlib` is an easy-to-use, feature-packed Allegro4-style C++ game framework and rendering engine for 2D and 3D, built on SDL2 with selectable OpenGL, Vulkan and D3D12 backends. It combines immediate-mode 2D drawing with 3D surfaces, mesh and model rendering, voxel worlds, and direct access to backend graphics APIs, alongside auto-batched sprites and primitives, TrueType typography, integrated Dear ImGui GUI, SDL_mixer audio, post-process effects, 2D dynamic soft shadows and lighting, 2D and 3D normal mapping, tile maps (with Tiled import), isometric projection, GPU compute shaders, MPEG1 video playback, ZIP asset archives, 2D and 3D (voxel-integrated) cellular automata fluid simulation, Perlin/Simplex noise, integrated Box2D physics, 3D flight and orbital dynamics, and sandboxed Lua scripting via sol2 (drawing, audio, physics, compute, lighting and normal maps, tile maps, fluids, textured voxel worlds and terrain).
 
+## Start here
+
+Pick the route that matches what you are building, run the example, then read its page in the [Example Gallery](docs/examples/README.md).
+
+| I want to... | Run | Read |
+|--------------|-----|------|
+| Make a 2D game (sprites, input, sound) | `exhello`, `ex2dfeatures`, `exroguelike` | [Core API](docs/api_reference.md), [Tile Maps](#tile-maps--tiled-import) |
+| Build a 3D app or scene | `ex3d_surface`, `exmodel3d`, `exvoxel` | [3D Graphics](#3d-graphics-surfaces-models--voxel-worlds), [3D Surfaces](docs/api_reference.md#3d-surfaces-includesurface3dh) |
+| Simulate something (flight, fluids, physics, weather) | `exflight`, `exorbit`, `exfluid3d`, `exprecip3d` | [Flight](docs/flight.md), [Terrain](docs/terrain.md), [World Flavour](docs/world_flavour.md) |
+| Go deep on rendering (shaders, compute, effects) | `exshader`, `excompute`, `expostprocess`, `exlighting` | [Renderer Backends](docs/renderers.md), [Graphics Effects](docs/graphics_effects.md) |
+| Script it or add tools | `exlua`, `exluaconsole`, `exgui` | [Lua Scripting](docs/scripting_lua.md) |
+
+**Backend status.** OpenGL and Vulkan are built and tested on Linux (the `ctest` suite includes pixel-level 3D blending checks that run on both). Direct3D 12 implements the same API but is Windows-only and is not covered by the Linux test runs, so treat it as less proven until you have run the suite on your own hardware. Use `ex3d_surface --gl`, `--vulkan` or `--d3d12` to compare backends. While developing, `sl::draw_frame_stats()` shows FPS and per-frame 3D draw counts.
+
 ## Quick start
 
 A minimal application only needs `sl.h`, which pulls in the whole public API:

@@ -2,6 +2,7 @@
 
 #include "atmosphere_internal.h"
 #include "error.h"
+#include "frame_stats.h"
 #include "renderer.h"
 
 #include <glm/gtc/constants.hpp>
@@ -519,6 +520,16 @@ namespace sl
             detail::set_error("Unable to draw mesh on the active graphics backend");
             return false;
         }
+        detail::FrameCounters &counters = detail::frame_counters();
+        if (instance_buffer != 0)
+        {
+            ++counters.instanced_draws;
+            counters.instances += instance_count;
+        }
+        else
+            ++counters.mesh_draws;
+        if (params.blend != 0)
+            ++counters.blended_draws;
         return true;
     }
 

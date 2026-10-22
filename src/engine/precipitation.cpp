@@ -24,10 +24,26 @@ namespace sl
             return static_cast<Uint8>(std::clamp(lerpf(static_cast<float>(a), static_cast<float>(b), t), 0.0f, 255.0f));
         }
 
+        // Truncation would stall a slow transition one unit short of its target, so always move at least one step.
+        Uint8 step_channel(Uint8 a, Uint8 b, float t)
+        {
+            if (a == b)
+                return b;
+            const float moved = lerpf(static_cast<float>(a), static_cast<float>(b), t);
+            const int step = b > a ? std::max(1, static_cast<int>(moved) - a) : std::min(-1, static_cast<int>(std::ceil(moved)) - a);
+            return static_cast<Uint8>(std::clamp(static_cast<int>(a) + step, std::min<int>(a, b), std::max<int>(a, b)));
+        }
+
         Colour lerp_colour(Colour a, Colour b, float t)
         {
             return {lerp_channel(a.red, b.red, t), lerp_channel(a.green, b.green, t), lerp_channel(a.blue, b.blue, t),
                     lerp_channel(a.alpha, b.alpha, t)};
+        }
+
+        Colour step_colour(Colour a, Colour b, float t)
+        {
+            return {step_channel(a.red, b.red, t), step_channel(a.green, b.green, t), step_channel(a.blue, b.blue, t),
+                    step_channel(a.alpha, b.alpha, t)};
         }
 
         Colour with_alpha(Colour c, float alpha)
@@ -123,7 +139,10 @@ namespace sl
     bool PrecipitationController::transitioning() const
     {
         return current_.type != target_.type || std::fabs(current_.intensity - target_.intensity) > 1e-4f ||
-               glm::length(current_.wind - target_.wind) > 1e-3f || std::fabs(current_.size - target_.size) > 1e-3f;
+               glm::length(current_.wind - target_.wind) > 1e-3f || std::fabs(current_.size - target_.size) > 1e-3f ||
+               std::fabs(current_.fall_speed - target_.fall_speed) > 1e-3f || current_.splashes != target_.splashes ||
+               current_.colour.red != target_.colour.red || current_.colour.green != target_.colour.green ||
+               current_.colour.blue != target_.colour.blue || current_.colour.alpha != target_.colour.alpha;
     }
 
     void PrecipitationController::update(float dt)
@@ -160,10 +179,12 @@ namespace sl
         current_.wind += (target_.wind - current_.wind) * k;
         current_.size = lerpf(current_.size, target_.size, k);
         current_.fall_speed = lerpf(current_.fall_speed, target_.fall_speed, k);
-        current_.colour = lerp_colour(current_.colour, target_.colour, k);
+        current_.colour = step_colour(current_.colour, target_.colour, k);
         current_.splashes = target_.splashes;
         if (std::fabs(current_.size - target_.size) < 1e-3f)
             current_.size = target_.size;
+        if (std::fabs(current_.fall_speed - target_.fall_speed) < 1e-3f)
+            current_.fall_speed = target_.fall_speed;
         if (glm::length(current_.wind - target_.wind) < 1e-3f)
             current_.wind = target_.wind;
     }
@@ -704,6 +725,8 @@ namespace sl
     {
         if (quad_ && dot_ && ring_)
             return true;
+        release();
+        resource_generation_ = detail::display_generation();
         if (!dot_)
             dot_ = make_soft_texture(false);
         if (!ring_)
@@ -730,6 +753,13 @@ namespace sl
 
     void Precipitation3D::release()
     {
+        // The display teardown already invalidated these handles; touching them would be a use-after-free.
+        if (resource_generation_ != detail::display_generation())
+        {
+            quad_ = nullptr;
+            dot_ = ring_ = nullptr;
+            return;
+        }
         if (quad_)
             destroy_mesh(quad_);
         quad_ = nullptr;

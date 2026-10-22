@@ -303,6 +303,14 @@ void rest(std::uint32_t milliseconds);
 - **Parameters**:
   - `milliseconds` (`std::uint32_t`): Duration to sleep in milliseconds.
 
+#### Frame statistics (`get_frame_stats`, `draw_frame_stats`)
+```cpp
+struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; };
+FrameStats get_frame_stats();
+void draw_frame_stats(Font *font, int x, int y);   // include/font.h
+```
+- **Description**: `end_frame()` publishes the previous frame's timing and 3D draw counts (`draw_mesh` calls, `draw_mesh_instanced` calls and their instances, and how many used alpha/additive blending). `draw_frame_stats` prints them as a small overlay; call it last in the frame. Pass `nullptr` for the default monospace font. Terrain and sky draws are not counted.
+
 ---
 
 ### Input actions ([include/input_actions.h](../include/input_actions.h))
@@ -993,6 +1001,8 @@ p3.update(dt, camera);  p3.draw(camera);  // call p3.release() before sl::shutdo
 float cover = p3.snow_cover();             // 0-1; use snow_tinted(colour, cover) to whiten surfaces
 precipitation_apply_environment(env, p3.weather.current());  // darker sky, denser fog
 ```
+
+`Precipitation3D` releases its GPU resources in its destructor, so a manual `release()` is optional (and a no-op after `sl::shutdown()`).
 
 Also: `Precipitation3D::wind_from_clouds` and `PrecipitationLens` (haze overlay; set `droplets = true` for raindrops and melting flakes on the lens).
 

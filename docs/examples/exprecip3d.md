@@ -43,7 +43,7 @@ material.tint = sl::snow_tinted({70, 96, 64, 255}, cover);
 precipitation.draw(camera);
 ```
 
-Call `precipitation.release()` before `sl::shutdown()` to free the GPU mesh and textures.
+`Precipitation3D` frees its GPU mesh and textures in its destructor (or earlier with `release()`). If it outlives `sl::shutdown()` the destructor safely does nothing.
 
 ## Running
 ```bash
@@ -63,6 +63,7 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | L | Toggle lens haze |
 | B | Toggle lens droplets (off by default) |
 | M | Toggle sound |
+| F3 | Toggle the frame stats overlay (`sl::draw_frame_stats`) |
 | Escape | Exit |
 
 ## Key APIs

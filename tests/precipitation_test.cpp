@@ -63,6 +63,37 @@ int main()
 
         weather.transition_to({PrecipitationType::none, 1.0f}, 0.0f);
         check(weather.current().type == PrecipitationType::none && weather.current().intensity == 0.0f, "zero seconds snaps");
+
+        // Changing only one property must still transition, and finish.
+        auto settles = [](sl::PrecipitationConfig from, sl::PrecipitationConfig to, float seconds)
+        {
+            sl::PrecipitationController c;
+            c.set_immediately(from);
+            c.transition_to(to, seconds);
+            const bool started = c.transitioning();
+            for (int i = 0; i < 2000 && c.transitioning(); ++i)
+                c.update(1.0f / 60.0f);
+            return started && !c.transitioning();
+        };
+        sl::PrecipitationConfig base = sl::precipitation_preset(PrecipitationType::rain, PrecipitationLevel::moderate);
+        sl::PrecipitationConfig changed = base;
+        changed.fall_speed = base.fall_speed + 300.0f;
+        check(settles(base, changed, 2.0f), "fall speed alone transitions");
+        changed = base;
+        changed.colour = {10, 200, 30, 255};
+        check(settles(base, changed, 3.0f), "colour alone transitions");
+        changed = base;
+        changed.splashes = !base.splashes;
+        check(settles(base, changed, 2.0f), "splash flag alone transitions");
+        {
+            sl::PrecipitationController c;
+            c.set_immediately(base);
+            changed = base;
+            changed.colour = {10, 200, 30, 255};
+            c.transition_to(changed, 0.0f);
+            c.update(0.016f);
+            check(c.current().colour.green == 200, "zero-second colour change snaps");
+        }
     }
 
     // 2D: particle count follows intensity, snow piles up, then melts.

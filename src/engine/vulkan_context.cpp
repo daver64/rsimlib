@@ -2913,7 +2913,7 @@ namespace sl::detail
         multisample.rasterizationSamples = static_cast<VkSampleCountFlagBits>(samples > 1 ? samples : 1);
         VkPipelineColorBlendAttachmentState blend_attachment{};
         blend_attachment.blendEnable = VK_TRUE;
-        blend_attachment.srcColorBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE
+        blend_attachment.srcColorBlendFactor = additive_blend ? (mesh_vertices ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE)
                                                : premultiplied_alpha ? VK_BLEND_FACTOR_ONE
                                                                      : VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstColorBlendFactor = additive_blend ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

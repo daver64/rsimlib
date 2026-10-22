@@ -76,6 +76,8 @@ namespace sl
     void set_mouse_bitmap(Bitmap *mouse_bitmap, int offset_x = 0, int offset_y = 0);
     namespace detail
     {
+        /** Counts completed display_shutdown() calls; lets long-lived objects tell whether their GPU resources are gone. */
+        unsigned display_generation();
         /** Return the custom mouse cursor bitmap, or nullptr. */
         Bitmap *mouse_bitmap();
         /** Apply the current mouse visibility and cursor bitmap to the OS cursor. */

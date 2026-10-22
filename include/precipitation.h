@@ -180,6 +180,8 @@ namespace sl
     {
     public:
         Precipitation3D() = default;
+        /** Frees GPU resources; safe to run after sl::shutdown() (nothing is touched then). */
+        ~Precipitation3D() { release(); }
         Precipitation3D(const Precipitation3D &) = delete;
         Precipitation3D &operator=(const Precipitation3D &) = delete;
 
@@ -208,7 +210,7 @@ namespace sl
          * depth tests hide particles behind geometry. Returns false if the backend cannot instance meshes.
          */
         bool draw(const Camera &camera);
-        /** Free GPU resources. Call before sl::shutdown(). */
+        /** Free GPU resources now. Optional: the destructor does this, and it is a no-op once sl::shutdown() has run. */
         void release();
 
         /** How much snow has settled, 0-1. Use it to whiten terrain (see snow_tinted()). */
@@ -249,6 +251,7 @@ namespace sl
         std::vector<Splash> splashes_;
         std::vector<InstanceData3D> instances_;
         Mesh *quad_ = nullptr;
+        unsigned resource_generation_ = 0;
         Bitmap *dot_ = nullptr;
         Bitmap *ring_ = nullptr;
         std::mt19937 rng_{54321u};

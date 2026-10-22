@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
     sl::PrecipitationLevel level = sl::PrecipitationLevel::moderate;
     bool lens_on = true;
     bool sound_on = audio;
+    bool show_stats = false;
     bool orbit = true;
     auto apply = [&]
     {
@@ -127,6 +128,9 @@ int main(int argc, char *argv[])
                     break;
                 case Key::letter_b:
                     lens.droplets = !lens.droplets;
+                    break;
+                case Key::f3:
+                    show_stats = !show_stats;
                     break;
                 case Key::letter_m:
                     sound_on = audio && !sound_on;
@@ -215,6 +219,8 @@ int main(int argc, char *argv[])
                     orbit ? "on" : "off", lens_on ? "on" : "off", lens.droplets ? "on" : "off", sound_on ? "on" : "off");
         sl::gprintf(20, 616, {170, 180, 200}, "%d particles, %d splashes   %.1f ms/frame", precipitation.particle_count(),
                     precipitation.splash_count(), frame_ms);
+        if (show_stats)
+            sl::draw_frame_stats(nullptr, 20, 70);
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();

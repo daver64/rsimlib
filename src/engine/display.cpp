@@ -433,8 +433,15 @@ namespace sl
         }
     }
 
+    namespace detail
+    {
+        static unsigned shutdown_count = 0;
+        unsigned display_generation() { return shutdown_count; }
+    } // namespace detail
+
     void display_shutdown()
     {
+        ++detail::shutdown_count;
         wait_for_graphics();
 
         if (sl_default_monospace_font && ttfInitialized)
