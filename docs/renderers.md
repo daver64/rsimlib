@@ -94,9 +94,9 @@ cmake --build build --target shader_validation
 cmake --build build --target vulkan_shader_validation
 ```
 
-### D3D12 shaders
+### Direct3D 12 shaders
 
-The D3D12 backend translates GLSL to HLSL (glslang, then SPIR-V, then SPIRV-Cross) and compiles it with DXC to
+The Direct3D 12 backend translates GLSL to HLSL (glslang, then SPIR-V, then SPIRV-Cross) and compiles it with DXC to
 shader model 6.x (up to 6.6, as supported by the device). It supports user shaders, compute, storage buffers,
 `image2D` storage textures, vertex-stage samplers and up to 32 samplers per shader. If `dxcompiler.dll` and
 `dxil.dll` are missing (`vcpkg install directx-dxc:x64-windows`), it falls back to fxc at shader model 5.1,
@@ -106,7 +106,7 @@ limited to 16 samplers per shader. Ship both DLLs next to your executable.
 
 ## Surface3D
 
-The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and D3D12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
+The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and Direct3D 12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
 
 **Blending:** `Material::blend` (`MaterialBlend::alpha` or `additive`) works for 3D meshes and instanced meshes on all three backends (the Direct3D 12 path has not been tested on Windows yet). Blended draws do not write depth and are not sorted, so draw them after the opaque geometry, farthest first.
 

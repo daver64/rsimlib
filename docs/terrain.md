@@ -69,7 +69,7 @@ layer's `albedo` (and optional `normal_map`) wraps, is mipmapped and is anisotro
 its own `tile_metres` (the FlightGear `xsize`), so nothing needs baking into an atlas. Bitmaps can be any size: they
 are resampled to one power-of-two layer size (the largest input, up to `options.max_size`, default 2048). The call
 rebuilds the chunks, so make it at setup after `set_gfx_mode()`; `clear_layer_textures()` returns to vertex colours.
-It returns false when the backend has no texture arrays (D3D12 draws vertex colours) or no layer has an albedo.
+It returns false when the backend has no texture arrays (Direct3D 12 draws vertex colours) or no layer has an albedo.
 
 - **Weights:** all eight surface types are carried in two vertex attributes (the vertex colour and `Vertex3D::extra`),
   so every type is always present: no swapping, hysteresis or rebuilds.

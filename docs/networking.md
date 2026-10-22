@@ -92,7 +92,7 @@ incoming connections and is handy for tests and tools.
   `NetServer`.
 - IPv4 and IPv6 are both supported (dual-stack sockets), and host names are resolved without blocking the frame loop.
 - Hosting a game behind a home router needs the UDP port forwarded; simlib does not do NAT traversal.
-- The Windows build links `ws2_32` and `winmm`; the Windows and D3D12 paths have not been compiled by the Linux
+- The Windows build links `ws2_32` and `winmm`; the Windows and Direct3D 12 paths have not been compiled by the Linux
   development build.
 
 ## Example: `exlobby` ([src/examples/exlobby](../src/examples/exlobby))

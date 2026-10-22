@@ -108,11 +108,11 @@ lighting.set_light_height(48.0f);
 lighting.apply(scene, normals, {light});
 ```
 
-Rotated sprites and horizontal, vertical and diagonal flips (including tile flips) transform their normals correctly on OpenGL, Vulkan and Direct3D 12, so highlights stay on the lit side. Only sprite and tile draws are supported inside a normal pass. Normal-mapped lighting works on OpenGL, Vulkan, and Direct3D 12. D3D12 effects require the GLSL-to-HLSL shader translation dependencies described in [D3D12 shaders](./renderers.md#d3d12-shaders). See `exnormalmap` for a runnable example.
+Rotated sprites and horizontal, vertical and diagonal flips (including tile flips) transform their normals correctly on OpenGL, Vulkan and Direct3D 12, so highlights stay on the lit side. Only sprite and tile draws are supported inside a normal pass. Normal-mapped lighting works on OpenGL, Vulkan, and Direct3D 12. Direct3D 12 effects require the GLSL-to-HLSL shader translation dependencies described in [Direct3D 12 shaders](./renderers.md#d3d12-shaders). See `exnormalmap` for a runnable example.
 
 #### 3D meshes
 
-Set `Material::normal_map` to a tangent-space normal map (RGB = XYZ, +Y up as in glTF) and `draw_mesh()` perturbs the lit surface normal with the mesh UVs. Tangents are generated automatically by `create_mesh()` (or supplied through `Vertex3D::tangent`, e.g. from a glTF `TANGENT` attribute), so primitives, voxel meshes and loaded models need no extra setup. Meshes without UVs, unlit materials and materials without a normal map shade as before. `load_model()` picks up glTF `normalTexture` and OBJ/MTL `norm`, `map_Bump` and `bump` entries; the model owns those bitmaps. Supported on OpenGL, Vulkan and Direct3D 12 (the D3D12 path is untested on Linux). See `normalmap3d_test` for a minimal use.
+Set `Material::normal_map` to a tangent-space normal map (RGB = XYZ, +Y up as in glTF) and `draw_mesh()` perturbs the lit surface normal with the mesh UVs. Tangents are generated automatically by `create_mesh()` (or supplied through `Vertex3D::tangent`, e.g. from a glTF `TANGENT` attribute), so primitives, voxel meshes and loaded models need no extra setup. Meshes without UVs, unlit materials and materials without a normal map shade as before. `load_model()` picks up glTF `normalTexture` and OBJ/MTL `norm`, `map_Bump` and `bump` entries; the model owns those bitmaps. Supported on OpenGL, Vulkan and Direct3D 12 (the Direct3D 12 path is untested on Linux). See `normalmap3d_test` for a minimal use.
 
 ### Lighting Example
 
