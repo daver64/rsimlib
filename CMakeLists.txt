@@ -731,6 +731,19 @@ add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
 add_executable(exparallel src/examples/exparallel/exparallel.cpp)
 target_link_libraries(exparallel PRIVATE simlib)
+# exreel is a local-only marketing tool (see .gitignore), so it is built only when its sources are present.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/exreel/exreel.cpp)
+    add_executable(exreel
+        src/examples/exreel/exreel.cpp
+        src/examples/exreel/common.cpp
+        src/examples/exreel/audio.cpp
+        src/examples/exreel/scenes.cpp
+        src/examples/exreel/scenes_2d.cpp
+        src/examples/exreel/scenes_3d.cpp
+        src/examples/exreel/scenes_fx.cpp
+        src/examples/exreel/scenes_sim.cpp)
+    target_link_libraries(exreel PRIVATE simlib)
+endif()
 if(SIMLIB_GUI STREQUAL "imgui")
     add_executable(exlobby src/examples/exlobby/exlobby.cpp)
     target_link_libraries(exlobby PRIVATE simlib imgui)

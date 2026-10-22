@@ -156,10 +156,12 @@ namespace sl
          *        neighbor voxels across chunk borders. If null, borders are treated as air.
          * @param world_light_lookup Optional callback(wx, wy, wz) -> propagated light for
          *        face shading. If null, the chunk is treated as fully sky-lit.
+         * @param sky_brightness Multiplier for the sky light contribution, 0 (night) to 1 (full daylight).
          */
         void rebuild_mesh(const VoxelAtlas *atlas = nullptr,
                           const std::function<BlockId(int, int, int)> &world_block_lookup = nullptr,
-                          const std::function<VoxelLight(int, int, int)> &world_light_lookup = nullptr);
+                          const std::function<VoxelLight(int, int, int)> &world_light_lookup = nullptr,
+                          float sky_brightness = 1.0f);
 
         /** The current GPU mesh handle, or nullptr if empty. */
         Mesh *mesh() const { return mesh_; }
@@ -218,6 +220,12 @@ namespace sl
         void mark_all_dirty();
         /** Recalculate sky and RGB block light after world or light-emitter changes. */
         void update_lighting();
+        /**
+         * Scale how much sky light brightens faces, 0 (night) to 1 (daylight, the default). Block light is unaffected,
+         * so torches and crystals stand out as the sky fades. Changing it queues every chunk for remeshing.
+         */
+        void set_sky_brightness(float brightness);
+        float sky_brightness() const { return sky_brightness_; }
         /** Rebuild meshes for all dirty chunks. */
         void update_dirty_chunks(const VoxelAtlas *atlas = nullptr);
 
@@ -265,6 +273,7 @@ namespace sl
         std::unordered_set<ChunkKey, ChunkKeyHash> dirty_chunks_;
         std::unordered_map<std::uint64_t, int> highest_opaque_by_column_;
         bool lighting_dirty_ = true;
+        float sky_brightness_ = 1.0f;
     };
 
 } // namespace sl

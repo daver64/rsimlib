@@ -328,7 +328,8 @@ namespace sl
 
     void VoxelChunk::rebuild_mesh(const VoxelAtlas *atlas,
                                   const std::function<BlockId(int, int, int)> &world_block_lookup,
-                                  const std::function<VoxelLight(int, int, int)> &world_light_lookup)
+                                  const std::function<VoxelLight(int, int, int)> &world_light_lookup,
+                                 float sky_brightness)
     {
         if (mesh_)
         {
@@ -400,9 +401,10 @@ namespace sl
                                                        world_base_y + ny,
                                                        world_base_z + nz);
                         }
-                        const float light_red = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.red));
-                        const float light_green = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.green));
-                        const float light_blue = std::max(light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.blue));
+                        const float sky_scale = std::clamp(sky_brightness, 0.0f, 1.0f);
+                        const float light_red = std::max(sky_scale * light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.red));
+                        const float light_green = std::max(sky_scale * light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.green));
+                        const float light_blue = std::max(sky_scale * light_curve(light.sky), BLOCK_LIGHT_GAIN * light_curve(light.blue));
                         const float r = (def.tint.red / 255.0f) * face.brightness * light_red;
                         const float g = (def.tint.green / 255.0f) * face.brightness * light_green;
                         const float b = (def.tint.blue / 255.0f) * face.brightness * light_blue;
@@ -825,6 +827,15 @@ namespace sl
         lighting_dirty_ = false;
     }
 
+    void VoxelWorld::set_sky_brightness(float brightness)
+    {
+        brightness = std::clamp(brightness, 0.0f, 1.0f);
+        if (brightness == sky_brightness_)
+            return;
+        sky_brightness_ = brightness;
+        mark_all_dirty();
+    }
+
     void VoxelWorld::update_dirty_chunks(const VoxelAtlas *atlas)
     {
         if (lighting_dirty_)
@@ -846,7 +857,7 @@ namespace sl
             auto it = chunks_.find(key);
             if (it != chunks_.end() && it->second)
             {
-                it->second->rebuild_mesh(atlas, lookup, light_lookup);
+                it->second->rebuild_mesh(atlas, lookup, light_lookup, sky_brightness_);
             }
         }
         dirty_chunks_.clear();

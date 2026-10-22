@@ -903,6 +903,7 @@ Use handles from the main thread only. Unclaimed results are released by `shutdo
 - `get_light(x, y, z)`: Query propagated sky and RGB block-light levels.
 - `update_lighting()`: Recompute direct sky light and neighbour-propagated sky/block light after block or emitter changes; call this to refresh light levels before querying them.
 - `update_dirty_chunks(atlas)`: Recomputes pending lighting and rebuilds meshes for chunks affected by block or lighting changes.
+- `set_sky_brightness(brightness)`: Scales how much sky light brightens faces, 0 (night) to 1 (daylight, the default). Block light is unaffected, so torches stand out as the sky fades. Queues every chunk for remeshing, so call it when the value changes.
 - `raycast(origin, direction, max_distance)`: Fast Voxel Traversal (3D DDA) through world blocks.
 - `draw(material)`: Draws all chunk meshes.
 

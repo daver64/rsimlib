@@ -23,3 +23,9 @@ excafluid
 *.o
 fullbuild.sh
 fullbuild.bat
+
+# Local marketing tool and its output
+/src/examples/exreel/
+/docs/examples/exreel.md
+/tools/render_reel.sh
+reel.*
