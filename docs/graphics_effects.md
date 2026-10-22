@@ -20,6 +20,7 @@ Effects that own GPU resources must be initialised after `set_gfx_mode()` and sh
 | `Shader` | `load`, `use`, `set_uniform`, `reset` | Load a built-in or custom GLSL shader, bind it, set uniforms, and release it. Custom GLSL is compiled to SPIR-V at runtime on Vulkan. |
 | `PingPongBuffer` | `initialise`, `begin`, `source`, `target`, `advance`, `shutdown` | Alternate between two render targets while chaining fullscreen effects without allocating one bitmap per pass. |
 | `Bloom` | `initialise`, `set_threshold`, `set_intensity`, `set_radius`, `set_downsample`, `apply`, `shutdown` | Extract bright pixels, blur them, and composite the glow over a bitmap. |
+| `Hdr` | `initialise`, `set_exposure`, `set_white_point`, `set_bloom_threshold`, `set_bloom_intensity`, `set_bloom_radius`, `set_downsample`, `set_tonemap`, `apply`, `shutdown` | Pseudo-HDR on the 8-bit frame: expand to scene values, bloom what exceeds the threshold, then expose and tone-map (Reinhard or ACES). |
 | `Vignette` | `initialise`, `set_radius`, `set_softness`, `set_intensity`, `apply`, `shutdown` | Darken the edges of a bitmap around its centre. |
 | `ColourAdjust` | `initialise`, `set_brightness`, `set_contrast`, `set_saturation`, `set_exposure`, `apply`, `shutdown` | Adjust brightness, contrast, saturation, and exposure. |
 | `Blur` | `initialise`, `set_radius`, `set_iterations`, `apply`, `shutdown` | Apply a separable Gaussian blur using temporary render targets. |

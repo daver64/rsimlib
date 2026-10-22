@@ -33,6 +33,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exinstancing](img/exinstancing.png)<br>**exinstancing**](exinstancing.md) | Compares three ways to draw thousands of cubes: one call each, per-frame instance vectors, and a persistent `InstanceBuffer`. |
 | [![exparallel](img/exparallel.png)<br>**exparallel**](exparallel.md) | Parallel command recording: thousands of draw calls recorded on one thread, on worker threads by the backend, or built by your own threads with `RenderQueue3D`. |
 | [![exisometric](img/exisometric.png)<br>**exisometric**](exisometric.md) | An isometric terrain editor: raise and lower diamond tiles, pan and zoom the view, and toggle textures and soft lighting. |
+| [![exhdr](img/exhdr.png)<br>**exhdr**](exhdr.md) | HDR post-process: scene-space bloom, live exposure and tone mapping on a lamp-lit courtyard. |
 | [![exjoints](img/exjoints.png)<br>**exjoints**](exjoints.md) | Physics joints: a bridge of hinged planks, a spring pendulum and a wheel-jointed car, all draggable with the mouse. |
 | [![exlighting](img/exlighting.png)<br>**exlighting**](exlighting.md) | 2D radial lights with polygon soft shadows, rendered through a `LightingPass` into a render target. |
 | [![exlobby](img/exlobby.png)<br>**exlobby**](exlobby.md) | A game lobby that finds games through an IRC channel and connects players directly over UDP with `NetServer` / `NetClient`. |

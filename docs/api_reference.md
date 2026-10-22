@@ -679,6 +679,7 @@ Post-processing effects process regions or full-screen bitmaps using pre-compile
 
 - **`sl::PingPongBuffer`**: Manages double-buffered offscreen render targets for multi-pass post-processing chains (`begin`, `advance`, `source`, `target`).
 - **`sl::Bloom`**: Thresholds bright pixels, downsamples, applies separable Gaussian blur, and composites glow (`set_threshold`, `set_intensity`, `set_radius`, `apply`).
+- **`sl::Hdr`**: Pseudo-HDR post-process on the 8-bit frame. Expands near-white pixels to scene values up to `set_white_point`, blooms values above `set_bloom_threshold`, then applies `set_exposure` and a `HdrTonemap` curve (`reinhard` round-trips exactly at exposure 1, `aces` is filmic). Built from custom shaders, so it works on every backend.
 - **`sl::Vignette`**: Darkens image edges in a soft-radius circle (`set_radius`, `set_softness`, `set_intensity`, `apply`).
 - **`sl::ColourAdjust`**: Adjusts brightness, contrast, saturation, and exposure (`set_brightness`, `set_contrast`, `set_saturation`, `set_exposure`, `apply`).
 - **`sl::ScreenShake`**: Applies decaying camera offsets to 2D projections (`trigger(amplitude, duration)`, `update(delta_seconds)`, `active()`).

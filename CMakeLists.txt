@@ -327,6 +327,7 @@ add_library(simlib STATIC
     src/engine/font.cpp
     src/engine/graphics_fx.cpp
     src/engine/graphics_fx_bloom.cpp
+    src/engine/graphics_fx_hdr.cpp
     src/engine/graphics_fx_blur.cpp
     src/engine/graphics_fx_vignette.cpp
     src/engine/graphics_fx_colour_adjust.cpp
@@ -556,6 +557,8 @@ target_link_libraries(exorbit PRIVATE simlib)
 target_include_directories(exorbit PRIVATE src/examples/common)
 add_executable(exlights3d src/examples/exlights3d/exlights3d.cpp)
 target_link_libraries(exlights3d PRIVATE simlib)
+add_executable(exhdr src/examples/exhdr/exhdr.cpp)
+target_link_libraries(exhdr PRIVATE simlib)
 add_executable(exocean src/examples/exocean/exocean.cpp)
 target_link_libraries(exocean PRIVATE simlib)
 target_include_directories(exocean PRIVATE src/examples/common)
@@ -830,6 +833,10 @@ if(BUILD_TESTING)
     target_link_libraries(lights3d_test PRIVATE simlib)
     target_compile_definitions(lights3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME lights3d COMMAND lights3d_test)
+    add_executable(hdr_test tests/hdr_test.cpp)
+    target_link_libraries(hdr_test PRIVATE simlib)
+    target_compile_definitions(hdr_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME hdr COMMAND hdr_test)
     add_executable(blend3d_test tests/blend3d_test.cpp)
     target_link_libraries(blend3d_test PRIVATE simlib)
     target_compile_definitions(blend3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -978,7 +985,7 @@ if(BUILD_TESTING)
 
     # Tests rely on assert(); keep it active in Release builds, where NDEBUG would turn every check into a no-op.
     foreach(SIMLIB_TEST_TARGET
-            config_test isometric_test camera_collision_test tilemap_test normalmap_test normalmap3d_test lights3d_test rdb_test
+            config_test isometric_test camera_collision_test tilemap_test normalmap_test normalmap3d_test lights3d_test hdr_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
             renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})

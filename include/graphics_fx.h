@@ -319,6 +319,81 @@ namespace sl
         bool ensure_targets(int width, int height) const;
     };
 
+    /** Tone-mapping curve used by Hdr. */
+    enum class HdrTonemap
+    {
+        /** Reinhard curve that exactly inverts the expansion, so untouched pixels are unchanged at exposure 1. */
+        reinhard,
+        /** Narkowicz ACES filmic approximation: punchier contrast and a soft highlight roll-off. */
+        aces
+    };
+
+    /**
+     * High-dynamic-range post-process built on the 8-bit frame. The frame is expanded
+     * into scene-referred values (near-white pixels are treated as values up to the
+     * white point), bright areas bloom in that space, then exposure and a tone-mapping
+     * curve bring the result back to the display range. Bright lights therefore glow
+     * and roll off smoothly instead of clipping, and exposure can be changed live.
+     */
+    class Hdr
+    {
+    public:
+        Hdr() = default;
+        ~Hdr();
+
+        Hdr(const Hdr &) = delete;
+        Hdr &operator=(const Hdr &) = delete;
+        /** Transfer ownership of the effect's shaders and render targets. */
+        Hdr(Hdr &&other) noexcept;
+        /** Release this effect's resources and take ownership of another effect's. */
+        Hdr &operator=(Hdr &&other) noexcept;
+
+        /** Compile the HDR shaders and prepare the effect. */
+        bool initialise();
+        /** Release resources owned by the effect. */
+        void shutdown();
+        /** Return whether the effect is ready to apply. */
+        bool is_valid() const;
+        /** Return the most recent initialization error. */
+        const std::string &error() const;
+
+        /** Set the exposure multiplier applied before tone mapping (1 leaves midtones unchanged). */
+        void set_exposure(float exposure);
+        /** Return the exposure multiplier. */
+        float exposure() const { return exposure_; }
+        /** Set the scene value that a fully white pixel represents (at least 1.5). */
+        void set_white_point(float whitePoint);
+        /** Set the scene value above which pixels start to bloom. */
+        void set_bloom_threshold(float threshold);
+        /** Set the bloom brightness multiplier. */
+        void set_bloom_intensity(float intensity);
+        /** Set the blur sample spacing, in downsampled-buffer texels. */
+        void set_bloom_radius(float radius);
+        /** Set how many times smaller the internal blur buffers are than the source. */
+        void set_downsample(int factor);
+        /** Select the tone-mapping curve. */
+        void set_tonemap(HdrTonemap tonemap);
+
+        /** Expand, bloom, expose and tone-map a bitmap region onto the current target. */
+        void apply(Bitmap *source, int x = 0, int y = 0, int width = 0, int height = 0) const;
+
+    private:
+        Shader brightShader_;
+        Shader blurShader_;
+        Shader compositeShader_;
+        float exposure_ = 1.0f;
+        float whitePoint_ = 8.0f;
+        float threshold_ = 1.0f;
+        float intensity_ = 0.6f;
+        float radius_ = 1.5f;
+        int downsample_ = 2;
+        HdrTonemap tonemap_ = HdrTonemap::reinhard;
+        mutable Bitmap *blurTargetA_ = nullptr;
+        mutable Bitmap *blurTargetB_ = nullptr;
+
+        bool ensure_targets(int width, int height) const;
+    };
+
     /** Darkens the screen edges around a soft-radius circle to draw focus toward the centre. */
     class Vignette
     {
