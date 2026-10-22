@@ -424,6 +424,11 @@ namespace sl
         /** Choose the chunks to draw for the view, request missing chunks and upload finished ones. */
         void update(const TerrainView &view);
         /**
+         * Request and keep resident the chunks `view` would draw, without changing what draw() shows. Call it after
+         * update() each frame for a place the camera is about to reach, so it is built before arrival.
+         */
+        void prefetch(const TerrainView &view);
+        /**
          * Draw the chunks chosen by the last update() into the active 3D surface. `origin` is subtracted from every
          * position in double precision, so the surface camera must be expressed relative to the same origin
          * (camera.position = view.position - origin). The material's texture, tint and lighting apply to every chunk.

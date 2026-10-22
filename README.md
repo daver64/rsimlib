@@ -1,6 +1,6 @@
 # simlib
 
-[![simlib showreel on YouTube: click to watch](https://img.youtube.com/vi/D1dyvnGUUNw/maxresdefault.jpg)](https://www.youtube.com/watch?v=D1dyvnGUUNw)
+[![simlib showreel on YouTube: click to watch](docs/showreel_thumbnail.png)](https://www.youtube.com/watch?v=D1dyvnGUUNw)
 
 **[Watch the showreel](https://www.youtube.com/watch?v=D1dyvnGUUNw)**: a three-minute tour of simlib, rendered entirely by simlib itself.
 

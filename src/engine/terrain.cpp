@@ -1176,9 +1176,19 @@ namespace sl
             if (static_cast<int>(nodes.size()) <= config.max_cached_chunks)
                 return;
             std::vector<std::pair<std::uint64_t, TerrainNodeKey>> candidates;
+            // A parent only splits when all four children are built, including any outside the view. Keep the
+            // children of a recently used node, or evicting them would make the parent fall back to its coarse mesh.
+            const auto idle = [&](const Node &node) { return node.last_used + config.evict_after_frames < frame; };
             for (const auto &entry : nodes)
-                if (entry.first.level > 0 && entry.second.last_used + config.evict_after_frames < frame)
-                    candidates.emplace_back(entry.second.last_used, entry.first);
+            {
+                const TerrainNodeKey &key = entry.first;
+                if (key.level == 0 || !idle(entry.second))
+                    continue;
+                const auto parent = nodes.find({key.face, key.level - 1, key.x >> 1, key.y >> 1});
+                if (parent != nodes.end() && !idle(parent->second))
+                    continue;
+                candidates.emplace_back(entry.second.last_used, key);
+            }
             std::sort(candidates.begin(), candidates.end(),
                       [](const auto &a, const auto &b) { return a.first < b.first; });
             const std::size_t target = static_cast<std::size_t>(config.max_cached_chunks * 0.9);
@@ -1241,6 +1251,17 @@ namespace sl
     int Terrain::max_level() const { return impl_->geo.max_level; }
 
     void Terrain::update(const TerrainView &view) { impl_->update(view); }
+
+    void Terrain::prefetch(const TerrainView &view)
+    {
+        Impl &impl = *impl_;
+        const Frustum frustum = impl.make_frustum(view);
+        std::vector<TerrainNodeKey> drawn;
+        drawn.swap(impl.visible);
+        for (const TerrainNodeKey &root : impl.roots())
+            impl.visit(root, impl.source->min_height(), impl.source->max_height(), frustum, true, nullptr);
+        impl.visible.swap(drawn);
+    }
 
     bool Terrain::set_layer_textures(const TerrainTextureOptions &options)
     {
