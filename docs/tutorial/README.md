@@ -4,7 +4,7 @@ Short, hands-on lessons that teach simlib in order. They complement the [Example
 
 [← Back to README](../../README.md)
 
-**Who it's for:** you know C++ but are new to game programming. Terms are explained when they first appear.
+**Who it's for:** anyone new to simlib. You should know C++; no game programming experience is assumed, and terms are explained when they first appear.
 
 ## How the lessons work
 

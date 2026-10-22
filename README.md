@@ -68,7 +68,7 @@ Create the archive used by `exresources` from the repository root with:
 ## Documentation Guides
 
 For in-depth guides and detailed API tables, see the documentation topics:
-- 🎓 **[Tutorial](docs/tutorial/README.md)** — Short, runnable lessons in three tracks (2D, 3D, simulation) for people new to game programming.
+- 🎓 **[Tutorial](docs/tutorial/README.md)** — Short, runnable lessons in three tracks (2D, 3D, simulation) for anyone new to simlib.
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
 - 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
