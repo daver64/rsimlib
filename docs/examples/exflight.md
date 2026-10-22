@@ -10,6 +10,10 @@ Aircraft flight with `FlightWorld`: lifting and control surfaces, a jet engine, 
 - Landing gear, brakes and nosewheel steering on a runway
 - Exponential atmosphere
 - Switchable cameras
+- A streaming `Terrain` with detail textures as the world and as the flight model's ground (`flat_terrain`), plus forests and boulders from `ClutterLayer`
+- Atmosphere, sky and clouds from `Environment3D`
+- A lathe-turned jet model with wispy exhaust smoke
+- Synthesised jet and wind sound loops driven by throttle and airspeed with `set_voice_volume`
 
 ## Key code
 
@@ -71,11 +75,13 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | A / D | Rudder and nosewheel steering |
 | B | Brakes |
 | C | Change camera |
+| M | Sound on / off |
 | R | Reset |
 | Escape | Exit |
 
 ## Key APIs
 - `FlightWorld`, `LiftingSurface` — [3D Flight](../api_reference.md#3d-flight--orbital-dynamics-includeflighth) · [`flight.h`](../../include/flight.h)
+- Audio — [`set_voice_volume`](../api_reference.md#audio-subsystem-samples--streams-includeaudioh) · [`audio.h`](../../include/audio.h)
 - Terrain and atmosphere — [Chunked-LOD](../api_reference.md#chunked-lod-terrain-includeterrainh) · [`terrain.h`](../../include/terrain.h)
 
 ## Source

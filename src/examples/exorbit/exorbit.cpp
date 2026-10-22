@@ -1,18 +1,25 @@
 #include "sl.h"
 #include "flight.h"
+#include "example_fx.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <memory>
+#include <thread>
 #include <vector>
 
 // Spaceflight with FlightWorld: a spacecraft in low Earth orbit with a main engine, retro engines and a
 // twelve-thruster RCS built into thruster groups. Earth is a gravity source; the Moon follows a Kepler orbit on rails.
-// Rendering uses kilometres with the ship at the origin (a floating origin), so precision holds at any distance.
+// Earth is a procedural streaming planet (sl::Terrain on a sphere) with an atmosphere and a cloud shell, the Moon is a
+// textured sphere, and the ship is an Apollo-style command and service module whose thrusters emit glowing exhaust
+// particles and drive synthesised rocket and RCS sound loops. Rendering uses metres with the camera at the origin and
+// everything drawn relative to the eye (a floating origin), so precision holds at any distance.
 //
 //   Z/X: full / cut main engine    Shift/Ctrl: raise / lower throttle    B: retro engines
 //   W/S: pitch   A/D: yaw   Q/E: roll   Arrow keys: RCS translation X/Y   T: rotation damping (SAS)
-//   O: toggle orbit line (shown when zoomed out)
+//   O: toggle orbit line (shown when zoomed out)   M: sound
 //   , / . : time warp (slows to 1x while thrusting)   Right-drag: look around   [ / ]: zoom   R: reset   Esc: exit
 
 namespace
@@ -106,7 +113,81 @@ namespace
         w.build_standard_groups(s.ship);
     }
 
-    // Project a point (kilometres, ship-relative world frame) to the screen; false if behind the camera.
+    struct Exhaust
+    {
+        glm::vec3 position, velocity;
+        float age, life, size;
+    };
+
+    std::vector<sl::TerrainLayer> planet_layers()
+    {
+        std::vector<sl::TerrainLayer> layers(4);
+        layers[0].colour = {18, 62, 135, 255}; // ocean
+        layers[0].max_height = 1.0;
+        layers[0].height_blend = 2.0;
+        layers[1].colour = {58, 112, 52, 255}; // lowland
+        layers[1].min_height = 1.0;
+        layers[1].max_height = 2600.0;
+        layers[1].height_blend = 600.0;
+        layers[2].colour = {125, 112, 98, 255}; // highland rock
+        layers[2].min_height = 2200.0;
+        layers[2].max_height = 4600.0;
+        layers[2].height_blend = 500.0;
+        layers[3].colour = {245, 246, 250, 255}; // snow
+        layers[3].min_height = 4300.0;
+        layers[3].height_blend = 400.0;
+        return layers;
+    }
+
+    // Chunks stream on worker threads; waiting once at the start avoids a coarse first frame.
+    void settle(sl::Terrain &terrain, const sl::TerrainView &view)
+    {
+        for (int attempt = 0; attempt < 400; ++attempt)
+        {
+            terrain.update(view);
+            if (terrain.stats().pending_chunks == 0)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    }
+
+    struct EngineSound
+    {
+        sl::Sample *rocket = nullptr, *hiss = nullptr;
+        std::uint64_t rocket_voice = 0, hiss_voice = 0;
+
+        void start()
+        {
+            rocket = fx::make_rocket_sound();
+            hiss = fx::make_hiss_sound();
+            rocket_voice = rocket ? sl::play_sample(rocket, 0, 128, 1000, -1) : 0;
+            hiss_voice = hiss ? sl::play_sample(hiss, 0, 128, 1000, -1) : 0;
+        }
+
+        void set(double rocket_level, double rcs_level, bool on)
+        {
+            const double gain = on ? 1.0 : 0.0;
+            if (rocket_voice)
+                sl::set_voice_volume(rocket_voice, static_cast<int>(std::clamp(rocket_level * gain, 0.0, 1.0) * 255.0));
+            if (hiss_voice)
+                sl::set_voice_volume(hiss_voice, static_cast<int>(std::clamp(rcs_level * 0.6 * gain, 0.0, 1.0) * 255.0));
+        }
+
+        void stop()
+        {
+            sl::stop_all_samples();
+            for (sl::Sample **s : {&rocket, &hiss})
+            {
+                if (*s)
+                    sl::destroy_sample(*s);
+                *s = nullptr;
+            }
+            rocket_voice = hiss_voice = 0;
+            sl::audio_fx_shutdown();
+        }
+    };
+
+    // Project a point (ship-relative world frame, metres) to the screen; false if behind the camera.
     bool project(const glm::mat4 &view_proj, const glm::vec3 &p, int w, int h, float &x, float &y)
     {
         const glm::vec4 clip = view_proj * glm::vec4(p, 1.0f);
@@ -117,7 +198,6 @@ namespace
         return true;
     }
 
-    glm::vec3 to_km(const sl::dvec3 &v) { return glm::vec3(v / km); }
 }
 
 int main(int argc, char **argv)
@@ -144,11 +224,57 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    sl::Mesh *sphere = sl::create_sphere_mesh(1.0f, 64, 32, {255, 255, 255, 255});
-    sl::Mesh *cube = sl::create_cube_mesh(1.0f, {255, 255, 255, 255});
+    sl::Mesh *glow_mesh = sl::create_sphere_mesh(1.0f, 12, 8, {255, 255, 255, 255});
+    sl::Mesh *moon_mesh = sl::create_sphere_mesh(static_cast<float>(moon_radius), 64, 32, {255, 255, 255, 255});
+    sl::Mesh *cloud_shell = sl::create_sphere_mesh(static_cast<float>(earth_radius + 60.0e3), 128, 64, {255, 255, 255, 255});
+    sl::Bitmap *cloud_texture = fx::make_cloud_texture();
+    sl::Bitmap *moon_texture = fx::make_moon_texture();
+    fx::Capsule capsule;
+    if (!glow_mesh || !moon_mesh || !cloud_shell || !cloud_texture || !moon_texture || !capsule.create())
+    {
+        std::fprintf(stderr, "Failed to create meshes: %s\n", sl::last_error().c_str());
+        sl::shutdown();
+        return -1;
+    }
+
+    sl::NoiseParameters noise;
+    noise.seed = 11;
+    noise.frequency = 1.0 / 3.0e6;
+    noise.amplitude = 6000.0;
+    noise.base_height = -1200.0;
+    noise.floor_height = 0.0;
+    sl::TerrainConfig config;
+    config.shape = sl::TerrainShape::sphere;
+    config.radius = earth_radius;
+    config.finest_cell_size = 4.0;
+    config.layers = planet_layers();
+    std::unique_ptr<sl::Terrain> terrain;
+    try
+    {
+        terrain = std::make_unique<sl::Terrain>(config, std::make_shared<sl::NoiseSource>(noise));
+    }
+    catch (const std::exception &e)
+    {
+        std::fprintf(stderr, "Terrain unavailable: %s\n", e.what());
+        sl::shutdown();
+        return -1;
+    }
 
     Scenario scenario;
     build(scenario);
+    std::vector<Exhaust> exhaust;
+    EngineSound engine;
+    engine.start();
+    bool sound_on = true;
+    bool first_frame = true;
+    double clock = 0.0;
+    std::uint32_t rng = 7u;
+    const auto random01 = [&rng]
+    {
+        rng = rng * 1664525u + 1013904223u;
+        return static_cast<float>(rng >> 8) / 16777216.0f - 0.5f;
+    };
+    std::vector<float> spawn_debt(64, 0.0f);
     float cam_yaw = 0.6f, cam_pitch = 0.3f;
     double cam_distance = 40.0; // metres
     int warp = 0;
@@ -163,6 +289,7 @@ int main(int argc, char **argv)
         const std::uint32_t now = sl::time_ms();
         const double frame = std::clamp(static_cast<double>(now - last_time) * 0.001, 0.001, 0.1);
         last_time = now;
+        clock += frame;
         sl::FlightWorld &world = scenario.world;
 
         sl::Event event;
@@ -179,11 +306,14 @@ int main(int argc, char **argv)
                 {
                     build(scenario);
                     warp = 0;
+                    exhaust.clear();
                 }
                 else if (key == sl::Event::Key::letter_t)
                     sas = !sas;
                 else if (key == sl::Event::Key::letter_o)
                     show_orbit = !show_orbit;
+                else if (key == sl::Event::Key::letter_m)
+                    sound_on = !sound_on;
                 else if (key == sl::Event::Key::letter_z)
                     world.set_group_level(scenario.ship, "main", 1.0);
                 else if (key == sl::Event::Key::letter_x)
@@ -235,51 +365,151 @@ int main(int argc, char **argv)
         if (sl::key_down(sl::Key::right_bracket))
             cam_distance = std::min(3.0e7, cam_distance * (1.0 + 2.0 * frame));
 
-        // Ship at the origin in kilometres; the camera orbits it in the ship's frame.
+        // The camera orbits the ship in its frame. It sits at the origin and everything is drawn relative to the eye.
         const glm::mat3 ship_rot = glm::mat3(glm::mat3_cast(glm::quat(ship.orientation)));
-        const glm::vec3 offset = static_cast<float>(cam_distance / km) *
+        const glm::vec3 offset = static_cast<float>(cam_distance) *
                                  glm::vec3(std::cos(cam_pitch) * std::sin(cam_yaw), std::sin(cam_pitch),
                                            std::cos(cam_pitch) * std::cos(cam_yaw));
-        sl::Camera camera;
-        camera.position = ship_rot * offset;
-        camera.target = glm::vec3(0.0f);
-        camera.up = ship_rot * glm::vec3(0.0f, 1.0f, 0.0f);
-        camera.field_of_view = 50.0f;
-        camera.near_plane = std::max(1.0e-4f, glm::length(camera.position) * 0.05f);
-        camera.far_plane = 1.0e6f;
+        const sl::dvec3 offset_world = sl::dvec3(ship_rot * offset);
+        const sl::dvec3 eye_world = ship.position + offset_world;
+        const glm::vec3 ship_rel = glm::vec3(-offset_world);
+        const double eye_distance = glm::length(eye_world);
 
         const sl::FlightBody &earth = *world.body(scenario.earth);
         const sl::FlightBody &moon = *world.body(scenario.moon);
-        const glm::vec3 earth_p = to_km(earth.position - ship.position);
-        const glm::vec3 moon_p = to_km(moon.position - ship.position);
+        const glm::vec3 earth_p = glm::vec3(earth.position - eye_world);
+        const glm::vec3 moon_p = glm::vec3(moon.position - eye_world);
+
+        sl::TerrainView view;
+        view.position = eye_world;
+        view.forward = glm::normalize(sl::dvec3(ship_rel));
+        view.up = glm::normalize(sl::dvec3(ship_rot * glm::vec3(0.0f, 1.0f, 0.0f)));
+        view.fov_y_degrees = 50.0;
+        view.aspect = static_cast<double>(screen_w) / screen_h;
+        view.viewport_height = screen_h;
+        view.far_distance = eye_distance + earth_radius * 1.3;
+        if (first_frame)
+            settle(*terrain, view);
+        else
+            terrain->update(view);
+        first_frame = false;
+
+        // Exhaust particles live in the ship's frame; each firing thruster feeds them in proportion to its thrust.
+        const float fdt = static_cast<float>(frame);
+        for (Exhaust &p : exhaust)
+        {
+            p.age += fdt;
+            p.position += p.velocity * fdt;
+        }
+        exhaust.erase(std::remove_if(exhaust.begin(), exhaust.end(), [](const Exhaust &p) { return p.age >= p.life; }),
+                      exhaust.end());
+        double rocket_level = 0.0, rcs_level = 0.0;
+        for (std::size_t i = 0; i < ship.thrusters.size(); ++i)
+        {
+            const sl::Thruster &t = ship.thrusters[i];
+            const bool engine_thruster = t.max_thrust > 1000.0;
+            if (engine_thruster)
+                rocket_level = std::max(rocket_level, t.level);
+            else if (t.level > 0.0)
+                rcs_level = 1.0;
+            if (t.level <= 0.01 || i >= spawn_debt.size())
+                continue;
+            const float rate = engine_thruster ? static_cast<float>(220.0 * t.level * std::sqrt(t.max_thrust / 20000.0)) : 45.0f;
+            spawn_debt[i] += fdt * rate;
+            const glm::vec3 dir = glm::vec3(t.direction);
+            for (; spawn_debt[i] >= 1.0f; spawn_debt[i] -= 1.0f)
+            {
+                Exhaust p;
+                const float jitter = engine_thruster ? 0.12f : 0.25f;
+                const glm::vec3 spread(random01() * jitter, random01() * jitter, random01() * jitter);
+                const float clearance = engine_thruster ? (t.direction.z < 0.0 ? 1.7f : 1.0f) : 2.0f;
+                p.position = glm::vec3(t.position) - dir * clearance + spread * 0.5f;
+                p.velocity = (-dir + spread) * (engine_thruster ? 16.0f : 7.0f);
+                p.age = 0.0f;
+                p.life = (engine_thruster ? 0.45f : 0.3f) + 0.35f * (random01() + 0.5f);
+                p.size = engine_thruster ? 0.55f + 0.3f * (random01() + 0.5f) : 0.18f + 0.1f * (random01() + 0.5f);
+                exhaust.push_back(p);
+            }
+        }
+        engine.set(rocket_level, rcs_level, sound_on);
+
+        sl::Camera camera;
+        camera.position = glm::vec3(0.0f);
+        camera.target = ship_rel;
+        camera.up = glm::vec3(view.up);
+        camera.field_of_view = 50.0f;
+        camera.near_plane = static_cast<float>(std::max(1.0, cam_distance * 0.3));
+        // Reach the Moon only once zoomed out far enough that the near plane keeps depth precision.
+        camera.far_plane = static_cast<float>(camera.near_plane > 1.0e3f ? 1.0e9 : view.far_distance);
+
+        sl::Environment3D environment;
+        const glm::vec3 to_sun = glm::normalize(glm::vec3(1.0f, 0.35f, 0.55f));
+        environment.sun_direction = -to_sun;
+        environment.up = glm::vec3(glm::normalize(eye_world));
+        environment.camera_altitude = static_cast<float>(eye_distance - earth_radius);
+        environment.camera_position = eye_world;
+        environment.time = clock;
+        environment.planet = true;
+        environment.planet_radius = static_cast<float>(earth_radius);
+        environment.sun_intensity = 20.0f;
+        environment.haze_scale = 0.35f;
+        environment.ground_albedo = {0.1f, 0.25f, 0.12f};
+        environment.fog_enabled = true;
+        environment.fog_density = 1.4e-4f;
 
         if (sl::begin_surface_3d(surface, camera))
         {
             sl::clear_surface_3d({2, 3, 8, 255});
+            sl::set_environment_3d(environment);
+            sl::draw_sky_3d();
             sl::Light3D light;
-            light.direction = glm::normalize(glm::vec3(-1.0f, -0.2f, -0.4f));
-            light.ambient = 0.12f;
+            light.direction = environment.sun_direction;
+            light.colour = sl::atmosphere_sun_colour(environment);
+            light.ambient = 0.14f;
             sl::set_light_3d(light);
 
-            sl::Material planet;
-            planet.tint = {70, 110, 190, 255};
-            sl::draw_mesh(sphere, glm::translate(glm::mat4(1.0f), earth_p) * glm::scale(glm::mat4(1.0f), glm::vec3(earth_radius / km)), planet);
-            planet.tint = {170, 170, 165, 255};
-            sl::draw_mesh(sphere, glm::translate(glm::mat4(1.0f), moon_p) * glm::scale(glm::mat4(1.0f), glm::vec3(moon_radius / km)), planet);
+            sl::Material ground;
+            terrain->draw(eye_world, ground);
 
-            // The hull is drawn at real size: 4 m wide, 3 m tall and 9 m long, with a nozzle block at the stern.
-            const glm::mat4 hull = glm::mat4(ship_rot);
-            sl::Material metal;
-            metal.tint = {210, 210, 220, 255};
-            sl::draw_mesh(cube, hull * glm::scale(glm::mat4(1.0f), glm::vec3(0.004f, 0.003f, 0.009f)), metal);
-            metal.tint = {230, 120, 60, 255};
-            sl::draw_mesh(cube, hull * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0055f)) *
-                                    glm::scale(glm::mat4(1.0f), glm::vec3(0.0015f, 0.0015f, 0.0015f)),
-                          metal);
-            metal.tint = {90, 160, 255, 255};
-            sl::draw_mesh(cube, hull * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.0050f)) *
-                                    glm::scale(glm::mat4(1.0f), glm::vec3(0.0025f, 0.002f, 0.0015f)),
-                          metal);
+            // The sky's own clouds are hidden by terrain from space, so the weather is a translucent textured shell.
+            sl::Material cloud;
+            cloud.texture = cloud_texture;
+            cloud.blend = sl::MaterialBlend::alpha;
+            cloud.fog = false;
+            sl::draw_mesh(cloud_shell, glm::translate(glm::mat4(1.0f), earth_p), cloud);
+
+            sl::Material rock;
+            rock.texture = moon_texture;
+            rock.fog = false;
+            sl::draw_mesh(moon_mesh, glm::translate(glm::mat4(1.0f), moon_p), rock);
+
+            const glm::mat4 hull = glm::translate(glm::mat4(1.0f), ship_rel) * glm::mat4(ship_rot);
+            light.ambient = 0.5f;
+            sl::set_light_3d(light);
+            capsule.draw(hull);
+
+            // Exhaust: additive glowing particles, each a hot core inside a wider, fainter halo.
+            sl::Material glow;
+            glow.lit = false;
+            glow.fog = false;
+            glow.blend = sl::MaterialBlend::additive;
+            for (const Exhaust &p : exhaust)
+            {
+                const float age = p.age / p.life;
+                const float fade = (1.0f - age) * (1.0f - age);
+                const sl::Colour hot = age < 0.35f ? sl::Colour{255, 235, 190, 255} : sl::Colour{255, 120, 40, 255};
+                const auto at = [&](float size, sl::Colour colour, float alpha)
+                {
+                    glow.tint = colour;
+                    glow.tint.alpha = static_cast<std::uint8_t>(std::clamp(alpha * 255.0f, 0.0f, 255.0f));
+                    sl::draw_mesh(glow_mesh, hull * glm::translate(glm::mat4(1.0f), p.position) *
+                                                 glm::scale(glm::mat4(1.0f), glm::vec3(size)),
+                                  glow);
+                };
+                const float size = p.size * (0.6f + 1.2f * age);
+                at(size * 2.6f, {255, 110, 40, 255}, 0.10f * fade);
+                at(size, hot, 0.55f * fade);
+            }
             sl::end_surface_3d();
         }
         sl::clear_to_colour(sl::screen, {2, 3, 8});
@@ -293,21 +523,18 @@ int main(int argc, char **argv)
         if (have_orbit && show_orbit && cam_distance > 5.0e3)
         {
             const std::vector<sl::dvec3> path = sl::orbit_path(earth_gm, elements, 360, 2.0e9);
-            const glm::vec3 eye = camera.position;
-            const float earth_r = static_cast<float>(earth_radius / km);
+            const float earth_r = static_cast<float>(earth_radius);
             bool have_previous = false;
             float px = 0.0f, py = 0.0f;
             for (const sl::dvec3 &point : path)
             {
-                const glm::vec3 p = to_km(point + earth.position - ship.position);
+                const glm::vec3 p = glm::vec3(point + earth.position - eye_world);
                 // Hide the part of the orbit that Earth covers from the camera.
-                const glm::vec3 ray = p - eye;
-                const float ray_length = glm::length(ray);
-                const glm::vec3 dir = ray / ray_length;
-                const glm::vec3 to_centre = earth_p - eye;
-                const float along = glm::dot(to_centre, dir);
+                const float ray_length = glm::length(p);
+                const glm::vec3 dir = p / ray_length;
+                const float along = glm::dot(earth_p, dir);
                 const bool hidden = along > 0.0f && along < ray_length &&
-                                    glm::length(to_centre - dir * along) < earth_r * 0.999f;
+                                    glm::length(earth_p - dir * along) < earth_r * 0.999f;
                 float x = 0.0f, y = 0.0f;
                 const bool visible = !hidden && project(view_proj, p, screen_w, screen_h, x, y) &&
                                      std::fabs(x) < 1.0e4f && std::fabs(y) < 1.0e4f;
@@ -336,14 +563,19 @@ int main(int argc, char **argv)
                     glm::degrees(ship.angular_velocity.x), glm::degrees(ship.angular_velocity.y),
                     glm::degrees(ship.angular_velocity.z));
         sl::gprintf_center(screen_h - 22, {200, 210, 220},
-                           "[Z/X] Main  [Shift/Ctrl] Throttle  [B] Retro  [WASDQE] Rotate  [Arrows] Translate  [T] SAS  [O] Orbit  [,/.] Warp  [R-drag] Look  [ [ ] ] Zoom");
+                           "[Z/X] Main  [Shift/Ctrl] Throttle  [B] Retro  [WASDQE] Rotate  [Arrows] Translate  [T] SAS  [O] Orbit  [,/.] Warp  [R-drag] Look  [ [ ] ] Zoom  [M] Sound");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();
     }
 
-    sl::destroy_mesh(sphere);
-    sl::destroy_mesh(cube);
+    engine.stop();
+    terrain.reset();
+    capsule.destroy();
+    for (sl::Mesh *m : {glow_mesh, moon_mesh, cloud_shell})
+        sl::destroy_mesh(m);
+    sl::destroy_bitmap(cloud_texture);
+    sl::destroy_bitmap(moon_texture);
     sl::destroy_surface_3d(surface);
     sl::shutdown();
     return 0;

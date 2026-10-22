@@ -45,6 +45,8 @@ void stop_all_samples();
 bool voice_is_playing(std::uint64_t voice);
 /** Set a voice's pan using the 0-255 Allegro convention. */
 void set_pan(std::uint64_t voice, int pan);
+/** Set a playing voice's volume (0-255), e.g. to follow an engine's throttle. Ignored once the voice has finished. */
+void set_voice_volume(std::uint64_t voice, int volume);
 /** Set the global sound effects volume. */
 void audio_fx_set_volume(int volume);
 

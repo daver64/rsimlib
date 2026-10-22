@@ -939,6 +939,7 @@ void destroy_sample(Sample *sample);
 
 std::uint64_t play_sample(Sample *sample, int volume = 255, int pan = 128, int frequency = 1000, int loops = 0);
 void stop_voice(std::uint64_t voice);
+void set_voice_volume(std::uint64_t voice, int volume); // 0-255; adjusts a playing voice, e.g. to follow a throttle
 void stop_sample(Sample *sample);
 void stop_all_samples();
 void audio_fx_set_volume(int volume); // 0-255

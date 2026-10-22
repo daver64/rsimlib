@@ -553,9 +553,11 @@ target_link_libraries(showcasevoxel PRIVATE simlib)
 
 add_executable(exorbit src/examples/exorbit/exorbit.cpp)
 target_link_libraries(exorbit PRIVATE simlib)
+target_include_directories(exorbit PRIVATE src/examples/common)
 
 add_executable(exflight src/examples/exflight/exflight.cpp)
 target_link_libraries(exflight PRIVATE simlib)
+target_include_directories(exflight PRIVATE src/examples/common)
 
 add_executable(exterrain src/examples/exterrain/exterrain.cpp)
 target_link_libraries(exterrain PRIVATE simlib)

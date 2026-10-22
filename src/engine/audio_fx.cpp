@@ -401,6 +401,18 @@ void set_pan(std::uint64_t voice, int pan)
     });
 }
 
+void set_voice_volume(std::uint64_t voice, int volume)
+{
+    if (!audio_fx_init())
+        return;
+    worker.enqueue([voice, volume] {
+        std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
+        const auto found = voices.find(voice);
+        if (found != voices.end())
+            Mix_Volume(found->second, mixer_volume(volume) * master_volume / 255);
+    });
+}
+
 void audio_fx_set_volume(int volume)
 {
     if (!audio_fx_init())
