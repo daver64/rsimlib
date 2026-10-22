@@ -25,6 +25,31 @@ namespace sl::detail
 {
     namespace
     {
+        // Mesh environment block: [0] light colour, fog, pbr, emissive, camera vectors (9 vec4s), then the eye position
+        // (w = local light count), the shadow parameters and matrix, and three vec4s per local light. Returns the number of bytes in use.
+        constexpr std::size_t mesh_environment_floats = 60 + 16 * 12;
+        std::size_t fill_mesh_environment(float *environment, const MeshDrawParams &params)
+        {
+            std::memcpy(environment, params.light_colour, sizeof(float) * 4);
+            std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
+            std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
+            std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
+            std::memcpy(environment + 16, params.pbr, sizeof(float) * 4);
+            std::memcpy(environment + 20, params.emissive, sizeof(float) * 4);
+            std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
+            std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
+            std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
+            std::memcpy(environment + 36, params.camera_position, sizeof(float) * 4);
+            std::memcpy(environment + 40, params.shadow, sizeof(float) * 4);
+            std::memcpy(environment + 44, params.shadow_matrix, sizeof(float) * 16);
+            const std::size_t lights = static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
+            std::memcpy(environment + 60, params.local_lights, sizeof(float) * 12 * lights);
+            return sizeof(float) * (60 + 12 * lights);
+        }
+    }
+
+    namespace
+    {
         /** Compile GLSL source to SPIR-V at runtime by shelling out to glslangValidator. */
         bool compile_glsl_to_spirv(ShaderStage stage, const std::string &source,
                                    std::vector<std::uint32_t> &spirv, std::string &error)
@@ -720,21 +745,16 @@ namespace sl::detail
                 if (!sampled_descriptor(params.material_texture != 0 ? params.material_texture : white_texture_,
                                         material_descriptor))
                     return false;
-                float environment[36];
-                std::memcpy(environment, params.light_colour, sizeof(float) * 4);
-                std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
-                std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
-                std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
-                std::memcpy(environment + 16, params.pbr, sizeof(float) * 4);
-                std::memcpy(environment + 20, params.emissive, sizeof(float) * 4);
-                std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
-                std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
-                std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
+                VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.shadow_texture != 0 ? params.shadow_texture : white_texture_, shadow_descriptor))
+                    return false;
+                float environment[mesh_environment_floats];
+                const std::size_t environment_bytes = fill_mesh_environment(environment, params);
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
-                                                 environment, sizeof(environment), last_error_, VK_NULL_HANDLE, 1,
-                                                 material_descriptor);
+                                                 environment, environment_bytes, last_error_, VK_NULL_HANDLE, 1,
+                                                 material_descriptor, shadow_descriptor);
             }
             bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
             {
@@ -820,24 +840,19 @@ namespace sl::detail
                 if (!sampled_descriptor(params.material_texture != 0 ? params.material_texture : white_texture_,
                                         material_descriptor))
                     return false;
-                float environment[36];
-                std::memcpy(environment, params.light_colour, sizeof(float) * 4);
-                std::memcpy(environment + 4, params.fog_colour, sizeof(float) * 4);
-                std::memcpy(environment + 8, params.fog_beta, sizeof(float) * 4);
-                std::memcpy(environment + 12, params.fog_view, sizeof(float) * 4);
-                std::memcpy(environment + 16, params.pbr, sizeof(float) * 4);
-                std::memcpy(environment + 20, params.emissive, sizeof(float) * 4);
-                std::memcpy(environment + 24, params.camera_right, sizeof(float) * 4);
-                std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
-                std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
+                VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
+                if (!sampled_descriptor(params.shadow_texture != 0 ? params.shadow_texture : white_texture_, shadow_descriptor))
+                    return false;
+                float environment[mesh_environment_floats];
+                const std::size_t environment_bytes = fill_mesh_environment(environment, params);
                 const VulkanGraphicsPipeline &pipeline =
                     (*pipelines)[static_cast<int>(params.cull) + 3 * static_cast<int>(std::min<std::uint32_t>(params.blend, 2))];
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp,
-                                                 adjusted.light, environment, sizeof(environment), last_error_,
+                                                 adjusted.light, environment, environment_bytes, last_error_,
                                                  instances->second.buffer.buffer, static_cast<std::uint32_t>(count),
-                                                 material_descriptor);
+                                                 material_descriptor, shadow_descriptor);
             }
             bool draw_sky(const SkyDrawParams &params) override
             {

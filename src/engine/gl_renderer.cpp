@@ -872,16 +872,27 @@ namespace sl::detail
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.normal_texture != 0 ? params.normal_texture : white_texture_));
                 glActiveTexture(GL_TEXTURE2);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.material_texture != 0 ? params.material_texture : white_texture_));
+                GLint previous_texture3 = 0;
+                glActiveTexture(GL_TEXTURE3);
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture3);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(params.shadow_texture != 0 ? params.shadow_texture : white_texture_));
                 glActiveTexture(GL_TEXTURE0);
                 glUseProgram(program);
                 glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
                 glUniform1i(glGetUniformLocation(program, "uNormalMap"), 1);
                 glUniform1i(glGetUniformLocation(program, "uMaterial"), 2);
+                glUniform1i(glGetUniformLocation(program, "uShadowMap"), 3);
+                glUniform4fv(glGetUniformLocation(program, "uShadow"), 1, params.shadow);
+                glUniformMatrix4fv(glGetUniformLocation(program, "uShadowMatrix"), 1, GL_FALSE, params.shadow_matrix);
                 glUniform4fv(glGetUniformLocation(program, "uPbr"), 1, params.pbr);
                 glUniform4fv(glGetUniformLocation(program, "uEmissive"), 1, params.emissive);
                 glUniform4fv(glGetUniformLocation(program, "uCameraRight"), 1, params.camera_right);
                 glUniform4fv(glGetUniformLocation(program, "uCameraUp"), 1, params.camera_up);
                 glUniform4fv(glGetUniformLocation(program, "uCameraForward"), 1, params.camera_forward);
+                glUniform4fv(glGetUniformLocation(program, "uCameraPosition"), 1, params.camera_position);
+                if (params.camera_position[3] > 0.5f)
+                    glUniform4fv(glGetUniformLocation(program, "uLocals"), static_cast<GLsizei>(params.camera_position[3]) * 3,
+                                 &params.local_lights[0][0][0]);
                 glUniformMatrix4fv(glGetUniformLocation(program, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(program, "uNormalRows"), 3, &params.normal_rows[0][0]);
                 glUniform4fv(glGetUniformLocation(program, "uLight"), 1, params.light);
@@ -942,6 +953,8 @@ namespace sl::detail
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture1));
                 glActiveTexture(GL_TEXTURE2);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture2));
+                glActiveTexture(GL_TEXTURE3);
+                glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture3));
                 glActiveTexture(static_cast<GLenum>(previous_active_texture));
                 return true;
             }

@@ -4,6 +4,8 @@ Texture2D normal_value : register(t1);
 SamplerState normal_sampler : register(s1);
 Texture2D material_value : register(t2);
 SamplerState material_sampler : register(s2);
+// Sun shadow map: packed 24-bit depth in rgb, fetched texel by texel.
+Texture2D shadow_value : register(t3);
 
 cbuffer MeshParameters : register(b0)
 {
@@ -28,13 +30,18 @@ cbuffer PbrParameters : register(b1)
     float4 camera_right;
     float4 camera_up;
     float4 camera_forward;
+    // World-space eye position (xyz) and the number of local lights (w); three float4s per light, see MeshDrawParams.
+    float4 camera_position;
+    // x: 0 off, 1 receive shadows, 2 shadow-pass draw (writes packed depth); y: depth bias; z: texel world size.
+    float4 shadow;
+    float4x4 shadow_matrix;
+    float4 locals[48];
 };
 
 static const float PI = 3.14159265359;
 
-// Cook-Torrance (GGX, Smith-Schlick, Schlick Fresnel) for the one directional light plus an ambient term.
-float3 shade_pbr(float3 N, float3 V, float3 L, float3 albedo, float metallic, float roughness, float occlusion,
-                 float ambient, float3 light_rgb)
+// Cook-Torrance (GGX, Smith-Schlick, Schlick Fresnel): the reflected fraction of light arriving along L, times N.L.
+float3 pbr_direct(float3 N, float3 V, float3 L, float3 albedo, float metallic, float roughness)
 {
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
     float3 H = normalize(L + V);
@@ -51,10 +58,61 @@ float3 shade_pbr(float3 N, float3 V, float3 L, float3 albedo, float metallic, fl
     float3 F = F0 + (1.0 - F0) * pow(1.0 - VdH, 5.0);
     float3 specular = D * G * F / (4.0 * NdV * max(NdL, 1e-4));
     float3 diffuse = (1.0 - F) * (1.0 - metallic) * albedo;
-    float3 direct = (diffuse + specular * PI) * NdL * light_rgb * (1.0 - ambient);
+    return (diffuse + specular * PI) * NdL;
+}
+
+// The directional light plus an ambient term.
+float3 shade_pbr(float3 N, float3 V, float3 L, float3 albedo, float metallic, float roughness, float occlusion,
+                 float ambient, float3 light_rgb)
+{
+    float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+    float NdV = max(dot(N, V), 1e-4);
+    float3 direct = pbr_direct(N, V, L, albedo, metallic, roughness) * light_rgb * (1.0 - ambient);
     float3 Fa = F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - NdV, 5.0);
     float3 indirect = ambient * occlusion * ((1.0 - Fa) * (1.0 - metallic) * albedo + Fa * (1.0 - 0.5 * roughness));
     return direct + indirect;
+}
+
+// Smooth distance window: 1 at the light, exactly 0 at its range, with an inverse-square core.
+float local_attenuation(float distance_to_light, float range)
+{
+    float x = saturate(distance_to_light / range);
+    float window = 1.0 - x * x * x * x;
+    return window * window / (distance_to_light * distance_to_light + 1.0);
+}
+
+float shadow_depth(int2 texel)
+{
+    float3 c = shadow_value.Load(int3(texel, 0)).rgb;
+    return c.r + c.g / 255.0 + c.b / 65025.0;
+}
+
+// Fraction of the sun that reaches `world` (1 lit, 0 shadowed): 5x5 percentage-closer filtering with a bilinear weight.
+float sun_visibility(float3 world, float3 normal)
+{
+    float4 clip = mul(shadow_matrix, float4(world + normal * (shadow.z * 1.5), 1.0));
+    float3 coord = clip.xyz * 0.5 + 0.5;
+    if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z > 1.0)
+        return 1.0;
+    uint width, height;
+    shadow_value.GetDimensions(width, height);
+    int2 size = int2(width, height);
+    // Framebuffer y grows downward, so texture row 0 is the top of clip space.
+    float2 pixel = float2(coord.x, 1.0 - coord.y) * float2(size) - 0.5;
+    int2 base = (int2)floor(pixel);
+    float2 f = pixel - float2(base);
+    float reference = coord.z - shadow.y;
+    float sum = 0.0;
+    float total = 0.0;
+    for (int y = -1; y <= 2; ++y)
+        for (int x = -1; x <= 2; ++x)
+        {
+            int2 t = clamp(base + int2(x, y), int2(0, 0), size - 1);
+            float w = (x == -1 ? 1.0 - f.x : (x == 2 ? f.x : 1.0)) * (y == -1 ? 1.0 - f.y : (y == 2 ? f.y : 1.0));
+            sum += w * (reference <= shadow_depth(t) ? 1.0 : 0.0);
+            total += w;
+        }
+    return sum / total;
 }
 
 struct PixelInput
@@ -94,22 +152,67 @@ float4 main(PixelInput input) : SV_TARGET
         if (light_colour.w > 0.0 && input.color.a * sampled.a < light_colour.w)
             discard;
     }
+    if (shadow.x > 1.5)
+    {
+        float v = input.position.z * 255.0;
+        float r = floor(v);
+        v = (v - r) * 255.0;
+        float g = floor(v);
+        v = (v - g) * 255.0;
+        float b = min(floor(v + 0.5), 255.0);
+        return float4(r, g, b, 255.0) / 255.0;
+    }
     float3 colour;
-    if (pbr.x > 0.5 && input.terrain.x < 0.0)
+    bool use_pbr = pbr.x > 0.5 && input.terrain.x < 0.0;
+    float metallic = 0.0;
+    float roughness = 1.0;
+    float3 ray = float3(0.0, 0.0, 0.0);
+    // Framebuffer y grows downward in D3D.
+    float2 pixel = input.position.xy * fog_view.zw * 2.0;
+    float2 view_ndc = float2(pixel.x - 1.0, 1.0 - pixel.y);
+    if (use_pbr || camera_position.w > 0.5 || shadow.x > 0.5)
+    {
+        ray = camera_forward.xyz + view_ndc.x * camera_right.xyz + view_ndc.y * camera_up.xyz;
+    }
+    float3 sun_rgb = light_colour.rgb;
+    if (shadow.x > 0.5 && light.w < 1.0)
+        sun_rgb *= sun_visibility(camera_position.xyz + ray * input.view_depth, normal);
+    if (use_pbr)
     {
         float3 orm = material_value.Sample(material_sampler, input.texcoord).rgb;
-        // Framebuffer y grows downward in D3D.
-        float2 pixel = input.position.xy * fog_view.zw * 2.0;
-        float2 ndc = float2(pixel.x - 1.0, 1.0 - pixel.y);
-        float3 view = normalize(-(camera_forward.xyz + ndc.x * camera_right.xyz + ndc.y * camera_up.xyz));
-        colour = shade_pbr(normal, view, light.xyz, albedo, saturate(pbr.y * orm.b),
-                           clamp(pbr.z * orm.g, 0.04, 1.0), lerp(1.0, orm.r, pbr.w), light.w, light_colour.rgb) +
+        metallic = saturate(pbr.y * orm.b);
+        roughness = clamp(pbr.z * orm.g, 0.04, 1.0);
+        colour = shade_pbr(normal, normalize(-ray), light.xyz, albedo, metallic, roughness, lerp(1.0, orm.r, pbr.w),
+                           light.w, sun_rgb) +
                  emissive.rgb;
     }
     else
     {
         float diffuse = max(dot(normal, light.xyz), 0.0);
-        colour = albedo * (light.w + (1.0 - light.w) * diffuse * light_colour.rgb);
+        colour = albedo * (light.w + (1.0 - light.w) * diffuse * sun_rgb);
+    }
+    if (camera_position.w > 0.5 && light.w < 1.0)
+    {
+        float3 world = camera_position.xyz + ray * input.view_depth;
+        float3 view = normalize(-ray);
+        int count = (int)camera_position.w;
+        for (int i = 0; i < count; ++i)
+        {
+            float4 position = locals[i * 3];
+            float4 local_colour = locals[i * 3 + 1];
+            float4 spot = locals[i * 3 + 2];
+            float3 to_light = position.xyz - world;
+            float distance_to_light = length(to_light);
+            if (distance_to_light >= position.w)
+                continue;
+            float3 L = to_light / max(distance_to_light, 1e-4);
+            float strength = local_attenuation(distance_to_light, position.w);
+            if (local_colour.w > -0.5)
+                strength *= saturate((dot(-L, spot.xyz) - local_colour.w) * spot.w);
+            float3 reflected = use_pbr ? pbr_direct(normal, view, L, albedo, metallic, roughness)
+                                       : albedo * max(dot(normal, L), 0.0);
+            colour += reflected * local_colour.rgb * strength;
+        }
     }
     if (fog_beta.r + fog_beta.g + fog_beta.b > 0.0)
     {

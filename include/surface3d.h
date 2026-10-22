@@ -200,6 +200,65 @@ namespace sl
     /** The light most recently passed to set_light_3d(). */
     Light3D get_light_3d();
 
+    /** The most local lights lit materials will use per draw; extra lights passed to set_local_lights_3d() are ignored. */
+    constexpr int max_local_lights_3d = 16;
+
+    /**
+     * A point or spot light placed in the scene, added to the directional light from set_light_3d(). Positions are in
+     * the same world space as the camera and model matrices.
+     */
+    struct LocalLight3D
+    {
+        glm::vec3 position{0.0f};
+        /** Linear rgb colour. */
+        glm::vec3 colour{1.0f, 1.0f, 1.0f};
+        /** Multiplies colour; 1 lights a surface facing the light at close range to roughly its albedo. */
+        float intensity = 1.0f;
+        /** Distance in world units at which the light has faded to nothing. */
+        float range = 20.0f;
+        /** Direction a spotlight points; ignored when outer_angle is 0. */
+        glm::vec3 direction{0.0f, -1.0f, 0.0f};
+        /** Inner (full strength) and outer (zero) cone half-angles in degrees. A zero outer angle makes a point light. */
+        float inner_angle = 0.0f;
+        float outer_angle = 0.0f;
+    };
+
+    /** Replace the point and spot lights used by lit materials on subsequent draws. Pass an empty list to clear. */
+    void set_local_lights_3d(const std::vector<LocalLight3D> &lights);
+    /** The lights most recently passed to set_local_lights_3d(), truncated to max_local_lights_3d. */
+    std::vector<LocalLight3D> get_local_lights_3d();
+
+    /**
+     * A sun shadow map: the scene's depth as seen along the Light3D direction, over a square window that follows a focus
+     * point. Render it every frame (or whenever the casters or sun move) with begin_shadow_pass_3d(), then enable
+     * sampling with set_shadow_map_3d(). Supported on OpenGL and Vulkan; the Direct3D 12 implementation is untested.
+     */
+    struct ShadowMap3D
+    {
+        Surface3D *surface = nullptr;
+        int size = 0;
+        /** World-to-light clip matrix of the last shadow pass. */
+        glm::mat4 view_projection{1.0f};
+        /** World-space width of one shadow texel, used to offset lookups along the surface normal. */
+        float texel_size = 0.0f;
+    };
+
+    /** Create a square shadow map (e.g. 2048), or nullptr (see last_error()). */
+    ShadowMap3D *create_shadow_map_3d(int size = 2048);
+    void destroy_shadow_map_3d(ShadowMap3D *map);
+    /**
+     * Start drawing shadow casters into the map. The window is a square of side 2 * radius centred on `centre`, looking
+     * along get_light_3d().direction. Only opaque meshes drawn with draw_mesh() or draw_mesh_instanced() cast shadows;
+     * terrain, blended and unlit draws are skipped. Do not call between begin_surface_3d() and end_surface_3d().
+     */
+    bool begin_shadow_pass_3d(ShadowMap3D *map, const glm::vec3 &centre, float radius);
+    void end_shadow_pass_3d();
+    /**
+     * Make lit materials drawn from now on receive the map's shadows from the sun (nullptr turns shadows off).
+     * `bias` is a depth offset in 0-1 light-depth units that prevents self-shadowing acne.
+     */
+    void set_shadow_map_3d(const ShadowMap3D *map, float bias = 0.0015f);
+
     /** Create a mesh from indexed triangles; returns nullptr on failure. */
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices);
     void destroy_mesh(Mesh *mesh);

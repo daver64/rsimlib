@@ -166,6 +166,19 @@ namespace sl::detail
         float camera_right[4] = {};
         float camera_up[4] = {};
         float camera_forward[4] = {};
+        /**
+         * World-space eye position in xyz and the number of local lights in w. Each local light is three vec4s:
+         * [0] position xyz and range, [1] colour (already multiplied by intensity) and cos(outer cone) or -1 for a point
+         * light, [2] spot direction xyz and 1 / (cos(inner) - cos(outer)). Needs the camera vectors above.
+         */
+        float camera_position[4] = {};
+        float local_lights[16][3][4] = {};
+        /** World-to-light clip matrix for sun shadows. */
+        float shadow_matrix[16] = {};
+        /** x: 0 none, 1 receive shadows, 2 shadow-pass draw that writes packed depth; y: depth bias; z: texel world size. */
+        float shadow[4] = {};
+        /** Backend texture handle of the shadow map colour image (packed depth), or 0. */
+        std::uint32_t shadow_texture = 0;
         std::uint32_t material_texture = 0;
         /**
          * Terrain splatting. When terrain_albedo is not 0 the mesh is drawn with the terrain pipeline instead: texture and
