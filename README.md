@@ -6,7 +6,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-Pick the route that matches what you are building, run the example, then read its page in the [Example Gallery](docs/examples/README.md).
+New to game programming? Work through the short [Tutorial](docs/tutorial/README.md) (11 lessons: 2D, 3D and simulation). Otherwise pick the route that matches what you are building, run the example, then read its page in the [Example Gallery](docs/examples/README.md).
 
 | I want to... | Run | Read |
 |--------------|-----|------|
@@ -68,6 +68,7 @@ Create the archive used by `exresources` from the repository root with:
 ## Documentation Guides
 
 For in-depth guides and detailed API tables, see the documentation topics:
+- 🎓 **[Tutorial](docs/tutorial/README.md)** — Short, runnable lessons in three tracks (2D, 3D, simulation) for people new to game programming.
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
 - 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.
