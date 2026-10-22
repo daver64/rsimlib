@@ -2,7 +2,7 @@
 
 [← Back to README](../../README.md)
 
-New here? The [Tutorial](../tutorial/README.md) builds up the same ideas lesson by lesson; these pages show finished examples.
+The [Tutorial](../tutorial/README.md) builds up the same ideas lesson by lesson; these pages show finished examples.
 
 Every graphical example with a screenshot, what it demonstrates, how to run it and its controls. Screenshots are captured with [`tools/capture_examples.sh`](../../tools/capture_examples.sh) (OpenGL backend unless noted).
 

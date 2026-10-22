@@ -6,7 +6,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-New to game programming? Work through the short [Tutorial](docs/tutorial/README.md) (11 lessons: 2D, 3D and simulation). Otherwise pick the route that matches what you are building, run the example, then read its page in the [Example Gallery](docs/examples/README.md).
+simlib comes with a short [Tutorial](docs/tutorial/README.md) (11 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
 
 | I want to... | Run | Read |
 |--------------|-----|------|
