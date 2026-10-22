@@ -780,6 +780,7 @@ std::vector<PhysicsContact> poll_physics_contacts(PhysicsWorld *world);
 ---
 
 #### Joints and debug drawing
+A *revolute* joint is a hinge: two bodies pinned at one point that can rotate about it (bridge planks, doors, wheels on an axle).
 ```cpp
 PhysicsJoint *create_distance_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor_a, Vec2 anchor_b, float frequency_hz = 0.0f, float damping_ratio = 0.0f);
 PhysicsJoint *create_revolute_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor);

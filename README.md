@@ -381,7 +381,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exgui`](src/examples/exgui/exgui.cpp)** — Dear ImGui initialisation, event forwarding, widgets, and rendering. [Screenshot & guide](docs/examples/exgui.md).
 - **[`exparticles`](src/examples/exparticles/exparticles.cpp)** — Particle emission, movement, lifetime/colour fades, and gravity. [Screenshot & guide](docs/examples/exparticles.md).
 - **[`excamera2d`](src/examples/excamera2d/excamera2d.cpp)** — `Camera2D` follow, zoom, rotation and shake, a clipped inset with `set_clip_rect()`, and `draw_sprite_ex()` origins and tints. [Screenshot & guide](docs/examples/excamera2d.md).
-- **[`exjoints`](src/examples/exjoints/exjoints.cpp)** — revolute, distance (spring), wheel and mouse joints, with `debug_draw_physics()`. [Screenshot & guide](docs/examples/exjoints.md).
+- **[`exjoints`](src/examples/exjoints/exjoints.cpp)** — revolute (hinge), distance (spring), wheel and mouse joints, with `debug_draw_physics()`. [Screenshot & guide](docs/examples/exjoints.md).
 - **[`ex2dfeatures`](src/examples/ex2dfeatures/ex2dfeatures.cpp)** — word-wrapped text blocks, multiply/screen blending, `Animator` clips, hexagonal and infinite tile maps, and integer-scaled low-resolution targets. [Screenshot & guide](docs/examples/ex2dfeatures.md).
 - **[`exresources`](src/examples/exresources/exresources.cpp)** — ZIP archive opening, entry enumeration, and packaged image loading. [Screenshot & guide](docs/examples/exresources.md).
 - **[`exatlas`](src/examples/exatlas/exatlas.cpp)** — Texture atlas slicing, tile index mapping, and sprite grid rendering. [Screenshot & guide](docs/examples/exatlas.md).

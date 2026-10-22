@@ -149,7 +149,7 @@ namespace sl
     /** Keep two anchor points at a fixed length. A non-zero frequency_hz makes it a damped spring. */
     PhysicsJoint *create_distance_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor_a, Vec2 anchor_b,
                                         float frequency_hz = 0.0f, float damping_ratio = 0.0f);
-    /** Pin two bodies together at a point so they can rotate about it. */
+    /** Add a revolute (hinge) joint: pin two bodies together at a point so they can rotate about it. */
     PhysicsJoint *create_revolute_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor);
     /** Let body b slide along an axis relative to body a. */
     PhysicsJoint *create_prismatic_joint(PhysicsWorld *world, PhysicsBody *a, PhysicsBody *b, Vec2 anchor, Vec2 axis);
