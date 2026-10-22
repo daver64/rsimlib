@@ -39,6 +39,7 @@ Build and run with `./lesson`. Add `--vulkan` (or `--gl`) to choose a graphics b
 1. [Your first 3D scene](3d-01-first-scene.md): a surface, a camera and meshes.
 2. [Materials, light and transparency](3d-02-materials-and-light.md): textures, fog and blending.
 3. [Models and a HUD](3d-03-models-and-hud.md): loading models and drawing 2D over 3D.
+4. [Many objects and threads](3d-04-many-objects-and-threads.md): thousands of draws and parallel recording.
 
 **Track 3: simulation**
 1. [Physics bodies](sim-01-physics-bodies.md): gravity, collisions and contacts.

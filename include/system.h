@@ -31,6 +31,8 @@ namespace sl
         std::uint32_t blended_draws = 0;   ///< Mesh draws (plain or instanced) using alpha or additive blending.
         std::uint64_t frame_number = 0;    ///< Number of frames completed since start-up.
         std::uint64_t pipelines_created = 0; ///< Pipeline states built since start-up (Vulkan and Direct3D 12; 0 on OpenGL). A rise mid-game is a compile stall.
+        std::uint32_t parallel_draws = 0;    ///< Mesh draws recorded on worker threads during the last frame (see parallel_render.h).
+        std::uint32_t recording_threads = 1; ///< Threads available for command recording; 1 on OpenGL or when parallel recording is off.
     };
 
     /** Return the diagnostics for the last completed frame. */

@@ -113,6 +113,28 @@ on workers and upload a bounded amount per `end_frame()` (see `set_async_upload_
 On Vulkan and Direct3D 12, `create_surface_3d()` builds the 2D, mesh, instanced, terrain and sky pipelines up front
 so the first draws do not hitch. `FrameStats::pipelines_created` should stay flat once a scene is running.
 
+### Parallel command recording
+
+Vulkan and Direct3D 12 can record 3D mesh draws on several threads. It is on by default and needs no code changes:
+the first `threshold` mesh draws in a run record inline, and later ones are queued, split across worker threads
+(each with its own command pool or allocator) and submitted in the original order, so the picture is identical.
+Any other work (2D drawing, clears, render-target switches, uploads, compute) flushes the queue first. OpenGL ignores
+the feature because a GL context is bound to one thread.
+
+```cpp
+sl::set_parallel_recording(true);          // default on
+sl::set_parallel_recording_threshold(256); // inline draws before queueing starts
+sl::set_parallel_recording_threads(0);     // 0 = auto (up to 4), 1 = off
+const sl::FrameStats s = sl::get_frame_stats();   // s.parallel_draws, s.recording_threads
+```
+
+For scenes of a few thousand draws on Vulkan this cut frame time by about 30% in our benchmark (`draw_bench`).
+Small scenes see no change. The Direct3D 12 path is implemented but has not been compiled or run on Linux.
+
+To also parallelise your own culling and matrix work, fill a `RenderQueue3D` per worker thread and replay them with
+`submit_render_queue()` on the main thread (see the 3D Surfaces section of the API reference). Building each draw's
+parameters, including texture uploads, still happens on the main thread.
+
 ## Surface3D
 
 The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and Direct3D 12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.

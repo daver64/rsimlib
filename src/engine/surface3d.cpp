@@ -680,6 +680,26 @@ namespace sl
         return submit_mesh_draw(mesh, glm::mat4(1.0f), material, buffer->handle, buffer->count);
     }
 
+    void RenderQueue3D::draw_mesh(const Mesh *mesh, const glm::mat4 &model, const Material &material)
+    {
+        entries_.push_back({mesh, model, material, nullptr});
+    }
+
+    void RenderQueue3D::draw_mesh_instanced(const Mesh *mesh, const InstanceBuffer *buffer, const Material &material)
+    {
+        entries_.push_back({mesh, glm::mat4(1.0f), material, buffer});
+    }
+
+    bool submit_render_queue(const RenderQueue3D &queue)
+    {
+        bool ok = true;
+        for (const RenderQueue3D::Entry &entry : queue.entries_)
+            ok = (entry.instances ? sl::draw_mesh_instanced(entry.mesh, entry.instances, entry.material)
+                                  : sl::draw_mesh(entry.mesh, entry.model, entry.material)) &&
+                 ok;
+        return ok;
+    }
+
     bool draw_mesh_instanced(const Mesh *mesh, const std::vector<InstanceData3D> &instances, const Material &material)
     {
         if (instances.empty())

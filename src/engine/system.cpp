@@ -5,6 +5,8 @@
 #include "system.h"
 
 #include "async_internal.h"
+#include "parallel_record.h"
+#include "parallel_render.h"
 #include "display.h"
 #include "font.h"
 #include "frame_stats.h"
@@ -101,8 +103,19 @@ namespace sl
 		published.instances = counters.instances;
 		published.blended_draws = counters.blended_draws;
 		++published.frame_number;
+		{
+			static std::uint64_t last_parallel_draws = 0;
+			const std::uint64_t total = detail::parallel_draws_recorded();
+			published.parallel_draws = static_cast<std::uint32_t>(total - last_parallel_draws);
+			last_parallel_draws = total;
+			published.recording_threads = 1;
+		}
 		if (detail::Renderer *renderer = detail::active_renderer())
+		{
 			published.pipelines_created = renderer->pipelines_created();
+			if (renderer->supports_parallel_recording() && parallel_recording_enabled())
+				published.recording_threads = parallel_recording_threads();
+		}
 		counters = detail::FrameCounters{};
 		fps_window_ms += last_frame_time_ms;
 		++fps_window_frames;

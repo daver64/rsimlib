@@ -1,4 +1,5 @@
 #include "vulkan_context.h"
+#include "parallel_record.h"
 #include "renderer.h"
 
 #include <SDL2/SDL_vulkan.h>
@@ -517,6 +518,7 @@ namespace sl::detail
         for (VulkanBuffer &buffer : upload_staging_buffers_)
             destroy_buffer(buffer);
         upload_staging_buffers_.clear();
+        reset_record_workers();
         environment_next_ = 0;
         environment_last_bytes_ = 0;
         VkResult acquire = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_, VK_NULL_HANDLE, &current_image_);
@@ -562,6 +564,8 @@ namespace sl::detail
 
     bool VulkanContext::end_frame(std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_)
         {
             error = "Vulkan frame is not active.";
@@ -611,6 +615,8 @@ namespace sl::detail
 
     bool VulkanContext::submit_pending_work(std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_)
             return true;
         if (render_pass_active_)
@@ -636,6 +642,7 @@ namespace sl::detail
         }
         image_available_consumed_ = true;
         vkQueueWaitIdle(graphics_queue_);
+        reset_record_workers();
         vkResetCommandBuffer(command_buffer_, 0);
         VkCommandBufferBeginInfo begin_info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         if (vkBeginCommandBuffer(command_buffer_, &begin_info) != VK_SUCCESS)
@@ -662,6 +669,8 @@ namespace sl::detail
                                                     int width, int height,
                                                     std::string &error, int samples)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || framebuffer == VK_NULL_HANDLE)
         {
             error = "Invalid Vulkan offscreen render-pass state.";
@@ -709,6 +718,8 @@ namespace sl::detail
 
     bool VulkanContext::end_offscreen_render_pass(std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !offscreen_active_ || render_pass_stack_.empty())
         {
             error = "Vulkan offscreen render pass is not active.";
@@ -895,6 +906,8 @@ namespace sl::detail
                                            const float *projection,
                                            std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
             vertex_buffer == VK_NULL_HANDLE || vertex_count == 0)
         {
@@ -931,6 +944,8 @@ namespace sl::detail
                                        VkBuffer vertex_buffer, std::uint32_t vertex_count,
                                        const float *mvp, std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE || !mvp || vertex_count == 0)
         {
@@ -968,39 +983,221 @@ namespace sl::detail
             error = "Invalid Vulkan mesh draw state.";
             return false;
         }
-        // Negative height matches the 2D path so render targets are stored top-down.
-        VkViewport viewport{0.0f, static_cast<float>(active_extent_.height),
-                            static_cast<float>(active_extent_.width),
-                            -static_cast<float>(active_extent_.height), 0.0f, 1.0f};
-        VkRect2D scissor{{0, 0}, active_extent_};
-        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
-        vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
-        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        std::uint32_t environment_offset = 0;
+        MeshDrawRecord draw;
+        draw.pipeline = pipeline;
+        draw.layout = layout;
+        draw.vertex_buffer = vertex_buffer;
+        draw.index_buffer = index_buffer;
+        draw.instance_buffer = instance_buffer;
+        draw.texture = texture_descriptor;
+        draw.normal = normal_descriptor;
+        draw.material = material_descriptor;
+        draw.index_count = index_count;
+        draw.instance_count = instance_count;
         if (!ensure_environment_block(error) ||
-            !write_environment(environment, environment_size, environment_offset, error))
+            !write_environment(environment, environment_size, draw.environment_offset, error))
             return false;
-        const VkDescriptorSet mesh_descriptors[3] = {texture_descriptor, normal_descriptor, environment_set_};
-        vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 3,
-                                mesh_descriptors, 1, &environment_offset);
-        if (material_descriptor != VK_NULL_HANDLE)
-            vkCmdBindDescriptorSets(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 3, 1, &material_descriptor, 0,
-                                    nullptr);
-        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(float) * 28, vertex_constants);
-        vkCmdPushConstants(command_buffer_, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 28,
-                           sizeof(float) * 4, fragment_constants);
-        const VkBuffer vertex_buffers[2] = {vertex_buffer, instance_buffer};
-        const VkDeviceSize offsets[2] = {0, 0};
-        vkCmdBindVertexBuffers(command_buffer_, 0, instance_buffer != VK_NULL_HANDLE ? 2u : 1u, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(command_buffer_, index_buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(command_buffer_, index_count, instance_buffer != VK_NULL_HANDLE ? instance_count : 1, 0, 0, 0);
+        std::memcpy(draw.vertex_constants, vertex_constants, sizeof(draw.vertex_constants));
+        std::memcpy(draw.fragment_constants, fragment_constants, sizeof(draw.fragment_constants));
+
+        // The first `threshold` draws in a row record inline, so small scenes never touch the queue; later ones
+        // are queued and recorded in parallel when the queue is flushed.
+        const detail::ParallelRecordSettings settings = detail::parallel_record_settings();
+        if (!settings.enabled || settings.max_threads <= 1)
+        {
+            if (!pending_draws_.empty() && !flush_pending_draws(error))
+                return false;
+        }
+        else if (!pending_draws_.empty() || direct_mesh_run_ >= settings.threshold)
+        {
+            pending_draws_.push_back(draw);
+            return true;
+        }
+        ++direct_mesh_run_;
+        record_mesh_commands(command_buffer_, draw, true);
         return true;
+    }
+
+    void VulkanContext::record_mesh_commands(VkCommandBuffer command, const MeshDrawRecord &draw, bool set_state)
+    {
+        if (set_state)
+        {
+            // Negative height matches the 2D path so render targets are stored top-down.
+            VkViewport viewport{0.0f, static_cast<float>(active_extent_.height),
+                                static_cast<float>(active_extent_.width),
+                                -static_cast<float>(active_extent_.height), 0.0f, 1.0f};
+            VkRect2D scissor{{0, 0}, active_extent_};
+            vkCmdSetViewport(command, 0, 1, &viewport);
+            vkCmdSetScissor(command, 0, 1, &scissor);
+        }
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.pipeline);
+        const VkDescriptorSet mesh_descriptors[3] = {draw.texture, draw.normal, environment_set_};
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.layout, 0, 3, mesh_descriptors, 1,
+                                &draw.environment_offset);
+        if (draw.material != VK_NULL_HANDLE)
+            vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.layout, 3, 1, &draw.material, 0,
+                                    nullptr);
+        vkCmdPushConstants(command, draw.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(draw.vertex_constants),
+                           draw.vertex_constants);
+        vkCmdPushConstants(command, draw.layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(draw.vertex_constants),
+                           sizeof(draw.fragment_constants), draw.fragment_constants);
+        const VkBuffer vertex_buffers[2] = {draw.vertex_buffer, draw.instance_buffer};
+        const VkDeviceSize offsets[2] = {0, 0};
+        vkCmdBindVertexBuffers(command, 0, draw.instance_buffer != VK_NULL_HANDLE ? 2u : 1u, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command, draw.index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(command, draw.index_count, draw.instance_buffer != VK_NULL_HANDLE ? draw.instance_count : 1,
+                         0, 0, 0);
+    }
+
+    bool VulkanContext::ensure_record_workers(unsigned count)
+    {
+        while (record_workers_.size() < count)
+        {
+            RecordWorker worker;
+            VkCommandPoolCreateInfo info{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+            info.queueFamilyIndex = graphics_queue_family_;
+            if (vkCreateCommandPool(device_, &info, nullptr, &worker.pool) != VK_SUCCESS)
+                return false;
+            record_workers_.push_back(std::move(worker));
+        }
+        return true;
+    }
+
+    // Safe once the GPU has finished every submitted command buffer (frame fence or queue idle): all the
+    // secondaries recorded since then can be reused.
+    void VulkanContext::reset_record_workers()
+    {
+        for (RecordWorker &worker : record_workers_)
+        {
+            if (worker.pool != VK_NULL_HANDLE && worker.used > 0)
+                vkResetCommandPool(device_, worker.pool, 0);
+            worker.used = 0;
+        }
+    }
+
+    void VulkanContext::destroy_record_workers()
+    {
+        for (RecordWorker &worker : record_workers_)
+            if (worker.pool != VK_NULL_HANDLE)
+                vkDestroyCommandPool(device_, worker.pool, nullptr);
+        record_workers_.clear();
+    }
+
+    // Runs on a recording thread; touches only this worker's pool and the read-only draw data.
+    bool VulkanContext::record_mesh_secondary(unsigned worker_index, const MeshDrawRecord *draws, std::size_t count,
+                                              VkCommandBuffer &out)
+    {
+        RecordWorker &worker = record_workers_[worker_index];
+        if (worker.used == worker.buffers.size())
+        {
+            VkCommandBufferAllocateInfo allocation{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+            allocation.commandPool = worker.pool;
+            allocation.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+            allocation.commandBufferCount = 1;
+            VkCommandBuffer created = VK_NULL_HANDLE;
+            if (vkAllocateCommandBuffers(device_, &allocation, &created) != VK_SUCCESS)
+                return false;
+            worker.buffers.push_back(created);
+        }
+        const VkCommandBuffer command = worker.buffers[worker.used++];
+        VkCommandBufferInheritanceInfo inheritance{VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO};
+        inheritance.renderPass = active_resume_render_pass_;
+        inheritance.subpass = 0;
+        inheritance.framebuffer = active_framebuffer_;
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT | VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        begin.pInheritanceInfo = &inheritance;
+        if (vkBeginCommandBuffer(command, &begin) != VK_SUCCESS)
+            return false;
+        for (std::size_t i = 0; i < count; ++i)
+            record_mesh_commands(command, draws[i], i == 0);
+        if (vkEndCommandBuffer(command) != VK_SUCCESS)
+            return false;
+        out = command;
+        return true;
+    }
+
+    bool VulkanContext::flush_pending_draws(std::string &error)
+    {
+        direct_mesh_run_ = 0;
+        if (pending_draws_.empty())
+            return true;
+        const std::size_t count = pending_draws_.size();
+        if (!frame_active_ || !command_buffer_recording_)
+        {
+            pending_draws_.clear();
+            return true;
+        }
+        const auto record_inline = [&]
+        {
+            for (const MeshDrawRecord &draw : pending_draws_)
+                record_mesh_commands(command_buffer_, draw, true);
+            pending_draws_.clear();
+            return true;
+        };
+        const unsigned chunks = detail::parallel_record_chunks(count);
+        if (chunks <= 1 || !render_pass_active_ || !ensure_record_workers(chunks))
+            return record_inline();
+
+        std::vector<VkCommandBuffer> secondaries(chunks, VK_NULL_HANDLE);
+        std::vector<char> succeeded(chunks, 0);
+        const MeshDrawRecord *all = pending_draws_.data();
+        const std::size_t per_chunk = (count + chunks - 1) / chunks;
+        detail::parallel_record_run(chunks,
+                                    [&](unsigned chunk)
+                                    {
+                                        const std::size_t first = std::min(count, chunk * per_chunk);
+                                        const std::size_t last = std::min(count, first + per_chunk);
+                                        if (first == last)
+                                        {
+                                            succeeded[chunk] = 1;
+                                            return;
+                                        }
+                                        succeeded[chunk] =
+                                            record_mesh_secondary(chunk, all + first, last - first, secondaries[chunk]) ? 1 : 0;
+                                    });
+        std::vector<VkCommandBuffer> to_execute;
+        for (unsigned chunk = 0; chunk < chunks; ++chunk)
+        {
+            if (!succeeded[chunk])
+                return record_inline();
+            if (secondaries[chunk] != VK_NULL_HANDLE)
+                to_execute.push_back(secondaries[chunk]);
+        }
+        // Secondary buffers need a pass whose contents are secondary only, so swap the inline pass for one pass
+        // that executes them and then resume inline recording as prepare_image_for_sampling() does.
+        vkCmdEndRenderPass(command_buffer_);
+        VkClearValue clear_values[3]{};
+        VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        begin.renderPass = active_resume_render_pass_;
+        begin.framebuffer = active_framebuffer_;
+        begin.renderArea.extent = active_extent_;
+        begin.clearValueCount = active_samples_ > 1 ? 3 : 2;
+        begin.pClearValues = clear_values;
+        vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+        vkCmdExecuteCommands(command_buffer_, static_cast<std::uint32_t>(to_execute.size()), to_execute.data());
+        vkCmdEndRenderPass(command_buffer_);
+        vkCmdBeginRenderPass(command_buffer_, &begin, VK_SUBPASS_CONTENTS_INLINE);
+        active_render_pass_ = active_resume_render_pass_;
+        render_pass_active_ = true;
+        detail::parallel_draws_add(count);
+        pending_draws_.clear();
+        (void)error;
+        return true;
+    }
+
+    void VulkanContext::wait_device_idle()
+    {
+        flush_pending_draws();
+        if (device_ != VK_NULL_HANDLE)
+            vkDeviceWaitIdle(device_);
     }
 
     bool VulkanContext::record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                                         std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_ || pipeline == VK_NULL_HANDLE ||
             layout == VK_NULL_HANDLE || !sky_rows)
         {
@@ -1125,6 +1322,8 @@ namespace sl::detail
     bool VulkanContext::clear_active_frame_3d(float red, float green, float blue, float alpha,
                                               std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_)
         {
             error = "Vulkan frame is not active.";
@@ -1149,6 +1348,8 @@ namespace sl::detail
                                              const float *projection, const void *lighting_constants,
                                              std::uint32_t lighting_constant_size, std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
             vertex_buffer == VK_NULL_HANDLE || texture_descriptor == VK_NULL_HANDLE ||
             storage_descriptor == VK_NULL_HANDLE || !projection || !lighting_constants || vertex_count == 0)
@@ -1182,6 +1383,8 @@ namespace sl::detail
                                                 const void *constants, std::uint32_t constant_size,
                                                 std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_ ||
             pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE || vertex_buffer == VK_NULL_HANDLE ||
             texture_descriptor == VK_NULL_HANDLE || !projection || (constant_size > 0 && !constants) || vertex_count == 0)
@@ -1215,6 +1418,8 @@ namespace sl::detail
     bool VulkanContext::clear_active_frame(float red, float green, float blue, float alpha,
                                            std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_)
         {
             error = "Vulkan frame is not active.";
@@ -1236,6 +1441,8 @@ namespace sl::detail
                                                 std::uint32_t groups_x, std::uint32_t groups_y,
                                                 std::uint32_t groups_z, std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (!frame_active_ || pipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE ||
             descriptor_set == VK_NULL_HANDLE || groups_x == 0 || groups_y == 0 || groups_z == 0)
         {
@@ -1362,6 +1569,8 @@ namespace sl::detail
     bool VulkanContext::upload_image_rgba(VulkanImage &image, int width, int height,
                                           const std::uint8_t *pixels, std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (image.image == VK_NULL_HANDLE || !pixels || width <= 0 || height <= 0)
         {
             error = "Invalid Vulkan image upload.";
@@ -1609,6 +1818,8 @@ namespace sl::detail
     bool VulkanContext::upload_image_array_rgba(VulkanImage &image, const TextureArrayDesc &description,
                                                  const std::uint8_t *pixels, std::string &error)
     {
+        if (!flush_pending_draws(error))
+            return false;
         if (image.image == VK_NULL_HANDLE || !pixels || description.width <= 0 || description.height <= 0 ||
             image.array_layers != static_cast<std::uint32_t>(description.layers) ||
             image.mip_levels != static_cast<std::uint32_t>(description.mip_levels))
@@ -1772,7 +1983,7 @@ namespace sl::detail
 
         if (device_ != VK_NULL_HANDLE)
         {
-            vkDeviceWaitIdle(device_);
+            wait_device_idle();
         }
 
         const std::size_t byte_count = static_cast<std::size_t>(width) * height * 4;
@@ -2656,7 +2867,7 @@ namespace sl::detail
         }
         // Submitted GPU work (e.g. a compute dispatch) must finish before the host reads its results.
         if (device_ != VK_NULL_HANDLE)
-            vkDeviceWaitIdle(device_);
+            wait_device_idle();
         void *mapped = nullptr;
         if (vkMapMemory(device_, buffer.memory, static_cast<VkDeviceSize>(offset), static_cast<VkDeviceSize>(size), 0, &mapped) != VK_SUCCESS)
         {
@@ -3052,7 +3263,7 @@ namespace sl::detail
 
         if (device_ != VK_NULL_HANDLE)
         {
-            vkDeviceWaitIdle(device_);
+            wait_device_idle();
             for (VkFramebuffer framebuffer : framebuffers_)
             {
                 vkDestroyFramebuffer(device_, framebuffer, nullptr);
@@ -3099,6 +3310,8 @@ namespace sl::detail
             render_finished_ = VK_NULL_HANDLE;
             in_flight_ = VK_NULL_HANDLE;
             command_buffer_ = VK_NULL_HANDLE;
+            pending_draws_.clear();
+            destroy_record_workers();
             if (command_pool_ != VK_NULL_HANDLE)
             {
                 vkDestroyCommandPool(device_, command_pool_, nullptr);
@@ -3120,7 +3333,7 @@ namespace sl::detail
         destroy_swapchain();
         if (device_ != VK_NULL_HANDLE)
         {
-            vkDeviceWaitIdle(device_);
+            wait_device_idle();
             destroy_environment_block();
             vkDestroyDevice(device_, nullptr);
             device_ = VK_NULL_HANDLE;

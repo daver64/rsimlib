@@ -6,6 +6,7 @@
 #include "d3d12_renderer.h"
 #include "d3d12_context.h"
 #include "d3d12_shader_translator.h"
+#include "parallel_record.h"
 #include "shader_paths.h"
 
 #include <d3d12.h>
@@ -453,6 +454,7 @@ namespace sl::detail
                 {
                     context_.wait_idle();
                 }
+                release_record_workers();
                 shutdown_2d();
                 for (auto &[handle, mesh] : meshes_)
                     release_mesh(mesh);
@@ -578,7 +580,10 @@ namespace sl::detail
             bool begin_frame(std::string &error) override
             {
                 if (context_.frame_open() || context_.begin_frame())
+                {
+                    inline_mesh_run_ = 0;
                     return true;
+                }
                 error = "Unable to begin the D3D12 frame.";
                 return false;
             }
@@ -885,8 +890,11 @@ namespace sl::detail
                 destroy_texture(texture);
             }
             template <typename Target>
-            void bind_render_target_state(const Target &target, int width, int height)
+            void bind_render_target_state(const Target &target, int width, int height,
+                                          ID3D12GraphicsCommandList *commands = nullptr)
             {
+                if (!commands)
+                    commands = context_.command_list();
                 D3D12_CPU_DESCRIPTOR_HANDLE handle =
                     cpu_descriptor(render_target_heap_, render_target_descriptor_size_,
                                    target.descriptor);
@@ -895,13 +903,12 @@ namespace sl::detail
                 if (has_depth)
                     depth_handle = cpu_descriptor(depth_stencil_heap_, depth_stencil_descriptor_size_,
                                                   target.depth_descriptor);
-                context_.command_list()->OMSetRenderTargets(1, &handle, FALSE,
-                                                            has_depth ? &depth_handle : nullptr);
+                commands->OMSetRenderTargets(1, &handle, FALSE, has_depth ? &depth_handle : nullptr);
                 D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(width),
                                         static_cast<float>(height), 0.0f, 1.0f};
                 D3D12_RECT scissor{0, 0, width, height};
-                context_.command_list()->RSSetViewports(1, &viewport);
-                context_.command_list()->RSSetScissorRects(1, &scissor);
+                commands->RSSetViewports(1, &viewport);
+                commands->RSSetScissorRects(1, &scissor);
             }
             bool begin_render_target(std::uint32_t framebuffer, int width, int height,
                                      std::string &error) override
@@ -917,6 +924,7 @@ namespace sl::detail
                     return false;
                 }
                 flush_2d();
+                context_.flush_pending();
                 if (target->second.samples == 1 && texture->second.state != D3D12_RESOURCE_STATE_RENDER_TARGET)
                 {
                     transition_resource(context_.command_list(), texture->second.resource,
@@ -942,6 +950,7 @@ namespace sl::detail
                     return false;
                 }
                 flush_2d();
+                context_.flush_pending();
                 const auto target = render_targets_.find(active_render_target_);
                 if (target == render_targets_.end())
                 {
@@ -1021,6 +1030,7 @@ namespace sl::detail
                     get_sky_pipeline(samples);
             }
             std::uint64_t pipelines_created() const override { return pipelines_created_; }
+            bool supports_parallel_recording() const override { return true; }
             bool create_render_target_3d(int width, int height, int &samples,
                                          std::uint32_t &texture, std::uint32_t &framebuffer) override
             {
@@ -1322,39 +1332,184 @@ namespace sl::detail
                 std::copy(std::begin(params.fog_beta), std::end(params.fog_beta), constants.begin() + 40);
                 std::copy(std::begin(params.fog_view), std::end(params.fog_view), constants.begin() + 44);
 
-                ID3D12GraphicsCommandList *commands = context_.command_list();
-                ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
-                commands->SetDescriptorHeaps(2, heaps);
-                commands->SetGraphicsRootSignature(mesh_root_signature_);
-                commands->SetGraphicsRoot32BitConstants(0, static_cast<UINT>(constants.size()),
-                                                         constants.data(), 0);
-                commands->SetGraphicsRootDescriptorTable(
-                    1, gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    3, gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    4, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    5, gpu_descriptor(srv_heap_, srv_descriptor_size_, material_map->second.descriptor));
-                commands->SetGraphicsRootDescriptorTable(
-                    6, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor));
-                commands->SetGraphicsRootConstantBufferView(7, pbr_address);
                 ID3D12PipelineState *mesh_pipeline =
                     get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr,
                                       std::min<std::uint32_t>(params.blend, 2));
                 if (!mesh_pipeline)
                     return false;
-                commands->SetPipelineState(mesh_pipeline);
-                commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                const D3D12_VERTEX_BUFFER_VIEW views[2] = {mesh->second.vertex_view,
-                                                           instances ? instances->view : D3D12_VERTEX_BUFFER_VIEW{}};
-                commands->IASetVertexBuffers(0, instances ? 2 : 1, views);
-                commands->IASetIndexBuffer(&mesh->second.index_view);
-                commands->DrawIndexedInstanced(mesh->second.index_count,
-                                               instances ? static_cast<UINT>(instance_count) : 1, 0, 0, 0);
+
+                QueuedMeshDraw draw;
+                draw.constants = constants;
+                draw.texture_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor);
+                draw.texture_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor);
+                draw.normal_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor);
+                draw.normal_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor);
+                draw.material_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, material_map->second.descriptor);
+                draw.material_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor);
+                draw.pbr_address = pbr_address;
+                draw.pipeline = mesh_pipeline;
+                draw.views[0] = mesh->second.vertex_view;
+                draw.views[1] = instances ? instances->view : D3D12_VERTEX_BUFFER_VIEW{};
+                draw.view_count = instances ? 2 : 1;
+                draw.index_view = mesh->second.index_view;
+                draw.index_count = mesh->second.index_count;
+                draw.instance_count = instances ? static_cast<UINT>(instance_count) : 1;
+
+                // The first `threshold` draws record inline; later ones are queued and recorded in parallel.
+                const detail::ParallelRecordSettings settings = detail::parallel_record_settings();
+                if (!settings.enabled || settings.max_threads <= 1)
+                    context_.flush_pending();
+                else if (!queued_draws_.empty() || inline_mesh_run_ >= settings.threshold)
+                {
+                    if (queued_draws_.empty())
+                        context_.set_flush_hook([this] { flush_queued_draws(); });
+                    queued_draws_.push_back(draw);
+                    return true;
+                }
+                ++inline_mesh_run_;
+                record_mesh_draw(context_.command_list(), draw);
                 return true;
+            }
+            struct QueuedMeshDraw
+            {
+                std::array<float, 48> constants;
+                D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, texture_sampler, normal_srv, normal_sampler,
+                    material_srv, material_sampler;
+                D3D12_GPU_VIRTUAL_ADDRESS pbr_address;
+                ID3D12PipelineState *pipeline;
+                D3D12_VERTEX_BUFFER_VIEW views[2];
+                UINT view_count;
+                D3D12_INDEX_BUFFER_VIEW index_view;
+                UINT index_count;
+                UINT instance_count;
+            };
+            struct RecordWorker
+            {
+                ID3D12CommandAllocator *allocator = nullptr;
+                ID3D12GraphicsCommandList *list = nullptr;
+                std::uint64_t frame_serial = 0;
+            };
+            // Touches no shared renderer state, so worker threads may call it on their own lists.
+            void record_mesh_draw(ID3D12GraphicsCommandList *commands, const QueuedMeshDraw &draw) const
+            {
+                ID3D12DescriptorHeap *heaps[] = {srv_heap_, sampler_heap_};
+                commands->SetDescriptorHeaps(2, heaps);
+                commands->SetGraphicsRootSignature(mesh_root_signature_);
+                commands->SetGraphicsRoot32BitConstants(0, static_cast<UINT>(draw.constants.size()),
+                                                         draw.constants.data(), 0);
+                commands->SetGraphicsRootDescriptorTable(1, draw.texture_srv);
+                commands->SetGraphicsRootDescriptorTable(2, draw.texture_sampler);
+                commands->SetGraphicsRootDescriptorTable(3, draw.normal_srv);
+                commands->SetGraphicsRootDescriptorTable(4, draw.normal_sampler);
+                commands->SetGraphicsRootDescriptorTable(5, draw.material_srv);
+                commands->SetGraphicsRootDescriptorTable(6, draw.material_sampler);
+                commands->SetGraphicsRootConstantBufferView(7, draw.pbr_address);
+                commands->SetPipelineState(draw.pipeline);
+                commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                commands->IASetVertexBuffers(0, draw.view_count, draw.views);
+                commands->IASetIndexBuffer(&draw.index_view);
+                commands->DrawIndexedInstanced(draw.index_count, draw.instance_count, 0, 0, 0);
+            }
+            bool ensure_record_workers(unsigned count, std::uint64_t serial)
+            {
+                if (worker_serial_ != serial)
+                {
+                    worker_serial_ = serial;
+                    workers_used_ = 0;
+                }
+                while (workers_.size() < workers_used_ + count)
+                {
+                    RecordWorker worker;
+                    if (FAILED(context_.device()->CreateCommandAllocator(
+                            D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&worker.allocator))))
+                        return false;
+                    if (FAILED(context_.device()->CreateCommandList(
+                            0, D3D12_COMMAND_LIST_TYPE_DIRECT, worker.allocator, nullptr,
+                            IID_PPV_ARGS(&worker.list))))
+                    {
+                        worker.allocator->Release();
+                        return false;
+                    }
+                    worker.list->Close();
+                    workers_.push_back(worker);
+                }
+                return true;
+            }
+            void release_record_workers()
+            {
+                for (RecordWorker &worker : workers_)
+                {
+                    if (worker.list)
+                        worker.list->Release();
+                    if (worker.allocator)
+                        worker.allocator->Release();
+                }
+                workers_.clear();
+                workers_used_ = 0;
+            }
+            // Records the queued draws on worker lists that execute right after the primary list's earlier commands.
+            void flush_queued_draws()
+            {
+                std::vector<QueuedMeshDraw> draws;
+                draws.swap(queued_draws_);
+                inline_mesh_run_ = 0;
+                const auto target = render_targets_.find(active_render_target_);
+                ID3D12GraphicsCommandList *primary = context_.raw_command_list();
+                if (draws.empty() || target == render_targets_.end() || !primary)
+                    return;
+                const auto record_inline = [&]
+                {
+                    for (const QueuedMeshDraw &draw : draws)
+                        record_mesh_draw(primary, draw);
+                };
+                const std::size_t count = draws.size();
+                const unsigned chunks = detail::parallel_record_chunks(count);
+                const std::uint64_t serial = context_.frame_serial();
+                if (chunks <= 1 || !ensure_record_workers(chunks, serial))
+                    return record_inline();
+
+                const std::size_t per_chunk = (count + chunks - 1) / chunks;
+                bool prepared = true;
+                for (unsigned i = 0; i < chunks && prepared; ++i)
+                {
+                    RecordWorker &worker = workers_[workers_used_ + i];
+                    // Each allocator is used once per frame; the GPU is idle at frame start.
+                    if (worker.frame_serial != serial && FAILED(worker.allocator->Reset()))
+                        prepared = false;
+                    else if (FAILED(worker.list->Reset(worker.allocator, nullptr)))
+                        prepared = false;
+                    else
+                        worker.frame_serial = serial;
+                }
+                if (!prepared)
+                {
+                    for (unsigned i = 0; i < chunks; ++i)
+                        workers_[workers_used_ + i].list->Close();
+                    return record_inline();
+                }
+
+                const int width = target->second.width;
+                const int height = target->second.height;
+                RecordWorker *first_worker = &workers_[workers_used_];
+                workers_used_ += chunks;
+                detail::parallel_record_run(chunks,
+                                            [&](unsigned chunk)
+                                            {
+                                                ID3D12GraphicsCommandList *list = first_worker[chunk].list;
+                                                bind_render_target_state(target->second, width, height, list);
+                                                const std::size_t begin = std::min(count, chunk * per_chunk);
+                                                const std::size_t end = std::min(count, begin + per_chunk);
+                                                for (std::size_t i = begin; i < end; ++i)
+                                                    record_mesh_draw(list, draws[i]);
+                                                list->Close();
+                                            });
+                std::vector<ID3D12CommandList *> lists(chunks);
+                for (unsigned i = 0; i < chunks; ++i)
+                    lists[i] = first_worker[i].list;
+                if (!context_.execute_with(lists.data(), chunks))
+                    return;
+                bind_render_target_state(target->second, width, height, context_.raw_command_list());
+                detail::parallel_draws_add(count);
             }
             bool draw_sky(const SkyDrawParams &params) override
             {
@@ -3401,6 +3556,11 @@ namespace sl::detail
             std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_pipelines_{};
             std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_instanced_pipelines_{};
             std::uint64_t pipelines_created_ = 0;
+            std::vector<QueuedMeshDraw> queued_draws_;
+            std::size_t inline_mesh_run_ = 0;
+            std::vector<RecordWorker> workers_;
+            std::size_t workers_used_ = 0;
+            std::uint64_t worker_serial_ = 0;
             ID3DBlob *mesh_instanced_vertex_blob_ = nullptr;
             std::unordered_map<std::uint32_t, D3D12InstanceBuffer> instance_buffers_;
             std::uint32_t next_instance_buffer_ = 1;

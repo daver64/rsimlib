@@ -362,6 +362,7 @@ add_library(simlib STATIC
     src/engine/particles.cpp
     src/engine/precipitation.cpp
     src/engine/async_load.cpp
+    src/engine/parallel_record.cpp
     src/engine/physics.cpp
     src/engine/flight.cpp
     src/engine/atmosphere.cpp
@@ -728,6 +729,8 @@ add_executable(exprecip3d src/examples/exprecip3d/exprecip3d.cpp)
 target_link_libraries(exprecip3d PRIVATE simlib)
 add_executable(exinstancing src/examples/exinstancing/exinstancing.cpp)
 target_link_libraries(exinstancing PRIVATE simlib)
+add_executable(exparallel src/examples/exparallel/exparallel.cpp)
+target_link_libraries(exparallel PRIVATE simlib)
 if(SIMLIB_GUI STREQUAL "imgui")
     add_executable(exlobby src/examples/exlobby/exlobby.cpp)
     target_link_libraries(exlobby PRIVATE simlib imgui)
@@ -816,6 +819,23 @@ if(BUILD_TESTING)
     if(SIMLIB_RENDER_D3D12)
         add_test(NAME blend3d_d3d12 COMMAND blend3d_test --d3d12)
     endif()
+
+    add_executable(parallel_record_test tests/parallel_record_test.cpp)
+    target_link_libraries(parallel_record_test PRIVATE simlib)
+    target_compile_definitions(parallel_record_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    if(SIMLIB_RENDER_GL)
+        add_test(NAME parallel_record_gl COMMAND parallel_record_test --gl)
+    endif()
+    if(SIMLIB_RENDER_VULKAN)
+        add_test(NAME parallel_record_vulkan COMMAND parallel_record_test --vulkan)
+    endif()
+    if(SIMLIB_RENDER_D3D12)
+        add_test(NAME parallel_record_d3d12 COMMAND parallel_record_test --d3d12)
+    endif()
+
+    add_executable(draw_bench tests/draw_bench.cpp)
+    target_link_libraries(draw_bench PRIVATE simlib)
+    target_compile_definitions(draw_bench PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
 
     add_executable(async_load_test tests/async_load_test.cpp)
     target_link_libraries(async_load_test PRIVATE simlib)

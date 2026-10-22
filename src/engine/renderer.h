@@ -442,6 +442,8 @@ namespace sl::detail
         virtual void warm_up_pipelines(int /*samples*/) {}
         /** Cumulative number of pipeline states this backend has created (0 where the concept does not apply). */
         virtual std::uint64_t pipelines_created() const { return 0; }
+        /** True when the backend can record queued mesh draws on several threads (Vulkan, Direct3D 12). */
+        virtual bool supports_parallel_recording() const { return false; }
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                    std::uint32_t &program, std::string &error) = 0;

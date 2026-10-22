@@ -153,7 +153,7 @@ namespace sl::detail
             void shutdown() override
             {
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
                 for (VulkanBuffer &buffer : vertex_buffers_)
                     context_.destroy_buffer(buffer);
                 vertex_buffers_.clear();
@@ -339,7 +339,7 @@ namespace sl::detail
             {
                 flush_2d();
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
             }
             bool begin_frame(std::string &error) override
             {
@@ -455,7 +455,7 @@ namespace sl::detail
                     return;
                 }
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
                 context_.free_descriptor_set(descriptor_pool_, iterator->second.descriptor);
                 context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_image(iterator->second.image);
@@ -502,7 +502,7 @@ namespace sl::detail
                     return;
                 }
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
                 context_.free_descriptor_set(descriptor_pool_, iterator->second.descriptor);
                 context_.destroy_sampler(iterator->second.sampler);
                 context_.destroy_image(iterator->second.image);
@@ -573,6 +573,7 @@ namespace sl::detail
                 ensure_sky_pipeline(samples);
             }
             std::uint64_t pipelines_created() const override { return context_.pipelines_created(); }
+            bool supports_parallel_recording() const override { return true; }
             bool create_mesh(const Vertex3D *vertices, std::size_t vertex_count,
                              const std::uint32_t *indices, std::size_t index_count,
                              std::uint32_t &handle) override
@@ -618,7 +619,7 @@ namespace sl::detail
                     return;
                 // Buffers may still be referenced by a submitted frame.
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
                 context_.destroy_buffer(found->second.vertices);
                 context_.destroy_buffer(found->second.indices);
                 meshes_.erase(found);
@@ -767,7 +768,7 @@ namespace sl::detail
                     return;
                 // The buffer may still be referenced by a submitted frame.
                 if (context_.device() != VK_NULL_HANDLE)
-                    vkDeviceWaitIdle(context_.device());
+                    context_.wait_device_idle();
                 context_.destroy_buffer(found->second.buffer);
                 instance_buffers_.erase(found);
             }
@@ -860,7 +861,7 @@ namespace sl::detail
                 else
                 {
                     if (context_.device() != VK_NULL_HANDLE)
-                        vkDeviceWaitIdle(context_.device());
+                        context_.wait_device_idle();
                     destroy_target_resources(iterator->second, true);
                 }
                 render_targets_.erase(iterator);
@@ -1094,7 +1095,7 @@ namespace sl::detail
                 if (compute_iterator != dynamic_compute_programs_.end())
                 {
                     if (context_.device() != VK_NULL_HANDLE)
-                        vkDeviceWaitIdle(context_.device());
+                        context_.wait_device_idle();
                     DynamicVulkanComputeProgram &dynamic = compute_iterator->second;
                     context_.destroy_compute_pipeline(dynamic.pipeline);
                     context_.destroy_storage_descriptor_layout(dynamic.descriptor_layout);
@@ -1106,7 +1107,7 @@ namespace sl::detail
                 if (dynamic_iterator != dynamic_programs_.end())
                 {
                     if (context_.device() != VK_NULL_HANDLE)
-                        vkDeviceWaitIdle(context_.device());
+                        context_.wait_device_idle();
                     DynamicVulkanProgram &dynamic = dynamic_iterator->second;
                     for (auto &[samples, pipeline_set] : dynamic.pipelines)
                         for (auto &pipeline : pipeline_set)

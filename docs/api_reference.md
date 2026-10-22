@@ -306,8 +306,9 @@ void rest(std::uint32_t milliseconds);
 
 #### Frame statistics (`get_frame_stats`, `draw_frame_stats`)
 ```cpp
-struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; uint64_t pipelines_created; };
+struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; uint64_t pipelines_created; uint32_t parallel_draws, recording_threads; };
 FrameStats get_frame_stats();   // pipelines_created: Vulkan/D3D12 pipeline builds so far (0 on OpenGL)
+                                // parallel_draws: mesh draws recorded on worker threads this frame; recording_threads: threads used (1 = inline)
 
 void draw_frame_stats(Font *font, int x, int y);   // include/font.h
 ```
@@ -825,6 +826,8 @@ A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then 
 - `draw_mesh(mesh, model_matrix, {tint, lit, texture, cull})`: `texture` is an optional `Bitmap*` sampled with the vertex `uv` (v = 0 is the image top) and multiplied into the colour. `cull` is a `CullMode`: `back` (default; clockwise-wound faces are culled), `front`, or `none`.
 - `draw_mesh_instanced(mesh, instances, material)`: draw many copies of a mesh in one hardware-instanced call. `instances` is a `std::vector<InstanceData3D>`, each a `model` matrix plus a `tint` that multiplies the vertex colours (rgb and alpha) on top of `Material::tint`. The view-projection is applied once and each model matrix in the vertex shader, with correct lighting for non-uniform scale and mirrored instances. This overload uploads the instances every call, so it suits instances that change each frame; calls in the same frame do not overwrite one another.
 - `create_instance_buffer(capacity)`, `update_instance_buffer(buffer, instances)`, `destroy_instance_buffer(buffer)` and `draw_mesh_instanced(mesh, buffer, material)`: keep the instance data on the GPU for groups that rarely change. The capacity is fixed at creation and `update_instance_buffer()` fails if given more instances. Update a buffer at most once per frame, before drawing it that frame. The buffer stays valid as the camera moves, so a static group needs no per-frame upload. `Material::terrain` shading is not supported with instancing. Supported on OpenGL, Vulkan and Direct3D 12 (the Direct3D 12 path is untested on Linux).
+- **Parallel recording** ([include/parallel_render.h](../include/parallel_render.h)): on Vulkan and Direct3D 12 large batches of mesh draws are recorded on worker threads automatically (OpenGL ignores it). `set_parallel_recording(bool)`, `set_parallel_recording_threshold(n)` (inline draws before queueing, default 256) and `set_parallel_recording_threads(n)` (0 = auto, 1 = off) tune it; `parallel_recording_enabled()`, `parallel_recording_threshold()` and `parallel_recording_threads()` read the settings, and `FrameStats::parallel_draws` / `recording_threads` report what happened. See [Threading](renderers.md#threading-and-start-up-cost).
+- `RenderQueue3D`: worker threads fill their own queue with `queue.draw_mesh(mesh, model, material)` and `queue.draw_mesh_instanced(mesh, buffer, material)` (no rendering state is touched), then the main thread calls `submit_render_queue(queue)` between `begin_surface_3d()` and `end_surface_3d()`; draws issue in recorded order. Meshes, textures and instance buffers must outlive submission and must not be modified or destroyed while threads are filling queues. Parameter building and texture uploads still run on the main thread during submission, so the gain is your own culling and matrix work plus parallel recording. Use `queue.clear()` to reuse a queue.
 
 
 ---

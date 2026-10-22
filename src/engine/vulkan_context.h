@@ -145,6 +145,18 @@ namespace sl::detail
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);
         bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
+        /**
+         * Record any mesh draws queued for parallel recording into the primary command buffer, in order. Every
+         * method that records commands or destroys resources calls this first, so queued draws never reorder.
+         */
+        bool flush_pending_draws(std::string &error);
+        bool flush_pending_draws()
+        {
+            std::string ignored;
+            return flush_pending_draws(ignored);
+        }
+        /** vkDeviceWaitIdle() that first records queued draws, so their resources are still valid. */
+        void wait_device_idle();
         bool record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                   VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
                                   VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,
@@ -358,6 +370,38 @@ namespace sl::detail
         // reusing the buffer from the start of every frame safe.
         static constexpr VkDeviceSize environment_slot_size = 512;
         static constexpr std::uint32_t environment_slot_count = 1024;
+        // A fully resolved mesh draw: everything workers need to record it without touching shared state.
+        struct MeshDrawRecord
+        {
+            VkPipeline pipeline = VK_NULL_HANDLE;
+            VkPipelineLayout layout = VK_NULL_HANDLE;
+            VkBuffer vertex_buffer = VK_NULL_HANDLE;
+            VkBuffer index_buffer = VK_NULL_HANDLE;
+            VkBuffer instance_buffer = VK_NULL_HANDLE;
+            VkDescriptorSet texture = VK_NULL_HANDLE;
+            VkDescriptorSet normal = VK_NULL_HANDLE;
+            VkDescriptorSet material = VK_NULL_HANDLE;
+            std::uint32_t index_count = 0;
+            std::uint32_t instance_count = 1;
+            std::uint32_t environment_offset = 0;
+            float vertex_constants[28];
+            float fragment_constants[4];
+        };
+        struct RecordWorker
+        {
+            VkCommandPool pool = VK_NULL_HANDLE;
+            std::vector<VkCommandBuffer> buffers;
+            std::size_t used = 0;
+        };
+        void record_mesh_commands(VkCommandBuffer command, const MeshDrawRecord &draw, bool set_state);
+        bool record_mesh_secondary(unsigned worker, const MeshDrawRecord *draws, std::size_t count,
+                                   VkCommandBuffer &out);
+        bool ensure_record_workers(unsigned count);
+        void reset_record_workers();
+        void destroy_record_workers();
+        std::vector<MeshDrawRecord> pending_draws_;
+        std::size_t direct_mesh_run_ = 0;
+        std::vector<RecordWorker> record_workers_;
         bool ensure_environment_block(std::string &error);
         void destroy_environment_block();
         bool write_environment(const void *data, std::size_t bytes, std::uint32_t &dynamic_offset, std::string &error);

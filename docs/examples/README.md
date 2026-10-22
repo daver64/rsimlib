@@ -31,6 +31,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exhello](img/exhello.png)<br>**exhello**](exhello.md) | The smallest simlib program: open a window, draw centred text on a cleared background, and wait for a key press. |
 | [![exinput](img/exinput.png)<br>**exinput**](exinput.md) | Input mapping: one `InputMap` binds keyboard, mouse and gamepad inputs to named actions, with live rebinding. |
 | [![exinstancing](img/exinstancing.png)<br>**exinstancing**](exinstancing.md) | Compares three ways to draw thousands of cubes: one call each, per-frame instance vectors, and a persistent `InstanceBuffer`. |
+| [![exparallel](img/exparallel.png)<br>**exparallel**](exparallel.md) | Parallel command recording: thousands of draw calls recorded on one thread, on worker threads by the backend, or built by your own threads with `RenderQueue3D`. |
 | [![exisometric](img/exisometric.png)<br>**exisometric**](exisometric.md) | An isometric terrain editor: raise and lower diamond tiles, pan and zoom the view, and toggle textures and soft lighting. |
 | [![exjoints](img/exjoints.png)<br>**exjoints**](exjoints.md) | Physics joints: a bridge of hinged planks, a spring pendulum and a wheel-jointed car, all draggable with the mouse. |
 | [![exlighting](img/exlighting.png)<br>**exlighting**](exlighting.md) | 2D radial lights with polygon soft shadows, rendered through a `LightingPass` into a render target. |

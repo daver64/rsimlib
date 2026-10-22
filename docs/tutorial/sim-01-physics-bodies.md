@@ -1,6 +1,6 @@
 # Lesson 1 (Simulation): Physics bodies
 
-[← Tutorial index](README.md) · Previous: [Models and a HUD](3d-03-models-and-hud.md)
+[← Tutorial index](README.md) · Previous: [Many objects and threads](3d-04-many-objects-and-threads.md)
 
 **Goal:** drop boxes and balls onto a floor and watch them collide, using the 2D physics world.
 

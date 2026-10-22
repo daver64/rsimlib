@@ -24,6 +24,7 @@ exinput	exinput	-	3
 exprecip2d	exprecip2d	-	4	key:Up;key:Up;sleep:8
 exprecip3d	exprecip3d	-	4	key:space;key:3;key:Prior;sleep:22
 exinstancing	exinstancing	-	3
+exparallel	exparallel	--vulkan	4	key:Up;sleep:3
 exisometric	exisometric	-	3
 exjoints	exjoints	-	3
 exlighting	exlighting	-	3	move:400,300;sleep:1

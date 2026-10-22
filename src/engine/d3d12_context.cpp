@@ -12,6 +12,8 @@
 #include <dxgi1_4.h>
 #include <windows.h>
 
+#include <vector>
+
 namespace sl::detail
 {
     namespace
@@ -205,7 +207,21 @@ namespace sl::detail
 
     bool D3D12Context::wait_idle()
     {
+        flush_pending();
         return wait_for_gpu();
+    }
+
+    bool D3D12Context::execute_with(ID3D12CommandList *const *lists, unsigned count)
+    {
+        if (!frame_open_ || FAILED(command_list_->Close()))
+            return false;
+        std::vector<ID3D12CommandList *> all;
+        all.reserve(count + 1);
+        all.push_back(command_list_);
+        all.insert(all.end(), lists, lists + count);
+        command_queue_->ExecuteCommandLists(static_cast<UINT>(all.size()), all.data());
+        // The list may be reset right after execution; the allocator keeps growing until the frame ends.
+        return SUCCEEDED(command_list_->Reset(command_allocator_, nullptr));
     }
 
     bool D3D12Context::begin_frame()
@@ -229,6 +245,7 @@ namespace sl::detail
 
     void D3D12Context::bind_backbuffer()
     {
+        flush_pending();
         if (!frame_open_ || !rtv_heap_)
             return;
         D3D12_CPU_DESCRIPTOR_HANDLE handle = rtv_heap_->GetCPUDescriptorHandleForHeapStart();
@@ -243,6 +260,7 @@ namespace sl::detail
 
     void D3D12Context::present(bool vsync)
     {
+        flush_pending();
         if (!swap_chain_ || !frame_open_)
             return;
         D3D12_RESOURCE_BARRIER barrier{};
@@ -265,6 +283,7 @@ namespace sl::detail
 
     void D3D12Context::clear(float red, float green, float blue, float alpha)
     {
+        flush_pending();
         if (!frame_open_ || !rtv_heap_)
             return;
         D3D12_CPU_DESCRIPTOR_HANDLE handle = rtv_heap_->GetCPUDescriptorHandleForHeapStart();

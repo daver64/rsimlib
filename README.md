@@ -6,7 +6,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-simlib comes with a short [Tutorial](docs/tutorial/README.md) (11 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
+simlib comes with a short [Tutorial](docs/tutorial/README.md) (12 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
 
 | I want to... | Run | Read |
 |--------------|-----|------|
@@ -15,6 +15,8 @@ simlib comes with a short [Tutorial](docs/tutorial/README.md) (11 lessons across
 | Simulate something (flight, fluids, physics, weather) | `exflight`, `exorbit`, `exfluid3d`, `exprecip3d` | [Flight](docs/flight.md), [Terrain](docs/terrain.md), [World Flavour](docs/world_flavour.md) |
 | Go deep on rendering (shaders, compute, effects) | `exshader`, `excompute`, `expostprocess`, `exlighting` | [Renderer Backends](docs/renderers.md), [Graphics Effects](docs/graphics_effects.md) |
 | Script it or add tools | `exlua`, `exluaconsole`, `exgui` | [Lua Scripting](docs/scripting_lua.md) |
+
+**Why choose Vulkan or Direct3D 12?** They can use several CPU cores for rendering. Vulkan and Direct3D 12 record large batches of 3D mesh draws on worker threads automatically, then submit them in the original order, so the picture is identical and your code does not change. In our benchmark of 2,000 to 50,000 draws on Vulkan this cut frame time by roughly 30%; small scenes are unaffected. OpenGL cannot do this because a GL context belongs to a single thread. You can tune it with `sl::set_parallel_recording_threads()` and friends, and for the heaviest scenes `sl::RenderQueue3D` lets worker threads build draws too. See [`exparallel`](docs/examples/exparallel.md), the [tutorial lesson](docs/tutorial/3d-04-many-objects-and-threads.md) and [Parallel command recording](docs/renderers.md#parallel-command-recording). Pipelines are also built up front, and `load_model_async()` / `load_bitmap_async()` load assets without stalling a frame.
 
 **Backend status.** OpenGL and Vulkan are built and tested on Linux (the `ctest` suite includes pixel-level 3D blending checks that run on both). Direct3D 12 implements the same API but is Windows-only and is not covered by the Linux test runs, so treat it as less proven until you have run the suite on your own hardware. Use `ex3d_surface --gl`, `--vulkan` or `--d3d12` to compare backends. While developing, `sl::draw_frame_stats()` shows FPS and per-frame 3D draw counts.
 
@@ -329,6 +331,7 @@ The full catalog of focused runnable examples follows.
 ./build/exprecip2d      # Rain, hail and snow over a scrolling city (1/2/3, Up/Down strength, Q/E wind)
 ./build/exprecip3d      # 3D precipitation with cloud wind, fog, a haze lens, snow cover and a synthesised weather sound
 ./build/exinstancing     # 6400 cubes drawn per-mesh vs hardware-instanced (Space switches), plus a 2D sprite batch
+./build/exparallel      # Thousands of draws recorded on one thread vs worker threads vs RenderQueue3D (Space switches; try --vulkan)
 ./build/exlobby         # Game lobby: find games in an IRC channel, then play over UDP (--irc-host HOST to choose the server)
 ./build/expathfinding   # Flow-field enemies (chase/scent/sound) with wall editing and heat-map overlays
 ./build/exanimsprite    # AnimationManager: looping, rotated, paused and one-shot animated sprites from an atlas
@@ -392,6 +395,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exprecip2d`](src/examples/exprecip2d/exprecip2d.cpp)** — 2D rain, hail and snow with splashes, wind, snow accumulation on rooftops, optional lens droplets and a synthesised weather sound (M toggles it). [Screenshot & guide](docs/examples/exprecip2d.md).
 - **[`exprecip3d`](src/examples/exprecip3d/exprecip3d.cpp)** — 3D precipitation around the camera driven by cloud wind, with weather-tinted fog and snow cover. [Screenshot & guide](docs/examples/exprecip3d.md).
 - **[`exinstancing`](src/examples/exinstancing/exinstancing.cpp)** — 6400 animated cubes drawn one by one, with `draw_mesh_instanced()` and with a persistent `InstanceBuffer`, plus a `draw_sprite_batch()` sprite swarm. [Screenshot & guide](docs/examples/exinstancing.md).
+- **[`exparallel`](src/examples/exparallel/exparallel.cpp)** — 10,000+ separate cube draws recorded on one thread, spread across worker threads by Vulkan/Direct3D 12, or built by your own threads with `RenderQueue3D`, with live frame time and parallel-draw counts. [Screenshot & guide](docs/examples/exparallel.md).
 - **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena. [Screenshot & guide](docs/examples/exlobby.md).
 - **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer. [Screenshot & guide](docs/examples/expathfinding.md).
 - **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions. [Screenshot & guide](docs/examples/exanimsprite.md).

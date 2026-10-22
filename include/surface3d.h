@@ -254,4 +254,40 @@ namespace sl
      */
     bool draw_mesh_instanced(const Mesh *mesh, const std::vector<InstanceData3D> &instances, const Material &material = {});
 
+    /**
+     * A list of draws that worker threads can fill while the main thread does other work. Filling a queue touches no
+     * rendering state, so each thread should use its own queue; a queue must not be shared between threads. Replay
+     * queues on the main thread with submit_render_queue().
+     */
+    class RenderQueue3D
+    {
+    public:
+        /** Record draw_mesh(). The mesh, material textures and terrain textures must outlive submission. */
+        void draw_mesh(const Mesh *mesh, const glm::mat4 &model, const Material &material = {});
+        /** Record draw_mesh_instanced() with a persistent buffer. */
+        void draw_mesh_instanced(const Mesh *mesh, const InstanceBuffer *buffer, const Material &material = {});
+        void clear() { entries_.clear(); }
+        std::size_t size() const { return entries_.size(); }
+
+    private:
+        friend bool submit_render_queue(const RenderQueue3D &queue);
+        struct Entry
+        {
+            const Mesh *mesh;
+            glm::mat4 model;
+            Material material;
+            const InstanceBuffer *instances;
+        };
+        std::vector<Entry> entries_;
+    };
+
+    /**
+     * Issue every draw in `queue`, in the order it was recorded, into the active 3D surface. Call on the main thread
+     * between begin_surface_3d() and end_surface_3d(). Returns false if any draw failed (the rest still run). The queue
+     * is left intact; call clear() to reuse it. Texture uploads and other shared state are handled here, so this part
+     * stays on one thread; what it saves is your own culling and matrix work (done while filling queues) plus the
+     * command recording, which Vulkan and Direct3D 12 spread across threads for large batches.
+     */
+    bool submit_render_queue(const RenderQueue3D &queue);
+
 } // namespace sl

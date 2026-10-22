@@ -5,6 +5,7 @@
 #include <SDL2/SDL_video.h>
 
 #include <cstdint>
+#include <functional>
 #include <string>
 
 struct ID3D12CommandAllocator;
@@ -45,7 +46,26 @@ namespace sl::detail
         void bind_backbuffer();
 
         ID3D12Device *device() const { return device_; }
-        ID3D12GraphicsCommandList *command_list() const { return command_list_; }
+        /** Returns the primary list; any queued parallel draws are recorded first so command order is kept. */
+        ID3D12GraphicsCommandList *command_list() const
+        {
+            flush_pending();
+            return command_list_;
+        }
+        /** The primary list without flushing queued draws (for the flush itself). */
+        ID3D12GraphicsCommandList *raw_command_list() const { return command_list_; }
+        /** Installs the callback that records queued draws; it is cleared before it runs. */
+        void set_flush_hook(std::function<void()> hook) { flush_hook_ = std::move(hook); }
+        void flush_pending() const
+        {
+            if (!flush_hook_)
+                return;
+            auto hook = std::move(flush_hook_);
+            flush_hook_ = nullptr;
+            hook();
+        }
+        /** Closes and executes the primary list followed by `lists`, then reopens the primary list. */
+        bool execute_with(ID3D12CommandList *const *lists, unsigned count);
         ID3D12CommandQueue *command_queue() const { return command_queue_; }
 
     private:
@@ -68,6 +88,7 @@ namespace sl::detail
         std::uint32_t frame_index_ = 0;
         int width_ = 0;
         int height_ = 0;
+        mutable std::function<void()> flush_hook_;
         bool frame_open_ = false;
         std::uint64_t frame_serial_ = 0;
     };
