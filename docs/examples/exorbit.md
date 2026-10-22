@@ -10,7 +10,8 @@ Spaceflight: a craft with main engine, retro thrust and RCS, orbit prediction, t
 - SAS stability assist
 - Time warp
 - Free-look and zoom camera
-- A procedural streaming planet (`Terrain` on a sphere) with atmosphere and a cloud shell, and a textured Moon
+- A procedural streaming planet (`Terrain` on a sphere) with atmosphere and a cloud shell, and a textured moon (a third of the planet's radius, at a quarter of the Earth-Moon distance)
+- A yellow star in the sky: an additive billboard with a bright core and soft glow, hidden by the planet and moon through depth testing
 - An Apollo-style command and service module with glowing additive exhaust particles from every firing thruster
 - Synthesised rocket and RCS sound loops driven by thruster levels with `set_voice_volume`
 - Metre units with a floating origin: the camera stays at the origin and everything is drawn relative to the eye

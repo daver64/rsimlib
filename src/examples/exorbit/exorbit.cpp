@@ -26,9 +26,12 @@ namespace
 {
     constexpr double earth_gm = 3.986004418e14;
     constexpr double earth_radius = 6.371e6;
-    constexpr double moon_gm = 4.9028e12;
-    constexpr double moon_radius = 1.7374e6;
+    // The planet's moon is a third of its radius, at a quarter of the Earth-Moon distance; its mass scales with volume.
+    constexpr double moon_radius = earth_radius / 3.0;
+    constexpr double moon_distance = 3.844e8 / 4.0;
+    constexpr double moon_gm = 4.9028e12 * (moon_radius / 1.7374e6) * (moon_radius / 1.7374e6) * (moon_radius / 1.7374e6);
     constexpr double km = 1000.0;
+    constexpr double cloud_height = 60.0e3;
     const double warp_levels[] = {1, 2, 5, 10, 100, 1000, 10000, 100000};
     constexpr int warp_count = sizeof(warp_levels) / sizeof(warp_levels[0]);
 
@@ -70,7 +73,7 @@ namespace
         moon->gm = moon_gm;
         moon->radius = moon_radius;
         sl::OrbitElements lunar;
-        lunar.semi_major_axis = 3.844e8;
+        lunar.semi_major_axis = moon_distance;
         lunar.eccentricity = 0.0549;
         lunar.inclination = 0.09;
         lunar.mean_anomaly = 1.0;
@@ -111,6 +114,31 @@ namespace
             for (double y : {1.0, -1.0})
                 add_rcs(*ship, {x, 0, 0}, {0, y, 0});
         w.build_standard_groups(s.ship);
+    }
+
+    // A soft yellow star: a bright core, a warm halo and a faint wide glow, as alpha for an additive billboard.
+    sl::Bitmap *make_star_texture(int size = 256)
+    {
+        sl::Bitmap *bitmap = sl::create_bitmap(size, size);
+        if (!bitmap)
+            return nullptr;
+        for (int y = 0; y < size; ++y)
+            for (int x = 0; x < size; ++x)
+            {
+                const double dx = (x + 0.5) / size * 2.0 - 1.0, dy = (y + 0.5) / size * 2.0 - 1.0;
+                const double r = std::sqrt(dx * dx + dy * dy);
+                const double core = 1.0 - fx::smoothstep(0.05, 0.09, r);
+                const double halo = 0.8 * std::exp(-r * 6.0);
+                const double wide = 0.4 * std::exp(-r * 2.6);
+                const double edge = 1.0 - fx::smoothstep(0.8, 1.0, r);
+                const double a = std::clamp(core + halo + wide, 0.0, 1.0) * edge;
+                const double white = core; // the disc is whiter than its glow
+                sl::putpixel(bitmap, x, y,
+                             {255, static_cast<std::uint8_t>(215 + 40 * white), static_cast<std::uint8_t>(110 + 140 * white),
+                              static_cast<std::uint8_t>(a * 255.0)});
+            }
+        bitmap->smooth = true;
+        return bitmap;
     }
 
     struct Exhaust
@@ -226,11 +254,13 @@ int main(int argc, char **argv)
 
     sl::Mesh *glow_mesh = sl::create_sphere_mesh(1.0f, 12, 8, {255, 255, 255, 255});
     sl::Mesh *moon_mesh = sl::create_sphere_mesh(static_cast<float>(moon_radius), 64, 32, {255, 255, 255, 255});
-    sl::Mesh *cloud_shell = sl::create_sphere_mesh(static_cast<float>(earth_radius + 60.0e3), 128, 64, {255, 255, 255, 255});
+    sl::Mesh *cloud_shell = sl::create_sphere_mesh(static_cast<float>(earth_radius + cloud_height), 128, 64, {255, 255, 255, 255});
     sl::Bitmap *cloud_texture = fx::make_cloud_texture();
     sl::Bitmap *moon_texture = fx::make_moon_texture();
+    sl::Bitmap *star_texture = make_star_texture();
+    sl::Mesh *star_mesh = sl::create_plane_mesh(2.0f, 2.0f, {255, 255, 255, 255});
     fx::Capsule capsule;
-    if (!glow_mesh || !moon_mesh || !cloud_shell || !cloud_texture || !moon_texture || !capsule.create())
+    if (!glow_mesh || !moon_mesh || !cloud_shell || !cloud_texture || !moon_texture || !star_texture || !star_mesh || !capsule.create())
     {
         std::fprintf(stderr, "Failed to create meshes: %s\n", sl::last_error().c_str());
         sl::shutdown();
@@ -408,6 +438,10 @@ int main(int argc, char **argv)
         {
             const sl::Thruster &t = ship.thrusters[i];
             const bool engine_thruster = t.max_thrust > 1000.0;
+            // A thruster whose tank is empty produces no thrust, so it must not glow or make noise either.
+            const bool fuelled = t.tank < 0 || (t.tank < static_cast<int>(ship.tanks.size()) && ship.tanks[t.tank].mass > 0.0);
+            if (!fuelled)
+                continue;
             if (engine_thruster)
                 rocket_level = std::max(rocket_level, t.level);
             else if (t.level > 0.0)
@@ -438,9 +472,13 @@ int main(int argc, char **argv)
         camera.target = ship_rel;
         camera.up = glm::vec3(view.up);
         camera.field_of_view = 50.0f;
-        camera.near_plane = static_cast<float>(std::max(1.0, cam_distance * 0.3));
+        // The near plane may reach no further than the ship (it spans about 8 m either side of its centre) or the
+        // nearest part of the planet and cloud layer, whichever is closer; as large as that keeps depth precision.
+        const double nearest_ground = std::max(1.0, 0.9 * (eye_distance - earth_radius - 10.0e3));
+        const double near_plane = std::max(1.0, std::min(cam_distance - 8.0, nearest_ground));
+        camera.near_plane = static_cast<float>(near_plane);
         // Reach the Moon only once zoomed out far enough that the near plane keeps depth precision.
-        camera.far_plane = static_cast<float>(camera.near_plane > 1.0e3f ? 1.0e9 : view.far_distance);
+        camera.far_plane = static_cast<float>(cam_distance * 0.3 > 1.0e3 ? 1.0e9 : view.far_distance);
 
         sl::Environment3D environment;
         const glm::vec3 to_sun = glm::normalize(glm::vec3(1.0f, 0.35f, 0.55f));
@@ -476,12 +514,38 @@ int main(int argc, char **argv)
             cloud.texture = cloud_texture;
             cloud.blend = sl::MaterialBlend::alpha;
             cloud.fog = false;
-            sl::draw_mesh(cloud_shell, glm::translate(glm::mat4(1.0f), earth_p), cloud);
+            // The depth buffer cannot separate the shell from the ground at high altitude, so lift the shell as the
+            // depth resolution at that distance coarsens.
+            const double altitude_now = eye_distance - earth_radius;
+            const double resolution = altitude_now * altitude_now / (near_plane * 1.68e7);
+            const double shell_height = std::clamp(2.0 * resolution, cloud_height, 600.0e3);
+            const float shell_scale = static_cast<float>((earth_radius + shell_height) / (earth_radius + cloud_height));
+            sl::draw_mesh(cloud_shell, glm::translate(glm::mat4(1.0f), earth_p) * glm::scale(glm::mat4(1.0f), glm::vec3(shell_scale)), cloud);
 
             sl::Material rock;
             rock.texture = moon_texture;
             rock.fog = false;
             sl::draw_mesh(moon_mesh, glm::translate(glm::mat4(1.0f), moon_p), rock);
+
+            // The star: an additive billboard far along the sunward direction, hidden by the planet and moon through
+            // depth testing. Its size stays constant on screen whatever the distance.
+            {
+                const double star_distance = camera.far_plane * 0.9;
+                const glm::vec3 dir = to_sun;
+                const glm::vec3 to_eye = -dir;
+                const glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), to_eye));
+                const glm::vec3 up = glm::cross(to_eye, right);
+                const float half = static_cast<float>(star_distance * std::tan(glm::radians(7.0)));
+                const glm::mat4 basis(glm::vec4(right * half, 0.0f), glm::vec4(to_eye, 0.0f), glm::vec4(up * half, 0.0f),
+                                      glm::vec4(dir * static_cast<float>(star_distance), 1.0f));
+                sl::Material star;
+                star.texture = star_texture;
+                star.lit = false;
+                star.fog = false;
+                star.cull = sl::CullMode::none;
+                star.blend = sl::MaterialBlend::additive;
+                sl::draw_mesh(star_mesh, basis, star);
+            }
 
             const glm::mat4 hull = glm::translate(glm::mat4(1.0f), ship_rel) * glm::mat4(ship_rot);
             light.ambient = 0.5f;
@@ -572,7 +636,8 @@ int main(int argc, char **argv)
     engine.stop();
     terrain.reset();
     capsule.destroy();
-    for (sl::Mesh *m : {glow_mesh, moon_mesh, cloud_shell})
+    sl::destroy_bitmap(star_texture);
+    for (sl::Mesh *m : {glow_mesh, moon_mesh, cloud_shell, star_mesh})
         sl::destroy_mesh(m);
     sl::destroy_bitmap(cloud_texture);
     sl::destroy_bitmap(moon_texture);
