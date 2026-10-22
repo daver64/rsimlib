@@ -70,8 +70,8 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | Escape | Exit |
 
 ## Key APIs
-- `load_model`, `load_flightgear_model`, `draw_model` — [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh) · [`surface3d.h`](../../include/surface3d.h)
-- `play_model_clip`, `update_model_clip`, `set_model_property` — [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh) · [`surface3d.h`](../../include/surface3d.h)
+- `load_model`, `load_flightgear_model`, `draw_model` — [3D Models & Async Loading](../api_reference.md#3d-models--async-loading-includemodel3dh-includeasync_loadh) · [`model3d.h`](../../include/model3d.h)
+- `play_model_clip`, `update_model_clip`, `set_model_property` — [3D Models & Async Loading](../api_reference.md#3d-models--async-loading-includemodel3dh-includeasync_loadh) · [`model3d.h`](../../include/model3d.h)
 
 ## Source
 [src/examples/exmodel3d/exmodel3d.cpp](../../src/examples/exmodel3d/exmodel3d.cpp)

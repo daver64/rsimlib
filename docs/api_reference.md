@@ -17,6 +17,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 8. [2D Radial Lighting & Polygon Shadows](#2d-radial-lighting--polygon-shadows-includegraphics_fxh)
 9. [Box2D Physics System](#box2d-physics-system-includephysicsh)
 10. [3D Surfaces](#3d-surfaces-includesurface3dh)
+    - [3D Models & Async Loading](#3d-models--async-loading-includemodel3dh-includeasync_loadh)
 11. [Voxel Chunks & World](#voxel-chunks--world-includevoxelh)
 12. [Audio Subsystem (Samples & Streams)](#audio-subsystem-samples--streams-includeaudioh)
 13. [Cellular Automata Fluid & Granular Simulation](#cellular-automata-fluid--granular-simulation-includefluidh)
@@ -308,13 +309,6 @@ void rest(std::uint32_t milliseconds);
 struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; uint64_t pipelines_created; };
 FrameStats get_frame_stats();   // pipelines_created: Vulkan/D3D12 pipeline builds so far (0 on OpenGL)
 
-// Async loading (include/async_load.h): decode on worker threads, upload on the main thread inside end_frame().
-AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {});
-AsyncModel  load_model_async(const std::string &path);
-void        set_async_upload_budget(std::size_t bytes);   // per-frame upload cap, default 8 MiB
-std::size_t async_loads_pending();
-// Handles: valid() ready() failed() done() error() cancel() wait() get(). get() returns the result once.
-// Use handles from the main thread only. Unclaimed results are released by shutdown().
 void draw_frame_stats(Font *font, int x, int y);   // include/font.h
 ```
 - **Description**: `end_frame()` publishes the previous frame's timing and 3D draw counts (`draw_mesh` calls, `draw_mesh_instanced` calls and their instances, and how many used alpha/additive blending). `draw_frame_stats` prints them as a small overlay; call it last in the frame. Pass `nullptr` for the default monospace font. Terrain and sky draws are not counted.
@@ -828,11 +822,18 @@ A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then 
 - `begin_surface_3d(surface, camera)` / `end_surface_3d()`: bracket 3D drawing. Contents are undefined until `clear_surface_3d(colour)` is called.
 - `set_light_3d({direction, ambient})`: one directional light.
 - `create_cube_mesh`, `create_plane_mesh`, `create_sphere_mesh`, `create_mesh(vertices, indices)` / `destroy_mesh`
-- `load_obj_mesh(path, colour)` / `load_obj_mesh_from_memory(data, size, colour)`: Wavefront OBJ (v/vt/vn/f, polygons triangulated, negative indices); normals are generated when missing.
-- `load_model(path)` / `draw_model(model, transform)` / `destroy_model(model)`: loads `.obj` (with `.mtl`: `Kd` colour, `map_Kd` texture, `norm`/`map_Bump`/`bump` normal map, one part per `usemtl`), `.gltf` and `.glb` (node hierarchy, base-colour factor/texture, `normalTexture`, PBR metallic-roughness and emissive, `doubleSided`, skins, POSITION/NORMAL/TEXCOORD_0/COLOR_0, triangle primitives), and `.ac` (AC3D hierarchy transforms, object names, UVs, diffuse materials and textures). `load_flightgear_model(path)` imports a FlightGear model XML's AC3D model path, supported rotate/translate/spin/blend animations, and conditional visibility; `load_model_animations_json(model, path)` loads simlib's JSON animation format and `set_model_property(model, name, value)` drives either format. See [AC3D Models and FlightGear Animations](ac3d.md) for format coverage and limitations. A `Model` owns its meshes and textures; each `ModelPart` has a `Material` and transform.
 - `draw_mesh(mesh, model_matrix, {tint, lit, texture, cull})`: `texture` is an optional `Bitmap*` sampled with the vertex `uv` (v = 0 is the image top) and multiplied into the colour. `cull` is a `CullMode`: `back` (default; clockwise-wound faces are culled), `front`, or `none`.
 - `draw_mesh_instanced(mesh, instances, material)`: draw many copies of a mesh in one hardware-instanced call. `instances` is a `std::vector<InstanceData3D>`, each a `model` matrix plus a `tint` that multiplies the vertex colours (rgb and alpha) on top of `Material::tint`. The view-projection is applied once and each model matrix in the vertex shader, with correct lighting for non-uniform scale and mirrored instances. This overload uploads the instances every call, so it suits instances that change each frame; calls in the same frame do not overwrite one another.
 - `create_instance_buffer(capacity)`, `update_instance_buffer(buffer, instances)`, `destroy_instance_buffer(buffer)` and `draw_mesh_instanced(mesh, buffer, material)`: keep the instance data on the GPU for groups that rarely change. The capacity is fixed at creation and `update_instance_buffer()` fails if given more instances. Update a buffer at most once per frame, before drawing it that frame. The buffer stays valid as the camera moves, so a static group needs no per-frame upload. `Material::terrain` shading is not supported with instancing. Supported on OpenGL, Vulkan and Direct3D 12 (the Direct3D 12 path is untested on Linux).
+
+
+---
+## 3D Models & Async Loading ([include/model3d.h](../include/model3d.h), [include/async_load.h](../include/async_load.h))
+
+Models load into a `Model` that owns its meshes and textures; draw them on a `Surface3D` (see above).
+
+- `load_obj_mesh(path, colour)` / `load_obj_mesh_from_memory(data, size, colour)`: Wavefront OBJ (v/vt/vn/f, polygons triangulated, negative indices); normals are generated when missing.
+- `load_model(path)` / `draw_model(model, transform)` / `destroy_model(model)`: loads `.obj` (with `.mtl`: `Kd` colour, `map_Kd` texture, `norm`/`map_Bump`/`bump` normal map, one part per `usemtl`), `.gltf` and `.glb` (node hierarchy, base-colour factor/texture, `normalTexture`, PBR metallic-roughness and emissive, `doubleSided`, skins, POSITION/NORMAL/TEXCOORD_0/COLOR_0, triangle primitives), and `.ac` (AC3D hierarchy transforms, object names, UVs, diffuse materials and textures). `load_flightgear_model(path)` imports a FlightGear model XML's AC3D model path, supported rotate/translate/spin/blend animations, and conditional visibility; `load_model_animations_json(model, path)` loads simlib's JSON animation format and `set_model_property(model, name, value)` drives either format. See [AC3D Models and FlightGear Animations](ac3d.md) for format coverage and limitations. A `Model` owns its meshes and textures; each `ModelPart` has a `Material` and transform.
 
 glTF 2.0 (`.glb`/`.gltf`) is the recommended format; export from Blender 4.x with File > Export > glTF 2.0 (Y-up). Node keyframe clips (translation/rotation/scale; linear, step, cubic-spline) are loaded into `Model::clips`:
 
@@ -852,6 +853,20 @@ Also `find_model_clip`, `model_clip_duration`, `stop_model_clip`, `model_clip_pl
 **PBR materials.** glTF materials load as `Material::pbr` with `metallic`, `roughness`, `metallic_roughness` (a texture with occlusion in R, roughness in G and metalness in B), `occlusion_strength` and `emissive` (`KHR_materials_emissive_strength` is honoured). Lit PBR materials use Cook-Torrance GGX shading with the scene's directional light, and `Light3D::ambient` as a simple ambient/occlusion term; there is no image-based lighting. Limits: an occlusion texture is used only when it is the same image as the metallic-roughness texture, and an emissive texture is ignored (as is the emissive factor for that material). Supported on OpenGL, Vulkan and Direct3D 12 (the Direct3D 12 path is untested on Linux). Set `Material::pbr = true` yourself to use it on custom meshes. Non-glTF materials are unchanged.
 
 See `src/examples/ex3d_surface`, `src/examples/exmodel3d` and `src/examples/expbr`. glTF cameras/lights and morph targets are not supported.
+
+**Async loading.** `load_model_async()` and `load_bitmap_async()` decode on worker threads and upload on the main thread inside `end_frame()`, so large assets don't stall a frame.
+
+```cpp
+AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {}); // smooth, mipmaps, anisotropy
+AsyncModel  load_model_async(const std::string &path);
+void        set_async_upload_budget(std::size_t bytes);   // per-frame upload cap, default 8 MiB
+std::size_t async_loads_pending();
+// Handles: valid() ready() failed() done() error() cancel() wait() get().
+auto h = sl::load_model_async("assets/models/box.glb");
+// each frame: if (h.ready()) model = h.get();   // get() hands over the result once
+```
+
+Use handles from the main thread only. Unclaimed results are released by `shutdown()`. Bitmaps arrive with their GPU texture already created, so set the options up front.
 
 ---
 

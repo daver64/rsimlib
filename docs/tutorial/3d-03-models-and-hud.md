@@ -116,5 +116,5 @@ Big models can hitch a frame. `sl::load_model_async(path)` decodes on a worker t
 
 ## Go further
 
-- Examples: [`exmodel3d`](../examples/exmodel3d.md), [`expbr`](../examples/expbr.md), [`exvoxel`](../examples/exvoxel.md). API: [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh).
+- Examples: [`exmodel3d`](../examples/exmodel3d.md), [`expbr`](../examples/expbr.md), [`exvoxel`](../examples/exvoxel.md). API: [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh), [3D Models & Async Loading](../api_reference.md#3d-models--async-loading-includemodel3dh-includeasync_loadh).
 - Next track: [Physics bodies](sim-01-physics-bodies.md), or a bigger demo in the [Showcase Guide](../showcases.md).
