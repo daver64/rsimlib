@@ -435,6 +435,13 @@ namespace sl::detail
         virtual bool draw_sky(const SkyDrawParams &) { return false; }
         /** Clear the active render target's colour and depth. */
         virtual bool clear_3d(float, float, float, float) { return false; }
+        /**
+         * Build the pipeline states 3D drawing needs for a render-target sample count ahead of the first draw, so the
+         * first frame does not stall compiling them. Backends without pipeline objects do nothing.
+         */
+        virtual void warm_up_pipelines(int /*samples*/) {}
+        /** Cumulative number of pipeline states this backend has created (0 where the concept does not apply). */
+        virtual std::uint64_t pipelines_created() const { return 0; }
         /** Compile and link a vertex/fragment shader program. */
         virtual bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                    std::uint32_t &program, std::string &error) = 0;

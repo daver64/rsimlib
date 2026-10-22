@@ -205,6 +205,33 @@ int main(int argc, char *argv[])
     outlives_display->draw(scene.camera);
     sl::end_surface_3d();
 
+    // Creating a surface builds its 3D pipelines up front, so the first draws compile nothing (Vulkan and
+    // Direct3D 12 count pipeline builds; OpenGL always reports 0, which passes trivially).
+    {
+        sl::end_frame();
+        sl::end_frame();
+        const std::uint64_t before = sl::get_frame_stats().pipelines_created;
+        sl::Surface3D *warm = sl::create_surface_3d(64, 64, 4);
+        sl::end_frame();
+        const std::uint64_t built = sl::get_frame_stats().pipelines_created;
+        check(warm != nullptr, "warm-up surface", {0, 0, 0});
+        check(built >= before, "pipeline counter never decreases", {0, 0, 0});
+        sl::set_environment_3d({});
+        sl::begin_surface_3d(warm, scene.camera);
+        sl::clear_surface_3d({0, 0, 0, 255});
+        sl::draw_sky_3d();
+        sl::draw_mesh(scene.cube, slab(0.0f), red);
+        sl::draw_mesh(scene.cube, slab(0.5f), half_blue);
+        sl::draw_mesh(scene.cube, slab(1.0f), half_blue_add);
+        sl::end_surface_3d();
+        sl::show_video_bitmap();
+        sl::end_frame();
+        sl::end_frame();
+        check(sl::get_frame_stats().pipelines_created == built, "first 3D draws build no pipelines", {0, 0, 0});
+        sl::clear_environment_3d();
+        sl::destroy_surface_3d(warm);
+    }
+
     sl::destroy_bitmap(clear_texture);
     sl::destroy_bitmap(half_texture);
     sl::destroy_mesh(unit);

@@ -2981,6 +2981,7 @@ namespace sl::detail
             result = {};
             return false;
         }
+        ++pipelines_created_;
         return true;
     }
 

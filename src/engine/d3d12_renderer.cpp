@@ -1005,6 +1005,22 @@ namespace sl::detail
                 }
                 return readback_resource(resource, state, width, height, pixels);
             }
+            void warm_up_pipelines(int samples) override
+            {
+                samples = supported_sample_count(samples);
+                if (initialise_2d() && initialise_mesh_pipeline())
+                {
+                    for (std::size_t cull = 0; cull < 3; ++cull)
+                        for (std::uint32_t blend = 0; blend < 3; ++blend)
+                        {
+                            get_mesh_pipeline(cull, samples, false, blend);
+                            get_mesh_pipeline(cull, samples, true, blend);
+                        }
+                }
+                if (initialise_2d() && initialise_sky_pipeline())
+                    get_sky_pipeline(samples);
+            }
+            std::uint64_t pipelines_created() const override { return pipelines_created_; }
             bool create_render_target_3d(int width, int height, int &samples,
                                          std::uint32_t &texture, std::uint32_t &framebuffer) override
             {
@@ -2301,6 +2317,14 @@ namespace sl::detail
                 return true;
             }
 
+            bool create_pipeline_state(const D3D12_GRAPHICS_PIPELINE_STATE_DESC &desc, ID3D12PipelineState *&slot)
+            {
+                if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
+                    return false;
+                ++pipelines_created_;
+                return true;
+            }
+
             ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false, std::uint32_t blend = 0)
             {
                 ID3D12PipelineState *&slot =
@@ -2361,7 +2385,7 @@ namespace sl::detail
                 pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
                 pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
                 pipeline_desc.SampleDesc.Count = static_cast<UINT>(samples);
-                if (FAILED(context_.device()->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&slot))))
+                if (!create_pipeline_state(pipeline_desc, slot))
                 {
                     slot = nullptr;
                     last_error_ = "Unable to create the D3D12 mesh pipeline state.";
@@ -2454,7 +2478,7 @@ namespace sl::detail
                 pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
                 pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
                 pipeline_desc.SampleDesc.Count = static_cast<UINT>(samples);
-                if (FAILED(context_.device()->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&slot))))
+                if (!create_pipeline_state(pipeline_desc, slot))
                 {
                     slot = nullptr;
                     last_error_ = "Unable to create the D3D12 sky pipeline state.";
@@ -3234,7 +3258,7 @@ namespace sl::detail
                 const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(root_signature_, default_vertex_blob_, default_pixel_blob_, primitive,
                                           variant, elements, static_cast<UINT>(std::size(elements)), samples);
-                if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
+                if (!create_pipeline_state(desc, slot))
                     slot = nullptr;
                 return slot;
             }
@@ -3258,7 +3282,7 @@ namespace sl::detail
                 const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
                                           primitive, variant, elements, static_cast<UINT>(std::size(elements)), samples);
-                if (FAILED(context_.device()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&slot))))
+                if (!create_pipeline_state(desc, slot))
                 {
                     slot = nullptr;
                     last_error_ = "Unable to create the D3D12 pipeline state for a user shader.";
@@ -3376,6 +3400,7 @@ namespace sl::detail
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
             std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_pipelines_{};
             std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_instanced_pipelines_{};
+            std::uint64_t pipelines_created_ = 0;
             ID3DBlob *mesh_instanced_vertex_blob_ = nullptr;
             std::unordered_map<std::uint32_t, D3D12InstanceBuffer> instance_buffers_;
             std::uint32_t next_instance_buffer_ = 1;

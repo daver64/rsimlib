@@ -30,6 +30,7 @@ namespace sl
         std::uint32_t instances = 0;   ///< Total instances submitted by instanced draws.
         std::uint32_t blended_draws = 0;   ///< Mesh draws (plain or instanced) using alpha or additive blending.
         std::uint64_t frame_number = 0;    ///< Number of frames completed since start-up.
+        std::uint64_t pipelines_created = 0; ///< Pipeline states built since start-up (Vulkan and Direct3D 12; 0 on OpenGL). A rise mid-game is a compile stall.
     };
 
     /** Return the diagnostics for the last completed frame. */

@@ -4,6 +4,7 @@
 
 #include "draw.h"
 
+#include "async_internal.h"
 #include "display.h"
 #include "error.h"
 #include "gl2d.h"
@@ -1011,6 +1012,12 @@ namespace sl
 	{
 		if (!bitmap || is_screen(bitmap))
 		{
+			return;
+		}
+		if (detail::is_async_worker_thread())
+		{
+			// An async loader discarding a half-built model: the bitmap has no GPU resources or registrations.
+			delete bitmap;
 			return;
 		}
 		if (std::find(active_target_stack.begin(), active_target_stack.end(), bitmap) != active_target_stack.end())

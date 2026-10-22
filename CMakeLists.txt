@@ -361,6 +361,7 @@ add_library(simlib STATIC
     src/engine/gl2d.cpp
     src/engine/particles.cpp
     src/engine/precipitation.cpp
+    src/engine/async_load.cpp
     src/engine/physics.cpp
     src/engine/flight.cpp
     src/engine/atmosphere.cpp
@@ -814,6 +815,19 @@ if(BUILD_TESTING)
     endif()
     if(SIMLIB_RENDER_D3D12)
         add_test(NAME blend3d_d3d12 COMMAND blend3d_test --d3d12)
+    endif()
+
+    add_executable(async_load_test tests/async_load_test.cpp)
+    target_link_libraries(async_load_test PRIVATE simlib)
+    target_compile_definitions(async_load_test PRIVATE SIMLIB_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    if(SIMLIB_RENDER_GL)
+        add_test(NAME async_load_gl COMMAND async_load_test --gl)
+    endif()
+    if(SIMLIB_RENDER_VULKAN)
+        add_test(NAME async_load_vulkan COMMAND async_load_test --vulkan)
+    endif()
+    if(SIMLIB_RENDER_D3D12)
+        add_test(NAME async_load_d3d12 COMMAND async_load_test --d3d12)
     endif()
 
     add_executable(rdb_test tests/rdb_test.cpp)

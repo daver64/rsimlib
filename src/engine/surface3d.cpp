@@ -1,6 +1,7 @@
 #include "surface3d.h"
 
 #include "atmosphere_internal.h"
+#include "deferred_mesh.h"
 #include "error.h"
 #include "frame_stats.h"
 #include "renderer.h"
@@ -136,6 +137,8 @@ namespace sl
             detail::set_error("3D surfaces are not supported by the active graphics backend");
             return nullptr;
         }
+        // Compile the 3D pipelines now rather than on the first draw.
+        renderer->warm_up_pipelines(samples);
         Bitmap *bitmap = new Bitmap;
         bitmap->width = width;
         bitmap->height = height;
@@ -225,8 +228,44 @@ namespace sl
 
     namespace
     {
-        bool g_retain_mesh_cpu_data = false;
+        // Per thread so async loaders can retain data independently of the main thread.
+        thread_local bool g_retain_mesh_cpu_data = false;
+        thread_local std::vector<detail::DeferredMesh> *g_deferred_meshes = nullptr;
     }
+
+    namespace detail
+    {
+        DeferredMeshScope::DeferredMeshScope(std::vector<DeferredMesh> &out) : previous_(g_deferred_meshes)
+        {
+            g_deferred_meshes = &out;
+        }
+
+        DeferredMeshScope::~DeferredMeshScope()
+        {
+            g_deferred_meshes = previous_;
+        }
+
+        bool upload_deferred_mesh(const DeferredMesh &deferred)
+        {
+            Renderer *renderer = active_renderer();
+            Mesh *mesh = deferred.mesh;
+            std::uint32_t handle = 0;
+            if (!mesh || !renderer ||
+                !renderer->create_mesh(mesh->vertices.data(), mesh->vertices.size(), mesh->indices.data(),
+                                       mesh->indices.size(), handle))
+            {
+                set_error("Unable to create mesh on the active graphics backend");
+                return false;
+            }
+            mesh->handle = handle;
+            if (!deferred.retain_cpu)
+            {
+                std::vector<Vertex3D>().swap(mesh->vertices);
+                std::vector<std::uint32_t>().swap(mesh->indices);
+            }
+            return true;
+        }
+    } // namespace detail
 
     bool mesh_cpu_data_retained()
     {
@@ -240,7 +279,6 @@ namespace sl
 
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices)
     {
-        detail::Renderer *renderer = detail::active_renderer();
         if (vertices.empty() || indices.empty() || indices.size() % 3 != 0)
         {
             detail::set_error("Mesh needs vertices and a whole number of triangles");
@@ -262,6 +300,17 @@ namespace sl
             generate_tangents(with_tangents, indices);
             source = &with_tangents;
         }
+        if (g_deferred_meshes)
+        {
+            Mesh *mesh = new Mesh;
+            mesh->vertex_count = static_cast<int>(vertices.size());
+            mesh->index_count = static_cast<int>(indices.size());
+            mesh->vertices = *source;
+            mesh->indices = indices;
+            g_deferred_meshes->push_back({mesh, g_retain_mesh_cpu_data});
+            return mesh;
+        }
+        detail::Renderer *renderer = detail::active_renderer();
         std::uint32_t handle = 0;
         if (!renderer || !renderer->create_mesh(source->data(), source->size(), indices.data(),
                                                 indices.size(), handle))
@@ -309,8 +358,9 @@ namespace sl
     {
         if (!mesh)
             return;
-        if (detail::Renderer *renderer = detail::active_renderer())
-            renderer->destroy_mesh(mesh->handle);
+        if (mesh->handle != 0)
+            if (detail::Renderer *renderer = detail::active_renderer())
+                renderer->destroy_mesh(mesh->handle);
         delete mesh;
     }
 

@@ -305,8 +305,16 @@ void rest(std::uint32_t milliseconds);
 
 #### Frame statistics (`get_frame_stats`, `draw_frame_stats`)
 ```cpp
-struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; };
-FrameStats get_frame_stats();
+struct FrameStats { double frame_time_ms, average_fps; uint32_t mesh_draws, instanced_draws, instances, blended_draws; uint64_t frame_number; uint64_t pipelines_created; };
+FrameStats get_frame_stats();   // pipelines_created: Vulkan/D3D12 pipeline builds so far (0 on OpenGL)
+
+// Async loading (include/async_load.h): decode on worker threads, upload on the main thread inside end_frame().
+AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {});
+AsyncModel  load_model_async(const std::string &path);
+void        set_async_upload_budget(std::size_t bytes);   // per-frame upload cap, default 8 MiB
+std::size_t async_loads_pending();
+// Handles: valid() ready() failed() done() error() cancel() wait() get(). get() returns the result once.
+// Use handles from the main thread only. Unclaimed results are released by shutdown().
 void draw_frame_stats(Font *font, int x, int y);   // include/font.h
 ```
 - **Description**: `end_frame()` publishes the previous frame's timing and 3D draw counts (`draw_mesh` calls, `draw_mesh_instanced` calls and their instances, and how many used alpha/additive blending). `draw_frame_stats` prints them as a small overlay; call it last in the frame. Pass `nullptr` for the default monospace font. Terrain and sky draws are not counted.

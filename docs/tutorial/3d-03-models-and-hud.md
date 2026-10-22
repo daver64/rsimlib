@@ -110,6 +110,10 @@ int main(int argc, char *argv[])
 2. Add a crosshair: two short `sl::line` calls at the centre of the view.
 3. Export a model from Blender as `.glb` and load it. The [Blender guide](../blender.md) covers the settings.
 
+## Loading without a stall
+
+Big models can hitch a frame. `sl::load_model_async(path)` decodes on a worker thread and uploads a little each `end_frame()`. Poll the handle: `auto h = sl::load_model_async(p);` then, once `h.ready()`, take `sl::Model *m = h.get();`. `h.failed()` and `h.error()` report problems. `sl::load_bitmap_async` works the same way.
+
 ## Go further
 
 - Examples: [`exmodel3d`](../examples/exmodel3d.md), [`expbr`](../examples/expbr.md), [`exvoxel`](../examples/exvoxel.md). API: [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh).

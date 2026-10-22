@@ -562,6 +562,17 @@ namespace sl::detail
                 samples = context_.clamp_msaa_samples(samples);
                 return create_render_target(width, height, texture, framebuffer, samples);
             }
+            void warm_up_pipelines(int samples) override
+            {
+                samples = context_.clamp_msaa_samples(samples);
+                std::string error;
+                ensure_2d_pipelines(samples, error);
+                ensure_mesh_pipelines(samples);
+                ensure_mesh_instanced_pipelines(samples);
+                ensure_terrain_pipelines(samples);
+                ensure_sky_pipeline(samples);
+            }
+            std::uint64_t pipelines_created() const override { return context_.pipelines_created(); }
             bool create_mesh(const Vertex3D *vertices, std::size_t vertex_count,
                              const std::uint32_t *indices, std::size_t index_count,
                              std::uint32_t &handle) override

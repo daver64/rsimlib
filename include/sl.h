@@ -46,6 +46,7 @@
 #include "scene3d.h"
 #include "surface3d.h"
 #include "model3d.h"
+#include "async_load.h"
 #include "voxel.h"
 #include "particles.h"
 #include "precipitation.h"

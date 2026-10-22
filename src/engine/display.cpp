@@ -3,6 +3,7 @@
  */
 
 #include "display.h"
+#include "async_internal.h"
 
 #include "draw.h"
 #include "font.h"
@@ -443,6 +444,7 @@ namespace sl
     {
         ++detail::shutdown_count;
         wait_for_graphics();
+        detail::async_load_shutdown();
 
         if (sl_default_monospace_font && ttfInitialized)
         {

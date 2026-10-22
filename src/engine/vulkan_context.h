@@ -110,6 +110,7 @@ namespace sl::detail
                                          int width, int height,
                                          std::string &error, int samples = 1);
         int clamp_msaa_samples(int requested) const;
+        std::uint64_t pipelines_created() const { return pipelines_created_; }
         bool end_offscreen_render_pass(std::string &error);
         bool prepare_image_for_sampling(VulkanImage &image, std::string &error);
         /** Size in pixels of the framebuffer currently being drawn to. */
@@ -301,6 +302,7 @@ namespace sl::detail
         VkSurfaceKHR surface_ = VK_NULL_HANDLE;
         VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
         VkDevice device_ = VK_NULL_HANDLE;
+        std::uint64_t pipelines_created_ = 0;
         VkQueue graphics_queue_ = VK_NULL_HANDLE;
         unsigned int graphics_queue_family_ = 0;
         VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;

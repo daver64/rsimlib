@@ -4,6 +4,7 @@
 
 #include "system.h"
 
+#include "async_internal.h"
 #include "display.h"
 #include "font.h"
 #include "frame_stats.h"
@@ -62,6 +63,7 @@ namespace sl
 	void end_frame()
 	{
 		detail::recycle_transient_instance_buffers();
+		detail::pump_async_loads();
 		Uint64 now = SDL_GetTicks64();
 
 		// Skip the first call so the initial frame doesn't report a bogus elapsed time.
@@ -99,6 +101,8 @@ namespace sl
 		published.instances = counters.instances;
 		published.blended_draws = counters.blended_draws;
 		++published.frame_number;
+		if (detail::Renderer *renderer = detail::active_renderer())
+			published.pipelines_created = renderer->pipelines_created();
 		counters = detail::FrameCounters{};
 		fps_window_ms += last_frame_time_ms;
 		++fps_window_frames;

@@ -104,6 +104,15 @@ limited to 16 samplers per shader. Ship both DLLs next to your executable.
 
 ---
 
+## Threading and Start-up Cost
+
+Graphics calls (drawing, `create_mesh`, texture upload) belong on the main thread on every backend. Decode and
+simulate on your own threads if you like; for assets use `load_bitmap_async()` / `load_model_async()`, which decode
+on workers and upload a bounded amount per `end_frame()` (see `set_async_upload_budget()`), so loading does not stall.
+
+On Vulkan and Direct3D 12, `create_surface_3d()` builds the 2D, mesh, instanced, terrain and sky pipelines up front
+so the first draws do not hitch. `FrameStats::pipelines_created` should stay flat once a scene is running.
+
 ## Surface3D
 
 The backend-neutral `Surface3D` API (`include/surface3d.h`) is implemented for OpenGL, Vulkan and Direct3D 12. All three backends support true MSAA (`create_surface_3d(w, h, samples)`). Use the escape hatches below for raw access.
