@@ -25,4 +25,4 @@ Left/Right focus one part, `A` shows all, `[` / `]` zoom, `Space` pauses the orb
 ./build/exprops            # or --gl / --vulkan
 ```
 
-Tested on OpenGL. See the lesson [Building a scene from parts](../tutorial/3d-06-building-a-scene-from-parts.md).
+Every part with its arguments: the [props catalogue](../props.md). Tested on OpenGL. See the lesson [Building a scene from parts](../tutorial/3d-06-building-a-scene-from-parts.md).
