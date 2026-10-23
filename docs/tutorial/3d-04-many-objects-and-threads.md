@@ -4,6 +4,8 @@
 
 **Goal:** draw thousands of objects, see how simlib records them on several CPU cores on Vulkan and Direct3D 12, and learn when to fill your own draw lists on worker threads.
 
+![The program from this lesson running](img/3d-04-many-objects-and-threads.png)
+
 ## The idea
 
 - Each `sl::draw_mesh()` call costs a little CPU time: simlib prepares the draw and the graphics API records a command for it. With a few hundred objects you will never notice. With tens of thousands, the CPU can become the bottleneck rather than the GPU.

@@ -4,6 +4,8 @@
 
 **Goal:** add rain, hail and snow to a scene, and change the weather smoothly while it runs.
 
+![The program from this lesson running](img/sim-03-weather.png)
+
 ## The idea
 
 - `sl::Precipitation2D` is a ready-made particle system for falling rain, hail and snow. Create it with the size of the area to fill, call `update(dt)` every frame, then `draw()` after your scene so the weather is in front.

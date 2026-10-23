@@ -4,6 +4,8 @@
 
 **Goal:** open a window and run a game loop that closes cleanly.
 
+![The program from this lesson running](img/00-first-window.png)
+
 ## The idea
 
 Every game is a loop: read input, update the world, draw a frame, repeat. simlib gives you four calls for it:

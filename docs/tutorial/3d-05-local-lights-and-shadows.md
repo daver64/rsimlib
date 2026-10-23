@@ -4,6 +4,8 @@
 
 **Goal:** light a night scene with a moving point light and a spotlight, and make the sun, the point light and the spotlight cast shadows.
 
+![The program from this lesson running](img/3d-05-local-lights-and-shadows.png)
+
 ## The idea
 
 - The scene has one **directional light** (the sun or moon, `set_light_3d`) plus up to 16 **local lights** (`set_local_lights_3d`). A `LocalLight3D` is a **point light** by default. Give it an `outer_angle` (degrees) and a `direction` and it becomes a **spotlight**.

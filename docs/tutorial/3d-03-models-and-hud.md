@@ -4,6 +4,8 @@
 
 **Goal:** load 3D models from files, fly the camera with the keyboard, and draw 2D text and shapes on top of the 3D view.
 
+![The program from this lesson running](img/3d-03-models-and-hud.png)
+
 ## The idea
 
 - Real 3D art comes from modelling tools such as Blender. simlib loads Wavefront `.obj`/`.mtl`, `.gltf` and `.glb`. `sl::load_model(path)` loads one, with its materials and textures, and `sl::draw_model(model, matrix)` draws it. Destroy it with `sl::destroy_model`.

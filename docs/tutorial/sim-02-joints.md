@@ -4,6 +4,8 @@
 
 **Goal:** hang a chain of planks from hinges, and grab and drag them with the mouse.
 
+![The program from this lesson running](img/sim-02-joints.png)
+
 ## The idea
 
 - A **joint** constrains how two bodies move relative to each other. This lesson uses three:

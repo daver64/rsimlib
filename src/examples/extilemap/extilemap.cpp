@@ -35,23 +35,34 @@ int main(int argc, char *argv[])
         if (map)
         {
             sl::tilemap_add_tileset(map, atlas);
+            // Atlas tiles are named by their (column, row) in the 16x16 sheet; ids are 1-based.
+            const auto tile = [](int x, int y) { return y * 16 + x + 1; };
+            const int grass = tile(6, 6), road = tile(11, 1), granite = tile(6, 9);
+            const int water = tile(0, 10), water_alt = tile(12, 11);
             const int ground = sl::tilemap_add_layer(map, "ground");
             const int walls = sl::tilemap_add_layer(map, "walls");
             for (int row = 0; row < map->height; ++row)
             {
                 for (int column = 0; column < map->width; ++column)
                 {
-                    sl::tilemap_set(map, ground, column, row, 1 + ((column + row) % 2));
+                    const bool pond = column % 14 >= 6 && column % 14 <= 9 && row % 10 >= 5 && row % 10 <= 7;
+                    const bool path = row == 2 || column == 2;
+                    std::uint32_t cell = grass | ((column + row) % 3 == 0 ? sl::tile_flip_horizontal : 0);
+                    if (pond)
+                        cell = water;
+                    else if (path)
+                        cell = road;
+                    sl::tilemap_set(map, ground, column, row, cell);
                     const bool border = column == 0 || row == 0 || column == map->width - 1 || row == map->height - 1;
-                    const bool pillar = column % 7 == 3 && row % 5 == 2;
+                    const bool pillar = column % 7 == 3 && row % 5 == 2 && !pond;
                     if (border || pillar)
-                        sl::tilemap_set(map, walls, column, row, 20 | (pillar ? sl::tile_flip_horizontal : 0));
+                        sl::tilemap_set(map, walls, column, row, granite | (pillar ? sl::tile_flip_horizontal : 0));
                 }
             }
-            sl::tilemap_set_solid(map, 20, true);
-            // Cycle three tiles on the ground layer to show tile animation.
-            sl::TileInfo &water = map->tilesets[0].tiles[2];
-            water.animation = {{2, 250}, {3, 250}, {4, 250}};
+            sl::tilemap_set_solid(map, granite, true);
+            // Swap the two water tiles back and forth to show tile animation.
+            auto &tiles = map->tilesets[0].tiles;
+            tiles[water - 1].animation = {{water - 1, 400}, {water_alt - 1, 400}};
         }
     }
     if (!map)

@@ -4,6 +4,8 @@
 
 **Goal:** build a scrolling world from tiles, and stop the player walking through walls.
 
+![The program from this lesson running](img/2d-03-tilemaps-and-collision.png)
+
 ## The idea
 
 - A **tile map** is a grid where each cell holds a tile number from an atlas. It stores a big world cheaply and draws it fast.
@@ -37,18 +39,22 @@ int main(int argc, char *argv[])
     sl::tilemap_add_tileset(map, sl::create_atlas(sheet, 32, 32));
     const int ground = sl::tilemap_add_layer(map, "ground");
     const int walls = sl::tilemap_add_layer(map, "walls");
+    // The sheet is 16 tiles wide; this names a tile by its column and row. Tile numbers start at 1.
+    const auto tile = [](int x, int y) { return y * 16 + x + 1; };
+    const int grass = tile(6, 6), road = tile(11, 1), granite = tile(6, 9);
     for (int row = 0; row < 40; ++row)
     {
         for (int column = 0; column < 60; ++column)
         {
-            sl::tilemap_set(map, ground, column, row, 1 + ((column + row) % 2)); // checker floor
+            const bool path = row == 2 || column == 2;
+            sl::tilemap_set(map, ground, column, row, path ? road : grass);
             const bool border = column == 0 || row == 0 || column == 59 || row == 39;
             const bool pillar = column % 8 == 4 && row % 6 == 3;
             if (border || pillar)
-                sl::tilemap_set(map, walls, column, row, 20);
+                sl::tilemap_set(map, walls, column, row, granite);
         }
     }
-    sl::tilemap_set_solid(map, 20, true); // tile 20 blocks movement
+    sl::tilemap_set_solid(map, granite, true); // granite blocks movement
 
     float x = 100.0f, y = 100.0f;
     const float size = 24.0f, speed = 200.0f;
@@ -109,8 +115,8 @@ int main(int argc, char *argv[])
 
 ## Try it
 
-1. Make a second solid tile, say 21, and place it with a different pattern.
-2. Animate a tile (water, torches): `map->tilesets[0].tiles[2].animation = {{2, 250}, {3, 250}, {4, 250}};` cycles tiles 2, 3 and 4 every 250 ms (tile ids here are 0-based within the tileset), and you call `sl::update_tilemap(map, dt)` each frame.
+1. Make a second solid tile, say a different wall from the sheet, and place it with a different pattern.
+2. Animate a tile (water, torches). With `water = tile(0, 10)` and `water_alt = tile(12, 11)`, `map->tilesets[0].tiles[water - 1].animation = {{water - 1, 400}, {water_alt - 1, 400}};` swaps between the two water tiles every 400 ms (animation frames are 0-based within the tileset, so subtract 1), then place `water` on the ground layer and call `sl::update_tilemap(map, dt)` each frame.
 3. Save a small map from the Tiled editor as `.tmx` and load it with `sl::load_tiled_map`. Check `sl::last_error()` if it returns `nullptr`.
 
 ## Go further

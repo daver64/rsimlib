@@ -4,6 +4,8 @@
 
 **Goal:** drop boxes and balls onto a floor and watch them collide, using the 2D physics world.
 
+![The program from this lesson running](img/sim-01-physics-bodies.png)
+
 ## The idea
 
 - A **physics world** holds bodies and steps them forward in time: `sl::create_physics_world(gravity)`. Gravity here is in pixels per second squared, so `{0, 980}` pulls down the screen (y grows downward).

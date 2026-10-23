@@ -4,6 +4,8 @@
 
 **Goal:** draw text in different fonts, play a sound effect on a key press and loop background music.
 
+![The program from this lesson running](img/2d-04-text-and-sound.png)
+
 ## The idea
 
 - **Text:** `sl::gprintf(x, y, colour, "format", ...)` draws printf-style text in the built-in monospace font. Pass a `Font *` before the colour for another font: `sl::open_sans_font(size)` gives a proportional one. Close fonts you open with `sl::close_font`.

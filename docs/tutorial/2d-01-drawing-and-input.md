@@ -4,6 +4,8 @@
 
 **Goal:** draw shapes, move a player with the keyboard and follow the mouse.
 
+![The program from this lesson running](img/2d-01-drawing-and-input.png)
+
 ## The idea
 
 - Drawing calls take a target bitmap first, almost always `sl::screen`, then coordinates, then a colour: `sl::circlefill(sl::screen, x, y, radius, colour)`.

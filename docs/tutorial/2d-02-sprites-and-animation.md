@@ -4,6 +4,8 @@
 
 **Goal:** load an image, draw it, and play an animation from a sheet of frames.
 
+![The program from this lesson running](img/2d-02-sprites-and-animation.png)
+
 ## The idea
 
 - A **bitmap** is an image. `sl::load_bitmap(path)` reads PNG and other common formats; `sl::draw_sprite(bitmap, x, y)` draws it with its top-left at `(x, y)`.
@@ -35,12 +37,12 @@ int main(int argc, char *argv[])
     const sl::Atlas atlas = sl::create_atlas(sheet, 32, 32);
 
     sl::AnimationManager manager;
-    // Three copies of the same 16-frame loop at different speeds.
+    // Three copies of the same 5-frame plant growth loop (tiles 97 to 101) at different speeds.
     const float seconds_per_frame[] = {0.12f, 0.06f, 0.03f};
     for (int i = 0; i < 3; ++i)
     {
         sl::AnimatedSprite sprite =
-            sl::create_animated_sprite(atlas, 0, 16, 140 + i * 200, 250, 96, 96, seconds_per_frame[i]);
+            sl::create_animated_sprite(atlas, 97, 5, 140 + i * 200, 250, 96, 96, seconds_per_frame[i]);
         manager.add_animated_sprite(sprite);
     }
 
@@ -82,7 +84,7 @@ int main(int argc, char *argv[])
 
 ## Try it
 
-1. Change `3` sprites to start on a different tile (the second argument) to play a different row of the sheet. A row is 16 tiles, so row 1 starts at tile 16.
+1. Change the sprites to start on a different tile (the second argument) and use a different frame count (the third) to play another part of the sheet. A row is 16 tiles, so row 1 starts at tile 16. Try the potion bottles on row 13, tiles 211 to 223.
 2. Draw a single tile yourself without the manager: `sl::draw_sprite_region_flipped(sheet, sx, sy, 32, 32, x, y, 64, 64, false, false)` copies the `sx, sy` rectangle of the sheet to `x, y`, scaled to 64×64. Flip the booleans to mirror it.
 3. Add an `Event::Type::mouse_button_down` check that creates a one-shot sprite at the mouse position.
 

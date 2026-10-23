@@ -4,6 +4,8 @@
 
 **Goal:** draw spinning 3D shapes lit by a light, seen through a camera you can orbit.
 
+![The program from this lesson running](img/3d-01-first-scene.png)
+
 ## The idea
 
 - 3D is drawn into an offscreen **surface** (a colour image plus a depth buffer that makes near things hide far things). Afterwards you draw that surface onto the 2D screen like any other bitmap, so 3D and 2D mix freely.

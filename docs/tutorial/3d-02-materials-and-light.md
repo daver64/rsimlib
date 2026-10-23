@@ -4,6 +4,8 @@
 
 **Goal:** texture a mesh, add sky and fog, and draw see-through objects correctly.
 
+![The program from this lesson running](img/3d-02-materials-and-light.png)
+
 ## The idea
 
 - A `Material` bundles a **tint** colour, whether it's **lit**, an optional **texture** and more. A texture is an ordinary `Bitmap` stretched over the mesh using the mesh's *UV* coordinates (0–1 positions across the image).
