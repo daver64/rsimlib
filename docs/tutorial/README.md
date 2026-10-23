@@ -32,7 +32,7 @@ Build and run with `./lesson`. Add `--vulkan` (or `--gl`) to choose a graphics b
 **Track 1: a 2D game**
 1. [Drawing and moving things](2d-01-drawing-and-input.md): shapes, keyboard and mouse.
 2. [Sprites and animation](2d-02-sprites-and-animation.md): images, atlases and animated sprites.
-3. [Tile maps and collision](2d-03-tilemaps-and-collision.md): a scrolling world you can't walk through.
+3. [Tile maps and collision](2d-03-tilemaps-and-collision.md): a scrolling tile world with solid walls, and click-to-stamp splat decals.
 4. [Text and sound](2d-04-text-and-sound.md): on-screen text, sound effects and music.
 
 **Track 2: a 3D scene**
