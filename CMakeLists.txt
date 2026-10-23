@@ -727,6 +727,8 @@ target_link_libraries(exisometric PRIVATE simlib)
 
 add_executable(extilemap src/examples/extilemap/extilemap.cpp)
 target_link_libraries(extilemap PRIVATE simlib)
+add_executable(exxeno src/examples/exxeno/exxeno.cpp)
+target_link_libraries(exxeno PRIVATE simlib)
 add_executable(exnormalmap src/examples/exnormalmap/exnormalmap.cpp)
 target_link_libraries(exnormalmap PRIVATE simlib)
 add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)

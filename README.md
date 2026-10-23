@@ -252,7 +252,7 @@ sl::draw_tilemap(map, camera_x, camera_y);          // draws only the visible ce
 sl::destroy_tilemap(map);
 ```
 
-Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Tiled maps (`.tmj`/`.json` and native `.tmx`) load with CSV or base64 layer data (uncompressed, zlib or gzip), infinite maps, external `.tsj`/`.tsx` tilesets and image-collection tilesets. Not supported: zstd-compressed layers (choose zlib in Tiled), and infinite isometric maps. See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` or `.tmx` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-includetilemaph).
+Maps can also be built in code with `create_tilemap()` and `tilemap_add_layer()`. Tiled maps (`.tmj`/`.json` and native `.tmx`) load with CSV or base64 layer data (uncompressed, zlib or gzip), infinite maps, external `.tsj`/`.tsx` tilesets, image-collection tilesets, layer opacity and tint colours, group layers (children inherit the group's visibility, opacity, offset and tint), image layers and tile objects. `tilemap_add_decal()` stamps runtime splats, scorch marks and footprints at free positions. Not supported: zstd-compressed layers (choose zlib in Tiled), and infinite isometric maps. See [`extilemap`](src/examples/extilemap/extilemap.cpp) (pass your own `.tmj` or `.tmx` path to view it) and the [Tile Maps API reference](docs/api_reference.md#tile-maps-includetilemaph).
 
 ## 3D Graphics: Surfaces, Models & Voxel Worlds
 
@@ -342,6 +342,7 @@ The full catalog of focused runnable examples follows.
 ./build/exlobby         # Game lobby: find games in an IRC channel, then play over UDP (--irc-host HOST to choose the server)
 ./build/expathfinding   # Flow-field enemies (chase/scent/sound) with wall editing and heat-map overlays
 ./build/exanimsprite    # AnimationManager: looping, rotated, paused and one-shot animated sprites from an atlas
+./build/exxeno         # Lit top-down shooter with tile-map decal splats (WASD + mouse)
 ./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
@@ -409,6 +410,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exlobby`](src/examples/exlobby/exlobby.cpp)** — A game lobby built on `sl::TcpSocket` and `sl::NetServer`/`NetClient`: chat and find games in an IRC channel (`--irc-host`, `--irc-port`, `--channel`, `--nick`), host or join one, ready up and move around a shared arena. [Screenshot & guide](docs/examples/exlobby.md).
 - **[`expathfinding`](src/examples/expathfinding/expathfinding.cpp)** — Enemies that never search: they read a chase distance field, then scent and sound layers from `Pathfinder`. Click to edit walls, Space to view each layer. [Screenshot & guide](docs/examples/expathfinding.md).
 - **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions. [Screenshot & guide](docs/examples/exanimsprite.md).
+- **[`exxeno`](src/examples/exxeno/exxeno.cpp)** — Lit 2D shooter with synthesised sound effects and an adrenaline music loop: WASD and mouse aim, glowing bolts, particles, shadow-casting walls and acid splats stamped as tile-map decals. [Screenshot & guide](docs/examples/exxeno.md).
 - **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading. [Screenshot & guide](docs/examples/extilemap.md).
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters. [Screenshot & guide](docs/examples/exconfig.md).
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback. [Screenshot & guide](docs/examples/excompute.md).

@@ -20,6 +20,7 @@
 #include "sl.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 int main(int argc, char *argv[])
 {
@@ -41,7 +42,7 @@ int main(int argc, char *argv[])
     const int walls = sl::tilemap_add_layer(map, "walls");
     // The sheet is 16 tiles wide; this names a tile by its column and row. Tile numbers start at 1.
     const auto tile = [](int x, int y) { return y * 16 + x + 1; };
-    const int grass = tile(6, 6), road = tile(11, 1), granite = tile(6, 9);
+    const int grass = tile(6, 6), road = tile(11, 1), granite = tile(6, 9), blood = tile(14, 14);
     for (int row = 0; row < 40; ++row)
     {
         for (int column = 0; column < 60; ++column)
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
 
     float x = 100.0f, y = 100.0f;
     const float size = 24.0f, speed = 200.0f;
+    bool was_clicking = false;
     bool running = true;
     while (running)
     {
@@ -71,6 +73,7 @@ int main(int argc, char *argv[])
         }
 
         const float dt = static_cast<float>(sl::get_frame_time()) / 1000.0f;
+        sl::update_tilemap(map, dt);
         float move_x = 0.0f, move_y = 0.0f;
         if (sl::key_down(sl::Event::Key::arrow_left))
             move_x -= speed * dt;
@@ -90,10 +93,16 @@ int main(int argc, char *argv[])
         const float camera_x = std::clamp(x - 400.0f, 0.0f, 60.0f * 32.0f - 800.0f);
         const float camera_y = std::clamp(y - 300.0f, 0.0f, 40.0f * 32.0f - 600.0f);
 
+        // A decal is a tile stamped at any pixel position, here wherever you click (screen position + camera).
+        if (sl::mouse_button_down(sl::MouseButton::left) && !was_clicking)
+            sl::tilemap_add_decal(map, ground, blood, camera_x + sl::mouse_x(), camera_y + sl::mouse_y(),
+                                  static_cast<float>(std::rand() % 360), 1.5f);
+        was_clicking = sl::mouse_button_down(sl::MouseButton::left);
+
         sl::clear_to_colour(sl::screen, {20, 24, 32});
         sl::draw_tilemap(map, camera_x, camera_y);
         sl::rectfill(sl::screen, x - camera_x, y - camera_y, x - camera_x + size, y - camera_y + size, {255, 215, 92});
-        sl::gprintf(10, 10, {255, 255, 255}, "Arrow keys walk. Walls are solid.");
+        sl::gprintf(10, 10, {255, 255, 255}, "Arrow keys walk. Click to splat. Walls are solid.");
 
         sl::show_video_bitmap();
         sl::end_frame();
@@ -111,15 +120,17 @@ int main(int argc, char *argv[])
 
 - The map is 60×40 tiles, 1920×1280 pixels, bigger than the window. The camera is clamped so the view never leaves the map.
 - The player is drawn at its world position minus the camera, which converts world coordinates to screen coordinates. Every scrolling game uses this subtraction.
+- Clicking stamps a **decal**: a tile placed at any pixel position, not just on the grid, here rotated and scaled up. It is drawn directly above the layer you name (`ground`), so walls still cover it, and `update_tilemap` ages decals each frame.
 - Moving X and Y separately is the simplest collision response that feels right: a diagonal push against a wall still slides along it.
 
 ## Try it
 
 1. Make a second solid tile, say a different wall from the sheet, and place it with a different pattern.
 2. Animate a tile (water, torches). With `water = tile(0, 10)` and `water_alt = tile(12, 11)`, `map->tilesets[0].tiles[water - 1].animation = {{water - 1, 400}, {water_alt - 1, 400}};` swaps between the two water tiles every 400 ms (animation frames are 0-based within the tileset, so subtract 1), then place `water` on the ground layer and call `sl::update_tilemap(map, dt)` each frame.
-3. Save a small map from the Tiled editor as `.tmx` and load it with `sl::load_tiled_map`. Check `sl::last_error()` if it returns `nullptr`.
+3. Make the splats fade. Add a lifetime to the `tilemap_add_decal` call: `sl::tilemap_add_decal(map, ground, blood, wx, wy, angle, 1.5f, sl::White, 5.0f)` keeps a splat for 5 seconds, fading it over its last half second. `sl::tilemap_clear_decals(map)` removes them all, and `map->max_decals` caps how many are kept. [`exxeno`](../examples/exxeno.md) uses decals for acid splats.
+4. Save a small map from the Tiled editor as `.tmx` and load it with `sl::load_tiled_map`. Check `sl::last_error()` if it returns `nullptr`.
 
 ## Go further
 
-- Examples: [`extilemap`](../examples/extilemap.md), [`exroguelike`](../examples/exroguelike.md). API: [Tile Maps](../api_reference.md#tile-maps-includetilemaph).
+- Examples: [`extilemap`](../examples/extilemap.md), [`exroguelike`](../examples/exroguelike.md), [`exxeno`](../examples/exxeno.md). API: [Tile Maps](../api_reference.md#tile-maps-includetilemaph).
 - Next: [Text and sound](2d-04-text-and-sound.md).

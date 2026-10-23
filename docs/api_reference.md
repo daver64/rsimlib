@@ -1206,7 +1206,10 @@ Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled 
 
 ### Key Types
 - `sl::TileMap`: map size, tile size, `tilesets`, `layers` (`TileLayer`), `object_layers` (`ObjectLayer`) and an animation clock. Create with `create_tilemap()` or `load_tiled_map()` and free with `destroy_tilemap()` (which also frees bitmaps the loader created).
-- `sl::TileLayer`: row-major `cells`, plus `visible`, `offset_x/y` and `parallax_x/y`. A cell is a GID (0 = empty) OR-ed with `tile_flip_horizontal`, `tile_flip_vertical` and/or `tile_flip_diagonal`; mask with `tile_id_mask`.
+- `sl::TileLayer`: row-major `cells`, plus `visible`, `offset_x/y`, `parallax_x/y`, `opacity` (0-1) and `tint` (a colour multiplied into every tile; Tiled's tint colour). A cell is a GID (0 = empty) OR-ed with `tile_flip_horizontal`, `tile_flip_vertical` and/or `tile_flip_diagonal`; mask with `tile_id_mask`.
+- `sl::ObjectLayer` / `sl::TileObject`: objects with `x`, `y`, `width`, `height`, `rotation`, `visible`, properties and an optional `gid`. Objects with a `gid` are tile objects and are drawn by `draw_tilemap()` (anchored bottom-left, rotated about that point, as in Tiled).
+- `sl::ImageLayer`: a picture layer (`bitmap`, `offset_x/y`, `parallax_x/y`, `repeat_x/y`, `opacity`, `tint`) loaded from Tiled image layers; the map owns the bitmap.
+- `after_layer` on `ObjectLayer`, `ImageLayer` and `TileDecal` says which tile layer they sit directly above (-1: below all), so stacked content interleaves correctly with tile layers. A cell "made of several layers" is simply several stacked tile layers (Tiled has no multi-part tile); use `draw_tilemap(..., first_layer, last_layer)` to draw part of the stack.
 - `sl::TileSet` / `sl::TileInfo`: an atlas with its `first_gid`, and per-tile `solid`, `properties` and `animation` frames.
 
 ### Functions
@@ -1214,13 +1217,14 @@ Multi-layer orthogonal or isometric tile maps built on `sl::Atlas`, with culled 
 - `tilemap_set_solid()`, `tilemap_tile_info()`, `tilemap_tile_property()`, `tilemap_is_solid()`, `tilemap_rect_blocked()`: collision queries (out of bounds counts as solid on finite maps, and as empty on infinite maps).
 - `tilemap_world_to_tile()`, `tilemap_tile_to_world()`: coordinate conversion.
 - `create_hex_tilemap(width, height, tile_w, tile_h, side_length, stagger_y, stagger_odd)`, `create_infinite_tilemap(tile_w, tile_h)`, `tilemap_layer_bounds()`: hexagonal maps and sparse, chunked infinite maps (negative coordinates allowed, grown on `tilemap_set`). `load_tiled_map()` reads Tiled hexagonal maps and infinite maps (`chunks`); infinite isometric maps are rejected. Hex `tilemap_world_to_tile()` picks the nearest hex centre.
-- `update_tilemap(map, dt_seconds)`: advances tile animations.
+- `update_tilemap(map, dt_seconds)`: advances tile animations and ages (and expires) decals.
+- `tilemap_add_decal(map, after_layer, gid, x, y, rotation = 0, scale = 1, tint = White, lifetime = 0, fade = 0.5)`: stamps a tile at a free pixel position, rotated and scaled, drawn directly above tile layer `after_layer` (splats, scorch marks, footprints). `lifetime` 0 keeps it forever; otherwise it fades over its last `fade` seconds. `TileMap::max_decals` (default 512) caps the count, discarding the oldest. `tilemap_clear_decals(map)` removes them all. Decal positions are camera-relative map pixels, so they suit orthogonal maps.
 - `draw_tilemap(map, camera_x, camera_y, view_width = 0, view_height = 0, first_layer = 0, last_layer = -1)`: draws visible cells only. For isometric maps the camera is the screen offset of cell (0, 0).
-- `load_tiled_map(path)`: loads Tiled JSON (`.tmj`/`.json`) or native XML (`.tmx`) maps with embedded or external `.tsj`/`.tsx` tilesets (including image-collection tilesets, kept per tile in `TileSet::images`), CSV or base64 layer data (uncompressed, zlib or gzip, also inside infinite-map chunks), group layers, flips, tile properties (a boolean `solid` property sets `TileInfo::solid`), animations and object layers. Zstd-compressed layers and infinite isometric maps are rejected with an error.
+- `load_tiled_map(path)`: loads Tiled JSON (`.tmj`/`.json`) or native XML (`.tmx`) maps with embedded or external `.tsj`/`.tsx` tilesets (including image-collection tilesets, kept per tile in `TileSet::images`), CSV or base64 layer data (uncompressed, zlib or gzip, also inside infinite-map chunks), group layers (a group's visibility, opacity, offset, parallax and tint are inherited by its children), layer opacity and tint colour, image layers, tile objects, flips, tile properties (a boolean `solid` property sets `TileInfo::solid`), animations and object layers. Zstd-compressed layers and infinite isometric maps are rejected with an error.
 - `tilemap_find_object(map, name)`: look up a spawn point or trigger from an object layer.
-- `draw_sprite_region_flipped()` (in `draw.h`) draws a bitmap region with horizontal, vertical and diagonal flips.
+- `draw_sprite_region_flipped()` (in `draw.h`) draws a bitmap region with horizontal, vertical and diagonal flips and an optional tint.
 
-See [`extilemap`](../src/examples/extilemap/extilemap.cpp) for a scrolling map with collision and animation.
+See [`extilemap`](../src/examples/extilemap/extilemap.cpp) for a scrolling map with collision and animation, and [`exxeno`](../src/examples/exxeno/exxeno.cpp) for lit tile-map decals (acid splats).
 
 ---
 

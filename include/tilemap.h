@@ -1,6 +1,7 @@
 #pragma once
 
 #include "atlas.h"
+#include "draw.h"
 
 #include <cstdint>
 #include <map>
@@ -80,6 +81,10 @@ namespace sl
         float parallax_x = 1.0f;
         /** Vertical camera scroll multiplier. */
         float parallax_y = 1.0f;
+        /** Layer opacity from 0 (invisible) to 1; multiplied by the tint alpha. */
+        float opacity = 1.0f;
+        /** Colour multiplied into every tile of the layer (Tiled's tint colour); White leaves tiles unchanged. */
+        Colour tint = White;
         /** True for an unbounded layer: cells live in sparse chunks (see tile_chunk_size) and may have negative coordinates. */
         bool infinite = false;
         /** Chunk storage for infinite layers, keyed by chunk coordinate; each chunk holds tile_chunk_size squared cells. */
@@ -101,6 +106,12 @@ namespace sl
         float width = 0.0f;
         /** Height in pixels; 0 for points. */
         float height = 0.0f;
+        /** Tile object: GID plus flip flags, 0 for a plain object. Tile objects are drawn by draw_tilemap(). */
+        std::uint32_t gid = 0;
+        /** Clockwise rotation in degrees about (x, y); for a tile object that point is the bottom-left corner, as in Tiled. */
+        float rotation = 0.0f;
+        /** Hidden objects are not drawn. */
+        bool visible = true;
         /** Custom properties. */
         std::map<std::string, std::string> properties;
     };
@@ -112,6 +123,64 @@ namespace sl
         std::string name;
         /** Objects in the layer. */
         std::vector<TileObject> objects;
+        /** Drawn directly above tile layer after_layer; -1 draws below every tile layer. */
+        int after_layer = -1;
+        /** Hidden layers are not drawn. */
+        bool visible = true;
+        /** Layer opacity from 0 to 1. */
+        float opacity = 1.0f;
+        /** Colour multiplied into drawn tile objects. */
+        Colour tint = White;
+        /** Pixel offset applied to the layer. */
+        float offset_x = 0.0f, offset_y = 0.0f;
+        /** Camera scroll multipliers. */
+        float parallax_x = 1.0f, parallax_y = 1.0f;
+    };
+
+    /** A picture drawn as a layer (Tiled image layer). The bitmap is owned by the map when it came from load_tiled_map(). */
+    struct ImageLayer
+    {
+        /** Layer name. */
+        std::string name;
+        /** Image; nullptr draws nothing. */
+        Bitmap *bitmap = nullptr;
+        /** Drawn directly above tile layer after_layer; -1 draws below every tile layer. */
+        int after_layer = -1;
+        /** Hidden layers are not drawn. */
+        bool visible = true;
+        /** Layer opacity from 0 to 1. */
+        float opacity = 1.0f;
+        /** Colour multiplied into the image. */
+        Colour tint = White;
+        /** Pixel offset of the image's top-left corner. */
+        float offset_x = 0.0f, offset_y = 0.0f;
+        /** Camera scroll multipliers. */
+        float parallax_x = 1.0f, parallax_y = 1.0f;
+        /** Tile the image endlessly horizontally or vertically. */
+        bool repeat_x = false, repeat_y = false;
+    };
+
+    /** A free-positioned tile stamped on the map at runtime (blood splats, scorch marks, footprints); see tilemap_add_decal(). */
+    struct TileDecal
+    {
+        /** GID plus flip flags of the tile drawn. */
+        std::uint32_t gid = 0;
+        /** Drawn directly above tile layer after_layer; -1 draws below every tile layer. */
+        int after_layer = -1;
+        /** Centre in map pixels. */
+        float x = 0.0f, y = 0.0f;
+        /** Clockwise rotation in degrees. */
+        float rotation = 0.0f;
+        /** Uniform scale. */
+        float scale = 1.0f;
+        /** Colour multiplied into the tile. */
+        Colour tint = White;
+        /** Seconds lived so far. */
+        float age = 0.0f;
+        /** Total seconds to live; 0 means permanent. */
+        float lifetime = 0.0f;
+        /** Seconds at the end of the lifetime over which the decal fades out. */
+        float fade = 0.0f;
     };
 
     /** How cells are projected to the screen. */
@@ -154,6 +223,12 @@ namespace sl
         bool hex_stagger_y = true;
         /** Hexagonal maps: true when odd rows/columns (counting from 0) are shifted, false for even. */
         bool hex_stagger_odd = true;
+        /** Image layers, interleaved with the tile layers through ImageLayer::after_layer. */
+        std::vector<ImageLayer> image_layers;
+        /** Live runtime decals, oldest first. */
+        std::vector<TileDecal> decals;
+        /** Maximum number of live decals; adding another discards the oldest. */
+        int max_decals = 512;
     };
 
     /** Create an empty map; returns nullptr for non-positive dimensions. */
@@ -202,11 +277,24 @@ namespace sl
     /** Return the pixel position of a cell's top-left corner (orthogonal and hexagonal) or the diamond centre (isometric). */
     void tilemap_tile_to_world(const TileMap *map, int column, int row, float &x, float &y);
 
-    /** Advance animated tiles by dt seconds. */
+    /**
+     * Stamp a tile on the map as a decal drawn directly above tile layer after_layer (-1: below all layers; a value
+     * past the last layer is clamped to it). x, y is the tile's centre in map pixels (camera-relative like layer
+     * pixels, so it suits orthogonal maps). A lifetime of 0 keeps it forever; otherwise it fades out over the last
+     * fade seconds. When TileMap::max_decals is reached the oldest decal is discarded. Returns false for a null map
+     * or an empty gid.
+     */
+    bool tilemap_add_decal(TileMap *map, int after_layer, std::uint32_t gid, float x, float y, float rotation = 0.0f,
+                           float scale = 1.0f, Colour tint = White, float lifetime = 0.0f, float fade = 0.5f);
+    /** Remove all decals. */
+    void tilemap_clear_decals(TileMap *map);
+
+    /** Advance animated tiles and age (and expire) decals by dt seconds. */
     void update_tilemap(TileMap *map, float dt_seconds);
 
     /**
-     * Draw visible layers [first_layer, last_layer] (last_layer < 0 means all). The camera is the map pixel shown at the
+     * Draw visible tile layers [first_layer, last_layer] (last_layer < 0 means all), each followed by the image layers,
+     * tile objects and decals placed after it; content placed below every layer (after_layer -1) draws only when first_layer is 0. The camera is the map pixel shown at the
      * top-left of the viewport; for isometric maps it is the screen-space offset of cell (0, 0)'s diamond origin.
      * A view size of 0 uses the current screen size.
      */
@@ -215,7 +303,7 @@ namespace sl
 
     /**
      * Load a Tiled map (JSON .tmj/.json, or XML .tmx) with embedded or external (.tsj/.tsx) tilesets including image collections, CSV or base64 (zlib/gzip) layer data, flips,
-     * tile properties, animations and object layers. Returns nullptr and sets the error on failure.
+     * tile properties, animations, object layers (including tile objects), layer opacity and tint, group inheritance and image layers. Returns nullptr and sets the error on failure.
      */
     TileMap *load_tiled_map(const std::string &path);
     /** Return the first object with the given name across all object layers, or nullptr. */

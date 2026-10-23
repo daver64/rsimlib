@@ -248,6 +248,67 @@ int main()
         sl::destroy_tilemap(collection);
     }
 
+    // Layer opacity/tint, group inheritance, image layers, tile objects (JSON and TMX).
+    {
+        std::ofstream(directory / "layered.tmj") << R"({"orientation":"orthogonal","width":1,"height":1,"tilewidth":32,"tileheight":32,
+            "tilesets":[{"firstgid":1,"image":")" << image_path << R"(","tilewidth":32,"tileheight":32}],
+            "layers":[
+              {"type":"imagelayer","name":"sky","image":")" << image_path << R"(","repeatx":true,"opacity":0.5},
+              {"type":"group","name":"g","visible":true,"opacity":0.5,"offsetx":10,"offsety":4,"tintcolor":"#80ff0000","layers":[
+                {"type":"tilelayer","name":"a","width":1,"height":1,"data":[1],"opacity":0.5,"offsetx":5},
+                {"type":"objectgroup","name":"o","objects":[{"name":"t","gid":2,"x":8,"y":40,"width":32,"height":32,"rotation":90}]}]},
+              {"type":"group","name":"hidden","visible":false,"layers":[
+                {"type":"tilelayer","name":"b","width":1,"height":1,"data":[1]}]}]})";
+        sl::TileMap *layered = sl::load_tiled_map((directory / "layered.tmj").string());
+        assert(layered && layered->layers.size() == 2);
+        assert(layered->layers[0].opacity == 0.25f && layered->layers[0].offset_x == 15.0f && layered->layers[0].offset_y == 4.0f);
+        assert(layered->layers[0].tint.red == 255 && layered->layers[0].tint.green == 0 && layered->layers[0].tint.alpha == 128);
+        assert(layered->layers[0].visible && !layered->layers[1].visible);
+        assert(layered->image_layers.size() == 1 && layered->image_layers[0].bitmap && layered->image_layers[0].repeat_x);
+        assert(layered->image_layers[0].after_layer == -1 && layered->image_layers[0].opacity == 0.5f);
+        assert(layered->object_layers.size() == 1 && layered->object_layers[0].after_layer == 0);
+        const sl::TileObject &tile_object = layered->object_layers[0].objects[0];
+        assert(tile_object.gid == 2 && tile_object.rotation == 90.0f && tile_object.visible);
+        sl::destroy_tilemap(layered);
+
+        std::ofstream(directory / "layered.tmx") << R"(<map orientation="orthogonal" width="1" height="1" tilewidth="32" tileheight="32">
+ <tileset firstgid="1" name="t" tilewidth="32" tileheight="32"><image source=")" << image_path << R"(" width="512" height="512"/></tileset>
+ <group name="g" opacity="0.5" offsetx="3"><layer name="a" width="1" height="1" opacity="0.5" tintcolor="#00ff00"><data encoding="csv">1</data></layer></group>
+ <imagelayer name="sky"><image source=")" << image_path << R"("/></imagelayer>
+ <objectgroup name="o"><object id="1" name="t" gid="2" x="0" y="32" width="32" height="32" rotation="45"/></objectgroup>
+</map>)";
+        sl::TileMap *tmx = sl::load_tiled_map((directory / "layered.tmx").string());
+        assert(tmx && tmx->layers.size() == 1 && tmx->layers[0].opacity == 0.25f && tmx->layers[0].offset_x == 3.0f);
+        assert(tmx->layers[0].tint.green == 255 && tmx->layers[0].tint.red == 0);
+        assert(tmx->image_layers.size() == 1 && tmx->image_layers[0].after_layer == 0 && tmx->image_layers[0].bitmap);
+        assert(tmx->object_layers[0].objects[0].gid == 2 && tmx->object_layers[0].objects[0].rotation == 45.0f);
+        sl::destroy_tilemap(tmx);
+    }
+
+    // Runtime decals.
+    {
+        sl::TileMap *decal_map = sl::create_tilemap(2, 2, 32, 32);
+        assert(decal_map);
+        sl::tilemap_add_layer(decal_map, "floor");
+        sl::tilemap_add_layer(decal_map, "walls");
+        assert(!sl::tilemap_add_decal(decal_map, 0, 0, 0.0f, 0.0f));
+        assert(sl::tilemap_add_decal(decal_map, 99, 3, 10.0f, 12.0f, 45.0f, 2.0f, sl::Red, 1.0f, 0.5f));
+        assert(decal_map->decals.size() == 1 && decal_map->decals[0].after_layer == 1);
+        decal_map->max_decals = 2;
+        sl::tilemap_add_decal(decal_map, 0, 4, 0.0f, 0.0f);
+        sl::tilemap_add_decal(decal_map, 0, 5, 0.0f, 0.0f);
+        assert(decal_map->decals.size() == 2 && decal_map->decals[0].gid == 4);
+        sl::tilemap_add_decal(decal_map, 0, 6, 0.0f, 0.0f, 0.0f, 1.0f, sl::White, 0.5f);
+        assert(decal_map->decals.size() == 2 && decal_map->decals[1].gid == 6);
+        sl::update_tilemap(decal_map, 0.4f);
+        assert(decal_map->decals.size() == 2);
+        sl::update_tilemap(decal_map, 0.2f);
+        assert(decal_map->decals.size() == 1 && decal_map->decals[0].gid == 5);
+        sl::tilemap_clear_decals(decal_map);
+        assert(decal_map->decals.empty());
+        sl::destroy_tilemap(decal_map);
+    }
+
     assert(!sl::load_tiled_map((directory / "missing.tmj").string()));
     std::filesystem::remove_all(directory);
     return 0;

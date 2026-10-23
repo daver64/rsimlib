@@ -56,34 +56,166 @@ namespace sl
             return local;
         }
 
-        void draw_cell(const TileMap *map, std::uint32_t cell, float x, float bottom_y)
+        /** Resolve a cell to its source bitmap and rectangle; false when the tile cannot be drawn. */
+        bool resolve_tile(const TileMap *map, std::uint32_t cell, Bitmap *&source, int &source_x, int &source_y,
+                          int &width, int &height)
         {
             const std::uint32_t gid = cell & tile_id_mask;
             if (gid == 0)
-                return;
+                return false;
             const int set_index = find_tileset(map, gid);
             if (set_index < 0)
-                return;
+                return false;
             const TileSet &set = map->tilesets[set_index];
             const int local = animated_tile(set, static_cast<int>(gid) - set.first_gid, map->animation_time_ms);
-            int source_x = 0, source_y = 0, width = 0, height = 0;
-            Bitmap *source = set.atlas.bitmap;
+            source_x = source_y = width = height = 0;
+            source = set.atlas.bitmap;
             if (!set.images.empty())
             {
                 const auto image = set.images.find(local);
                 if (image == set.images.end() || !image->second)
-                    return;
+                    return false;
                 source = image->second;
                 width = source->width;
                 height = source->height;
+                return true;
             }
-            else if (!atlas_tile_rect(set.atlas, local, source_x, source_y, width, height))
+            return atlas_tile_rect(set.atlas, local, source_x, source_y, width, height);
+        }
+
+        /** Combine a layer tint with its opacity (and any extra alpha factor) into one draw colour. */
+        Colour layer_colour(Colour tint, float opacity, float extra = 1.0f)
+        {
+            const float alpha = std::clamp(opacity * extra, 0.0f, 1.0f) * (tint.alpha / 255.0f);
+            tint.alpha = static_cast<Uint8>(std::lround(alpha * 255.0f));
+            return tint;
+        }
+
+        void draw_cell(const TileMap *map, std::uint32_t cell, float x, float bottom_y, Colour tint = White)
+        {
+            Bitmap *source = nullptr;
+            int source_x = 0, source_y = 0, width = 0, height = 0;
+            if (!resolve_tile(map, cell, source, source_x, source_y, width, height))
                 return;
             draw_sprite_region_flipped(source, source_x, source_y, width, height,
                                        x, bottom_y - static_cast<float>(height),
                                        static_cast<float>(width), static_cast<float>(height),
                                        (cell & tile_flip_horizontal) != 0, (cell & tile_flip_vertical) != 0,
-                                       (cell & tile_flip_diagonal) != 0);
+                                       (cell & tile_flip_diagonal) != 0, tint);
+        }
+
+        void draw_image_layer(const ImageLayer &layer, float camera_x, float camera_y, int view_width, int view_height)
+        {
+            if (!layer.visible || !layer.bitmap || layer.bitmap->width <= 0 || layer.bitmap->height <= 0)
+                return;
+            const float width = static_cast<float>(layer.bitmap->width);
+            const float height = static_cast<float>(layer.bitmap->height);
+            float x = std::floor(layer.offset_x - camera_x * layer.parallax_x);
+            float y = std::floor(layer.offset_y - camera_y * layer.parallax_y);
+            if (layer.repeat_x)
+            {
+                x = std::fmod(x, width);
+                if (x > 0.0f)
+                    x -= width;
+            }
+            if (layer.repeat_y)
+            {
+                y = std::fmod(y, height);
+                if (y > 0.0f)
+                    y -= height;
+            }
+            const Colour colour = layer_colour(layer.tint, layer.opacity);
+            for (float row = y; row < static_cast<float>(view_height); row += height)
+            {
+                for (float column = x; column < static_cast<float>(view_width); column += width)
+                {
+                    if (column + width > 0.0f && row + height > 0.0f)
+                        draw_sprite_region_flipped(layer.bitmap, 0, 0, layer.bitmap->width, layer.bitmap->height, column,
+                                                   row, width, height, false, false, false, colour);
+                    if (!layer.repeat_x)
+                        break;
+                }
+                if (!layer.repeat_y)
+                    break;
+            }
+        }
+
+        void draw_object_layer(const TileMap *map, const ObjectLayer &layer, float camera_x, float camera_y)
+        {
+            if (!layer.visible)
+                return;
+            const float scroll_x = std::floor(camera_x * layer.parallax_x - layer.offset_x);
+            const float scroll_y = std::floor(camera_y * layer.parallax_y - layer.offset_y);
+            const Colour colour = layer_colour(layer.tint, layer.opacity);
+            for (const TileObject &object : layer.objects)
+            {
+                Bitmap *source = nullptr;
+                int source_x = 0, source_y = 0, width = 0, height = 0;
+                if (!object.visible || !resolve_tile(map, object.gid, source, source_x, source_y, width, height))
+                    continue;
+                SpriteParams params;
+                params.x = object.x - scroll_x;
+                params.y = object.y - scroll_y;
+                // Tiled anchors tile objects at their bottom-left corner.
+                params.origin_x = 0.0f;
+                params.origin_y = 1.0f;
+                params.scale_x = object.width > 0.0f ? object.width / static_cast<float>(width) : 1.0f;
+                params.scale_y = object.height > 0.0f ? object.height / static_cast<float>(height) : 1.0f;
+                params.rotation = object.rotation;
+                params.flip_x = (object.gid & tile_flip_horizontal) != 0;
+                params.flip_y = (object.gid & tile_flip_vertical) != 0;
+                params.source_x = source_x;
+                params.source_y = source_y;
+                params.source_width = width;
+                params.source_height = height;
+                params.tint = colour;
+                draw_sprite_ex(source, params);
+            }
+        }
+
+        void draw_decals(const TileMap *map, int slot, float camera_x, float camera_y)
+        {
+            for (const TileDecal &decal : map->decals)
+            {
+                if (decal.after_layer != slot)
+                    continue;
+                Bitmap *source = nullptr;
+                int source_x = 0, source_y = 0, width = 0, height = 0;
+                if (!resolve_tile(map, decal.gid, source, source_x, source_y, width, height))
+                    continue;
+                float fade = 1.0f;
+                if (decal.lifetime > 0.0f && decal.fade > 0.0f)
+                    fade = std::clamp((decal.lifetime - decal.age) / decal.fade, 0.0f, 1.0f);
+                SpriteParams params;
+                params.x = decal.x - std::floor(camera_x);
+                params.y = decal.y - std::floor(camera_y);
+                params.scale_x = params.scale_y = decal.scale;
+                params.rotation = decal.rotation;
+                params.flip_x = (decal.gid & tile_flip_horizontal) != 0;
+                params.flip_y = (decal.gid & tile_flip_vertical) != 0;
+                params.source_x = source_x;
+                params.source_y = source_y;
+                params.source_width = width;
+                params.source_height = height;
+                params.tint = layer_colour(decal.tint, 1.0f, fade);
+                draw_sprite_ex(source, params);
+            }
+        }
+
+        /** Draw everything stacked directly above tile layer slot (-1: below all tile layers). */
+        void draw_slot(const TileMap *map, int slot, float camera_x, float camera_y, int view_width, int view_height)
+        {
+            for (const ImageLayer &layer : map->image_layers)
+            {
+                if (layer.after_layer == slot)
+                    draw_image_layer(layer, camera_x, camera_y, view_width, view_height);
+            }
+            for (const ObjectLayer &layer : map->object_layers)
+            {
+                if (layer.after_layer == slot)
+                    draw_object_layer(map, layer, camera_x, camera_y);
+            }
+            draw_decals(map, slot, camera_x, camera_y);
         }
 
         int max_tile_height(const TileMap *map)
@@ -536,14 +668,48 @@ namespace sl
 
     void update_tilemap(TileMap *map, float dt_seconds)
     {
-        if (map && dt_seconds > 0.0f)
-            map->animation_time_ms += static_cast<double>(dt_seconds) * 1000.0;
+        if (!map || dt_seconds <= 0.0f)
+            return;
+        map->animation_time_ms += static_cast<double>(dt_seconds) * 1000.0;
+        for (TileDecal &decal : map->decals)
+            decal.age += dt_seconds;
+        map->decals.erase(std::remove_if(map->decals.begin(), map->decals.end(),
+                                         [](const TileDecal &decal) { return decal.lifetime > 0.0f && decal.age >= decal.lifetime; }),
+                          map->decals.end());
+    }
+
+    bool tilemap_add_decal(TileMap *map, int after_layer, std::uint32_t gid, float x, float y, float rotation,
+                           float scale, Colour tint, float lifetime, float fade)
+    {
+        if (!map || (gid & tile_id_mask) == 0)
+            return false;
+        TileDecal decal;
+        decal.gid = gid;
+        decal.after_layer = std::clamp(after_layer, -1, static_cast<int>(map->layers.size()) - 1);
+        decal.x = x;
+        decal.y = y;
+        decal.rotation = rotation;
+        decal.scale = scale;
+        decal.tint = tint;
+        decal.lifetime = std::max(lifetime, 0.0f);
+        decal.fade = std::max(fade, 0.0f);
+        map->decals.push_back(decal);
+        const std::size_t limit = static_cast<std::size_t>(std::max(map->max_decals, 1));
+        if (map->decals.size() > limit)
+            map->decals.erase(map->decals.begin(), map->decals.begin() + (map->decals.size() - limit));
+        return true;
+    }
+
+    void tilemap_clear_decals(TileMap *map)
+    {
+        if (map)
+            map->decals.clear();
     }
 
     void draw_tilemap(const TileMap *map, float camera_x, float camera_y, int view_width, int view_height,
                       int first_layer, int last_layer)
     {
-        if (!map || map->layers.empty() || map->tile_width <= 0 || map->tile_height <= 0)
+        if (!map || map->tile_width <= 0 || map->tile_height <= 0)
             return;
         if (view_width <= 0)
             view_width = screen_width();
@@ -558,11 +724,22 @@ namespace sl
         const int overhang_up = std::max(max_tile_height(map) - map->tile_height, 0);
         const int overhang_side = std::max(max_tile_width(map) - map->tile_width, 0);
 
+        if (first_layer == 0)
+            draw_slot(map, -1, camera_x, camera_y, view_width, view_height);
         for (int index = first_layer; index <= last_layer; ++index)
         {
+            struct SlotGuard
+            {
+                const TileMap *map;
+                int slot;
+                float camera_x, camera_y;
+                int view_width, view_height;
+                ~SlotGuard() { draw_slot(map, slot, camera_x, camera_y, view_width, view_height); }
+            } slot_guard{map, index, camera_x, camera_y, view_width, view_height};
             const TileLayer &layer = map->layers[index];
             if (!layer.visible || (!layer.infinite && (layer.width <= 0 || layer.height <= 0)))
                 continue;
+            const Colour layer_tint = layer_colour(layer.tint, layer.opacity);
             // Snap to whole pixels so neighbouring tiles never show seams.
             const float scroll_x = std::floor(camera_x * layer.parallax_x - layer.offset_x);
             const float scroll_y = std::floor(camera_y * layer.parallax_y - layer.offset_y);
@@ -590,7 +767,7 @@ namespace sl
                         const int set_index = find_tileset(map, cell & tile_id_mask);
                         const int image_width = set_index >= 0 ? map->tilesets[set_index].atlas.tile_width : map->tile_width;
                         draw_cell(map, cell, std::floor(top.x - image_width * 0.5f),
-                                  std::floor(top.y) + static_cast<float>(map->tile_height));
+                                  std::floor(top.y) + static_cast<float>(map->tile_height), layer_tint);
                     }
                 }
                 continue;
@@ -620,7 +797,7 @@ namespace sl
                             continue;
                         float origin_x = 0.0f, origin_y = 0.0f;
                         hex_origin(map, column, row, origin_x, origin_y);
-                        draw_cell(map, cell, origin_x - scroll_x, origin_y + static_cast<float>(map->tile_height) - scroll_y);
+                        draw_cell(map, cell, origin_x - scroll_x, origin_y + static_cast<float>(map->tile_height) - scroll_y, layer_tint);
                     }
                 }
                 continue;
@@ -645,7 +822,7 @@ namespace sl
                     if ((cell & tile_id_mask) == 0)
                         continue;
                     draw_cell(map, cell, static_cast<float>(column * map->tile_width) - scroll_x,
-                              static_cast<float>((row + 1) * map->tile_height) - scroll_y);
+                              static_cast<float>((row + 1) * map->tile_height) - scroll_y, layer_tint);
                 }
             }
         }
@@ -1295,12 +1472,24 @@ namespace sl
                         item["y"] = xml_double(object, "y", 0.0);
                         item["width"] = xml_double(object, "width", 0.0);
                         item["height"] = xml_double(object, "height", 0.0);
+                        item["rotation"] = xml_double(object, "rotation", 0.0);
+                        item["visible"] = object.attr("visible", "1") != "0";
+                        if (object.attributes.count("gid"))
+                            item["gid"] = static_cast<std::uint32_t>(std::strtoul(object.attr("gid").c_str(), nullptr, 10));
                         Json properties = xml_properties(object);
                         if (!properties.empty())
                             item["properties"] = std::move(properties);
                         objects.push_back(std::move(item));
                     }
                     entry["objects"] = std::move(objects);
+                }
+                else if (node.name == "imagelayer")
+                {
+                    entry["type"] = "imagelayer";
+                    if (const XmlNode *image = node.child("image"))
+                        entry["image"] = image->attr("source");
+                    entry["repeatx"] = node.attr("repeatx", "0") != "0";
+                    entry["repeaty"] = node.attr("repeaty", "0") != "0";
                 }
                 else if (node.name == "group")
                 {
@@ -1318,6 +1507,9 @@ namespace sl
                 entry["offsety"] = xml_double(node, "offsety", 0.0);
                 entry["parallaxx"] = xml_double(node, "parallaxx", 1.0);
                 entry["parallaxy"] = xml_double(node, "parallaxy", 1.0);
+                entry["opacity"] = xml_double(node, "opacity", 1.0);
+                if (node.attributes.count("tintcolor"))
+                    entry["tintcolor"] = node.attr("tintcolor");
                 layers.push_back(std::move(entry));
             }
             return true;
@@ -1457,14 +1649,67 @@ namespace sl
             return true;
         }
 
-        bool load_layers(TileMap *map, const Json &layers, std::string &error)
+        /** Visibility, opacity, offset, parallax and tint a Tiled group passes down to its children. */
+        struct LayerStyle
+        {
+            bool visible = true;
+            float opacity = 1.0f;
+            float offset_x = 0.0f, offset_y = 0.0f;
+            float parallax_x = 1.0f, parallax_y = 1.0f;
+            Colour tint = White;
+        };
+
+        /** Parse a Tiled "#AARRGGBB" or "#RRGGBB" colour; false when malformed. */
+        bool parse_tint(const std::string &text, Colour &out)
+        {
+            std::string digits = !text.empty() && text[0] == '#' ? text.substr(1) : text;
+            if (digits.size() != 6 && digits.size() != 8)
+                return false;
+            for (const char c : digits)
+            {
+                if (!std::isxdigit(static_cast<unsigned char>(c)))
+                    return false;
+            }
+            const auto value = static_cast<std::uint32_t>(std::strtoul(digits.c_str(), nullptr, 16));
+            const bool has_alpha = digits.size() == 8;
+            out.alpha = has_alpha ? static_cast<Uint8>(value >> 24) : 255;
+            out.red = static_cast<Uint8>(value >> 16);
+            out.green = static_cast<Uint8>(value >> 8);
+            out.blue = static_cast<Uint8>(value);
+            return true;
+        }
+
+        /** Combine a node's own style with the style inherited from its enclosing groups. */
+        LayerStyle node_style(const Json &node, const LayerStyle &parent)
+        {
+            LayerStyle style = parent;
+            style.visible = parent.visible && node.value("visible", true);
+            style.opacity = parent.opacity * node.value("opacity", 1.0f);
+            style.offset_x += node.value("offsetx", 0.0f);
+            style.offset_y += node.value("offsety", 0.0f);
+            style.parallax_x *= node.value("parallaxx", 1.0f);
+            style.parallax_y *= node.value("parallaxy", 1.0f);
+            Colour tint = White;
+            if (node.contains("tintcolor") && node["tintcolor"].is_string() && parse_tint(node["tintcolor"].get<std::string>(), tint))
+            {
+                style.tint = Colour{static_cast<Uint8>(parent.tint.red * tint.red / 255),
+                                    static_cast<Uint8>(parent.tint.green * tint.green / 255),
+                                    static_cast<Uint8>(parent.tint.blue * tint.blue / 255),
+                                    static_cast<Uint8>(parent.tint.alpha * tint.alpha / 255)};
+            }
+            return style;
+        }
+
+        bool load_layers(TileMap *map, const Json &layers, const std::filesystem::path &base_dir, std::string &error,
+                         const LayerStyle &parent = LayerStyle{})
         {
             for (const Json &node : layers)
             {
                 const std::string kind = node.value("type", std::string{});
+                const LayerStyle style = node_style(node, parent);
                 if (kind == "group")
                 {
-                    if (node.contains("layers") && !load_layers(map, node["layers"], error))
+                    if (node.contains("layers") && !load_layers(map, node["layers"], base_dir, error, style))
                         return false;
                 }
                 else if (kind == "tilelayer")
@@ -1480,11 +1725,13 @@ namespace sl
                         TileLayer layer;
                         layer.name = node.value("name", std::string{});
                         layer.infinite = true;
-                        layer.visible = node.value("visible", true);
-                        layer.offset_x = node.value("offsetx", 0.0f);
-                        layer.offset_y = node.value("offsety", 0.0f);
-                        layer.parallax_x = node.value("parallaxx", 1.0f);
-                        layer.parallax_y = node.value("parallaxy", 1.0f);
+                        layer.visible = style.visible;
+                        layer.offset_x = style.offset_x;
+                        layer.offset_y = style.offset_y;
+                        layer.parallax_x = style.parallax_x;
+                        layer.parallax_y = style.parallax_y;
+                        layer.opacity = style.opacity;
+                        layer.tint = style.tint;
                         for (const Json &chunk : node["chunks"])
                         {
                             const int start_x = chunk.value("x", 0);
@@ -1515,11 +1762,13 @@ namespace sl
                     layer.name = node.value("name", std::string{});
                     layer.width = node.value("width", map->width);
                     layer.height = node.value("height", map->height);
-                    layer.visible = node.value("visible", true);
-                    layer.offset_x = node.value("offsetx", 0.0f);
-                    layer.offset_y = node.value("offsety", 0.0f);
-                    layer.parallax_x = node.value("parallaxx", 1.0f);
-                    layer.parallax_y = node.value("parallaxy", 1.0f);
+                    layer.visible = style.visible;
+                    layer.offset_x = style.offset_x;
+                    layer.offset_y = style.offset_y;
+                    layer.parallax_x = style.parallax_x;
+                    layer.parallax_y = style.parallax_y;
+                    layer.opacity = style.opacity;
+                    layer.tint = style.tint;
                     const std::size_t expected = static_cast<std::size_t>(std::max(layer.width, 0)) *
                                                  static_cast<std::size_t>(std::max(layer.height, 0));
                     if (!read_cells(node, node, expected, layer.cells, error))
@@ -1535,6 +1784,14 @@ namespace sl
                 {
                     ObjectLayer layer;
                     layer.name = node.value("name", std::string{});
+                    layer.after_layer = static_cast<int>(map->layers.size()) - 1;
+                    layer.visible = style.visible;
+                    layer.opacity = style.opacity;
+                    layer.tint = style.tint;
+                    layer.offset_x = style.offset_x;
+                    layer.offset_y = style.offset_y;
+                    layer.parallax_x = style.parallax_x;
+                    layer.parallax_y = style.parallax_y;
                     if (node.contains("objects"))
                     {
                         for (const Json &object : node["objects"])
@@ -1546,11 +1803,42 @@ namespace sl
                             entry.y = object.value("y", 0.0f);
                             entry.width = object.value("width", 0.0f);
                             entry.height = object.value("height", 0.0f);
+                            entry.rotation = object.value("rotation", 0.0f);
+                            entry.visible = object.value("visible", true);
+                            entry.gid = object.value("gid", 0u);
                             entry.properties = read_properties(object);
                             layer.objects.push_back(std::move(entry));
                         }
                     }
                     map->object_layers.push_back(std::move(layer));
+                }
+                else if (kind == "imagelayer")
+                {
+                    ImageLayer layer;
+                    layer.name = node.value("name", std::string{});
+                    layer.after_layer = static_cast<int>(map->layers.size()) - 1;
+                    layer.visible = style.visible;
+                    layer.opacity = style.opacity;
+                    layer.tint = style.tint;
+                    layer.offset_x = style.offset_x;
+                    layer.offset_y = style.offset_y;
+                    layer.parallax_x = style.parallax_x;
+                    layer.parallax_y = style.parallax_y;
+                    layer.repeat_x = node.value("repeatx", false);
+                    layer.repeat_y = node.value("repeaty", false);
+                    const std::string image = node.value("image", std::string{});
+                    if (!image.empty())
+                    {
+                        const std::filesystem::path image_path = base_dir / image;
+                        layer.bitmap = load_bitmap(image_path.string());
+                        if (!layer.bitmap)
+                        {
+                            error = "Unable to load image layer " + image_path.string();
+                            return false;
+                        }
+                        map->owned_bitmaps.push_back(layer.bitmap);
+                    }
+                    map->image_layers.push_back(std::move(layer));
                 }
             }
             return true;
@@ -1626,7 +1914,7 @@ namespace sl
                     }
                 }
             }
-            if (root.contains("layers") && !load_layers(map, root["layers"], error))
+            if (root.contains("layers") && !load_layers(map, root["layers"], base_dir, error))
             {
                 detail::set_error(error);
                 destroy_tilemap(map);

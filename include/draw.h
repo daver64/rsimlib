@@ -325,8 +325,8 @@ namespace sl
     void draw_sprite_rotated_stretched(Bitmap *bitmap, float centerX, float centerY, float angleDegrees, int width, int height);
     /** Draw a bitmap region with its unrotated top-left at (x, y), rotated clockwise by angleDegrees around a pivot offset (in destination pixels) from that corner; the region is scaled to destinationWidth x destinationHeight. */
     void draw_sprite_region_rotated(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, float pivotX, float pivotY, float angleDegrees);
-    /** Draw a bitmap region scaled into a rectangle with optional flips; the diagonal flip (transpose) is applied first, as in Tiled. */
-    void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal = false);
+    /** Draw a bitmap region scaled into a rectangle with optional flips; the diagonal flip (transpose) is applied first, as in Tiled; tint multiplies the texel colour and alpha. */
+    void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal = false, Colour tint = White);
     /** One sprite for draw_sprite_batch(). */
     struct SpriteInstance
     {

@@ -315,7 +315,7 @@ namespace sl
 		}
 
 		/** Draw a bitmap region into an axis-aligned rectangle with optional diagonal, horizontal and vertical flips. */
-		void draw_textured_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal)
+		void draw_textured_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal, Colour colour)
 		{
 			bitmap = pass_bitmap(bitmap);
 			if (!upload_bitmap(bitmap))
@@ -369,7 +369,9 @@ namespace sl
 				mc = -mc;
 				md = -md;
 			}
-			const Tint tint = normal_tint(ma, mb, mc, md);
+			Tint tint = normal_tint(ma, mb, mc, md);
+			if (!normal_pass_active)
+				tint = {colour.red / 255.0f, colour.green / 255.0f, colour.blue / 255.0f, colour.alpha / 255.0f};
 			const detail::GLVertex vertices[4] = {
 				{x, y, u[0], v[0], tint.r, tint.g, tint.b, tint.a},
 				{x2, y, u[1], v[1], tint.r, tint.g, tint.b, tint.a},
@@ -2113,13 +2115,13 @@ namespace sl
 	}
 
 	/** Draw a bitmap region scaled to a destination rectangle with optional flips (diagonal is applied first). */
-	void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal)
+	void draw_sprite_region_flipped(Bitmap *bitmap, int sourceX, int sourceY, int width, int height, float x, float y, float destinationWidth, float destinationHeight, bool flipHorizontal, bool flipVertical, bool flipDiagonal, Colour tint)
 	{
 		if (!bitmap || is_drawing_target(bitmap) || screen_width() <= 0 || screen_height() <= 0 || width <= 0 || height <= 0 || destinationWidth <= 0 || destinationHeight <= 0)
 		{
 			return;
 		}
-		draw_textured_region_flipped(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, flipHorizontal, flipVertical, flipDiagonal);
+		draw_textured_region_flipped(bitmap, sourceX, sourceY, width, height, x, y, destinationWidth, destinationHeight, flipHorizontal, flipVertical, flipDiagonal, tint);
 	}
 
 	void draw_sprite_batch(Bitmap *bitmap, const std::vector<SpriteInstance> &sprites)

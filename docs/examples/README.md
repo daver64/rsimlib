@@ -60,6 +60,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exsynth](img/exsynth.png)<br>**exsynth**](exsynth.md) | Procedural audio: generates laser, explosion, coin and tone samples from oscillator parameters at startup. |
 | [![exterrain](img/exterrain.png)<br>**exterrain**](exterrain.md) | A fly-over procedural terrain with normals, atmosphere, clouds, volumetrics, and instanced trees and rocks. |
 | [![extilemap](img/extilemap.png)<br>**extilemap**](extilemap.md) | Tile map rendering: a map built in code, or a Tiled `.tmj` map loaded from a path, scrolled with the arrow keys with tile collision. |
+| [![exxeno](img/exxeno.png)<br>**exxeno**](exxeno.md) | Lit top-down shooter with synthesised sound and music: a marine with a flashlight shoots xenomorphs; kills leave acid splats stamped with tile-map decals. |
 | [![extriangle](img/extriangle.png)<br>**extriangle**](extriangle.md) | Immediate-mode 2D primitives: outlined and filled triangles drawn over a loaded bitmap. |
 | [![exvoxel](img/exvoxel.png)<br>**exvoxel**](exvoxel.md) | A Minecraft-style voxel world: fly around, break and place blocks, with chunk meshing. |
 | [![exvulkan](img/exvulkan.png)<br>**exvulkan**](exvulkan.md) | A Vulkan smoke test: a textured, rotating sprite and primitives rendered into a target with a bloom pass. |
