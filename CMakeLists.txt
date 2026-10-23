@@ -179,6 +179,11 @@ endif()
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(SQLite3 REQUIRED)
+if(TARGET SQLite3::SQLite3)
+    set(_SIMLIB_SQLITE_TARGET SQLite3::SQLite3)
+else()
+    set(_SIMLIB_SQLITE_TARGET SQLite::SQLite3)
+endif()
 find_package(SDL2 REQUIRED)
 if(SIMLIB_RENDER_VULKAN)
     find_package(Vulkan REQUIRED)
@@ -603,7 +608,7 @@ target_link_libraries(excafluid PRIVATE simlib)
 
 add_executable(exdb src/examples/exdb/exdb.cpp)
 target_include_directories(exdb PRIVATE src/examples/exdb)
-target_link_libraries(exdb PRIVATE simlib SQLite::SQLite3)
+target_link_libraries(exdb PRIVATE simlib ${_SIMLIB_SQLITE_TARGET})
 
 add_executable(exshader src/examples/exshader/exshader.cpp)
 target_link_libraries(exshader PRIVATE simlib)
@@ -910,7 +915,7 @@ if(BUILD_TESTING)
 
     add_executable(rdb_test tests/rdb_test.cpp)
     target_include_directories(rdb_test PRIVATE src/examples/exdb)
-    target_link_libraries(rdb_test PRIVATE simlib lua sol2 SQLite::SQLite3)
+    target_link_libraries(rdb_test PRIVATE simlib lua sol2 ${_SIMLIB_SQLITE_TARGET})
     target_compile_definitions(rdb_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME rdb COMMAND rdb_test)
 
@@ -938,8 +943,11 @@ if(BUILD_TESTING)
     target_link_libraries(resource_test PRIVATE ZLIB::ZLIB)
 
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture)
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/stored.txt "stored entry\n")
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/deflated.txt "deflated entry with enough repeated text to exercise compression\n")
+    # file(WRITE) would turn "\n" into CRLF on Windows, which the archive test does not expect.
+    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/stored.txt
+         CONTENT "stored entry\n" NEWLINE_STYLE UNIX)
+    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture/deflated.txt
+         CONTENT "deflated entry with enough repeated text to exercise compression\n" NEWLINE_STYLE UNIX)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip
         COMMAND ${CMAKE_COMMAND} -E tar cf ${CMAKE_CURRENT_BINARY_DIR}/resource_test_fixture.zip

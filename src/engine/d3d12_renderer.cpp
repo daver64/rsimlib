@@ -1284,8 +1284,10 @@ namespace sl::detail
                                   const D3D12InstanceBuffer *instances, std::size_t instance_count)
             {
                 const auto mesh = meshes_.find(handle);
+                // While draws are queued the target is already bound; re-binding would flush the queue every draw.
+                const bool frame_ready = queued_draws_.empty() ? ensure_frame() : context_.frame_open();
                 if (mesh == meshes_.end() || active_render_target_ == 0 ||
-                    !initialise_2d() || !initialise_mesh_pipeline() || !ensure_frame())
+                    !initialise_2d() || !initialise_mesh_pipeline() || !frame_ready)
                     return false;
                 const auto target = render_targets_.find(active_render_target_);
                 if (target == render_targets_.end() || !target->second.depth)
@@ -1317,22 +1319,37 @@ namespace sl::detail
                     shadow_map = textures_.find(white_texture_);
                 if (shadow_map == textures_.end())
                     return false;
-                // After the PBR block: the eye position (w = local light count), the shadow parameters and matrix, then
-                // four float4s per local light (local light shadows are not implemented on Direct3D 12).
-                float pbr_constants[44 + 16 * 16];
-                std::copy(std::begin(params.pbr), std::end(params.pbr), pbr_constants);
-                std::copy(std::begin(params.emissive), std::end(params.emissive), pbr_constants + 4);
-                std::copy(std::begin(params.camera_right), std::end(params.camera_right), pbr_constants + 8);
-                std::copy(std::begin(params.camera_up), std::end(params.camera_up), pbr_constants + 12);
-                std::copy(std::begin(params.camera_forward), std::end(params.camera_forward), pbr_constants + 16);
-                std::copy(std::begin(params.camera_position), std::end(params.camera_position), pbr_constants + 20);
+                auto local_shadow_map =
+                    textures_.find(params.local_shadow_texture != 0 ? params.local_shadow_texture : white_texture_);
+                if (local_shadow_map == textures_.end() ||
+                    local_shadow_map->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    local_shadow_map = textures_.find(white_texture_);
+                if (local_shadow_map == textures_.end())
+                    return false;
+                // The eye position, shadow parameters and matrix are followed by four float4s per light and then
+                // the local-shadow matrices starting at local_shadow_matrix_base.
+                std::array<float, 44 + local_light_vec4s * 4> pbr_constants{};
+                std::copy(std::begin(params.pbr), std::end(params.pbr), pbr_constants.begin());
+                std::copy(std::begin(params.emissive), std::end(params.emissive), pbr_constants.begin() + 4);
+                std::copy(std::begin(params.camera_right), std::end(params.camera_right), pbr_constants.begin() + 8);
+                std::copy(std::begin(params.camera_up), std::end(params.camera_up), pbr_constants.begin() + 12);
+                std::copy(std::begin(params.camera_forward), std::end(params.camera_forward), pbr_constants.begin() + 16);
+                std::copy(std::begin(params.camera_position), std::end(params.camera_position), pbr_constants.begin() + 20);
                 const std::size_t local_lights =
                     static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
-                std::copy(std::begin(params.shadow), std::end(params.shadow), pbr_constants + 24);
-                std::copy(std::begin(params.shadow_matrix), std::end(params.shadow_matrix), pbr_constants + 28);
-                std::copy(&params.local_lights[0][0], &params.local_lights[0][0] + 16 * local_lights, pbr_constants + 44);
+                std::copy(std::begin(params.shadow), std::end(params.shadow), pbr_constants.begin() + 24);
+                std::copy(std::begin(params.shadow_matrix), std::end(params.shadow_matrix), pbr_constants.begin() + 28);
+                const std::size_t shadow_slots =
+                    static_cast<std::size_t>(std::clamp(params.shadow[3], 0.0f,
+                                                        static_cast<float>(local_shadow_slots)));
+                const std::size_t local_vec4s =
+                    (std::max)(local_lights * 4,
+                               params.local_shadow_texture != 0
+                                   ? static_cast<std::size_t>(local_shadow_matrix_base) + shadow_slots * 24
+                                   : 0);
+                std::memcpy(pbr_constants.data() + 44, params.local_lights, local_vec4s * sizeof(float) * 4);
                 const D3D12_GPU_VIRTUAL_ADDRESS pbr_address =
-                    allocate_constants(pbr_constants, sizeof(float) * (44 + 16 * local_lights));
+                    allocate_constants(pbr_constants.data(), sizeof(float) * (44 + local_vec4s * 4));
                 if (pbr_address == 0)
                     return false;
 
@@ -1362,6 +1379,8 @@ namespace sl::detail
                 draw.material_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, material_map->second.descriptor);
                 draw.material_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor);
                 draw.shadow_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, shadow_map->second.descriptor);
+                draw.local_shadow_srv =
+                    gpu_descriptor(srv_heap_, srv_descriptor_size_, local_shadow_map->second.descriptor);
                 draw.pbr_address = pbr_address;
                 draw.pipeline = mesh_pipeline;
                 draw.views[0] = mesh->second.vertex_view;
@@ -1390,7 +1409,7 @@ namespace sl::detail
             {
                 std::array<float, 48> constants;
                 D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, texture_sampler, normal_srv, normal_sampler,
-                    material_srv, material_sampler, shadow_srv;
+                    material_srv, material_sampler, shadow_srv, local_shadow_srv;
                 D3D12_GPU_VIRTUAL_ADDRESS pbr_address;
                 ID3D12PipelineState *pipeline;
                 D3D12_VERTEX_BUFFER_VIEW views[2];
@@ -1421,6 +1440,7 @@ namespace sl::detail
                 commands->SetGraphicsRootDescriptorTable(6, draw.material_sampler);
                 commands->SetGraphicsRootConstantBufferView(7, draw.pbr_address);
                 commands->SetGraphicsRootDescriptorTable(8, draw.shadow_srv);
+                commands->SetGraphicsRootDescriptorTable(9, draw.local_shadow_srv);
                 commands->SetPipelineState(draw.pipeline);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 commands->IASetVertexBuffers(0, draw.view_count, draw.views);
@@ -1514,8 +1534,8 @@ namespace sl::detail
                                             {
                                                 ID3D12GraphicsCommandList *list = first_worker[chunk].list;
                                                 bind_render_target_state(target->second, width, height, list);
-                                                const std::size_t begin = std::min(count, chunk * per_chunk);
-                                                const std::size_t end = std::min(count, begin + per_chunk);
+                                                const std::size_t begin = (std::min)(count, chunk * per_chunk);
+                                                const std::size_t end = (std::min)(count, begin + per_chunk);
                                                 for (std::size_t i = begin; i < end; ++i)
                                                     record_mesh_draw(list, draws[i]);
                                                 list->Close();
@@ -1827,22 +1847,13 @@ namespace sl::detail
                     ranges[index].BaseShaderRegister = index / 2;
                     ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
                 }
-                // Parameter 8: the sun shadow map SRV t3 (read with Load, so it has no sampler).
-                D3D12_DESCRIPTOR_RANGE shadow_range{};
-                shadow_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-                shadow_range.NumDescriptors = 1;
-                shadow_range.BaseShaderRegister = 3;
-                shadow_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                D3D12_ROOT_PARAMETER parameters[9]{};
+                D3D12_ROOT_PARAMETER parameters[3]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
                 parameters[0].Constants.RegisterSpace = 0;
                 parameters[0].Constants.Num32BitValues = 16;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-                parameters[7].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-                parameters[7].Descriptor.ShaderRegister = 1;
-                parameters[7].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-                for (UINT index = 0; index < 6; ++index)
+                for (UINT index = 0; index < 2; ++index)
                 {
                     parameters[index + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                     parameters[index + 1].DescriptorTable.NumDescriptorRanges = 1;
@@ -1850,7 +1861,7 @@ namespace sl::detail
                     parameters[index + 1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 }
                 D3D12_ROOT_SIGNATURE_DESC signature_desc{};
-                signature_desc.NumParameters = 3;
+                signature_desc.NumParameters = static_cast<UINT>(std::size(parameters));
                 signature_desc.pParameters = parameters;
                 signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
                 ID3DBlob *serialized = nullptr;
@@ -2428,7 +2439,8 @@ namespace sl::detail
                 }
 
                 // Tables 1-6: colour SRV t0, colour sampler s0, normal SRV t1, normal sampler s1, and the PBR
-                // occlusion-roughness-metalness SRV t2 and sampler s2. Parameter 7 is the PBR constant buffer b1.
+                // occlusion-roughness-metalness SRV t2 and sampler s2. Parameters 7-9 bind PBR constants and
+                // the sun and local shadow maps.
                 D3D12_DESCRIPTOR_RANGE ranges[6]{};
                 for (UINT index = 0; index < 6; ++index)
                 {
@@ -2438,10 +2450,18 @@ namespace sl::detail
                     ranges[index].BaseShaderRegister = index / 2;
                     ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
                 }
-                D3D12_ROOT_PARAMETER parameters[8]{};
+                D3D12_DESCRIPTOR_RANGE shadow_ranges[2]{};
+                for (UINT index = 0; index < 2; ++index)
+                {
+                    shadow_ranges[index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+                    shadow_ranges[index].NumDescriptors = 1;
+                    shadow_ranges[index].BaseShaderRegister = index + 3;
+                    shadow_ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                }
+                D3D12_ROOT_PARAMETER parameters[10]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
-                // 32 mesh constants plus 16 for the environment; with the seven tables and the CBV this is 57 of 64 DWORDs.
+                // 32 mesh constants plus 16 for the environment, eight tables, and one CBV use 58 of 64 DWORDs.
                 parameters[0].Constants.Num32BitValues = 48;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
                 for (UINT index = 0; index < 6; ++index)
@@ -2456,8 +2476,12 @@ namespace sl::detail
                 parameters[7].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 parameters[8].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                 parameters[8].DescriptorTable.NumDescriptorRanges = 1;
-                parameters[8].DescriptorTable.pDescriptorRanges = &shadow_range;
+                parameters[8].DescriptorTable.pDescriptorRanges = &shadow_ranges[0];
                 parameters[8].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                parameters[9].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                parameters[9].DescriptorTable.NumDescriptorRanges = 1;
+                parameters[9].DescriptorTable.pDescriptorRanges = &shadow_ranges[1];
+                parameters[9].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 D3D12_ROOT_SIGNATURE_DESC signature_desc{};
                 signature_desc.NumParameters = static_cast<UINT>(std::size(parameters));
                 signature_desc.pParameters = parameters;
