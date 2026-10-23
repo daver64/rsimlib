@@ -242,6 +242,13 @@ namespace sl
         camera.target = {0.0f, centre_y, 0.0f};
 
         const Light3D previous_light = get_light_3d();
+        const std::vector<LocalLight3D> previous_locals = get_local_lights_3d();
+        float previous_bias = 0.0015f;
+        const ShadowMap3D *previous_shadow = get_shadow_map_3d(&previous_bias);
+        const LocalShadowMap3D *previous_local_shadow = get_local_shadow_map_3d();
+        set_local_lights_3d({});
+        set_shadow_map_3d(nullptr);
+        set_local_shadow_map_3d(nullptr);
         Light3D bake_light;
         bake_light.direction = glm::normalize(glm::vec3{-0.45f, -0.8f, -0.4f});
         bake_light.ambient = 0.45f;
@@ -270,7 +277,10 @@ namespace sl
             }
         }
         set_light_3d(previous_light);
-        destroy_mesh(mesh);
+        set_local_lights_3d(previous_locals);
+        set_shadow_map_3d(previous_shadow, previous_bias);
+        set_local_shadow_map_3d(previous_local_shadow);
+        destroy_mesh(mesh);(mesh);
         if (!ok)
         {
             destroy_impostor(impostor);

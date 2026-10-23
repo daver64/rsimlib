@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     sl::Mesh *sphere = sl::create_sphere_mesh(1.0f, 40, 24);
     sl::ShadowMap3D *shadow_map = sl::create_shadow_map_3d(2048);
     sl::LocalShadowMap3D *local_shadows = sl::create_local_shadow_map_3d(512, 2);
-    if (!surface || !floor || !cube || !sphere)
+    if (!surface || !floor || !cube || !sphere || !shadow_map)
     {
         std::fprintf(stderr, "3D unavailable: %s\n", sl::last_error().c_str());
         sl::shutdown();

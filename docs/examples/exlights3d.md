@@ -1,6 +1,6 @@
 # exlights3d
 
-A moonlit courtyard lit by up to 16 coloured point lights and a sweeping spotlight, with soft sun shadows and shadows from the sweeping spotlight and one orbiting point light.
+A moonlit courtyard lit by up to 16 local lights (a sweeping spotlight plus up to 15 coloured point lights), with soft sun shadows and shadows from the sweeping spotlight and one orbiting point light.
 
 ![exlights3d screenshot](img/exlights3d.png)
 
@@ -36,6 +36,8 @@ if (sl::begin_shadow_pass_3d(shadow_map, {0, 0, 0}, 16.0f))
 ```
 ./build/exlights3d            # or --gl / --vulkan / --d3d12
 ```
+
+`--d3d12` draws the lights, but local light shadows (`L`) are not implemented there and sun shadows are untested.
 
 ## Controls
 - Up / Down: number of lights

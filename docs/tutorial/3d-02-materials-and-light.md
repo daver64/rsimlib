@@ -120,6 +120,7 @@ int main(int argc, char *argv[])
 2. Set `glass.lit = false` to remove the light shading on the panes.
 3. Turn off fog (`sky.fog_enabled = false`) and compare the horizon.
 4. Add a third pane and work out where it belongs in the draw order.
+5. Add a shadow from the sun: create a `sl::ShadowMap3D` with `sl::create_shadow_map_3d(2048)`, and before `begin_surface_3d` call `sl::begin_shadow_pass_3d(map, {0, 0, 0}, 12.0f)`, draw the opaque crate and ground, call `sl::end_shadow_pass_3d()`, then `sl::set_shadow_map_3d(map)`. The glass is blended, so it casts none.
 
 ## Go further
 

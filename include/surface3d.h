@@ -266,6 +266,8 @@ namespace sl
      * `bias` is a depth offset in 0-1 light-depth units that prevents self-shadowing acne.
      */
     void set_shadow_map_3d(const ShadowMap3D *map, float bias = 0.0015f);
+    /** The map and bias most recently passed to set_shadow_map_3d(); the map is nullptr when sun shadows are off. */
+    const ShadowMap3D *get_shadow_map_3d(float *bias = nullptr);
 
     /**
      * Shadow maps for point and spot lights: an atlas holding one perspective depth map per spotlight and a six-face
@@ -308,6 +310,8 @@ namespace sl
      * lights must be unchanged since render_local_shadows_3d().
      */
     void set_local_shadow_map_3d(const LocalShadowMap3D *map);
+    /** The map most recently passed to set_local_shadow_map_3d(). */
+    const LocalShadowMap3D *get_local_shadow_map_3d();
 
     /** Create a mesh from indexed triangles; returns nullptr on failure. */
     Mesh *create_mesh(const std::vector<Vertex3D> &vertices, const std::vector<std::uint32_t> &indices);

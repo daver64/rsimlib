@@ -274,6 +274,13 @@ namespace sl
         current_shadow_bias = bias;
     }
 
+    const ShadowMap3D *get_shadow_map_3d(float *bias)
+    {
+        if (bias)
+            *bias = current_shadow_bias;
+        return current_shadow;
+    }
+
     LocalShadowMap3D *create_local_shadow_map_3d(int face_size, int max_lights)
     {
         if (face_size < 64)
@@ -376,6 +383,11 @@ namespace sl
     void set_local_shadow_map_3d(const LocalShadowMap3D *map)
     {
         current_local_shadow = map;
+    }
+
+    const LocalShadowMap3D *get_local_shadow_map_3d()
+    {
+        return current_local_shadow;
     }
 
     void clear_surface_3d(Colour colour)

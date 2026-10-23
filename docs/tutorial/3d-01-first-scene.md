@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 
 ## Try it
 
-1. Add a second light direction, or make the ambient value 0.0 to see how dark the shadowed sides get.
+1. Make the ambient value 0.0 to see how dark the shadowed sides get. Then add a point light with `sl::set_local_lights_3d({light})` (a `sl::LocalLight3D` with `position`, `colour`, `intensity` and `range`) to light them from nearby.
 2. Control the camera yourself: replace the orbit with `camera.position` driven by the arrow keys.
 3. Change `field_of_view` on the camera (default 60 degrees) to zoom.
 

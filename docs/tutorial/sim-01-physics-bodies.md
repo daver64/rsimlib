@@ -1,6 +1,6 @@
 # Lesson 1 (Simulation): Physics bodies
 
-[← Tutorial index](README.md) · Previous: [Many objects and threads](3d-04-many-objects-and-threads.md)
+[← Tutorial index](README.md) · Previous: [Local lights and shadows](3d-05-local-lights-and-shadows.md)
 
 **Goal:** drop boxes and balls onto a floor and watch them collide, using the 2D physics world.
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
             {
                 const sl::Vec2 at{static_cast<float>(sl::mouse_x()), static_cast<float>(sl::mouse_y())};
                 sl::PhysicsBody *body = sl::create_physics_body(world, sl::BodyType::dynamic_body, at);
-                if (sl::key_down(sl::Event::Key::left_shift))
+                if (sl::key_down(sl::Event::Key::left_shift) || sl::key_down(sl::Event::Key::right_shift))
                     sl::add_circle_fixture(body, 18.0f, 1.0f, 0.4f, 0.5f);
                 else
                     sl::add_box_fixture(body, 36.0f, 36.0f, 1.0f, 0.4f, 0.2f);

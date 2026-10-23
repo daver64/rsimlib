@@ -10,7 +10,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-simlib comes with a short [Tutorial](docs/tutorial/README.md) (12 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
+simlib comes with a short [Tutorial](docs/tutorial/README.md) (13 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
 
 | I want to... | Run | Read |
 |--------------|-----|------|
@@ -81,7 +81,7 @@ For in-depth guides and detailed API tables, see the documentation topics:
 - 🌊 **[3D Fluid Simulation](docs/api_reference.md#3d-fluid-simulation-includefluid3dh)** — Cellular automata fluids, fire and sand in a bounded region that reads solids from and writes fluid blocks back to a `VoxelWorld`.
 - 🎨 **[Graphics Effects & 2D Lighting](docs/graphics_effects.md)** — 17+ post-processing shaders, `PingPongBuffer` compositing pipeline, radial lights, dynamic polygon soft shadows, and 2D/3D normal mapping.
 - ⚙️ **[Renderer Backends & Architecture](docs/renderers.md)** — OpenGL 4.3, Vulkan, Direct3D 12 backends, automatic hardware batching, runtime GLSL-to-SPIR-V compilation, and direct 3D rendering APIs.
-- 🧊 **[3D Surfaces & Model Loading](docs/api_reference.md#3d-surfaces-includesurface3dh)** — Offscreen MSAA 3D targets, camera perspective, directional lighting, OBJ/glTF/GLB/AC3D models (with node and skeletal animation and PBR materials), and seamless 2D HUD compositing. See the [AC3D and FlightGear guide](docs/ac3d.md) for model animation support and the [Blender and glTF workflow](docs/blender.md) for exporting from Blender or converting AC3D assets to `.glb`.
+- 🧊 **[3D Surfaces & Model Loading](docs/api_reference.md#3d-surfaces-includesurface3dh)** — Offscreen MSAA 3D targets, camera perspective, directional, point and spot lighting with shadows, OBJ/glTF/GLB/AC3D models (with node and skeletal animation and PBR materials), and seamless 2D HUD compositing. See the [AC3D and FlightGear guide](docs/ac3d.md) for model animation support and the [Blender and glTF workflow](docs/blender.md) for exporting from Blender or converting AC3D assets to `.glb`.
 - 🧱 **[Voxel Chunks & World](docs/api_reference.md#voxel-chunks--world-includevoxelh)** — 16x16x16 chunk rendering, hidden-face culling into GPU vertex buffers, texture atlas mapping, multi-chunk coordination, and 3D DDA raycasting for Minecraft-style worlds.
 - 🏔️ **[Chunked-LOD Terrain](docs/terrain.md)** — Streamed quadtree terrain for flat arenas or planets: procedural, heightmap or editable sources, splat-textured layers with mipmapping and optional normal maps, geomorphing, exact height/normal/raycast queries, Lua bindings and `FlightWorld` ground integration.
 - 🌫️ **[World Flavour](docs/world_flavour.md)** — Sky, exponential fog, Rayleigh/Mie planetary atmosphere, 2D or volumetric clouds, and terrain-aware scattering of trees and rocks with mesh-to-impostor LOD, all scriptable from Lua.
@@ -380,7 +380,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exterrain`](src/examples/exterrain/exterrain.cpp)** — Fly over streamed chunked-LOD terrain, flat or planet-sized, with splat layers, mipmaps, normal maps (`N`), geomorphing, sky, fog, clouds (`H`/`K`/`Z`/`X`) and scattered trees and rocks (`T`). [Screenshot & guide](docs/examples/exterrain.md).
 - **[`exocean`](src/examples/exocean/exocean.cpp)** — A Gerstner-wave ocean with sun glitter and foam, volumetric clouds, sunsets, and a dreadnought that heaves, pitches and rolls on the swell. [Screenshot & guide](docs/examples/exocean.md).
 - **[`exhdr`](src/examples/exhdr/exhdr.cpp)** — A lamp-lit courtyard through `sl::Hdr`: scene-space bloom, live exposure (Up/Down) and Reinhard/ACES tone mapping (`T`). [Screenshot & guide](docs/examples/exhdr.md).
-- **[`exlights3d`](src/examples/exlights3d/exlights3d.cpp)** — Up to 16 coloured point lights and a sweeping spotlight added to a moonlit scene of pillars and spheres, with soft sun shadows (`S`) and spot/point light shadows (`L`). [Screenshot & guide](docs/examples/exlights3d.md).
+- **[`exlights3d`](src/examples/exlights3d/exlights3d.cpp)** — Up to 16 local lights (a sweeping spotlight plus coloured point lights) added to a moonlit scene of pillars and spheres, with soft sun shadows (`S`) and spot/point light shadows (`L`). [Screenshot & guide](docs/examples/exlights3d.md).
 - **[`exorbit`](src/examples/exorbit/exorbit.cpp)** — Spaceflight with `FlightWorld`: orbit about Earth, main/retro engines, RCS thruster groups, predicted trajectory, time warp and a Moon on Kepler rails. [Screenshot & guide](docs/examples/exorbit.md).
 - **[`exflight`](src/examples/exflight/exflight.cpp)** — Aircraft flight with `FlightWorld`: lifting and control surfaces, jet engine, landing gear on a runway, stalls. [Screenshot & guide](docs/examples/exflight.md).
 - **[`exvulkan`](src/examples/exvulkan/exvulkan.cpp)** — Backend selection, textured sprites, render targets, and Bloom. [Screenshot & guide](docs/examples/exvulkan.md).
