@@ -201,7 +201,16 @@ namespace sl
             {
                 const double angle = 2.0 * pi * s / c.segments;
                 const double px = cx + radius * std::cos(angle), pz = cz + radius * std::sin(angle);
-                const double depth = m.depth_at(px, pz, range);
+                double depth = m.depth_at(px, pz, range);
+                if (depth < no_shore && radius > 50.0)
+                {
+                    // The terrain is noisy at a finer scale than the grid, so a single sample flickers as the grid
+                    // slides. Averaging over the cell's footprint makes tint, shoaling and alpha change smoothly.
+                    const double half = 0.5 * std::max(cell, radius * 2.0 * pi / c.segments);
+                    const double ca = std::cos(angle), sa = std::sin(angle);
+                    depth = 0.4 * depth + 0.15 * (m.depth_at(px + ca * half, pz + sa * half, range) + m.depth_at(px - ca * half, pz - sa * half, range) +
+                                                  m.depth_at(px - sa * half, pz + ca * half, range) + m.depth_at(px + sa * half, pz - ca * half, range));
+                }
                 const Surface p = m.surface(px, pz, time, lod.data(), depth);
                 Vertex3D &v = m.vertices[static_cast<std::size_t>(r) * static_cast<std::size_t>(c.segments) + static_cast<std::size_t>(s)];
                 v.position[0] = static_cast<float>(p.position.x - eye.x);
@@ -219,15 +228,20 @@ namespace sl
                 if (depth < no_shore)
                 {
                     const auto shallow = static_cast<float>(1.0 - smoothstep(0.0, std::max(c.shallow_depth, 0.1), depth));
-                    base = glm::mix(c.deep_colour, c.shallow_colour, shallow);
+                    // Far vertices are too coarse to follow the seabed, so the tint fades to plain deep water.
+                    const auto tint_range = static_cast<float>(1.0 - smoothstep(120.0, 600.0, radius));
+                    base = glm::mix(c.deep_colour, c.shallow_colour, shallow * tint_range);
                     // A coarse ring cannot hold a thin line of foam, so the band widens with the grid.
-                    foam = std::max(foam, static_cast<float>(m.shore_foam(depth, time, std::max(shore_width, 0.7 * cell))));
+                    // Foam and clear-water alpha are sampled per vertex, so on the coarse far rings they flicker as the
+                    // grid slides. Past ~50 m they fade out and the terrain's depth test draws the exact shoreline.
+                    const float near_shore = static_cast<float>(1.0 - smoothstep(50.0, 220.0, radius));
+                    foam = std::max(foam, near_shore * static_cast<float>(m.shore_foam(depth, time, std::max(shore_width, 0.7 * cell))));
                     if (transparent)
-                        alpha = static_cast<float>(0.25 + 0.75 * smoothstep(0.0, c.clear_depth, depth));
+                        alpha = static_cast<float>(glm::mix(1.0, 0.25 + 0.75 * smoothstep(0.0, c.clear_depth, depth), near_shore));
                     // Vertices under land are hidden by the terrain, so keep them continuous with the water's edge
                     // rather than dropping to zero: that stops the shoreline crawling as the grid slides.
                     if (depth <= 0.0)
-                        alpha = transparent ? 0.25f : 1.0f;
+                        alpha = transparent ? 0.25f + 0.75f * (1.0f - near_shore) : 1.0f;
                 }
                 v.colour[0] = base.r + 0.07f * lift + 0.85f * foam;
                 v.colour[1] = base.g + 0.26f * lift + 0.85f * foam;
