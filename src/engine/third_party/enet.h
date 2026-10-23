@@ -6636,7 +6636,7 @@ extern "C" {
     }
 
     int enet_socket_wait(ENetSocket socket, enet_uint32 *condition, enet_uint64 timeout) {
-        fd_set readSet, writeSet;
+        fd_set readSet, writeSet, exceptSet;
         struct timeval timeVal;
         int selectCount;
 
@@ -6645,16 +6645,19 @@ extern "C" {
 
         FD_ZERO(&readSet);
         FD_ZERO(&writeSet);
+        FD_ZERO(&exceptSet);
 
         if (*condition & ENET_SOCKET_WAIT_SEND) {
             FD_SET(socket, &writeSet);
+            // Winsock reports a refused non-blocking connect only in the except set.
+            FD_SET(socket, &exceptSet);
         }
 
         if (*condition & ENET_SOCKET_WAIT_RECEIVE) {
             FD_SET(socket, &readSet);
         }
 
-        selectCount = select(socket + 1, &readSet, &writeSet, NULL, &timeVal);
+        selectCount = select(socket + 1, &readSet, &writeSet, &exceptSet, &timeVal);
 
         if (selectCount < 0) {
             return -1;
@@ -6666,7 +6669,7 @@ extern "C" {
             return 0;
         }
 
-        if (FD_ISSET(socket, &writeSet)) {
+        if (FD_ISSET(socket, &writeSet) || FD_ISSET(socket, &exceptSet)) {
             *condition |= ENET_SOCKET_WAIT_SEND;
         }
 

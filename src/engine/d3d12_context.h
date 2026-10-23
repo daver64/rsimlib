@@ -9,6 +9,7 @@
 #include <string>
 
 struct ID3D12CommandAllocator;
+struct ID3D12CommandList;
 struct ID3D12GraphicsCommandList;
 struct ID3D12CommandQueue;
 struct ID3D12DescriptorHeap;

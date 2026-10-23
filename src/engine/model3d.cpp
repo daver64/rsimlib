@@ -13,6 +13,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <unordered_map>
@@ -1167,16 +1168,23 @@ namespace sl
                                  read_accessor(gltf, sampler.value("output", -1), values, value_components) &&
                                  value_components == expected && !times.empty() && values.size() == times.size() * per_key;
                     for (std::size_t i = 0; valid && i < times.size(); ++i)
-                        valid = std::isfinite(times[i]) && (i == 0 || times[i] >= times[i - 1]);
+                        valid = std::isfinite(times[i]) &&
+                                std::abs(times[i]) <= static_cast<double>(std::numeric_limits<float>::max()) &&
+                                (i == 0 || times[i] >= times[i - 1]);
                     for (std::size_t i = 0; valid && i < values.size(); ++i)
-                        valid = std::isfinite(values[i]);
+                        valid = std::isfinite(values[i]) &&
+                                std::abs(values[i]) <= static_cast<double>(std::numeric_limits<float>::max());
                     if (!valid)
                     {
                         model.unsupported_animations.push_back(clip.name + ": invalid " + path + " channel");
                         continue;
                     }
-                    out.times.assign(times.begin(), times.end());
-                    out.values.assign(values.begin(), values.end());
+                    out.times.reserve(times.size());
+                    for (double time : times)
+                        out.times.push_back(static_cast<float>(time));
+                    out.values.reserve(values.size());
+                    for (double value : values)
+                        out.values.push_back(static_cast<float>(value));
                     clip.duration = std::max(clip.duration, out.times.back());
                     clip.channels.push_back(std::move(out));
                 }

@@ -6,6 +6,8 @@ Texture2D material_value : register(t2);
 SamplerState material_sampler : register(s2);
 // Sun shadow map: packed 24-bit depth in rgb, fetched texel by texel.
 Texture2D shadow_value : register(t3);
+// Local-light shadow atlas: packed 24-bit depth, fetched texel by texel.
+Texture2D local_shadow_value : register(t4);
 
 cbuffer MeshParameters : register(b0)
 {
@@ -30,12 +32,12 @@ cbuffer PbrParameters : register(b1)
     float4 camera_right;
     float4 camera_up;
     float4 camera_forward;
-    // World-space eye position (xyz) and the number of local lights (w); three float4s per light, see MeshDrawParams.
+    // World-space eye position (xyz) and the number of local lights (w); four float4s per light, see MeshDrawParams.
     float4 camera_position;
     // x: 0 off, 1 receive shadows, 2 shadow-pass draw (writes packed depth); y: depth bias; z: texel world size.
     float4 shadow;
     float4x4 shadow_matrix;
-    float4 locals[64];
+    float4 locals[160];
 };
 
 static const float PI = 3.14159265359;
@@ -87,6 +89,12 @@ float shadow_depth(int2 texel)
     return c.r + c.g / 255.0 + c.b / 65025.0;
 }
 
+float local_shadow_depth(int2 texel)
+{
+    float3 c = local_shadow_value.Load(int3(texel, 0)).rgb;
+    return c.r + c.g / 255.0 + c.b / 65025.0;
+}
+
 // Fraction of the sun that reaches `world` (1 lit, 0 shadowed): 5x5 percentage-closer filtering with a bilinear weight.
 float sun_visibility(float3 world, float3 normal)
 {
@@ -110,6 +118,59 @@ float sun_visibility(float3 world, float3 normal)
             int2 t = clamp(base + int2(x, y), int2(0, 0), size - 1);
             float w = (x == -1 ? 1.0 - f.x : (x == 2 ? f.x : 1.0)) * (y == -1 ? 1.0 - f.y : (y == 2 ? f.y : 1.0));
             sum += w * (reference <= shadow_depth(t) ? 1.0 : 0.0);
+            total += w;
+        }
+    return sum / total;
+}
+
+float local_visibility(float3 world, float3 normal, float3 light_position, bool spot, int slot,
+                       float near_plane, float far_plane)
+{
+    float3 d = world - light_position;
+    float dist = length(d);
+    int face = 0;
+    if (!spot)
+    {
+        float3 a = abs(d);
+        if (a.x >= a.y && a.x >= a.z)
+            face = d.x > 0.0 ? 0 : 1;
+        else if (a.y >= a.z)
+            face = d.y > 0.0 ? 2 : 3;
+        else
+            face = d.z > 0.0 ? 4 : 5;
+    }
+    uint width, height;
+    local_shadow_value.GetDimensions(width, height);
+    int size = int(width / 3);
+    float texel_world = 2.0 * dist / float(size);
+    int matrix_index = 64 + (slot * 6 + face) * 4;
+    float4 world_position = float4(world + normal * (texel_world * 1.5), 1.0);
+    float4 clip = locals[matrix_index] * world_position.x +
+                  locals[matrix_index + 1] * world_position.y +
+                  locals[matrix_index + 2] * world_position.z +
+                  locals[matrix_index + 3] * world_position.w;
+    if (clip.w <= 0.0)
+        return 1.0;
+    float3 coord = clip.xyz / clip.w * 0.5 + 0.5;
+    if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z > 1.0)
+        return 1.0;
+    float reference = near_plane * far_plane / (far_plane - coord.z * (far_plane - near_plane)) -
+                      texel_world * 1.5;
+    int2 origin = int2((face % 3) * size, (slot * 2 + face / 3) * size);
+    float2 pixel = float2(coord.x, 1.0 - coord.y) * float(size) - 0.5;
+    int2 base = int2(floor(pixel));
+    float2 f = pixel - float2(base);
+    float sum = 0.0;
+    float total = 0.0;
+    for (int y = -1; y <= 2; ++y)
+        for (int x = -1; x <= 2; ++x)
+        {
+            int2 t = clamp(base + int2(x, y), int2(0, 0), int2(size - 1, size - 1));
+            float stored = local_shadow_depth(origin + t);
+            float linear_depth = near_plane * far_plane / (far_plane - stored * (far_plane - near_plane));
+            float w = (x == -1 ? 1.0 - f.x : (x == 2 ? f.x : 1.0)) *
+                      (y == -1 ? 1.0 - f.y : (y == 2 ? f.y : 1.0));
+            sum += w * (reference <= linear_depth ? 1.0 : 0.0);
             total += w;
         }
     return sum / total;
@@ -209,6 +270,10 @@ float4 main(PixelInput input) : SV_TARGET
             float strength = local_attenuation(distance_to_light, position.w);
             if (local_colour.w > -0.5)
                 strength *= saturate((dot(-L, spot.xyz) - local_colour.w) * spot.w);
+            float4 shadow_info = locals[i * 4 + 3];
+            if (shadow_info.x > -0.5)
+                strength *= local_visibility(world, normal, position.xyz, local_colour.w > -0.5,
+                                             int(shadow_info.x), shadow_info.y, shadow_info.z);
             float3 reflected = use_pbr ? pbr_direct(normal, view, L, albedo, metallic, roughness)
                                        : albedo * max(dot(normal, L), 0.0);
             colour += reflected * local_colour.rgb * strength;
