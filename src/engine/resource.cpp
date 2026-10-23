@@ -66,7 +66,8 @@ namespace sl
         const auto bytes = read_file(path);
         if (bytes.size() < 22)
         {
-            sl::detail::set_error("Invalid or empty ZIP archive");
+            sl::detail::set_error(bytes.empty() ? "Unable to read '" + path + "' (missing, unreadable or empty; check the working directory)"
+                                                : "Invalid or empty ZIP archive");
             return false;
         }
 

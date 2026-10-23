@@ -54,6 +54,8 @@ namespace sl::detail
         constexpr std::uint32_t max_program_samplers_sm5 = 16;
         constexpr std::uint32_t max_program_samplers_sm6 = max_texture_units;
         // Shader-visible sampler descriptors after the texture range, rewritten for each draw or dispatch.
+        // Shader-visible sampler heaps are capped at 2048 descriptors, so textures share a small table of deduplicated samplers.
+        constexpr std::uint32_t persistent_sampler_capacity = 128;
         constexpr std::uint32_t transient_sampler_capacity = 1024;
         constexpr std::uint32_t max_image_units = translated_max_images;
 
@@ -61,6 +63,7 @@ namespace sl::detail
         {
             ID3D12Resource *resource = nullptr;
             std::uint32_t descriptor = 0;
+            std::uint32_t sampler = 0;
             D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
         };
 
@@ -541,6 +544,7 @@ namespace sl::detail
                 if (depth_stencil_heap_)
                     depth_stencil_heap_->Release();
                 sampler_heap_ = nullptr;
+                sampler_slots_.clear();
                 srv_heap_ = nullptr;
                 render_target_heap_ = nullptr;
                 depth_stencil_heap_ = nullptr;
@@ -642,20 +646,31 @@ namespace sl::detail
                 context_.device()->CreateShaderResourceView(
                     resource.resource, &srv_desc, cpu_descriptor(srv_heap_, srv_descriptor_size_, descriptor));
 
-                D3D12_SAMPLER_DESC sampler_desc{};
                 const bool use_anisotropy = description.anisotropy > 1.0f && description.filter == TextureFilter::linear;
-                sampler_desc.Filter = use_anisotropy
-                                          ? D3D12_FILTER_ANISOTROPIC
-                                          : description.filter == TextureFilter::linear
-                                                ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
-                                                : D3D12_FILTER_MIN_MAG_MIP_POINT;
-                sampler_desc.MaxAnisotropy = use_anisotropy ? static_cast<UINT>(std::clamp(description.anisotropy, 1.0f, 16.0f)) : 1u;
-                sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
-                context_.device()->CreateSampler(
-                    &sampler_desc, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, descriptor));
+                const UINT max_anisotropy = use_anisotropy ? static_cast<UINT>(std::clamp(description.anisotropy, 1.0f, 16.0f)) : 1u;
+                const std::uint32_t sampler_key = (use_anisotropy ? max_anisotropy : 0u) * 2u +
+                                                  (description.filter == TextureFilter::linear ? 1u : 0u);
+                const auto known = sampler_slots_.find(sampler_key);
+                if (known != sampler_slots_.end())
+                    resource.sampler = known->second;
+                else if (sampler_slots_.size() < persistent_sampler_capacity)
+                {
+                    D3D12_SAMPLER_DESC sampler_desc{};
+                    sampler_desc.Filter = use_anisotropy
+                                              ? D3D12_FILTER_ANISOTROPIC
+                                              : description.filter == TextureFilter::linear
+                                                    ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
+                                                    : D3D12_FILTER_MIN_MAG_MIP_POINT;
+                    sampler_desc.MaxAnisotropy = max_anisotropy;
+                    sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+                    sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+                    sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+                    sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
+                    resource.sampler = static_cast<std::uint32_t>(sampler_slots_.size());
+                    context_.device()->CreateSampler(
+                        &sampler_desc, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, resource.sampler));
+                    sampler_slots_.emplace(sampler_key, resource.sampler);
+                }
 
                 texture = next_texture_++;
                 if (texture == 0)
@@ -1373,11 +1388,11 @@ namespace sl::detail
                 QueuedMeshDraw draw;
                 draw.constants = constants;
                 draw.texture_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor);
-                draw.texture_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor);
+                draw.texture_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.sampler);
                 draw.normal_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, normal_map->second.descriptor);
-                draw.normal_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.descriptor);
+                draw.normal_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, normal_map->second.sampler);
                 draw.material_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, material_map->second.descriptor);
-                draw.material_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.descriptor);
+                draw.material_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, material_map->second.sampler);
                 draw.shadow_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, shadow_map->second.descriptor);
                 draw.local_shadow_srv =
                     gpu_descriptor(srv_heap_, srv_descriptor_size_, local_shadow_map->second.descriptor);
@@ -2938,7 +2953,7 @@ namespace sl::detail
                 HRESULT result = context_.device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&srv_heap_));
                 if (FAILED(result))
                     return false;
-                desc.NumDescriptors = descriptor_capacity + transient_sampler_capacity;
+                desc.NumDescriptors = persistent_sampler_capacity + transient_sampler_capacity;
                 desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
                 result = context_.device()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&sampler_heap_));
                 if (FAILED(result))
@@ -3278,7 +3293,7 @@ namespace sl::detail
                 }
                 if (transient_sampler_offset_ + count > transient_sampler_capacity)
                     return UINT_MAX;
-                const std::uint32_t base = descriptor_capacity + transient_sampler_offset_;
+                const std::uint32_t base = persistent_sampler_capacity + transient_sampler_offset_;
                 transient_sampler_offset_ += count;
                 return base;
             }
@@ -3411,7 +3426,7 @@ namespace sl::detail
                             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         context_.device()->CopyDescriptorsSimple(
                             1, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, sampler_base + slot),
-                            cpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor),
+                            cpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.sampler),
                             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
                     }
                     set_table(program.texture_parameter_base,
@@ -3514,7 +3529,7 @@ namespace sl::detail
                 commands->SetGraphicsRootDescriptorTable(
                     1, gpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor));
                 commands->SetGraphicsRootDescriptorTable(
-                    2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.descriptor));
+                    2, gpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.sampler));
                 return true;
             }
 
@@ -3570,6 +3585,7 @@ namespace sl::detail
             bool shutdown_2d_pending_ = false;
             ID3D12DescriptorHeap *srv_heap_ = nullptr;
             ID3D12DescriptorHeap *sampler_heap_ = nullptr;
+            std::unordered_map<std::uint32_t, std::uint32_t> sampler_slots_;
             ID3D12DescriptorHeap *render_target_heap_ = nullptr;
             ID3D12DescriptorHeap *depth_stencil_heap_ = nullptr;
             ID3D12RootSignature *root_signature_ = nullptr;

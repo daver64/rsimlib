@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
     if (!sl::set_graphics_backend(sl::GraphicsBackend::vulkan) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, 800, 600))
     {
-        std::fprintf(stderr, "Failed to set Vulkan graphics backend or graphics mode.\n");
+        std::fprintf(stderr, "Failed to set Vulkan graphics backend or graphics mode: %s\n", sl::last_error().c_str());
         return -1;
     }
 

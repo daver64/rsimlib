@@ -12,6 +12,7 @@
 #include <dxgi1_4.h>
 #include <windows.h>
 
+#include <cstdio>
 #include <vector>
 
 namespace sl::detail
@@ -22,8 +23,9 @@ namespace sl::detail
 
         std::string hresult_error(const char *message, HRESULT result)
         {
-            return std::string(message) + " (HRESULT 0x" +
-                   std::to_string(static_cast<unsigned long>(result)) + ").";
+            char code[16];
+            std::snprintf(code, sizeof(code), "%08lX", static_cast<unsigned long>(result));
+            return std::string(message) + " (HRESULT 0x" + code + ").";
         }
     }
 
