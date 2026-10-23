@@ -171,3 +171,4 @@ int main(int argc, char *argv[])
 - Examples: [`exlights3d`](../examples/exlights3d.md) (up to 16 lights and all three shadow types), [`exterrain`](../examples/exterrain.md) (a lantern lighting terrain). API: [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh).
 - Related: [`exhdr`](../examples/exhdr.md) for bright lights with bloom and tone mapping.
 - Next track: [Physics bodies](sim-01-physics-bodies.md).
+- Next lesson: [Building a scene from parts](3d-06-building-a-scene-from-parts.md).

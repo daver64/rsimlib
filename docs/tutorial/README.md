@@ -41,6 +41,7 @@ Build and run with `./lesson`. Add `--vulkan` (or `--gl`) to choose a graphics b
 3. [Models and a HUD](3d-03-models-and-hud.md): loading models and drawing 2D over 3D.
 4. [Many objects and threads](3d-04-many-objects-and-threads.md): thousands of draws and parallel recording.
 5. [Local lights and shadows](3d-05-local-lights-and-shadows.md): point and spot lights, sun and light shadows.
+6. [Building a scene from parts](3d-06-building-a-scene-from-parts.md): houses, fences, trees and cars from the props library.
 
 **Track 3: simulation**
 1. [Physics bodies](sim-01-physics-bodies.md): gravity, collisions and contacts.

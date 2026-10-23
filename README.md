@@ -10,7 +10,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-simlib comes with a short [Tutorial](docs/tutorial/README.md) (13 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
+simlib comes with a short [Tutorial](docs/tutorial/README.md) (14 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
 
 | I want to... | Run | Read |
 |--------------|-----|------|
@@ -313,6 +313,8 @@ The full catalog of focused runnable examples follows.
 ./build/exorbit         # Spaceflight: orbits, RCS, time warp, Moon on rails
 ./build/exocean         # Gerstner-wave ocean, clouds and a ship on the swell
 ./build/exlights3d      # Many 3D point/spot lights with sun and light shadows
+./build/exprops         # Gallery of low-poly 3D scenery parts
+./build/extown          # A town and airfield built from scenery parts
 ./build/exhdr           # HDR post-process: bloom, exposure and tone mapping
 ./build/exterrain       # Chunked-LOD terrain (add 'planet' for a planet)
 ./build/exflight        # Aircraft flight: lift, stall, jet engine, landing gear
@@ -382,6 +384,8 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exocean`](src/examples/exocean/exocean.cpp)** — A Gerstner-wave ocean with sun glitter and foam, volumetric clouds, sunsets, and a dreadnought that heaves, pitches and rolls on the swell. [Screenshot & guide](docs/examples/exocean.md).
 - **[`exhdr`](src/examples/exhdr/exhdr.cpp)** — A lamp-lit courtyard through `sl::Hdr`: scene-space bloom, live exposure (Up/Down) and Reinhard/ACES tone mapping (`T`). [Screenshot & guide](docs/examples/exhdr.md).
 - **[`exlights3d`](src/examples/exlights3d/exlights3d.cpp)** — Up to 16 local lights (a sweeping spotlight plus coloured point lights) added to a moonlit scene of pillars and spheres, with soft sun shadows (`S`) and spot/point light shadows (`L`). [Screenshot & guide](docs/examples/exlights3d.md).
+- **[`exprops`](src/examples/exprops/exprops.cpp)** — A lit gallery of the 22 low-poly scenery parts from `props3d.h` (house, fence, barrel, crate, skyscraper, wall, office, radar, control tower, water tower, trees, rocks, car, spaceship, aeroplane and more) with focus, zoom and day/night. [Screenshot & guide](docs/examples/exprops.md).
+- **[`extown`](src/examples/extown/extown.cpp)** — A town and airfield assembled from props with `bake_instances`, sun shadows, and street lamps that become local lights at night. [Screenshot & guide](docs/examples/extown.md).
 - **[`exorbit`](src/examples/exorbit/exorbit.cpp)** — Spaceflight with `FlightWorld`: orbit about Earth, main/retro engines, RCS thruster groups, predicted trajectory, time warp and a Moon on Kepler rails. [Screenshot & guide](docs/examples/exorbit.md).
 - **[`exflight`](src/examples/exflight/exflight.cpp)** — Aircraft flight with `FlightWorld`: lifting and control surfaces, jet engine, landing gear on a runway, stalls. [Screenshot & guide](docs/examples/exflight.md).
 - **[`exvulkan`](src/examples/exvulkan/exvulkan.cpp)** — Backend selection, textured sprites, render targets, and Bloom. [Screenshot & guide](docs/examples/exvulkan.md).

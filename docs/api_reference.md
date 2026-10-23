@@ -33,12 +33,13 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 22. [3D Flight & Orbital Dynamics](#3d-flight--orbital-dynamics-includeflighth)
 23. [Chunked-LOD Terrain](#chunked-lod-terrain-includeterrainh)
 24. [Atlases & Animated Sprites](#atlases--animated-sprites-includeatlash-includeanimated_spriteh)
-25. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
-26. [Video Playback](#video-playback-includevideoh)
-27. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
-28. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
-29. [Networking](#networking-includeneth)
-30. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
+25. [3D Props](#3d-props-includeprops3dh)
+26. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
+27. [Video Playback](#video-playback-includevideoh)
+28. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
+29. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
+30. [Networking](#networking-includeneth)
+31. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
 
 ---
 
@@ -1326,6 +1327,28 @@ clutter.draw(origin);
 - `bake_instances`, `bake_impostor`, `bake_billboards`: merge copies of a mesh, or render view-dependent billboards.
 - `Material::alpha_cutoff` and `Material::fog` control cut-outs and fog per material.
 - `Material::blend` (`MaterialBlend::opaque`, `alpha`, `additive`) makes a material translucent, with the opacity taken from `tint.alpha`, vertex alpha and texture alpha. Blended draws test depth but do not write it and are not sorted: draw opaque geometry first, then blended meshes farthest first.
+
+---
+
+## 3D Props ([include/props3d.h](../include/props3d.h))
+
+A library of low-poly scenery parts built in code, with no asset files. Every builder returns a `MeshData` (vertex colours carry the shading and baked windows), so parts draw with a plain `Material`, bake with `bake_instances()` and cast ordinary shadows.
+
+```cpp
+sl::MeshData house = sl::make_house_data(6, 5, 3, {214, 196, 160, 255}, {150, 64, 48, 255}, 2);
+std::vector<sl::Instance3D> spots = {{{-13, 0, 0}, 1.5708f}, {{13, 0, 8}, -1.5708f}};
+sl::Mesh *houses = sl::bake_instances(house, spots);   // one mesh, one draw
+sl::draw_mesh(houses, sl::model_matrix({0, 0, 0}, {0, 0, 0}));
+```
+
+- Conventions: metres, +Y up, the base on `y = 0`, centred on x and z, and the front facing +Z. Fence, wall and container run along X; roads run along Z. `seed` varies colours, lit windows and small details deterministically. Parts are static.
+- Buildings: `make_house_data`, `make_office_data`, `make_skyscraper_data`, `make_hangar_data`.
+- Structures: `make_wall_data`, `make_fence_data`, `make_water_tower_data`, `make_radar_data`, `make_domed_radar_data`, `make_control_tower_data`, `make_street_lamp_data` (the lamp head glows at `(0, height, 0.9)`, the place for a local light), `make_road_data`.
+- Small props: `make_barrel_data`, `make_crate_data`, `make_container_data`, `make_tank_data`.
+- Nature: `make_tree_data`, `make_bush_data`, `make_rock_cluster_data` (plus `make_conifer_data` and `make_rock_data` from [clutter.h](../include/clutter.h)).
+- Vehicles: `make_car_data`, `make_spaceship_data`, `make_aeroplane_data`.
+- `Instance3D::yaw` turns a part's front to `(sin yaw, cos yaw)`: 0 faces +Z, pi/2 faces +X, pi faces -Z.
+- Examples: `src/examples/exprops` (gallery), `src/examples/extown` (town and airfield). Lesson: [Building a scene from parts](tutorial/3d-06-building-a-scene-from-parts.md).
 
 ---
 
