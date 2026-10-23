@@ -46,6 +46,8 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exlights3d](img/exlights3d.png)<br>**exlights3d**](exlights3d.md) | Up to 16 point and spot lights plus soft sun and light shadows in a moonlit courtyard. |
 | [![exprops](img/exprops.png)<br>**exprops**](exprops.md) | A gallery of 22 low-poly scenery parts (houses, towers, vehicles, trees and more) with focus, zoom and day/night. |
 | [![extown](img/extown.png)<br>**extown**](extown.md) | A town and airfield built from props, with sun shadows and lamp lights at night. |
+| [![excontrols](img/excontrols.png)<br>**excontrols**](excontrols.md) | 2D cockpit and factory control panels: dials, knobs, switches, LED meters and glowing lamps. |
+| [![excockpit](img/excockpit.png)<br>**excockpit**](excockpit.md) | 3D cockpit and control cabinet with mouse picking and emissive LEDs. |
 | [![exocean](img/exocean.png)<br>**exocean**](exocean.md) | An ocean of Gerstner waves under volumetric clouds with a dreadnought heaving, pitching and rolling on the swell. |
 | [![exorbit](img/exorbit.png)<br>**exorbit**](exorbit.md) | Spaceflight: a craft with main engine, retro thrust and RCS, orbit prediction, time warp and a Moon on rails. |
 | [![exparticles](img/exparticles.png)<br>**exparticles**](exparticles.md) | CPU particle emitter that follows the mouse, with gravity, blur and glow post effects. |

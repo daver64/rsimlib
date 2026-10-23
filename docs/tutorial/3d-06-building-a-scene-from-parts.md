@@ -161,4 +161,4 @@ int main(int argc, char *argv[])
 ## Go further
 
 - Examples: [`exprops`](../examples/exprops.md) (every part in a lit gallery), [`extown`](../examples/extown.md) (a town and airfield). API: [3D props](../api_reference.md#3d-props-includeprops3dh) and [Clutter](../api_reference.md#atmosphere--clutter-includeatmosphereh-includeclutterh).
-- Next track: [Physics bodies](sim-01-physics-bodies.md).
+- Next: [A clickable 3D panel](3d-07-a-clickable-3d-panel.md). Next track: [Physics bodies](sim-01-physics-bodies.md).

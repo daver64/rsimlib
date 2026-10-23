@@ -869,4 +869,344 @@ namespace sl
         }
         return b.data;
     }
+
+    // ---- Control parts: panels, dials, knobs, switches, lamps and meters --------------------------------------------
+    namespace
+    {
+        constexpr float tau = 2.0f * pi;
+
+        /** A flat quad lying in the z = `z` plane, `w` wide and `h` long along `up` (an xy direction). */
+        void flat(Builder &b, float cx, float cy, float z, float w, float h, float up_x, float up_y, Colour colour)
+        {
+            const V up{up_x, up_y, 0.0f};
+            const V right{up_y, -up_x, 0.0f};
+            const V c{cx, cy, z};
+            b.quad(c - right * (0.5f * w) - up * (0.5f * h), c + right * (0.5f * w) - up * (0.5f * h), c + right * (0.5f * w) + up * (0.5f * h),
+                   c - right * (0.5f * w) + up * (0.5f * h), colour, V{cx, cy, z - 1.0f});
+        }
+
+        /** The side wall of a cylinder about the z axis, facing outward or inward. */
+        void ring_wall(Builder &b, float z0, float z1, float r, int sides, Colour colour, bool inward)
+        {
+            for (int i = 0; i < sides; ++i)
+            {
+                const float a0 = tau * static_cast<float>(i) / static_cast<float>(sides);
+                const float a1 = tau * static_cast<float>(i + 1) / static_cast<float>(sides);
+                const V p{r * std::cos(a0), r * std::sin(a0), z0}, q{r * std::cos(a1), r * std::sin(a1), z0};
+                const V mid{0.5f * (p.x + q.x), 0.5f * (p.y + q.y), 0.5f * (z0 + z1)};
+                const V radial = glm::normalize(V{mid.x, mid.y, 0.0f});
+                b.quad(p, q, V{q.x, q.y, z1}, V{p.x, p.y, z1}, colour, inward ? mid + radial * 10.0f : V{0.0f, 0.0f, mid.z});
+            }
+        }
+
+        /** An annulus in the z = `z` plane facing +Z. */
+        void ring_flat(Builder &b, float z, float r0, float r1, int sides, Colour colour)
+        {
+            for (int i = 0; i < sides; ++i)
+            {
+                const float a0 = tau * static_cast<float>(i) / static_cast<float>(sides);
+                const float a1 = tau * static_cast<float>(i + 1) / static_cast<float>(sides);
+                b.quad({r0 * std::cos(a0), r0 * std::sin(a0), z}, {r0 * std::cos(a1), r0 * std::sin(a1), z},
+                       {r1 * std::cos(a1), r1 * std::sin(a1), z}, {r1 * std::cos(a0), r1 * std::sin(a0), z}, colour, V{0.0f, 0.0f, z - 1.0f});
+            }
+        }
+
+        /** A hollow rim: outer wall, top and inner wall, between radii r0 and r1 and heights z0 to z1. */
+        void rim(Builder &b, float z0, float z1, float r0, float r1, int sides, Colour colour)
+        {
+            ring_wall(b, z0, z1, r1, sides, colour, false);
+            ring_flat(b, z1, r0, r1, sides, shade(colour, 1.25f));
+            ring_wall(b, z0, z1, r0, sides, shade(colour, 0.6f), true);
+        }
+
+        /** Tick marks on a dial or knob scale: `count` marks swept clockwise from the top over `sweep` degrees. */
+        void scale_ticks(Builder &b, float r_outer, float length, float width, int count, float sweep_degrees, float z, Colour colour,
+                         Colour last)
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                const float t = count > 1 ? static_cast<float>(i) / static_cast<float>(count - 1) : 0.5f;
+                const float angle = (-0.5f + t) * sweep_degrees * pi / 180.0f;
+                const float dx = std::sin(angle), dy = std::cos(angle);
+                const float mid = r_outer - 0.5f * length;
+                flat(b, dx * mid, dy * mid, z, width, length, dx, dy, i == count - 1 ? last : colour);
+                if (i + 1 < count)
+                {
+                    const float half = angle + 0.5f * sweep_degrees * pi / 180.0f / static_cast<float>(count - 1);
+                    const float hx = std::sin(half), hy = std::cos(half);
+                    const float minor_mid = r_outer - 0.25f * length;
+                    flat(b, hx * minor_mid, hy * minor_mid, z, width * 0.6f, length * 0.5f, hx, hy, colour);
+                }
+            }
+        }
+
+        bool is_light(Colour colour)
+        {
+            return colour.red + colour.green + colour.blue > 3 * 140;
+        }
+    } // namespace
+
+    MeshData make_panel_data(float width, float height, float depth, Colour colour)
+    {
+        Builder b;
+        const float hw = 0.5f * width, hh = 0.5f * height;
+        box(b, {-hw, -hh, -depth}, {hw, hh, 0.0f}, colour);
+        const float t = 0.018f * std::min(width, height);
+        const float lip = 0.35f * t;
+        const Colour frame = shade(colour, 0.62f);
+        box(b, {-hw, hh - t, 0.0f}, {hw, hh, lip}, frame);
+        box(b, {-hw, -hh, 0.0f}, {hw, -hh + t, lip}, frame);
+        box(b, {-hw, -hh + t, 0.0f}, {-hw + t, hh - t, lip}, frame);
+        box(b, {hw - t, -hh + t, 0.0f}, {hw, hh - t, lip}, frame);
+        const float screw_r = 0.28f * t;
+        for (const float sx : {-1.0f, 1.0f})
+            for (const float sy : {-1.0f, 1.0f})
+            {
+                const float x = sx * (hw - 2.2f * t), y = sy * (hh - 2.2f * t);
+                column(b, {x, y, 0.0f}, {x, y, 0.5f * t}, screw_r, screw_r * 0.9f, 8, steel);
+                const float slot = (sx * sy > 0.0f) ? 0.7f : -0.7f;
+                flat(b, x, y, 0.5f * t + 0.0004f, screw_r * 0.3f, screw_r * 1.7f, slot, 0.7f, dark_metal);
+            }
+        return b.data;
+    }
+
+    MeshData make_dial_data(float radius, int ticks, float sweep_degrees, Colour face)
+    {
+        Builder b;
+        const float r = radius;
+        const int sides = 28;
+        const float face_z = 0.03f * r, rim_h = 0.11f * r;
+        rim(b, 0.0f, rim_h, r, 1.14f * r, sides, steel);
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, face_z}, r, r, sides, face, false, true);
+        const Colour ink = is_light(face) ? Colour{30, 32, 36, 255} : Colour{232, 232, 224, 255};
+        scale_ticks(b, 0.9f * r, 0.17f * r, 0.03f * r, std::max(ticks, 2), sweep_degrees, face_z + 0.0006f, ink, {220, 52, 40, 255});
+        return b.data;
+    }
+
+    MeshData make_needle_data(float radius, Colour colour)
+    {
+        Builder b;
+        const float r = radius, w = 0.035f * r, z0 = 0.045f * r, z1 = z0 + 0.012f * r;
+        const auto outline = [&](float z) -> Ring
+        {
+            return {{-w, -0.2f * r, z}, {w, -0.2f * r, z}, {0.4f * w, 0.78f * r, z}, {0.0f, 0.86f * r, z}, {-0.4f * w, 0.78f * r, z}};
+        };
+        b.prism(outline(z0), outline(z1), colour);
+        column(b, {0.0f, 0.0f, z0}, {0.0f, 0.0f, z0 + 0.06f * r}, 0.1f * r, 0.08f * r, 10, dark_metal);
+        return b.data;
+    }
+
+    MeshData make_knob_base_data(float radius, int ticks, float sweep_degrees)
+    {
+        Builder b;
+        const float r = radius;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.006f}, 1.12f * r, 1.12f * r, 20, dark_metal, false, true);
+        scale_ticks(b, 1.5f * r, 0.2f * r, 0.035f * r, std::max(ticks, 2), sweep_degrees, 0.0012f, {226, 226, 218, 255}, {226, 226, 218, 255});
+        return b.data;
+    }
+
+    MeshData make_knob_data(float radius, float height, Colour colour)
+    {
+        Builder b;
+        const float r = radius, h = height;
+        const int sides = 16;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.4f * h}, r, 0.94f * r, sides, shade(colour, 0.8f), false, false);
+        column(b, {0.0f, 0.0f, 0.4f * h}, {0.0f, 0.0f, 0.9f * h}, 0.94f * r, 0.84f * r, sides, colour, false, false);
+        column(b, {0.0f, 0.0f, 0.9f * h}, {0.0f, 0.0f, h}, 0.84f * r, 0.7f * r, sides, shade(colour, 1.15f), false, true);
+        // The pointer line, so the rotation reads.
+        flat(b, 0.0f, 0.4f * r, h + 0.0004f, 0.1f * r, 0.62f * r, 0.0f, 1.0f, {240, 240, 232, 255});
+        return b.data;
+    }
+
+    MeshData make_toggle_base_data(float size)
+    {
+        Builder b;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.2f * size}, 0.62f * size, 0.62f * size, 6, steel);
+        column(b, {0.0f, 0.0f, 0.2f * size}, {0.0f, 0.0f, 0.34f * size}, 0.34f * size, 0.3f * size, 10, shade(steel, 1.25f));
+        return b.data;
+    }
+
+    MeshData make_toggle_lever_data(float size)
+    {
+        Builder b;
+        const float pivot = 0.3f * size;
+        column(b, {0.0f, 0.0f, pivot}, {0.0f, 0.0f, pivot + 0.75f * size}, 0.12f * size, 0.085f * size, 8, shade(steel, 1.4f), false, false);
+        column(b, {0.0f, 0.0f, pivot + 0.7f * size}, {0.0f, 0.0f, pivot + 0.82f * size}, 0.14f * size, 0.17f * size, 10, {200, 200, 206, 255}, false, false);
+        column(b, {0.0f, 0.0f, pivot + 0.82f * size}, {0.0f, 0.0f, pivot + 0.98f * size}, 0.17f * size, 0.1f * size, 10, {212, 212, 218, 255}, false, true);
+        return b.data;
+    }
+
+    MeshData make_button_base_data(float radius)
+    {
+        Builder b;
+        rim(b, 0.0f, 0.22f * radius, 0.9f * radius, 1.2f * radius, 20, dark_metal);
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.02f * radius}, 0.9f * radius, 0.9f * radius, 20, {18, 18, 20, 255}, false, true);
+        return b.data;
+    }
+
+    MeshData make_button_cap_data(float radius, Colour colour)
+    {
+        Builder b;
+        const float r = radius;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.34f * r}, 0.84f * r, 0.84f * r, 20, shade(colour, 0.75f), false, false);
+        column(b, {0.0f, 0.0f, 0.34f * r}, {0.0f, 0.0f, 0.44f * r}, 0.84f * r, 0.66f * r, 20, colour, false, true);
+        return b.data;
+    }
+
+    MeshData make_lamp_bezel_data(float radius)
+    {
+        Builder b;
+        rim(b, 0.0f, 0.24f * radius, 0.96f * radius, 1.22f * radius, 16, steel);
+        return b.data;
+    }
+
+    MeshData make_lamp_lens_data(float radius)
+    {
+        Builder b;
+        const float r = radius;
+        const float zs[] = {0.0f, 0.1f * r, 0.2f * r, 0.27f * r, 0.31f * r};
+        const float rs[] = {0.98f * r, 0.95f * r, 0.82f * r, 0.55f * r, 0.25f * r};
+        for (int i = 0; i + 1 < 5; ++i)
+            column(b, {0.0f, 0.0f, zs[i]}, {0.0f, 0.0f, zs[i + 1]}, rs[i], rs[i + 1], 14, {255, 255, 255, 255}, false, i == 3);
+        return b.data;
+    }
+
+    MeshData make_slider_track_data(float length, float width)
+    {
+        Builder b;
+        const float half = 0.5f * length;
+        box(b, {-0.5f * width, -half - 0.4f * width, 0.0f}, {0.5f * width, half + 0.4f * width, 0.004f}, dark_metal);
+        box(b, {-0.11f * width, -half, 0.004f}, {0.11f * width, half, 0.0055f}, {10, 10, 12, 255});
+        for (int i = 0; i <= 10; ++i)
+        {
+            const float y = -half + length * static_cast<float>(i) / 10.0f;
+            const float tick = (i % 5 == 0) ? 0.3f : 0.18f;
+            flat(b, -0.38f * width, y, 0.0045f, tick * width, 0.02f * width, 1.0f, 0.0f, {220, 220, 212, 255});
+            flat(b, 0.38f * width, y, 0.0045f, tick * width, 0.02f * width, 1.0f, 0.0f, {220, 220, 212, 255});
+        }
+        return b.data;
+    }
+
+    MeshData make_slider_cap_data(float width)
+    {
+        Builder b;
+        const float w = width;
+        box(b, {-0.42f * w, -0.3f * w, 0.0f}, {0.42f * w, 0.3f * w, 0.3f * w}, {58, 60, 66, 255});
+        box(b, {-0.4f * w, -0.28f * w, 0.3f * w}, {0.4f * w, 0.28f * w, 0.36f * w}, {80, 82, 90, 255});
+        flat(b, 0.0f, 0.0f, 0.3626f * w, 0.7f * w, 0.05f * w, 1.0f, 0.0f, {240, 240, 232, 255});
+        return b.data;
+    }
+
+    MeshData make_meter_housing_data(float width, float height)
+    {
+        Builder b;
+        const float t = 0.12f * std::min(width, height);
+        box(b, {-0.5f * width - t, -0.5f * height - t, 0.0f}, {0.5f * width + t, 0.5f * height + t, 0.006f}, dark_metal);
+        box(b, {-0.5f * width, -0.5f * height, 0.006f}, {0.5f * width, 0.5f * height, 0.0075f}, {8, 8, 10, 255});
+        return b.data;
+    }
+
+    MeshData make_meter_segment_data(float width, float height)
+    {
+        Builder b;
+        box(b, {-0.5f * width, -0.5f * height, 0.0075f}, {0.5f * width, 0.5f * height, 0.0105f}, {255, 255, 255, 255});
+        return b.data;
+    }
+
+    void transform_mesh_data(MeshData &data, const glm::mat4 &matrix)
+    {
+        const glm::mat3 rotation(matrix);
+        for (Vertex3D &vertex : data.vertices)
+        {
+            const glm::vec4 p = matrix * glm::vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0f);
+            const V n = glm::normalize(rotation * V(vertex.normal[0], vertex.normal[1], vertex.normal[2]));
+            vertex.position[0] = p.x;
+            vertex.position[1] = p.y;
+            vertex.position[2] = p.z;
+            vertex.normal[0] = n.x;
+            vertex.normal[1] = n.y;
+            vertex.normal[2] = n.z;
+        }
+    }
+
+    MeshData make_cockpit_data(float panel_width, float panel_height, glm::mat4 *panel_pose)
+    {
+        // Assembly frame: floor at y = 0, the pilot sits at +Z looking toward -Z at a dashboard tilted back 20 degrees.
+        const float tilt = -20.0f * pi / 180.0f;
+        const glm::mat4 pose = glm::translate(glm::mat4(1.0f), V{0.0f, 0.95f, -0.45f}) * glm::rotate(glm::mat4(1.0f), tilt, V{1.0f, 0.0f, 0.0f});
+        if (panel_pose)
+            *panel_pose = pose;
+        const float hw = 0.5f * panel_width, hh = 0.5f * panel_height;
+        const Colour trim{38, 40, 46, 255};
+        const Colour shell{64, 68, 76, 255};
+
+        MeshData out;
+        {
+            Builder local;
+            box(local, {-hw - 0.12f, -hh - 0.08f, -0.7f}, {hw + 0.12f, hh + 0.04f, -0.03f}, shell);
+            box(local, {-hw - 0.14f, hh + 0.04f, -0.7f}, {hw + 0.14f, hh + 0.11f, 0.2f}, trim); // glare shield
+            box(local, {-hw - 0.14f, hh + 0.02f, 0.14f}, {hw + 0.14f, hh + 0.11f, 0.2f}, shade(trim, 0.8f));
+            transform_mesh_data(local.data, pose);
+            append_mesh_data(out, local.data);
+        }
+        Builder b;
+        box(b, {-1.0f, 0.0f, -1.0f}, {1.0f, 0.05f, 1.2f}, {50, 52, 58, 255});               // floor
+        box(b, {-0.6f, 0.05f, -1.0f}, {0.6f, 0.62f, -0.4f}, shade(shell, 0.85f));           // pedestal
+        box(b, {-1.0f, 0.05f, -1.0f}, {-0.8f, 0.7f, 0.55f}, shade(shell, 0.9f));            // side consoles
+        box(b, {0.8f, 0.05f, -1.0f}, {1.0f, 0.7f, 0.55f}, shade(shell, 0.9f));
+        box(b, {-0.96f, 0.7f, -0.9f}, {-0.78f, 0.74f, 0.45f}, trim);
+        box(b, {0.78f, 0.7f, -0.9f}, {0.96f, 0.74f, 0.45f}, trim);
+        // Pilot seat, stick and throttle quadrant stub.
+        box(b, {-0.3f, 0.3f, 0.45f}, {0.3f, 0.42f, 0.95f}, {58, 62, 90, 255});
+        box(b, {-0.3f, 0.42f, 0.9f}, {0.3f, 0.95f, 1.0f}, {58, 62, 90, 255});
+        box(b, {-0.2f, 0.95f, 0.9f}, {0.2f, 1.1f, 0.98f}, {50, 54, 80, 255});
+        box(b, {-0.1f, 0.05f, 0.5f}, {0.1f, 0.3f, 0.85f}, trim);
+        column(b, {0.0f, 0.62f, 0.15f}, {0.0f, 1.0f, 0.22f}, 0.025f, 0.02f, 8, steel);
+        column(b, {0.0f, 1.0f, 0.22f}, {0.0f, 1.08f, 0.23f}, 0.045f, 0.04f, 8, trim);
+        // Canopy frame: side pillars leaning inward, a roof spar and a windscreen bow.
+        for (const float side : {-1.0f, 1.0f})
+        {
+            column(b, {side * 0.98f, 0.7f, 0.9f}, {side * 0.55f, 1.95f, 0.1f}, 0.04f, 0.035f, 6, shade(shell, 1.1f));
+            column(b, {side * 0.98f, 0.74f, -0.9f}, {side * 0.5f, 1.78f, -0.55f}, 0.035f, 0.03f, 6, shade(shell, 1.1f));
+            column(b, {side * 0.5f, 1.78f, -0.55f}, {side * 0.55f, 1.95f, 0.1f}, 0.03f, 0.035f, 6, shade(shell, 1.1f));
+        }
+        column(b, {-0.5f, 1.78f, -0.55f}, {0.5f, 1.78f, -0.55f}, 0.03f, 0.03f, 6, shade(shell, 1.1f));
+        column(b, {-0.55f, 1.95f, 0.1f}, {0.55f, 1.95f, 0.1f}, 0.035f, 0.035f, 6, shade(shell, 1.1f));
+        append_mesh_data(out, b.data);
+        return out;
+    }
+
+    MeshData make_control_cabinet_data(float panel_width, float panel_height, glm::mat4 *panel_pose)
+    {
+        const float depth = 0.45f, half_w = 0.5f * std::max(0.8f, panel_width + 0.16f), body_h = 1.9f;
+        const float door_z = 0.5f * depth;
+        if (panel_pose)
+            *panel_pose = glm::translate(glm::mat4(1.0f), V{0.0f, 1.2f, door_z + 0.03f});
+        const Colour paint{116, 128, 136, 255};
+        Builder b;
+        box(b, {-half_w, 0.08f, -0.5f * depth}, {half_w, body_h, door_z - 0.03f}, shade(paint, 0.8f));
+        box(b, {-half_w + 0.03f, 0.12f, door_z - 0.03f}, {half_w - 0.03f, body_h - 0.04f, door_z}, paint); // door
+        box(b, {-half_w - 0.03f, body_h, -0.5f * depth - 0.03f}, {half_w + 0.03f, body_h + 0.05f, door_z + 0.03f}, shade(paint, 0.65f));
+        for (const float sx : {-1.0f, 1.0f})
+            for (const float sz : {-1.0f, 1.0f})
+                box(b, {sx * (half_w - 0.08f) - 0.04f, 0.0f, sz * (0.5f * depth - 0.08f) - 0.04f},
+                    {sx * (half_w - 0.08f) + 0.04f, 0.08f, sz * (0.5f * depth - 0.08f) + 0.04f}, dark_metal);
+        // Handle, hinges and lower vents.
+        box(b, {half_w - 0.1f, 0.9f, door_z}, {half_w - 0.07f, 1.5f, door_z + 0.04f}, {26, 26, 30, 255});
+        for (const float y : {0.3f, 1.0f, 1.7f})
+            column(b, {-half_w + 0.012f, y, door_z - 0.005f}, {-half_w + 0.012f, y + 0.12f, door_z - 0.005f}, 0.014f, 0.014f, 6, steel);
+        for (int i = 0; i < 6; ++i)
+        {
+            const float y = 0.22f + 0.04f * static_cast<float>(i);
+            box(b, {-0.22f, y, door_z}, {0.22f, y + 0.015f, door_z + 0.008f}, dark_metal);
+        }
+        // Hazard stripe and a data plate.
+        for (int i = 0; i < 12; ++i)
+            flat(b, -half_w + 0.075f + 0.05f * static_cast<float>(i), 0.165f, door_z + 0.0005f, 0.05f, 0.05f, 0.0f, 1.0f,
+                 (i % 2 == 0) ? Colour{236, 196, 40, 255} : Colour{30, 30, 34, 255});
+        column(b, {0.2f, body_h + 0.05f, 0.0f}, {0.2f, body_h + 0.2f, 0.0f}, 0.04f, 0.04f, 8, dark_metal);
+        column(b, {0.2f, body_h + 0.2f, 0.0f}, {-0.5f, body_h + 0.2f, 0.0f}, 0.03f, 0.03f, 8, dark_metal);
+        (void)panel_height;
+        return b.data;
+    }
 } // namespace sl

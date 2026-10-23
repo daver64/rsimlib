@@ -34,6 +34,7 @@ Build and run with `./lesson`. Add `--vulkan` (or `--gl`) to choose a graphics b
 2. [Sprites and animation](2d-02-sprites-and-animation.md): images, atlases and animated sprites.
 3. [Tile maps and collision](2d-03-tilemaps-and-collision.md): a scrolling tile world with solid walls, and click-to-stamp splat decals.
 4. [Text and sound](2d-04-text-and-sound.md): on-screen text, sound effects and music.
+5. [Control panels](2d-05-control-panels.md): dials, knobs, switches and glowing lamps operated with the mouse.
 
 **Track 2: a 3D scene**
 1. [Your first 3D scene](3d-01-first-scene.md): a surface, a camera and meshes.
@@ -42,6 +43,7 @@ Build and run with `./lesson`. Add `--vulkan` (or `--gl`) to choose a graphics b
 4. [Many objects and threads](3d-04-many-objects-and-threads.md): thousands of draws and parallel recording.
 5. [Local lights and shadows](3d-05-local-lights-and-shadows.md): point and spot lights, sun and light shadows.
 6. [Building a scene from parts](3d-06-building-a-scene-from-parts.md): houses, fences, trees and cars from the props library.
+7. [A clickable 3D panel](3d-07-a-clickable-3d-panel.md): a cockpit or machine panel in the scene, with picking and glow.
 
 **Track 3: simulation**
 1. [Physics bodies](sim-01-physics-bodies.md): gravity, collisions and contacts.

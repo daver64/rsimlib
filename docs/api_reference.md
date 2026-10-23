@@ -34,12 +34,13 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 23. [Chunked-LOD Terrain](#chunked-lod-terrain-includeterrainh)
 24. [Atlases & Animated Sprites](#atlases--animated-sprites-includeatlash-includeanimated_spriteh)
 25. [3D Props](#3d-props-includeprops3dh)
-26. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
-27. [Video Playback](#video-playback-includevideoh)
-28. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
-29. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
-30. [Networking](#networking-includeneth)
-31. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
+26. [Control Panels](#control-panels-includecontrolsh)
+27. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
+28. [Video Playback](#video-playback-includevideoh)
+29. [Dear ImGui Integration](#dear-imgui-integration-includeguih)
+30. [Tile-Grid Pathfinding](#tile-grid-pathfinding-includepathfindingh)
+31. [Networking](#networking-includeneth)
+32. [Sandboxed Lua Scripting](#sandboxed-lua-scripting-includelua_runtimeh-includelua_canvash)
 
 ---
 
@@ -1347,6 +1348,7 @@ sl::draw_mesh(houses, sl::model_matrix({0, 0, 0}, {0, 0, 0}));
 - Small props: `make_barrel_data`, `make_crate_data`, `make_container_data`, `make_tank_data`.
 - Nature: `make_tree_data`, `make_bush_data`, `make_rock_cluster_data` (plus `make_conifer_data` and `make_rock_data` from [clutter.h](../include/clutter.h)).
 - Vehicles: `make_car_data`, `make_spaceship_data`, `make_aeroplane_data`.
+- Control parts (see [Control Panels](#control-panels-includecontrolsh)): `make_panel_data`, `make_dial_data`, `make_needle_data`, `make_knob_base_data`/`make_knob_data`, `make_toggle_base_data`/`make_toggle_lever_data`, `make_button_base_data`/`make_button_cap_data`, `make_lamp_bezel_data`/`make_lamp_lens_data`, `make_slider_track_data`/`make_slider_cap_data`, `make_meter_housing_data`/`make_meter_segment_data`, and the assemblies `make_cockpit_data` and `make_control_cabinet_data`. These face +Z with the panel face on `z = 0`. `transform_mesh_data(data, matrix)` applies a matrix to a `MeshData`.
 - `Instance3D::yaw` turns a part's front to `(sin yaw, cos yaw)`: 0 faces +Z, pi/2 faces +X, pi faces -Z.
 - Examples: `src/examples/exprops` (gallery), `src/examples/extown` (town and airfield). Lesson: [Building a scene from parts](tutorial/3d-06-building-a-scene-from-parts.md).
 
@@ -1358,6 +1360,30 @@ sl::draw_mesh(houses, sl::model_matrix({0, 0, 0}, {0, 0, 0}));
 - `atlas_blit`, `atlas_stretch_blit`, `atlas_rotate_sprite` and `atlas_rotate_stretch_sprite` draw tiles to a bitmap, with optional pivots.
 - `AnimatedSprite` plays a run of atlas tiles with a per-frame duration, optional one-shot playback and rotation. Create one with `create_animated_sprite(atlas, start_tile, frames, x, y, w, h, duration)` and draw it with `draw_animated_sprite` or `draw_rotated_animated_sprite`.
 - A sprite manager owns many sprites: `add_animated_sprite`, `update`, `draw_sprites`, `set_sprite_position`, `set_sprite_rotation`, `set_sprite_tiles`, `toggle_pause` and `remove_animated_sprite`. See `src/examples/exanimsprite`.
+
+---
+
+## Control Panels ([include/controls.h](../include/controls.h))
+
+Dials, knobs, switches, buttons, lamps, sliders and LED level meters, for cockpits and factory panels. A `ControlPanel` holds the layout and state and handles the mouse; it has no idea how it is drawn, so one panel works as a flat 2D widget or as geometry in a 3D scene.
+
+```cpp
+sl::ControlPanel panel(420, 300);                       // panel units, origin top-left, y down
+int thr = panel.add_slider(280, 120, 140, 0, 1, 0, true, "THR");
+int spd = panel.add_dial(110, 120, 160, 0, 100, "SPEED");
+panel.update(dt, sl::control_pointer_2d(px, py, 1.0f, mouse_x, mouse_y, down));
+panel.set_value(spd, 100.0f * panel.value(thr));
+sl::draw_control_panel(sl::screen, panel, px, py);
+```
+
+- Controls: `add_dial`, `add_knob`, `add_toggle`, `add_button` (momentary, or latching with the last argument), `add_lamp` (optionally blinking), `add_slider`, `add_meter`. Each returns an id; `find(label)` finds one by its unique label. Positions are centres; `width` is the diameter for round controls.
+- State: `value(id)`, `on(id)`, `set_value(id, v)` and `set_on(id, on)` (clamped; do not call `on_change`), `control(id)`, `glow(id)` (0 to 1 lamp brightness).
+- Input: `update(dt, Pointer{x, y, down})` does hit testing, press and release edges and drag capture. Knobs are dragged up/down or left/right, sliders jump to the pointer, toggles and latching buttons flip on press, momentary buttons are on while held. `on_change(id, value)` fires only for user changes. `active()` is the control being dragged (or -1).
+- Display: dials and meters ease toward their value (`set_smoothing(rate)`, default 10, 0 snaps); lamps, toggles and buttons ease quickly. A blinking lamp alternates between bright and dim at about 2.5 Hz.
+- 2D: `draw_control_panel(target, panel, x, y, scale, font)` draws with shapes and default-font labels, with halos around lit lamps and segments. Draw into a render target and run `Bloom` for glow. `control_pointer_2d(panel_x, panel_y, scale, screen_x, screen_y, down)` converts mouse coordinates.
+- 3D: `ControlPanelView3D(panel, unit = 0.002)` builds the meshes from the `props3d.h` control parts; one panel unit is `unit` metres. `draw(panel, pose)` draws it centred on `pose` with +Z out, with emissive lamps, meter segments and latched buttons (values above 1 bloom through `Hdr`). `lights(panel, pose, intensity, range)` returns a `LocalLight3D` per lit lamp. `pick(camera, w, h, mouse_x, mouse_y, pose, &pointer)` maps the mouse onto the panel; it returns false only if the ray misses the panel's plane. `screen_ray(camera, w, h, x, y)` in [scene3d.h](../include/scene3d.h) is the underlying ray.
+- Assemblies: `make_cockpit()` and `make_control_cabinet()` return a `ControlAssembly` with `panel`, `body` (`MeshData`), `panel_pose` and `unit`. `make_cockpit_panel()` and `make_cabinet_panel()` give just the layouts.
+- Examples: `src/examples/excontrols` (2D), `src/examples/excockpit` (3D). Lessons: [Control panels](tutorial/2d-05-control-panels.md), [A clickable 3D panel](tutorial/3d-07-a-clickable-3d-panel.md).
 
 ---
 

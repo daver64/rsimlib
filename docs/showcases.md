@@ -46,6 +46,7 @@ Then try:
 - [`execs`](../src/examples/execs/execs.cpp) for interactive entity-component systems, archetypes, and parallel iteration ([guide](ecs.md)).
 - [`exisometric`](../src/examples/exisometric/exisometric.cpp) for isometric rendering, elevation, mouse picking, and lighting.
 - [`extown`](../src/examples/extown/extown.cpp) for a 55k-triangle town and airfield built from `props3d.h` parts with baked instances, shadows and night lamps.
+- [`excontrols`](../src/examples/excontrols/excontrols.cpp) and [`excockpit`](../src/examples/excockpit/excockpit.cpp) for mouse-operated cockpit and factory control panels with glowing LEDs, in 2D and as 3D geometry.
 - [`exxeno`](../src/examples/exxeno/exxeno.cpp) for a lit 2D shooter combining tile-map decals, `LightingPass`, particles and synthesised audio.
 - [`extilemap`](../src/examples/extilemap/extilemap.cpp) and [`exphysics`](../src/examples/exphysics/exphysics.cpp) for tile maps and Box2D as focused building blocks.
 - [`exaudio`](../src/examples/exaudio/exaudio.cpp), [`exparticles`](../src/examples/exparticles/exparticles.cpp), and [`exlighting`](../src/examples/exlighting/exlighting.cpp) for sound, particles, and dynamic 2D light/shadow systems.

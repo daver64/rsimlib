@@ -98,4 +98,4 @@ int main(int argc, char *argv[])
 ## Go further
 
 - Examples: [`exaudio`](../examples/exaudio.md), [`exfont`](../examples/exfont.md). API: [Typography](../api_reference.md#typography--text-rendering-includefonth), [Audio](../api_reference.md#audio-subsystem-samples--streams-includeaudioh).
-- Next track: [Your first 3D scene](3d-01-first-scene.md), or [Physics bodies](sim-01-physics-bodies.md).
+- Next: [Control panels](2d-05-control-panels.md). Next track: [Your first 3D scene](3d-01-first-scene.md), or [Physics bodies](sim-01-physics-bodies.md).

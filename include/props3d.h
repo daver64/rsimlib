@@ -77,4 +77,51 @@ namespace sl
     MeshData make_spaceship_data(float length = 8.0f, Colour hull = {170, 176, 190, 255});
     /** A parked twin-engine airliner on its gear, with a window row, swept wings and a tail. */
     MeshData make_aeroplane_data(float wingspan = 12.0f, Colour body = {232, 234, 238, 255}, Colour stripe = {40, 90, 170, 255});
+
+    // Control parts: the pieces of panels, cockpits and cabinets (see controls.h for the interactive layer).
+    // Panel parts face +Z with the face of the panel on z = 0, are centred on x and y and are sized in metres.
+    // Static parts (panels, dial faces, bases) are baked once; moving parts (needles, knobs, levers, caps) are
+    // built around their pivot so they can be rotated or slid with a model matrix. White "lens" and "segment" parts
+    // are meant to be tinted and given an emissive colour so they glow.
+
+    /** A flat panel `depth` thick behind the z = 0 face, with a raised frame and four corner screws. */
+    MeshData make_panel_data(float width, float height, float depth = 0.03f, Colour colour = {58, 62, 70, 255});
+    /** A gauge face with a steel bezel and a scale of `ticks` major marks (with minors) swept over `sweep_degrees`, centred on straight up. */
+    MeshData make_dial_data(float radius = 0.1f, int ticks = 11, float sweep_degrees = 270.0f, Colour face = {18, 20, 24, 255});
+    /** A needle for make_dial_data(): it points along +Y from the dial centre; rotate about Z (clockwise is negative). */
+    MeshData make_needle_data(float radius = 0.1f, Colour colour = {255, 120, 40, 255});
+    /** The dark disc and scale marks around a knob. Static. */
+    MeshData make_knob_base_data(float radius = 0.04f, int ticks = 11, float sweep_degrees = 270.0f);
+    /** A knob with a pointer line along +Y; rotate about Z. */
+    MeshData make_knob_data(float radius = 0.04f, float height = 0.04f, Colour colour = {50, 54, 62, 255});
+    /** The static nut and collar of a toggle switch. */
+    MeshData make_toggle_base_data(float size = 0.04f);
+    /** The lever of a toggle switch, pivoting at z = 0.3 * size and pointing along +Z; tilt about X to flip it. */
+    MeshData make_toggle_lever_data(float size = 0.04f);
+    /** The static bezel of a push button. */
+    MeshData make_button_base_data(float radius = 0.03f);
+    /** The moving cap of a push button; slide it along -Z when pressed. */
+    MeshData make_button_cap_data(float radius = 0.03f, Colour colour = {200, 40, 36, 255});
+    /** The static bezel of an indicator lamp or LED. */
+    MeshData make_lamp_bezel_data(float radius = 0.015f);
+    /** The domed lens of a lamp, white: tint it with the lamp colour and add an emissive colour to make it glow. */
+    MeshData make_lamp_lens_data(float radius = 0.015f);
+    /** The static track of a slider along Y, with scale marks. */
+    MeshData make_slider_track_data(float length = 0.2f, float width = 0.04f);
+    /** The cap of a slider, centred on the track. */
+    MeshData make_slider_cap_data(float width = 0.04f);
+    /** The static dark housing of a level meter. */
+    MeshData make_meter_housing_data(float width = 0.03f, float height = 0.2f);
+    /** One lit segment of a level meter, white: tint and add emissive to glow. */
+    MeshData make_meter_segment_data(float width = 0.026f, float height = 0.014f);
+
+    /** Transform a mesh's positions by `matrix` and its normals by the matrix's rotation (no non-uniform scale). */
+    void transform_mesh_data(MeshData &data, const glm::mat4 &matrix);
+
+    // Control assemblies. The panel face is placed on the body; `panel_pose` receives the matrix that puts a panel of
+    // `panel_width` x `panel_height` metres (origin at its centre, +Z out) on it.
+    /** A small aircraft cockpit: floor, seat, stick, side consoles, canopy frame and a tilted dashboard. The pilot sits at +Z. */
+    MeshData make_cockpit_data(float panel_width, float panel_height, glm::mat4 *panel_pose = nullptr);
+    /** A freestanding factory control cabinet with a door, handle, vents and hazard stripe; the panel sits on the door. Front faces +Z. */
+    MeshData make_control_cabinet_data(float panel_width, float panel_height, glm::mat4 *panel_pose = nullptr);
 } // namespace sl
