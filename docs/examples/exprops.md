@@ -1,11 +1,11 @@
 # exprops
 
-A lit gallery of the low-poly scenery parts from `props3d.h`: 22 builders plus the conifer and rock from `clutter.h`, each shown on a plinth under an orbiting camera with sun shadows.
+A lit gallery of the low-poly scenery parts from `props3d.h`: 41 builders plus the conifer and rock from `clutter.h`, each shown on a plinth under an orbiting camera with sun shadows.
 
 ![exprops screenshot](img/exprops.png)
 
 ## What it shows
-- Every `make_*_data()` builder: houses, offices, skyscrapers, hangars, walls, fences, water and control towers, radars, lamps, roads, barrels, crates, containers, tanks, trees, bushes, rocks, a car, a spaceship and an aeroplane
+- Every `make_*_data()` builder: houses, offices, skyscrapers, hangars, walls, fences, water and control towers, radars, lamps, roads, barrels, crates, containers, tanks, trees, bushes, rocks, a car, a spaceship and an aeroplane, plus Apollo-era rocketry and spacecraft: a Saturn V and its stages, engines, adapters, fins, fairing, escape tower, command and service module, launch tower and pad, Skylab, station modules, solar arrays and a satellite
 - Parts as plain `MeshData`: vertex colours carry the shading and baked windows, so a default `Material` draws them
 - A sun shadow map and day/night lighting
 

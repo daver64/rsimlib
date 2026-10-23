@@ -14,8 +14,10 @@ uniform sampler2DArray uNormals;
 
 // Per surface type: x first array layer, y variant count, z tile metres, w tiles per UV period.
 uniform vec4 uLayers[8];
-// Per surface type: rgb average colour.
+// Per surface type: rgb average colour, and the specular strength in w.
 uniform vec4 uAverage[8];
+// x is 1 when the material is pbr (specular highlights on); z is the roughness.
+uniform vec4 uPbr;
 // x: macro texture array layer (negative for none), y: macro tile metres, z: macro strength, w: 1 if normals exist.
 uniform vec4 uMacro;
 
@@ -42,6 +44,27 @@ uniform sampler2D uLocalShadowMap;
 uniform vec4 uCameraPosition;
 
 out vec4 fragColor;
+
+const float PI = 3.14159265359;
+
+// Cook-Torrance (GGX, Smith-Schlick, Schlick Fresnel) specular only, times the light's N.L, for a dielectric.
+vec3 pbr_specular(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    vec3 F0 = vec3(0.04);
+    vec3 H = normalize(L + V);
+    float NdL = max(dot(N, L), 0.0);
+    float NdV = max(dot(N, V), 1e-4);
+    float NdH = max(dot(N, H), 0.0);
+    float VdH = max(dot(V, H), 0.0);
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float d = NdH * NdH * (a2 - 1.0) + 1.0;
+    float D = a2 / (PI * d * d);
+    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+    float G = (NdV / (NdV * (1.0 - k) + k)) * (NdL / (NdL * (1.0 - k) + k));
+    vec3 F = F0 + (1.0 - F0) * pow(1.0 - VdH, 5.0);
+    return D * G * F * PI / (4.0 * NdV);
+}
 
 uint hash3(uvec3 v)
 {
@@ -177,6 +200,7 @@ void main()
     vec3 albedo = vec3(0.0);
     vec2 slope = vec2(0.0);
     float total = 0.0;
+    float gloss = 0.0;
     for (int layer = 0; layer < 8; ++layer)
     {
         float weight = weights[layer];
@@ -193,6 +217,7 @@ void main()
         vec3 sampled = textureGrad(uAlbedo, coord, grad_x, grad_y).rgb;
         albedo += weight * mix(sampled, uAverage[layer].rgb, vFade);
         total += weight;
+        gloss += weight * uAverage[layer].a;
         if (has_normals)
         {
             vec2 n = textureGrad(uNormals, coord, grad_x, grad_y).xy * 2.0 - 1.0;
@@ -200,6 +225,7 @@ void main()
         }
     }
     albedo /= max(total, 1e-4);
+    gloss /= max(total, 1e-4);
     slope /= max(total, 1e-4);
 
     if (uMacro.x >= 0.0)
@@ -224,6 +250,12 @@ void main()
         sun_rgb *= sun_visibility(world, normalize(vNormal));
     float diffuse = max(dot(normal, uLight.xyz), 0.0);
     vec3 colour = albedo * (uLight.w + (1.0 - uLight.w) * diffuse * sun_rgb);
+    // The shader's world space is eye-relative, so the view direction points back at the origin.
+    vec3 view = normalize(-world);
+    float roughness = clamp(uPbr.z, 0.04, 1.0);
+    bool glossy = uPbr.x > 0.5 && gloss > 0.003;
+    if (glossy)
+        colour += gloss * pbr_specular(normal, view, uLight.xyz, roughness) * sun_rgb * (1.0 - uLight.w);
     int local_count = int(uCameraPosition.w);
     for (int i = 0; i < local_count; ++i)
     {
@@ -241,7 +273,10 @@ void main()
             strength *= clamp((dot(-L, spot.xyz) - light_colour.w) * spot.w, 0.0, 1.0);
         if (shadow_info.x > -0.5)
             strength *= local_visibility(world, normalize(vNormal), position.xyz, light_colour.w > -0.5, shadow_info.x, shadow_info.y, shadow_info.z);
-        colour += albedo * max(dot(normal, L), 0.0) * light_colour.rgb * strength;
+        vec3 reflected = albedo * max(dot(normal, L), 0.0);
+        if (glossy)
+            reflected += gloss * pbr_specular(normal, view, L, roughness);
+        colour += reflected * light_colour.rgb * strength;
     }
     if (uFogBeta.r + uFogBeta.g + uFogBeta.b > 0.0)
     {

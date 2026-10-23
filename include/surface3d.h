@@ -75,6 +75,8 @@ namespace sl
         float tile_metres[max_layers] = {};
         int tiles_per_period[max_layers] = {};
         float average[max_layers][3] = {};
+        /** Per-layer specular strength (TerrainLayer::specular), used when the material is pbr. */
+        float specular[max_layers] = {};
         /** Array layer of the macro-variation texture (negative for none), its tile size and strength. */
         int macro_layer = -1;
         float macro_tile_metres = 1.0f;
@@ -86,7 +88,8 @@ namespace sl
      * (r, g, b, a = layers 0-3) and Vertex3D::extra (layers 4-7), and a vertex position offset in the tangent xyz. The
      * shader moves each vertex toward its coarser-level position between morph_start and morph_end metres from the eye,
      * so level changes do not pop. With `textures` set the UVs are metres (see TerrainTextures) and the layers are
-     * sampled per pixel; without it the vertex colour is drawn as is.
+     * sampled per pixel; without it the vertex colour is drawn as is. With Material::pbr set, terrain also gets a
+     * specular highlight scaled per layer (TerrainLayer::specular), using Material::roughness; metallic is ignored.
      */
     struct TerrainShading
     {

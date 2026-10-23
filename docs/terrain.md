@@ -56,11 +56,19 @@ world.flat_terrain = &terrain;     // gear contact, altitude and air density fol
 planet_body->terrain = &planet;    // the same for a spherical body (the terrain's origin is ignored)
 ```
 
+## Water
+
+Terrain chunks are cached on the CPU, so waves cannot be baked into them. Use `sl::Ocean` instead: set `set_terrain(&terrain)` and a sea level, draw the terrain first, then `ocean.update(...)` and `ocean.draw()`. The terrain shows through the water by depth testing, and the ocean shoals its waves and adds foam where the depth goes to zero. See the [API reference](api_reference.md#ocean-includeoceanh) and `exterrain`.
+
 ## Appearance
 
 Layers (`TerrainLayer`, default sand/grass/rock/snow, at most `terrain_max_layers` = 8) are weighted by height and
 slope, optionally overridden by `weight_function` (`float weights[8]`), and blended into the vertex colour. Texture
 coordinates are in metres.
+
+`TerrainLayer::specular` (0–1, default 0) makes a layer shiny, for example water. It only takes effect when the
+`Material` passed to `Terrain::draw` has `pbr = true` (which also supplies `roughness`); the highlight is a
+dielectric GGX term for the sun and local lights. It works for both untextured and textured terrain.
 
 ### Layer textures
 

@@ -225,13 +225,15 @@ float4 main(PixelInput input) : SV_TARGET
     }
     float3 colour;
     bool use_pbr = pbr.x > 0.5 && input.terrain.x < 0.0;
+    // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.
+    bool gloss = pbr.x > 0.5 && input.terrain.x >= 0.0 && input.color.a > 0.003;
     float metallic = 0.0;
     float roughness = 1.0;
     float3 ray = float3(0.0, 0.0, 0.0);
     // Framebuffer y grows downward in D3D.
     float2 pixel = input.position.xy * fog_view.zw * 2.0;
     float2 view_ndc = float2(pixel.x - 1.0, 1.0 - pixel.y);
-    if (use_pbr || camera_position.w > 0.5 || shadow.x > 0.5)
+    if (use_pbr || gloss || camera_position.w > 0.5 || shadow.x > 0.5)
     {
         ray = camera_forward.xyz + view_ndc.x * camera_right.xyz + view_ndc.y * camera_up.xyz;
     }
@@ -251,6 +253,11 @@ float4 main(PixelInput input) : SV_TARGET
     {
         float diffuse = max(dot(normal, light.xyz), 0.0);
         colour = albedo * (light.w + (1.0 - light.w) * diffuse * sun_rgb);
+    }
+    if (gloss)
+    {
+        roughness = clamp(pbr.z, 0.04, 1.0);
+        colour += input.color.a * pbr_direct(normal, normalize(-ray), light.xyz, float3(0.0, 0.0, 0.0), 0.0, roughness) * sun_rgb * (1.0 - light.w);
     }
     if (camera_position.w > 0.5 && light.w < 1.0)
     {
@@ -276,6 +283,8 @@ float4 main(PixelInput input) : SV_TARGET
                                              int(shadow_info.x), shadow_info.y, shadow_info.z);
             float3 reflected = use_pbr ? pbr_direct(normal, view, L, albedo, metallic, roughness)
                                        : albedo * max(dot(normal, L), 0.0);
+            if (gloss)
+                reflected += input.color.a * pbr_direct(normal, view, L, float3(0.0, 0.0, 0.0), 0.0, roughness);
             colour += reflected * local_colour.rgb * strength;
         }
     }

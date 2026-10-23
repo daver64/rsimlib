@@ -1058,6 +1058,7 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLayers"), terrain_layer_count, &params.terrain_layers[0][0]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uAverage"), terrain_layer_count, &params.terrain_average[0][0]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uMacro"), 1, macro);
+                glUniform4fv(glGetUniformLocation(terrain_program_, "uPbr"), 1, params.pbr);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLight"), 1, params.light);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLightColour"), 1, params.light_colour);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uFogColour"), 1, params.fog_colour);

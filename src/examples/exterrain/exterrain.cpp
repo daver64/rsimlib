@@ -10,6 +10,7 @@
 //
 //   W/S/A/D: move   Space/C: up/down   Shift: fast   Right-drag: look
 //   1-4: speed presets   R: new seed   L: lantern lighting the terrain and shadowing it (best at dusk, Z lowers the sun)
+//   O: toggle the sea (flat arena; Gerstner waves that shoal, foam and turn clear at the shore)   Up/Down: sea state
 //   Esc: exit
 
 namespace
@@ -170,6 +171,9 @@ int main(int argc, char **argv)
     sl::LocalShadowMap3D *lantern_shadows = sl::create_local_shadow_map_3d(512, 1);
     std::unique_ptr<sl::Terrain> terrain;
     std::unique_ptr<sl::ClutterLayer> clutter;
+    std::unique_ptr<sl::Ocean> ocean;
+    bool use_ocean = true;
+    constexpr double sea_level = 38.0;
     auto build_clutter = [&]()
     {
         clutter = std::make_unique<sl::ClutterLayer>(*terrain);
@@ -233,6 +237,19 @@ int main(int argc, char **argv)
         textures.fade_end = 700.0;
         terrain->set_layer_textures(textures);
         build_clutter();
+        if (!planet)
+        {
+            if (!ocean)
+            {
+                sl::OceanConfig sea;
+                sea.sea_level = sea_level;
+                ocean = std::make_unique<sl::Ocean>(sea);
+                if (!ocean->valid())
+                    ocean.reset();
+            }
+            if (ocean)
+                ocean->set_terrain(terrain.get());
+        }
     };
     build();
 
@@ -282,6 +299,8 @@ int main(int argc, char **argv)
                     volumetric = !volumetric;
                 else if (key == sl::Event::Key::letter_t)
                     use_clutter = !use_clutter;
+                else if (key == sl::Event::Key::letter_o)
+                    use_ocean = !use_ocean;
                 else if (key == sl::Event::Key::digit_1)
                     speed = 20.0;
                 else if (key == sl::Event::Key::digit_2)
@@ -326,6 +345,15 @@ int main(int argc, char **argv)
         if (sl::key_down(sl::Key::letter_c))
             move -= up;
         position += move * speed * boost * dt;
+        const double clock = now * 0.001;
+        if (ocean && use_ocean)
+        {
+            if (sl::key_down(sl::Key::arrow_up))
+                ocean->set_sea_state(std::min(2.2, ocean->sea_state() + 0.5 * dt));
+            if (sl::key_down(sl::Key::arrow_down))
+                ocean->set_sea_state(std::max(0.1, ocean->sea_state() - 0.5 * dt));
+            position.y = std::max(position.y, ocean->height_at(position.x, position.z, clock) + 2.0);
+        }
         const double altitude = terrain->altitude_of(position);
         if (altitude < 2.0)
             position += up * (2.0 - altitude);
@@ -423,6 +451,11 @@ int main(int argc, char **argv)
             terrain->draw(position, material);
             if (use_clutter)
                 clutter->draw(position);
+            if (ocean && use_ocean)
+            {
+                ocean->update(position.x, position.z, position, clock);
+                ocean->draw();
+            }
             if (lantern && crate)
             {
                 sl::Material crate_material;
@@ -450,7 +483,7 @@ int main(int argc, char **argv)
                         cs.drawn_billboards, cs.drawn_meshes, cs.cached_cells);
         }
         sl::gprintf_center(screen_h - 22, {20, 20, 20},
-                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  V vol  T trees  Z/X sun  L lantern");
+                           "WASD move  Space/C up/down  Shift fast  1-4 speed  R seed  N normals  H atmos  K clouds  V vol  T trees  O sea  Up/Down sea state  Z/X sun  L lantern");
         sl::draw_renderer_label();
         sl::show_video_bitmap();
         sl::end_frame();

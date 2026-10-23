@@ -242,6 +242,12 @@ namespace sl
         double slope_blend = 5.0;
         /** Relative strength where several layers overlap. */
         double strength = 1.0;
+        /**
+         * How strongly the layer reflects the sun and local lights as a specular highlight, 0 (matte, the default) to 1
+         * (water or ice). It only shows when the Material passed to Terrain::draw() has `pbr` set, which also supplies
+         * the roughness.
+         */
+        double specular = 0.0;
     };
 
     /** Sand, grass, rock and snow spread between low_height and high_height metres. */

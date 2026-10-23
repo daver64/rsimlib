@@ -12,6 +12,8 @@ A fly-over procedural terrain with normals, atmosphere, clouds, volumetrics, and
 - Trees and rocks as objects and billboards with draw statistics
 - A lantern (`L`) placed in the world: a shadow-casting point light that lights the terrain and casts a crate's shadow on it (`LocalShadowMap3D`)
 
+- A Gerstner-wave sea (`sl::Ocean`) around the flat terrain's islands: waves shoal and shrink in shallows, the water turns turquoise and clear, and foam surges at the shore (`O` toggles it)
+
 ## Key code
 
 In `exterrain.cpp`, the terrain is rebuilt from a seeded noise source whenever the seed changes, with normal maps switchable per layer:
@@ -75,10 +77,13 @@ Accepts `--gl`, `--vulkan` and `--d3d12` (Windows only) to choose the graphics b
 | K | Toggle clouds |
 | V | Toggle volumetrics |
 | T | Toggle trees |
+| O | Toggle sea |
+| Up / Down | Sea state |
 | Z / X | Move the sun |
 | Escape | Exit |
 
 ## Key APIs
+- Ocean — [`sl::Ocean`](../api_reference.md#ocean-includeoceanh) · [`ocean.h`](../../include/ocean.h)
 - Terrain — [Chunked-LOD](../api_reference.md#chunked-lod-terrain-includeterrainh) · [`terrain.h`](../../include/terrain.h)
 - Atmosphere and clouds — [Atmosphere](../api_reference.md#atmosphere--clutter-includeatmosphereh-includeclutterh) · [`atmosphere.h`](../../include/atmosphere.h)
 - `Surface3D` — [3D Surfaces](../api_reference.md#3d-surfaces-includesurface3dh) · [`surface3d.h`](../../include/surface3d.h)

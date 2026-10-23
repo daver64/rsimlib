@@ -33,6 +33,7 @@ This reference details the public C++ API provided by `simlib`. Including `sl.h`
 22. [3D Flight & Orbital Dynamics](#3d-flight--orbital-dynamics-includeflighth)
 23. [Chunked-LOD Terrain](#chunked-lod-terrain-includeterrainh)
 24. [Atlases & Animated Sprites](#atlases--animated-sprites-includeatlash-includeanimated_spriteh)
+25. [Ocean](#ocean-includeoceanh)
 25. [3D Props](#3d-props-includeprops3dh)
 26. [Control Panels](#control-panels-includecontrolsh)
 27. [Procedural Audio Synthesis](#procedural-audio-synthesis-includeaudio_synthh)
@@ -1331,6 +1332,28 @@ clutter.draw(origin);
 
 ---
 
+## Ocean ([include/ocean.h](../include/ocean.h))
+
+A Gerstner-wave sea drawn as one polar-grid mesh that follows the eye: dense close in, sparse towards the horizon, with short waves fading out with distance.
+
+```cpp
+sl::Ocean sea;                       // default: six wave trains at sea level 0
+sea.set_sea_level(38.0);
+sea.set_terrain(&terrain);           // optional: shoreline
+sea.set_sea_state(0.5);              // 0 calm .. 1 storm
+// each frame, after terrain->draw:
+sea.update(eye.x, eye.z, eye, time); // eye = the same double-precision origin the terrain uses
+sea.draw();
+double h = sea.height_at(x, z, time);
+```
+
+- `OceanConfig` sets the wave trains (empty means the six defaults), `sea_level`, mesh `rings`/`segments`/`inner_radius`/`outer_radius`, `deep_colour`/`shallow_colour`, `shallow_depth`, `clear_depth`, `foam_depth` and `shore_range`.
+- `surface_at(x, z, time)` returns height, normal and foam; `swell_height()` is the current significant wave height.
+- With a terrain set, waves shrink as the water shoals, the colour shifts to the shallow tint, the surface fades to clear water over `clear_depth` and surging foam forms at the shoreline. The terrain is only sampled within `shore_range` of the eye. Draw the terrain first; it shows through the water by depth testing.
+- The mesh is eye-relative, so draw it with the identity matrix. `default_material()` is a glossy double-sided PBR material (alpha blended when a terrain is set).
+
+---
+
 ## 3D Props ([include/props3d.h](../include/props3d.h))
 
 A library of low-poly scenery parts built in code, with no asset files. Every builder returns a `MeshData` (vertex colours carry the shading and baked windows), so parts draw with a plain `Material`, bake with `bake_instances()` and cast ordinary shadows.
@@ -1348,6 +1371,7 @@ sl::draw_mesh(houses, sl::model_matrix({0, 0, 0}, {0, 0, 0}));
 - Small props: `make_barrel_data`, `make_crate_data`, `make_container_data`, `make_tank_data`.
 - Nature: `make_tree_data`, `make_bush_data`, `make_rock_cluster_data` (plus `make_conifer_data` and `make_rock_data` from [clutter.h](../include/clutter.h)).
 - Vehicles: `make_car_data`, `make_spaceship_data`, `make_aeroplane_data`.
+- Rockets and spacecraft (Apollo era, real Saturn V / Skylab sizes in metres): rocket and station parts are bodies of revolution about Y that start on `y = 0` and end at `y = length`, so they stack by translating each part up by the heights below it (`transform_mesh_data` with a translation, or a baked `Instance3D`). Rocket parts: `make_rocket_stage_data` (a stage or short ring such as an instrument unit), `make_rocket_engines_data` (1, 4 or 5 bells under a stage), `make_rocket_adapter_data` (conical interstage), `make_rocket_fins_data`, `make_payload_fairing_data`, `make_launch_escape_tower_data`, `make_apollo_csm_data`, plus the ground parts `make_launch_tower_data` and `make_launch_pad_data`. Spacecraft parts: `make_station_module_data`, `make_docking_adapter_data`, `make_solar_array_data` (hinged on `x = 0`, spreads along +X), `make_solar_windmill_data`, `make_antenna_dish_data`, `make_satellite_bus_data`. Finished assemblies built from those parts: `make_saturn_v_data` (about 115 m), `make_skylab_data` (about 38 m) and `make_satellite_data`.
 - Control parts (see [Control Panels](#control-panels-includecontrolsh)): `make_panel_data`, `make_dial_data`, `make_needle_data`, `make_knob_base_data`/`make_knob_data`, `make_toggle_base_data`/`make_toggle_lever_data`, `make_button_base_data`/`make_button_cap_data`, `make_lamp_bezel_data`/`make_lamp_lens_data`, `make_slider_track_data`/`make_slider_cap_data`, `make_meter_housing_data`/`make_meter_segment_data`, and the assemblies `make_cockpit_data` and `make_control_cabinet_data`. These face +Z with the panel face on `z = 0`. `transform_mesh_data(data, matrix)` applies a matrix to a `MeshData`.
 - `Instance3D::yaw` turns a part's front to `(sin yaw, cos yaw)`: 0 faces +Z, pi/2 faces +X, pi faces -Z.
 - Examples: `src/examples/exprops` (gallery), `src/examples/extown` (town and airfield). Lesson: [Building a scene from parts](tutorial/3d-06-building-a-scene-from-parts.md).

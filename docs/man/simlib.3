@@ -1,14 +1,18 @@
-.TH SIMLIB 3 "2026-09-26" "simlib" "Library Functions"
+.TH SIMLIB 3 "2026-10-23" "simlib" "Library Functions"
 .SH NAME
-simlib \- SDL2-based 2D game and rendering library
+simlib \- SDL2-based 2D and 3D game, simulation and rendering library
 .SH SYNOPSIS
 .nf
 #include <sl.h>
 .fi
 .SH DESCRIPTION
-simlib is a C++17 game framework providing 2D drawing, input, audio, fonts,
-post-processing effects, physics, resources, and Lua scripting through a single
-public header.
+simlib is a C++17 game and simulation framework providing 2D drawing, input,
+audio, fonts, post-processing effects, physics, resources, and Lua scripting
+through a single public header. The 3D side adds meshes, PBR materials, sun and
+local lights with shadows, chunked-LOD terrain, a Gerstner-wave ocean with
+shorelines, atmosphere and clouds, a procedural props library, 3D control
+panels, and flight and orbital dynamics on the OpenGL, Vulkan and Direct3D 12
+backends.
 .PP
 The library is consumed through the CMake target \fBsimlib::simlib\fR. The
 installed API reference contains individual section 3 pages for documented
@@ -27,4 +31,5 @@ and link \fBsimlib::simlib\fR.
 Add \fB$HOME/opt/share/man\fR to the \fBMANPATH\fR environment variable to
 allow \fBman simlib\fR and the individual API pages to be found.
 .SH SEE ALSO
-\fBsl_Bitmap\fR(3), \fBsl_Atlas\fR(3), \fBsl_StorageBuffer\fR(3)
+\fBsl_Bitmap\fR(3), \fBsl_Atlas\fR(3), \fBsl_StorageBuffer\fR(3),
+\fBsl_Terrain\fR(3), \fBsl_Ocean\fR(3), \fBsl_OceanConfig\fR(3)

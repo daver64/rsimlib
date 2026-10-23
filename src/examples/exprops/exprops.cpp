@@ -86,6 +86,24 @@ int main(int argc, char **argv)
     props.push_back(make_prop("car", sl::make_car_data()));
     props.push_back(make_prop("spaceship", sl::make_spaceship_data()));
     props.push_back(make_prop("aeroplane", sl::make_aeroplane_data()));
+    props.push_back(make_prop("saturn v", sl::make_saturn_v_data()));
+    props.push_back(make_prop("rocket stage", sl::make_rocket_stage_data()));
+    props.push_back(make_prop("rocket engines", sl::make_rocket_engines_data()));
+    props.push_back(make_prop("rocket adapter", sl::make_rocket_adapter_data()));
+    props.push_back(make_prop("rocket fins", sl::make_rocket_fins_data()));
+    props.push_back(make_prop("payload fairing", sl::make_payload_fairing_data()));
+    props.push_back(make_prop("escape tower", sl::make_launch_escape_tower_data()));
+    props.push_back(make_prop("apollo csm", sl::make_apollo_csm_data()));
+    props.push_back(make_prop("launch tower", sl::make_launch_tower_data()));
+    props.push_back(make_prop("launch pad", sl::make_launch_pad_data()));
+    props.push_back(make_prop("skylab", sl::make_skylab_data()));
+    props.push_back(make_prop("station module", sl::make_station_module_data()));
+    props.push_back(make_prop("docking adapter", sl::make_docking_adapter_data()));
+    props.push_back(make_prop("solar array", sl::make_solar_array_data()));
+    props.push_back(make_prop("solar windmill", sl::make_solar_windmill_data()));
+    props.push_back(make_prop("antenna dish", sl::make_antenna_dish_data()));
+    props.push_back(make_prop("satellite bus", sl::make_satellite_bus_data()));
+    props.push_back(make_prop("satellite", sl::make_satellite_data()));
 
     // Lay the parts out in rows, each part centred in its own footprint.
     constexpr float row_width = 80.0f;

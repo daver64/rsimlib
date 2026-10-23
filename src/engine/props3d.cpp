@@ -4,6 +4,8 @@
 #include <cmath>
 #include <functional>
 
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace sl
 {
     namespace
@@ -591,14 +593,14 @@ namespace sl
     {
         Builder b;
         const float h = 0.5f * size, t = 0.09f * size;
-        box(b, {-h + 0.01f, 0.0f, -h + 0.01f}, {h - 0.01f, size, h - 0.01f}, colour);
+        box(b, {-h + 0.01f, 0.01f, -h + 0.01f}, {h - 0.01f, size - 0.01f, h - 0.01f}, colour);
         const Colour frame = shade(colour, 0.72f);
         for (const float sx : {-1.0f, 1.0f})
         {
             for (const float sz : {-1.0f, 1.0f})
             {
                 const float cx = sx * (h - t * 0.5f + 0.02f), cz = sz * (h - t * 0.5f + 0.02f);
-                box(b, {cx - t * 0.5f - 0.01f, 0.0f, cz - t * 0.5f - 0.01f}, {cx + t * 0.5f + 0.01f, size, cz + t * 0.5f + 0.01f}, frame);
+                box(b, {cx - t * 0.5f - 0.01f, 0.0f, cz - t * 0.5f - 0.01f}, {cx + t * 0.5f + 0.01f, size + 0.01f, cz + t * 0.5f + 0.01f}, frame);
             }
         }
         for (const float y : {0.0f, size - t})
@@ -618,7 +620,7 @@ namespace sl
         Builder b;
         colour = vary(colour, seed, 0.18f);
         const float hl = 0.5f * length, hw = 0.5f * width;
-        box(b, {-hw, 0.0f, -hl}, {hw, height, hl}, colour);
+        box(b, {-hw, 0.01f, -hl + 0.01f}, {hw, height - 0.01f, hl - 0.01f}, colour);
         const int ribs = std::max(2, static_cast<int>(length / 0.3f));
         const Colour rib = shade(colour, 0.86f);
         for (int i = 0; i < ribs; ++i)
@@ -1145,7 +1147,7 @@ namespace sl
             Builder local;
             box(local, {-hw - 0.12f, -hh - 0.08f, -0.7f}, {hw + 0.12f, hh + 0.04f, -0.03f}, shell);
             box(local, {-hw - 0.14f, hh + 0.04f, -0.7f}, {hw + 0.14f, hh + 0.11f, 0.2f}, trim); // glare shield
-            box(local, {-hw - 0.14f, hh + 0.02f, 0.14f}, {hw + 0.14f, hh + 0.11f, 0.2f}, shade(trim, 0.8f));
+            box(local, {-hw - 0.14f, hh + 0.02f, 0.2f}, {hw + 0.14f, hh + 0.11f, 0.26f}, shade(trim, 0.8f)); // lip, clear of the shield top
             transform_mesh_data(local.data, pose);
             append_mesh_data(out, local.data);
         }
@@ -1208,5 +1210,507 @@ namespace sl
         column(b, {0.2f, body_h + 0.2f, 0.0f}, {-0.5f, body_h + 0.2f, 0.0f}, 0.03f, 0.03f, 8, dark_metal);
         (void)panel_height;
         return b.data;
+    }
+
+    // ----------------------------------------------------------------------------------------------- Rockets and spacecraft
+
+    namespace
+    {
+        struct Rp
+        {
+            float r, y;
+        };
+
+        /**
+         * A surface of revolution about Y. The profile runs from the bottom centre outward and up; each segment faces
+         * to its right (outward when going up, down when going outward), so closed solids need no orientation fuss.
+         */
+        void revolve(Builder &b, const std::vector<Rp> &profile, int sides, const std::function<Colour(int)> &colour)
+        {
+            const auto point = [](const Rp &p, float angle) { return V{p.r * std::sin(angle), p.y, p.r * std::cos(angle)}; };
+            for (std::size_t k = 0; k + 1 < profile.size(); ++k)
+            {
+                const Rp p0 = profile[k], p1 = profile[k + 1];
+                const float dr = p1.r - p0.r, dy = p1.y - p0.y;
+                const float length = std::hypot(dr, dy);
+                if (length < 1e-6f)
+                    continue;
+                const float nr = dy / length, ny = -dr / length;
+                const Colour face = colour(static_cast<int>(k));
+                for (int i = 0; i < sides; ++i)
+                {
+                    const float a0 = 2.0f * pi * static_cast<float>(i) / static_cast<float>(sides);
+                    const float a1 = 2.0f * pi * static_cast<float>(i + 1) / static_cast<float>(sides);
+                    const float am = 0.5f * (a0 + a1);
+                    const V centre = 0.25f * (point(p0, a0) + point(p0, a1) + point(p1, a0) + point(p1, a1));
+                    const V normal{nr * std::sin(am), ny, nr * std::cos(am)};
+                    b.quad(point(p0, a0), point(p0, a1), point(p1, a1), point(p1, a0), face, centre - normal);
+                }
+            }
+        }
+
+        void add_part(Builder &b, MeshData part, const glm::mat4 &matrix)
+        {
+            transform_mesh_data(part, matrix);
+            b.append(part, {0.0f, 0.0f, 0.0f}, 0.0f, 1.0f);
+        }
+
+        glm::mat4 at(const V &position) { return glm::translate(glm::mat4(1.0f), position); }
+
+        /** A rocket bell: the exit is on `base`, the throat `length` above it. */
+        void bell(Builder &b, const V &base, float length, float exit_radius)
+        {
+            const float throat = 0.3f * exit_radius;
+            const std::vector<Rp> profile{{throat * 0.8f, length * 0.97f}, {exit_radius * 0.5f, length * 0.45f}, {exit_radius * 0.93f, 0.0f},
+                                          {exit_radius, 0.0f},             {exit_radius * 0.58f, length * 0.45f}, {throat, length},
+                                          {0.0f, length}};
+            Builder local;
+            revolve(local, profile, 12,
+                    [](int k) { return k < 2 || k == 5 ? dark_metal : (k == 2 ? Colour{150, 154, 162, 255} : Colour{112, 116, 124, 255}); });
+            b.append(local.data, base, 0.0f, 1.0f);
+        }
+
+        /** A circular docking port: a collar and a dark hatch, pointing along `axis`. */
+        void port(Builder &b, const V &centre, const V &axis, float radius, Colour collar)
+        {
+            column(b, centre - axis * (0.1f * radius), centre + axis * (0.4f * radius), radius, radius * 0.86f, 12, collar);
+            column(b, centre + axis * (0.38f * radius), centre + axis * (0.43f * radius), radius * 0.62f, radius * 0.62f, 12, dark_metal);
+        }
+
+        /** A crinkled foil face: an nu x nv grid of quads with their own shades. */
+        void foil_face(Builder &b, const V &origin, const V &du, const V &dv, int nu, int nv, Colour foil, std::uint32_t seed, const V &inside)
+        {
+            const V cu = du / static_cast<float>(nu), cv = dv / static_cast<float>(nv);
+            for (int i = 0; i < nu; ++i)
+            {
+                for (int j = 0; j < nv; ++j)
+                {
+                    const V a = origin + cu * static_cast<float>(i) + cv * static_cast<float>(j);
+                    b.quad(a, a + cu, a + cu + cv, a + cv, shade(foil, 0.82f + 0.36f * hash01(seed * 131u + static_cast<std::uint32_t>(i * 17 + j))), inside);
+                }
+            }
+        }
+    } // namespace
+
+    MeshData make_rocket_stage_data(float radius, float length, Colour body, Colour accent, std::uint32_t seed)
+    {
+        Builder b;
+        const Colour skin = vary(body, seed, 0.03f);
+        const float band = std::min(0.1f * length, 0.6f * radius);
+        revolve(b, {{0.0f, 0.0f}, {radius, 0.0f}, {radius, band}, {radius, length - band}, {radius, length}, {0.0f, length}}, 20,
+                [&](int k) { return k == 0 ? shade(accent, 0.8f) : (k == 1 || k == 3) ? accent : (k == 4 ? shade(skin, 0.85f) : skin); });
+        const int rings = static_cast<int>(length / (3.0f * radius));
+        for (int i = 1; i <= rings; ++i)
+        {
+            const float y = length * static_cast<float>(i) / static_cast<float>(rings + 1);
+            revolve(b, {{radius, y - 0.12f}, {radius * 1.012f, y - 0.12f}, {radius * 1.012f, y + 0.12f}, {radius, y + 0.12f}}, 20,
+                    [&](int) { return shade(skin, 0.86f); });
+        }
+        const float w = 0.06f * radius;
+        box(b, {-w, band, radius - 0.03f}, {w, length - band, radius + 0.1f * radius}, shade(skin, 0.7f));
+        return b.data;
+    }
+
+    MeshData make_rocket_engines_data(float stage_radius, int engines, float length)
+    {
+        Builder b;
+        const float bell_length = length * 0.85f;
+        const float exit = engines <= 1 ? 0.5f * stage_radius : 0.27f * stage_radius;
+        std::vector<V> spots;
+        if (engines <= 1)
+            spots.push_back({0.0f, 0.0f, 0.0f});
+        else
+        {
+            if (engines >= 5)
+                spots.push_back({0.0f, 0.0f, 0.0f});
+            const int ring = engines >= 5 ? 4 : engines;
+            for (int i = 0; i < ring; ++i)
+            {
+                const float a = pi * 0.25f + 2.0f * pi * static_cast<float>(i) / static_cast<float>(ring);
+                spots.push_back({0.58f * stage_radius * std::sin(a), 0.0f, 0.58f * stage_radius * std::cos(a)});
+            }
+        }
+        for (const V &spot : spots)
+            bell(b, spot, bell_length, exit);
+        column(b, {0.0f, bell_length, 0.0f}, {0.0f, length, 0.0f}, stage_radius * 0.97f, stage_radius * 0.97f, 20, dark_metal);
+        return b.data;
+    }
+
+    MeshData make_rocket_adapter_data(float bottom_radius, float top_radius, float length, Colour body, Colour accent)
+    {
+        Builder b;
+        const float band = std::min(0.15f * length, 0.5f);
+        const float rb = bottom_radius + (top_radius - bottom_radius) * band / length;
+        const float rt = bottom_radius + (top_radius - bottom_radius) * (length - band) / length;
+        revolve(b, {{0.0f, 0.0f}, {bottom_radius, 0.0f}, {rb, band}, {rt, length - band}, {top_radius, length}, {0.0f, length}}, 20,
+                [&](int k) { return k == 0 ? shade(accent, 0.8f) : (k == 1 || k == 3) ? accent : (k == 4 ? shade(body, 0.85f) : body); });
+        return b.data;
+    }
+
+    MeshData make_rocket_fins_data(float radius, float span, float chord, int count, Colour colour)
+    {
+        Builder b;
+        const float half = 0.04f * span + 0.1f;
+        for (int i = 0; i < count; ++i)
+        {
+            const float a = pi * 0.25f + 2.0f * pi * static_cast<float>(i) / static_cast<float>(count);
+            const V radial{std::sin(a), 0.0f, std::cos(a)};
+            const V tangent{radial.z, 0.0f, -radial.x};
+            const auto ring = [&](float side)
+            {
+                return Ring{radial * (radius * 0.98f) + tangent * side, radial * (radius + span) + tangent * side + V{0.0f, 0.1f * chord, 0.0f},
+                            radial * (radius + span) + tangent * side + V{0.0f, 0.55f * chord, 0.0f},
+                            radial * (radius * 0.98f) + tangent * side + V{0.0f, chord, 0.0f}};
+            };
+            b.prism(ring(-half), ring(half), colour);
+        }
+        return b.data;
+    }
+
+    MeshData make_payload_fairing_data(float radius, float length, Colour body, Colour accent)
+    {
+        Builder b;
+        const float cylinder = 0.4f * length;
+        std::vector<Rp> profile{{0.0f, 0.0f}, {radius, 0.0f}, {radius, cylinder}};
+        constexpr int steps = 6;
+        for (int i = 1; i < steps; ++i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(steps);
+            profile.push_back({radius * std::pow(std::cos(t * 0.5f * pi), 0.75f), cylinder + t * (length - cylinder)});
+        }
+        profile.push_back({0.0f, length});
+        const int tip = static_cast<int>(profile.size()) - 2;
+        revolve(b, profile, 16, [&](int k) { return k == 0 ? shade(accent, 0.8f) : (k == tip ? accent : (k == 1 ? body : shade(body, 1.04f))); });
+        return b.data;
+    }
+
+    MeshData make_launch_escape_tower_data(float height, Colour motor)
+    {
+        Builder b;
+        const float base = 0.1f * height, top = 0.035f * height, leg = 0.008f * height;
+        const float fractions[4] = {0.0f, 0.13f, 0.27f, 0.42f};
+        std::vector<std::vector<V>> level(4);
+        for (std::size_t k = 0; k < 4; ++k)
+        {
+            const float radius = base + (top - base) * fractions[k] / 0.42f;
+            for (int i = 0; i < 4; ++i)
+            {
+                const float a = pi * 0.25f + 0.5f * pi * static_cast<float>(i);
+                level[k].push_back({radius * std::sin(a), fractions[k] * height, radius * std::cos(a)});
+            }
+        }
+        for (std::size_t i = 0; i < 4; ++i)
+        {
+            const std::size_t n = (i + 1) % 4;
+            column(b, level[0][i], level[3][i], leg, leg, 4, steel);
+            for (std::size_t k = 1; k < 4; ++k)
+                column(b, level[k][i], level[k][n], leg * 0.7f, leg * 0.7f, 4, steel);
+            for (std::size_t k = 0; k < 3; ++k)
+                column(b, level[k][i], level[k + 1][n], leg * 0.6f, leg * 0.6f, 4, steel);
+        }
+        const float r = 0.035f * height;
+        column(b, {0.0f, 0.4f * height, 0.0f}, {0.0f, 0.84f * height, 0.0f}, r * 1.1f, r, 12, motor);
+        column(b, {0.0f, 0.4f * height, 0.0f}, {0.0f, 0.43f * height, 0.0f}, r * 1.3f, r * 1.3f, 12, dark_metal);
+        for (int i = 0; i < 4; ++i)
+        {
+            const float a = 0.5f * pi * static_cast<float>(i);
+            const V dir{std::sin(a), 0.0f, std::cos(a)};
+            column(b, dir * (r * 0.9f) + V{0.0f, 0.5f * height, 0.0f}, dir * (r * 2.0f) + V{0.0f, 0.46f * height, 0.0f}, r * 0.35f, r * 0.2f, 6, dark_metal);
+        }
+        column(b, {0.0f, 0.84f * height, 0.0f}, {0.0f, 0.97f * height, 0.0f}, r, 0.0f, 12, {196, 70, 52, 255});
+        column(b, {0.0f, 0.97f * height, 0.0f}, {0.0f, height, 0.0f}, 0.012f * height, 0.004f * height, 6, steel);
+        return b.data;
+    }
+
+    MeshData make_antenna_dish_data(float radius)
+    {
+        Builder b;
+        const float hub = 1.1f * radius;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, hub, 0.0f}, 0.05f * radius, 0.04f * radius, 6, steel);
+        Builder dish;
+        const float depth = 0.28f * radius;
+        std::vector<Rp> profile{{0.0f, 0.0f}};
+        std::vector<Rp> inner;
+        for (int i = 1; i <= 4; ++i)
+        {
+            const float t = static_cast<float>(i) / 4.0f;
+            profile.push_back({radius * t, depth * t * t});
+            inner.push_back({radius * t * 0.97f, depth * t * t + 0.02f * radius});
+        }
+        profile.push_back(inner[3]);
+        for (int i = 2; i >= 0; --i)
+            profile.push_back(inner[static_cast<std::size_t>(i)]);
+        profile.push_back({0.0f, 0.02f * radius});
+        revolve(dish, profile, 14, [](int k) { return k < 4 ? Colour{150, 152, 158, 255} : Colour{232, 232, 228, 255}; });
+        column(dish, {0.0f, 0.02f * radius, 0.0f}, {0.0f, 0.6f * radius, 0.0f}, 0.04f * radius, 0.04f * radius, 6, steel);
+        column(dish, {0.0f, 0.6f * radius, 0.0f}, {0.0f, 0.75f * radius, 0.0f}, 0.1f * radius, 0.06f * radius, 8, dark_metal);
+        add_part(b, dish.data, at({0.0f, hub, 0.0f}) * glm::rotate(glm::mat4(1.0f), 70.0f * pi / 180.0f, V{1.0f, 0.0f, 0.0f}));
+        return b.data;
+    }
+
+    MeshData make_apollo_csm_data(float radius, Colour hull)
+    {
+        Builder b;
+        const float s = radius / 1.95f;
+        const float sm0 = 2.2f * s, sm1 = 9.6f * s, cm1 = 12.8f * s;
+        bell(b, {0.0f, 0.0f, 0.0f}, 2.6f * s, 1.0f * s);
+        revolve(b, {{0.0f, sm0}, {radius, sm0}, {radius, sm1}, {0.0f, sm1}}, 16, [&](int k) { return k == 1 ? hull : shade(hull, 0.7f); });
+        for (int i = 0; i < 8; ++i)
+        {
+            const float a = pi * 0.125f + 0.25f * pi * static_cast<float>(i);
+            const V n{std::sin(a), 0.0f, std::cos(a)};
+            panel(b, n * radius * 0.96f + V{0.0f, 0.5f * (sm0 + sm1) - 0.5f * s, 0.0f}, n, 1.3f * s, 4.6f * s,
+                  i % 2 == 0 ? Colour{60, 62, 70, 255} : Colour{180, 184, 190, 255});
+        }
+        for (int i = 0; i < 4; ++i)
+        {
+            const float a = 0.5f * pi * static_cast<float>(i);
+            const V n{std::sin(a), 0.0f, std::cos(a)};
+            const V t{n.z, 0.0f, -n.x};
+            const V c = n * (radius + 0.1f * s) + V{0.0f, sm1 - 1.0f * s, 0.0f};
+            b.prism({c - t * 0.3f * s - V{0, 0.4f * s, 0}, c + t * 0.3f * s - V{0, 0.4f * s, 0}, c + t * 0.3f * s + V{0, 0.4f * s, 0}, c - t * 0.3f * s + V{0, 0.4f * s, 0}},
+                    {c - t * 0.3f * s - V{0, 0.4f * s, 0} - n * 0.3f * s, c + t * 0.3f * s - V{0, 0.4f * s, 0} - n * 0.3f * s,
+                     c + t * 0.3f * s + V{0, 0.4f * s, 0} - n * 0.3f * s, c - t * 0.3f * s + V{0, 0.4f * s, 0} - n * 0.3f * s},
+                    dark_metal);
+        }
+        revolve(b, {{0.0f, sm1}, {radius * 1.02f, sm1}, {radius * 1.02f, sm1 + 0.2f * s}, {radius, sm1 + 0.2f * s}, {0.45f * s, cm1}, {0.0f, cm1}}, 16,
+                [&](int k) { return k < 3 ? dark_metal : (k == 3 ? shade(hull, 1.08f) : steel); });
+        const float slope = (radius - 0.45f * s) / (cm1 - sm1 - 0.2f * s);
+        for (const float a : {-0.5f, 0.5f})
+        {
+            const V n = glm::normalize(V{std::sin(a), slope, std::cos(a)});
+            panel(b, V{std::sin(a) * radius * 0.72f, sm1 + 1.3f * s, std::cos(a) * radius * 0.72f}, n, 0.5f * s, 0.6f * s, glass_dark);
+        }
+        column(b, {0.0f, cm1, 0.0f}, {0.0f, cm1 + 0.9f * s, 0.0f}, 0.4f * s, 0.12f * s, 8, steel);
+        add_part(b, make_antenna_dish_data(0.55f * s), at({radius + 0.2f * s, sm0 + 2.0f * s, 0.0f}) * glm::rotate(glm::mat4(1.0f), -0.5f * pi, V{0.0f, 0.0f, 1.0f}));
+        return b.data;
+    }
+
+    MeshData make_saturn_v_data(float scale)
+    {
+        Builder b;
+        const Colour white{238, 238, 232, 255}, black{26, 26, 30, 255};
+        float y = 3.0f;
+        const auto stack = [&](MeshData part, float height)
+        {
+            add_part(b, std::move(part), at({0.0f, y, 0.0f}));
+            y += height;
+        };
+        add_part(b, make_rocket_engines_data(5.05f, 5, 5.9f), at({0.0f, 0.0f, 0.0f}));
+        add_part(b, make_rocket_fins_data(5.05f, 3.2f, 8.0f, 4, white), at({0.0f, 0.5f, 0.0f}));
+        stack(make_rocket_stage_data(5.05f, 39.1f, white, black, 1), 39.1f);
+        stack(make_rocket_stage_data(5.05f, 5.1f, white, black, 2), 5.1f);
+        stack(make_rocket_stage_data(5.05f, 24.9f, white, black, 3), 24.9f);
+        stack(make_rocket_adapter_data(5.05f, 3.3f, 3.3f, white, black), 3.3f);
+        stack(make_rocket_stage_data(3.3f, 17.8f, white, black, 4), 17.8f);
+        stack(make_rocket_stage_data(3.3f, 0.9f, white, black, 5), 0.9f);
+        stack(make_rocket_adapter_data(3.3f, 1.95f, 5.5f, white, black), 5.5f);
+        stack(make_rocket_adapter_data(1.95f, 0.45f, 3.2f, white, black), 3.2f);
+        stack(make_launch_escape_tower_data(10.0f), 10.0f);
+        MeshData out = b.data;
+        if (scale != 1.0f)
+            transform_mesh_data(out, glm::scale(glm::mat4(1.0f), V{scale}));
+        return out;
+    }
+
+    MeshData make_launch_tower_data(float height, float width, float arm_length, Colour colour)
+    {
+        Builder b;
+        const float h = 0.5f * width, post = 0.06f * width;
+        const int levels = std::max(2, static_cast<int>(height / std::max(4.0f, height / 18.0f)));
+        const float step = height / static_cast<float>(levels);
+        const V corners[4] = {{-h, 0.0f, -h}, {h, 0.0f, -h}, {h, 0.0f, h}, {-h, 0.0f, h}};
+        for (const V &c : corners)
+            box(b, c + V{-post, 0.0f, -post}, c + V{post, height, post}, colour);
+        const float beam = 0.025f * width, brace = 0.018f * width;
+        for (int k = 0; k <= levels; ++k)
+        {
+            const float y = step * static_cast<float>(k);
+            for (int i = 0; i < 4; ++i)
+            {
+                const V a = corners[i] + V{0.0f, y, 0.0f}, c = corners[(i + 1) % 4] + V{0.0f, y, 0.0f};
+                column(b, a, c, beam, beam, 4, shade(colour, 0.85f), false, false);
+                if (k < levels)
+                {
+                    const bool flip = (k + i) % 2 == 0;
+                    column(b, flip ? a : c, (flip ? c : a) + V{0.0f, step, 0.0f}, brace, brace, 4, shade(colour, 0.8f), false, false);
+                }
+            }
+        }
+        for (int k = 1; k <= 3; ++k)
+        {
+            const float y = height * 0.25f * static_cast<float>(k) - 0.5f * step;
+            box(b, {h, y - 0.8f, -0.9f}, {h + arm_length, y + 0.8f, 0.9f}, {210, 210, 205, 255});
+            box(b, {h + arm_length - 1.2f, y - 1.2f, -1.3f}, {h + arm_length, y + 1.2f, 1.3f}, dark_metal);
+        }
+        box(b, {-h - 3.0f, height, -1.0f}, {h + 1.0f, height + 1.6f, 1.0f}, shade(colour, 0.9f));
+        column(b, {0.0f, height + 1.6f, 0.0f}, {0.0f, height + 7.0f, 0.0f}, 0.15f, 0.05f, 6, steel);
+        return b.data;
+    }
+
+    MeshData make_launch_pad_data(float size)
+    {
+        Builder b;
+        const float half = 0.5f * size, hole = 0.16f * size, thick = 1.5f;
+        const Colour concrete{150, 148, 142, 255};
+        box(b, {-half, 0.0f, -half}, {half, thick, -hole}, concrete);
+        box(b, {-half, 0.0f, hole}, {half, thick, half}, concrete);
+        box(b, {-half, 0.0f, -hole}, {-hole, thick, hole}, shade(concrete, 0.95f));
+        box(b, {hole, 0.0f, -hole}, {half, thick, hole}, shade(concrete, 0.95f));
+        box(b, {-hole, 0.0f, -hole}, {hole, 0.2f, hole}, {40, 36, 34, 255});
+        for (const float x : {-1.0f, 1.0f})
+        {
+            for (const float z : {-1.0f, 1.0f})
+            {
+                const V foot{x * 0.42f * size, thick, z * 0.42f * size};
+                column(b, foot, foot + V{0.0f, 0.4f * size, 0.0f}, 0.25f, 0.12f, 6, steel);
+                column(b, foot + V{0.0f, 0.4f * size, 0.0f}, foot + V{0.0f, 0.4f * size + 1.5f, 0.0f}, 0.12f, 0.0f, 6, {230, 60, 50, 255});
+            }
+        }
+        return b.data;
+    }
+
+    MeshData make_station_module_data(float radius, float length, Colour hull, std::uint32_t seed)
+    {
+        Builder b;
+        const Colour skin = vary(hull, seed, 0.03f);
+        const int sections = std::max(2, static_cast<int>(length / (1.4f * radius)));
+        const auto section_y = [&](int i) { return (0.03f + 0.94f * static_cast<float>(i) / static_cast<float>(sections)) * length; };
+        std::vector<Rp> profile{{0.0f, 0.0f}, {radius * 0.86f, 0.0f}};
+        for (int i = 0; i < sections; ++i)
+            profile.push_back({radius, section_y(i)});
+        profile.push_back({radius, 0.97f * length});
+        profile.push_back({radius * 0.86f, length});
+        profile.push_back({0.0f, length});
+        const int last = static_cast<int>(profile.size()) - 2;
+        revolve(b, profile, 16, [&](int k) { return (k == 0 || k == last) ? dark_metal : ((k % 2 == 0) ? shade(skin, 0.93f) : skin); });
+        for (int i = 1; i < sections; ++i)
+        {
+            const float y = section_y(i);
+            revolve(b, {{radius, y - 0.06f}, {radius * 1.01f, y - 0.06f}, {radius * 1.01f, y + 0.06f}, {radius, y + 0.06f}}, 16, [](int) { return dark_metal; });
+        }
+        for (const float a : {-0.45f, 0.0f, 0.45f})
+            panel(b, {std::sin(a) * radius, 0.62f * length, std::cos(a) * radius}, {std::sin(a), 0.0f, std::cos(a)}, 0.35f * radius, 0.45f * radius, glass_dark);
+        port(b, {0.0f, length, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.28f * radius, steel);
+        return b.data;
+    }
+
+    MeshData make_docking_adapter_data(float radius, float length, Colour hull)
+    {
+        Builder b;
+        revolve(b, {{0.0f, 0.0f}, {radius, 0.0f}, {radius, 0.8f * length}, {0.55f * radius, length}, {0.0f, length}}, 14,
+                [&](int k) { return k == 0 ? dark_metal : (k == 1 ? hull : shade(hull, 1.06f)); });
+        port(b, {0.0f, length, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.4f * radius, steel);
+        port(b, {0.0f, 0.4f * length, radius}, {0.0f, 0.0f, 1.0f}, 0.4f * radius, steel);
+        return b.data;
+    }
+
+    MeshData make_solar_array_data(float length, float width, int panels, Colour cell)
+    {
+        Builder b;
+        panels = std::max(1, panels);
+        const float pw = length / static_cast<float>(panels), t = 0.03f, hw = 0.5f * width;
+        const Colour frame{170, 172, 178, 255};
+        box(b, {0.0f, -0.05f, -0.06f}, {length, 0.05f, 0.06f}, dark_metal);
+        const int cols = 3, rows = std::max(3, static_cast<int>(width / 0.7f));
+        for (int p = 0; p < panels; ++p)
+        {
+            const float x0 = pw * static_cast<float>(p) + 0.03f * pw, x1 = pw * static_cast<float>(p + 1) - 0.03f * pw;
+            box(b, {x0, -hw, -t}, {x1, hw, t}, frame);
+            const float inset = 0.05f * std::min(pw, width);
+            const float cw = (x1 - x0 - 2.0f * inset) / static_cast<float>(cols), ch = (width - 2.0f * inset) / static_cast<float>(rows);
+            for (const float side : {1.0f, -1.0f})
+            {
+                const float z = side * (t + 0.004f);
+                for (int i = 0; i < cols; ++i)
+                {
+                    for (int j = 0; j < rows; ++j)
+                    {
+                        const float cx = x0 + inset + cw * static_cast<float>(i) + 0.012f, cy = -hw + inset + ch * static_cast<float>(j) + 0.012f;
+                        const Colour c = shade(cell, 0.85f + 0.3f * hash01(static_cast<std::uint32_t>(p * 977 + i * 131 + j * 17 + (side > 0.0f ? 5 : 0))));
+                        b.quad({cx, cy, z}, {cx + cw - 0.024f, cy, z}, {cx + cw - 0.024f, cy + ch - 0.024f, z}, {cx, cy + ch - 0.024f, z}, c, {cx, cy, 0.0f});
+                    }
+                }
+            }
+        }
+        return b.data;
+    }
+
+    MeshData make_solar_windmill_data(float blade_length, float blade_width)
+    {
+        Builder b;
+        box(b, {-0.6f, -0.6f, -0.5f}, {0.6f, 0.6f, 0.5f}, {196, 164, 80, 255});
+        for (int i = 0; i < 4; ++i)
+            add_part(b, make_solar_array_data(blade_length, blade_width, 2),
+                     glm::rotate(glm::mat4(1.0f), 0.5f * pi * static_cast<float>(i), V{0.0f, 0.0f, 1.0f}) * at({0.55f, 0.0f, 0.0f}));
+        return b.data;
+    }
+
+    MeshData make_satellite_bus_data(float size, Colour foil, std::uint32_t seed)
+    {
+        Builder b;
+        const float w = 0.5f * size, h = 1.1f * size, d = 0.45f * size, y0 = 0.15f * size;
+        const V c{0.0f, y0 + 0.5f * h, 0.0f};
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, y0, 0.0f}, 0.4f * size, 0.34f * size, 12, steel);
+        const V lo{-w, y0, -d}, hi{w, y0 + h, d};
+        foil_face(b, {lo.x, lo.y, hi.z}, {2 * w, 0, 0}, {0, h, 0}, 3, 4, foil, seed, c);
+        foil_face(b, lo, {2 * w, 0, 0}, {0, h, 0}, 3, 4, foil, seed + 1, c);
+        foil_face(b, {hi.x, lo.y, lo.z}, {0, 0, 2 * d}, {0, h, 0}, 3, 4, foil, seed + 2, c);
+        foil_face(b, lo, {0, 0, 2 * d}, {0, h, 0}, 3, 4, foil, seed + 3, c);
+        foil_face(b, {lo.x, hi.y, lo.z}, {2 * w, 0, 0}, {0, 0, 2 * d}, 3, 3, foil, seed + 4, c);
+        foil_face(b, lo, {2 * w, 0, 0}, {0, 0, 2 * d}, 3, 3, shade(foil, 0.6f), seed + 5, c);
+        const float lens_y = c.y + 0.1f * h;
+        column(b, {0.0f, lens_y, d}, {0.0f, lens_y, d + 0.35f * size}, 0.17f * size, 0.2f * size, 10, dark_metal);
+        column(b, {0.0f, lens_y, d + 0.34f * size}, {0.0f, lens_y, d + 0.36f * size}, 0.14f * size, 0.14f * size, 10, {70, 110, 160, 255});
+        for (const float x : {-1.0f, 1.0f})
+        {
+            for (const float z : {-1.0f, 1.0f})
+            {
+                const V corner{x * w, hi.y, z * d};
+                column(b, corner, corner + V{x * 0.1f * size, 0.12f * size, z * 0.1f * size}, 0.025f * size, 0.05f * size, 6, steel);
+            }
+        }
+        column(b, {0.0f, hi.y, 0.0f}, {0.0f, hi.y + 0.7f * size, 0.0f}, 0.012f * size, 0.004f * size, 4, steel);
+        box(b, {-0.12f * size, c.y - 0.2f * h, d}, {0.12f * size, c.y - 0.1f * h, d + 0.03f * size}, {196, 198, 204, 255});
+        return b.data;
+    }
+
+    MeshData make_satellite_data(float size, std::uint32_t seed)
+    {
+        Builder b;
+        b.append(make_satellite_bus_data(size, {200, 164, 72, 255}, seed), {0.0f, 0.0f, 0.0f}, 0.0f, 1.0f);
+        const float mid = 0.15f * size + 0.55f * size;
+        add_part(b, make_solar_array_data(2.2f * size, 0.9f * size, 3), at({0.5f * size, mid, 0.0f}));
+        add_part(b, make_solar_array_data(2.2f * size, 0.9f * size, 3), at({-0.5f * size, mid, 0.0f}) * glm::rotate(glm::mat4(1.0f), pi, V{0.0f, 1.0f, 0.0f}));
+        add_part(b, make_antenna_dish_data(0.45f * size), at({0.25f * size, 1.25f * size, 0.0f}));
+        return b.data;
+    }
+
+    MeshData make_skylab_data(float scale)
+    {
+        Builder b;
+        const Colour white{238, 238, 232, 255};
+        float y = 0.0f;
+        const auto stack = [&](MeshData part, float height)
+        {
+            add_part(b, std::move(part), at({0.0f, y, 0.0f}));
+            y += height;
+        };
+        stack(make_station_module_data(3.3f, 14.6f, white, 1), 14.6f);
+        stack(make_rocket_adapter_data(3.3f, 1.5f, 2.4f, white, {60, 60, 66, 255}), 2.4f);
+        stack(make_station_module_data(1.5f, 5.4f, {222, 222, 216, 255}, 2), 5.4f);
+        const float mda = y;
+        stack(make_docking_adapter_data(1.5f, 5.2f), 5.2f);
+        const float wing_y = 7.3f;
+        add_part(b, make_solar_array_data(9.0f, 11.0f, 2), at({3.3f, wing_y, 0.0f}));
+        add_part(b, make_solar_array_data(9.0f, 11.0f, 2), at({-3.3f, wing_y, 0.0f}) * glm::rotate(glm::mat4(1.0f), pi, V{0.0f, 1.0f, 0.0f}));
+        const float atm_y = mda + 2.6f;
+        box(b, {1.4f, atm_y - 0.25f, -0.25f}, {7.0f, atm_y + 0.25f, 0.25f}, steel);
+        add_part(b, make_station_module_data(1.2f, 5.0f, {206, 190, 120, 255}, 3), at({7.4f, atm_y - 2.5f, 0.0f}));
+        add_part(b, make_solar_windmill_data(6.5f, 3.0f), at({7.4f, atm_y, 2.6f}));
+        MeshData out = b.data;
+        if (scale != 1.0f)
+            transform_mesh_data(out, glm::scale(glm::mat4(1.0f), V{scale}));
+        return out;
     }
 } // namespace sl

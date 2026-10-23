@@ -316,9 +316,11 @@ namespace sl
                 }
                 else
                 {
-                    colour[0] = colour[1] = colour[2] = 0.0f;
+                    // Alpha carries the blended specular strength for the untextured shading path.
+                    colour[0] = colour[1] = colour[2] = colour[3] = 0.0f;
                     for (int k = 0; k < layer_count(layers); ++k)
                     {
+                        colour[3] += weights[k] * static_cast<float>(layers[k].specular);
                         colour[0] += weights[k] * layers[k].colour.red / 255.0f;
                         colour[1] += weights[k] * layers[k].colour.green / 255.0f;
                         colour[2] += weights[k] * layers[k].colour.blue / 255.0f;
@@ -665,6 +667,7 @@ namespace sl
                 const TerrainLayer &layer = layers[static_cast<std::size_t>(i)];
                 const auto &list = entries[static_cast<std::size_t>(i)];
                 out.first[i] = next;
+                out.specular[i] = static_cast<float>(std::clamp(layer.specular, 0.0, 1.0));
                 out.variants[i] = static_cast<int>(list.size());
                 out.tiles_per_period[i] = snapped_tiles(period, layer.tile_metres);
                 out.tile_metres[i] = static_cast<float>(period / out.tiles_per_period[i]);

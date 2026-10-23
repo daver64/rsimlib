@@ -8,7 +8,7 @@
 
 ## The idea
 
-- `props3d.h` builds low-poly scenery in code: `make_house_data()`, `make_fence_data()`, `make_tree_data()`, `make_car_data()` and about twenty more. There are no model files.
+- `props3d.h` builds low-poly scenery in code: `make_house_data()`, `make_fence_data()`, `make_tree_data()`, `make_car_data()`, rockets and spacecraft, and about forty more. There are no model files.
 - Each builder returns **`MeshData`**: plain vertices and indices on the CPU. Colours live in the vertex colours, so a default material draws them.
 - Every part stands on `y = 0`, is centred on x and z, and has its front facing **+Z**. That makes placing them simple: pick a ground position and a direction.
 - Parameters are sizes and colours, and `seed` varies colours and which windows are lit. Same arguments, same part.

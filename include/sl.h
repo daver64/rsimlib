@@ -29,6 +29,7 @@
 #include "props3d.h"
 #include "controls.h"
 #include "terrain.h"
+#include "ocean.h"
 #include "graphics_fx.h"
 #include "gamepad.h"
 #include "gui.h"

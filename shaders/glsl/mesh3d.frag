@@ -209,10 +209,12 @@ void main()
     }
     vec3 colour;
     bool pbr = uPbr.x > 0.5 && vTerrain < 0.0;
+    // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.
+    bool gloss = uPbr.x > 0.5 && vTerrain >= 0.0 && vColour.a > 0.003;
     float metallic = 0.0;
     float roughness = 1.0;
     vec3 ray = vec3(0.0);
-    if (pbr || uCameraPosition.w > 0.5 || uShadow.x > 0.5)
+    if (pbr || gloss || uCameraPosition.w > 0.5 || uShadow.x > 0.5)
     {
         vec2 ndc = gl_FragCoord.xy * uFogView.zw * 2.0 - 1.0;
         ray = uCameraForward.xyz + ndc.x * uCameraRight.xyz + ndc.y * uCameraUp.xyz;
@@ -233,6 +235,11 @@ void main()
     {
         float diffuse = max(dot(normal, uLight.xyz), 0.0);
         colour = albedo * (uLight.w + (1.0 - uLight.w) * diffuse * sun_rgb);
+    }
+    if (gloss)
+    {
+        roughness = clamp(uPbr.z, 0.04, 1.0);
+        colour += vColour.a * pbr_direct(normal, normalize(-ray), uLight.xyz, vec3(0.0), 0.0, roughness) * sun_rgb * (1.0 - uLight.w);
     }
     if (uCameraPosition.w > 0.5 && uLight.w < 1.0)
     {
@@ -257,6 +264,8 @@ void main()
                 strength *= local_visibility(world, normal, position.xyz, light_colour.w > -0.5, shadow_info.x, shadow_info.y, shadow_info.z);
             vec3 reflected = pbr ? pbr_direct(normal, view, L, albedo, metallic, roughness)
                                   : albedo * max(dot(normal, L), 0.0);
+            if (gloss)
+                reflected += vColour.a * pbr_direct(normal, view, L, vec3(0.0), 0.0, roughness);
             colour += reflected * light_colour.rgb * strength;
         }
     }

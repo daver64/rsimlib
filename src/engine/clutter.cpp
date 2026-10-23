@@ -66,8 +66,8 @@ namespace sl
                 data.vertices.push_back(make_vertex({std::sin(a0) * radius, y0, std::cos(a0) * radius}, normal(a0), colour));
                 data.vertices.push_back(make_vertex({std::sin(a1) * radius, y0, std::cos(a1) * radius}, normal(a1), colour));
                 data.vertices.push_back(make_vertex({0.0f, y0 + height, 0.0f}, normal(am), colour));
-                // Counter-clockwise seen from outside: apex, then the two base points in the order that faces out.
-                data.indices.insert(data.indices.end(), {base + 1, base, base + 2});
+                // Counter-clockwise seen from outside.
+                data.indices.insert(data.indices.end(), {base, base + 1, base + 2});
             }
         }
 
@@ -84,7 +84,7 @@ namespace sl
                 data.vertices.push_back(make_vertex(n1 * radius + glm::vec3{0.0f, y0, 0.0f}, n1, colour));
                 data.vertices.push_back(make_vertex(n1 * radius + glm::vec3{0.0f, y1, 0.0f}, n1, colour));
                 data.vertices.push_back(make_vertex(n0 * radius + glm::vec3{0.0f, y1, 0.0f}, n0, colour));
-                data.indices.insert(data.indices.end(), {base + 1, base, base + 3, base + 1, base + 3, base + 2});
+                data.indices.insert(data.indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
             }
         }
 

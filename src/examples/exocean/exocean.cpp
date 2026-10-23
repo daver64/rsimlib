@@ -20,177 +20,6 @@
 namespace
 {
     constexpr double pi = 3.14159265358979323846;
-    constexpr double gravity = 9.80665;
-    constexpr int wave_count = 6;
-
-    struct Wave
-    {
-        double wavelength, steepness, dir_x, dir_z, phase;
-        double k, omega;
-    };
-
-    // The sea surface: Gerstner waves whose amplitude scales with the sea state.
-    class Sea
-    {
-    public:
-        Sea()
-        {
-            const double lengths[wave_count] = {140.0, 78.0, 44.0, 24.0, 13.0, 7.0};
-            const double steepness[wave_count] = {0.11, 0.10, 0.09, 0.08, 0.07, 0.06};
-            const double spread[wave_count] = {0.0, 0.35, -0.5, 0.75, -0.9, 1.3};
-            for (int i = 0; i < wave_count; ++i)
-            {
-                Wave &w = waves[i];
-                w.wavelength = lengths[i];
-                w.steepness = steepness[i];
-                w.dir_x = std::cos(0.4 + spread[i]);
-                w.dir_z = std::sin(0.4 + spread[i]);
-                w.phase = 1.7 * i;
-                w.k = 2.0 * pi / w.wavelength;
-                w.omega = std::sqrt(gravity * w.k);
-            }
-        }
-
-        struct Point
-        {
-            double x, y, z;
-            glm::vec3 normal;
-            float foam;
-        };
-
-        double state = 1.0;
-
-        double amplitude(const Wave &w) const { return state * w.steepness / w.k; }
-
-        /** The displaced surface point for a rest position. `fade` scales each wave (1 = full). */
-        Point surface(double px, double pz, double t, const double *fade = nullptr) const
-        {
-            Point p{px, 0.0, pz, {0.0f, 1.0f, 0.0f}, 0.0f};
-            double nx = 0.0, nz = 0.0, pinch = 0.0;
-            for (int i = 0; i < wave_count; ++i)
-            {
-                const Wave &w = waves[i];
-                const double f = fade ? fade[i] : 1.0;
-                if (f <= 0.0)
-                    continue;
-                const double a = amplitude(w) * f;
-                const double q = std::min(1.0, 0.8 / (wave_count * std::max(w.k * a, 0.1)));
-                const double theta = w.k * (w.dir_x * px + w.dir_z * pz) - w.omega * t + w.phase;
-                const double c = std::cos(theta), s = std::sin(theta);
-                p.x += q * a * w.dir_x * c;
-                p.z += q * a * w.dir_z * c;
-                p.y += a * s;
-                nx -= w.dir_x * w.k * a * c;
-                nz -= w.dir_z * w.k * a * c;
-                pinch += q * w.k * a * s;
-            }
-            p.normal = glm::normalize(glm::vec3(static_cast<float>(nx), static_cast<float>(1.0 - pinch), static_cast<float>(nz)));
-            p.foam = static_cast<float>(fx::smoothstep(0.35, 0.6, pinch));
-            return p;
-        }
-
-        /** The water surface at a world position: the rest position is found by inverting the horizontal displacement. */
-        Point at(double x, double z, double t) const
-        {
-            double px = x, pz = z;
-            for (int i = 0; i < 3; ++i)
-            {
-                const Point p = surface(px, pz, t);
-                px += x - p.x;
-                pz += z - p.z;
-            }
-            return surface(px, pz, t);
-        }
-
-    private:
-        Wave waves[wave_count];
-    };
-
-    // A polar grid of vertices: one at the centre, then rings that grow geometrically out to the horizon.
-    class SeaMesh
-    {
-    public:
-        static constexpr int rings = 150;
-        static constexpr int segments = 256;
-        static constexpr double inner = 1.5;
-        static constexpr double outer = 14000.0;
-
-        bool create()
-        {
-            vertices.resize(static_cast<std::size_t>(rings + 1) * segments);
-            std::vector<std::uint32_t> indices;
-            for (int r = 0; r < rings; ++r)
-                for (int s = 0; s < segments; ++s)
-                {
-                    const std::uint32_t a = r * segments + s, b = r * segments + (s + 1) % segments;
-                    const std::uint32_t c = (r + 1) * segments + s, d = (r + 1) * segments + (s + 1) % segments;
-                    indices.insert(indices.end(), {a, c, b, b, c, d});
-                }
-            for (sl::Vertex3D &v : vertices)
-            {
-                v.tangent[0] = 1.0f;
-                v.tangent[3] = 1.0f;
-            }
-            mesh = sl::create_mesh(vertices, indices);
-            return mesh != nullptr;
-        }
-
-        void destroy()
-        {
-            if (mesh)
-                sl::destroy_mesh(mesh);
-            mesh = nullptr;
-        }
-
-        /** Rebuild the surface around `centre`, with positions relative to `eye` so floats stay precise. */
-        void update(const Sea &sea, double cx, double cz, const sl::dvec3 &eye, double t)
-        {
-            const double ratio = outer / inner;
-            for (int r = 0; r <= rings; ++r)
-            {
-                const double radius = r == 0 ? 0.0 : inner * std::pow(ratio, static_cast<double>(r - 1) / (rings - 1));
-                // Radial spacing of the ring, used to fade waves the grid is too coarse to represent.
-                const double cell = std::max(radius * std::log(ratio) / (rings - 1), 0.5);
-                double fade[wave_count];
-                for (int i = 0; i < wave_count; ++i)
-                {
-                    const double wavelength = 2.0 * pi / sea_waves_k(sea, i);
-                    fade[i] = std::clamp((wavelength / cell - 3.0) / 5.0, 0.0, 1.0);
-                }
-                for (int s = 0; s < segments; ++s)
-                {
-                    const double angle = 2.0 * pi * s / segments;
-                    const Sea::Point p = sea.surface(cx + radius * std::cos(angle), cz + radius * std::sin(angle), t, fade);
-                    sl::Vertex3D &v = vertices[static_cast<std::size_t>(r) * segments + s];
-                    v.position[0] = static_cast<float>(p.x - eye.x);
-                    v.position[1] = static_cast<float>(p.y - eye.y);
-                    v.position[2] = static_cast<float>(p.z - eye.z);
-                    v.normal[0] = p.normal.x;
-                    v.normal[1] = p.normal.y;
-                    v.normal[2] = p.normal.z;
-                    // Deep blue-green water, lighter on the crests, with white foam where the surface pinches.
-                    const float lift = std::clamp(static_cast<float>(p.y) * 0.12f + 0.4f, 0.0f, 1.0f);
-                    const float foam = p.foam * static_cast<float>(fade[0] * 0.6 + 0.4);
-                    v.colour[0] = 0.03f + 0.07f * lift + 0.85f * foam;
-                    v.colour[1] = 0.16f + 0.26f * lift + 0.85f * foam;
-                    v.colour[2] = 0.24f + 0.26f * lift + 0.85f * foam;
-                    v.colour[3] = 1.0f;
-                }
-            }
-            sl::update_mesh_vertices(mesh, vertices);
-        }
-
-        sl::Mesh *mesh = nullptr;
-
-    private:
-        static double sea_waves_k(const Sea &, int i)
-        {
-            const double lengths[wave_count] = {140.0, 78.0, 44.0, 24.0, 13.0, 7.0};
-            return 2.0 * pi / lengths[i];
-        }
-
-        std::vector<sl::Vertex3D> vertices;
-    };
 
     // A lofted warship hull, bow along -Z, waterline at y = 0. Below the waterline is red, above is battleship grey.
     sl::Mesh *make_hull(float length, float beam, float draft, float freeboard)
@@ -342,13 +171,13 @@ namespace
             value += velocity * dt;
         }
 
-        void update(const Sea &sea, double t, double dt)
+        void update(const sl::Ocean &sea, double t, double dt)
         {
             heading += 0.012 * dt;
             position += forward() * 8.0 * dt;
             const glm::dvec3 f = forward(), r = right();
             const auto height = [&](double along, double across)
-            { return sea.at(position.x + f.x * along + r.x * across, position.z + f.z * along + r.z * across, t).y; };
+            { return sea.height_at(position.x + f.x * along + r.x * across, position.z + f.z * along + r.z * across, t); };
             const double bow = height(length * 0.4, 0.0), stern = height(-length * 0.4, 0.0);
             const double port = height(0.0, -beam * 0.5), starboard = height(0.0, beam * 0.5);
             const double centre = height(0.0, 0.0);
@@ -447,19 +276,18 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    SeaMesh sea_mesh;
+    sl::Ocean sea;
     sl::Mesh *cube = sl::create_cube_mesh(1.0f, {255, 255, 255, 255});
     sl::Mesh *puff = sl::create_sphere_mesh(1.0f, 12, 8, {255, 255, 255, 255});
     sl::Mesh *hull = make_hull(static_cast<float>(Ship::length), static_cast<float>(Ship::beam),
                                static_cast<float>(Ship::draft), static_cast<float>(Ship::freeboard));
-    if (!sea_mesh.create() || !cube || !puff || !hull)
+    if (!sea.valid() || !cube || !puff || !hull)
     {
         std::fprintf(stderr, "Failed to create meshes: %s\n", sl::last_error().c_str());
         sl::shutdown();
         return -1;
     }
 
-    Sea sea;
     Ship ship;
     std::vector<Smoke> smoke;
     SeaSound sound;
@@ -505,9 +333,9 @@ int main(int argc, char **argv)
         }
 
         if (sl::key_down(sl::Key::arrow_up))
-            sea.state = std::min(2.2, sea.state + 0.5 * frame);
+            sea.set_sea_state(std::min(2.2, sea.sea_state() + 0.5 * frame));
         if (sl::key_down(sl::Key::arrow_down))
-            sea.state = std::max(0.1, sea.state - 0.5 * frame);
+            sea.set_sea_state(std::max(0.1, sea.sea_state() - 0.5 * frame));
         if (sl::key_down(sl::Key::arrow_right))
             coverage = std::min(1.0f, coverage + 0.3f * static_cast<float>(frame));
         if (sl::key_down(sl::Key::arrow_left))
@@ -563,11 +391,10 @@ int main(int argc, char **argv)
                                  glm::vec3(std::cos(cam_pitch) * std::sin(angle), std::sin(cam_pitch), std::cos(cam_pitch) * std::cos(angle));
         const sl::dvec3 focus = ship_pos + sl::dvec3(0.0, 4.0, 0.0);
         sl::dvec3 eye = focus + sl::dvec3(offset);
-        eye.y = std::max(eye.y, sea.at(eye.x, eye.z, clock).y + 2.0 + 0.012 * cam_distance);
+        eye.y = std::max(eye.y, sea.height_at(eye.x, eye.z, clock) + 2.0 + 0.012 * cam_distance);
         const glm::vec3 look = glm::vec3(focus - eye);
 
-        sea_mesh.update(sea, ship.position.x + 0.35 * (eye.x - ship.position.x), ship.position.z + 0.35 * (eye.z - ship.position.z),
-                        eye, clock);
+        sea.update(ship.position.x + 0.35 * (eye.x - ship.position.x), ship.position.z + 0.35 * (eye.z - ship.position.z), eye, clock);
 
         sl::Camera camera;
         camera.position = glm::vec3(0.0f);
@@ -609,12 +436,7 @@ int main(int argc, char **argv)
             light.ambient = 0.28f;
             sl::set_light_3d(light);
 
-            sl::Material water;
-            water.pbr = true;
-            water.metallic = 0.0f;
-            water.roughness = 0.14f;
-            water.cull = sl::CullMode::none;
-            sl::draw_mesh(sea_mesh.mesh, glm::mat4(1.0f), water);
+            sea.draw();
 
             const glm::vec3 ship_rel = glm::vec3(ship_pos - eye);
             const glm::mat4 base = glm::translate(glm::mat4(1.0f), ship_rel) * glm::mat4(ship_rot);
@@ -687,13 +509,10 @@ int main(int argc, char **argv)
         sl::clear_to_colour(sl::screen, {120, 160, 200});
         sl::draw_sprite(sl::surface_3d_bitmap(surface), 0, 0);
 
-        sound.set(sea.state * 0.8, sound_on);
+        sound.set(sea.sea_state() * 0.8, sound_on);
 
-        double wave_height = 0.0;
-        for (int i = 0; i < 2; ++i)
-            wave_height += 2.0 * sea.amplitude(Wave{i ? 78.0 : 140.0, i ? 0.10 : 0.11, 0, 0, 0, 2.0 * pi / (i ? 78.0 : 140.0), 0});
         sl::gprintf(16, 12, {255, 255, 255}, "exocean - ocean, clouds and a dreadnought%s", paused ? "   (paused)" : "");
-        sl::gprintf(16, 34, {200, 225, 255}, "Sea state %.1f   Swell about %.1f m crest to trough", sea.state, wave_height);
+        sl::gprintf(16, 34, {200, 225, 255}, "Sea state %.1f   Swell about %.1f m crest to trough", sea.sea_state(), sea.swell_height());
         sl::gprintf(16, 52, {200, 225, 255}, "Ship heave %+.1f m   Pitch %+.1f deg   Roll %+.1f deg", ship.heave, glm::degrees(ship.pitch),
                     glm::degrees(ship.roll));
         sl::gprintf(16, 70, {200, 225, 255}, "Sun %.0f deg   Cloud cover %.0f%%", sun_elevation, coverage * 100.0f);
@@ -705,7 +524,6 @@ int main(int argc, char **argv)
     }
 
     sound.stop();
-    sea_mesh.destroy();
     for (sl::Mesh *m : {cube, puff, hull})
         sl::destroy_mesh(m);
     sl::destroy_surface_3d(surface);

@@ -28,7 +28,7 @@ namespace sl::detail
         // Mesh environment block: [0] light colour, fog, pbr, emissive, camera vectors (9 vec4s), then the eye position
         // (w = local light count), the shadow parameters and matrix, and three vec4s per local light. Returns the number of bytes in use.
         constexpr std::size_t mesh_environment_floats = 60 + local_light_vec4s * 4;
-        constexpr std::size_t terrain_environment_floats = 108 + local_light_vec4s * 4;
+        constexpr std::size_t terrain_environment_floats = 112 + local_light_vec4s * 4;
         std::size_t fill_mesh_environment(float *environment, const MeshDrawParams &params)
         {
             std::memcpy(environment, params.light_colour, sizeof(float) * 4);
@@ -742,15 +742,16 @@ namespace sl::detail
                     environment[87] = static_cast<float>(lights);
                     std::memcpy(environment + 88, params.shadow, sizeof(float) * 4);
                     std::memcpy(environment + 92, params.shadow_matrix, sizeof(float) * 16);
-                    std::memcpy(environment + 108, params.local_lights, sizeof(float) * 16 * lights);
-                    std::size_t environment_bytes = sizeof(float) * (108 + 16 * lights);
+                    std::memcpy(environment + 108, params.pbr, sizeof(float) * 4);
+                    std::memcpy(environment + 112, params.local_lights, sizeof(float) * 16 * lights);
+                    std::size_t environment_bytes = sizeof(float) * (112 + 16 * lights);
                     if (params.shadow[3] >= 0.5f)
                     {
                         const std::size_t matrices =
                             static_cast<std::size_t>(std::clamp(params.shadow[3], 0.0f, float(local_shadow_slots))) * 24;
-                        std::memcpy(environment + 108 + local_shadow_matrix_base * 4,
+                        std::memcpy(environment + 112 + local_shadow_matrix_base * 4,
                                     params.local_lights[local_shadow_matrix_base], sizeof(float) * 4 * matrices);
-                        environment_bytes = sizeof(float) * (108 + (local_shadow_matrix_base + matrices) * 4);
+                        environment_bytes = sizeof(float) * (112 + (local_shadow_matrix_base + matrices) * 4);
                     }
                     VkDescriptorSet shadow_descriptor = VK_NULL_HANDLE;
                     VkDescriptorSet local_shadow_descriptor = VK_NULL_HANDLE;

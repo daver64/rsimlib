@@ -44,7 +44,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exnormalmap](img/exnormalmap.png)<br>**exnormalmap**](exnormalmap.md) | 2D normal mapping: sprites lit by a mouse-driven light using per-sprite normal maps, with a toggle to compare against flat lighting. |
 | [![exnormalmap3d](img/exnormalmap3d.png)<br>**exnormalmap3d**](exnormalmap3d.md) | 3D normal mapping: a cube and sphere with a procedural normal-mapped material under a 3D light, with a toggle to compare. |
 | [![exlights3d](img/exlights3d.png)<br>**exlights3d**](exlights3d.md) | Up to 16 point and spot lights plus soft sun and light shadows in a moonlit courtyard. |
-| [![exprops](img/exprops.png)<br>**exprops**](exprops.md) | A gallery of 22 low-poly scenery parts (houses, towers, vehicles, trees and more) with focus, zoom and day/night. |
+| [![exprops](img/exprops.png)<br>**exprops**](exprops.md) | A gallery of 43 low-poly parts (houses, towers, vehicles, trees, Apollo-era rockets, satellites and a Skylab) with focus, zoom and day/night. |
 | [![extown](img/extown.png)<br>**extown**](extown.md) | A town and airfield built from props, with sun shadows and lamp lights at night. |
 | [![excontrols](img/excontrols.png)<br>**excontrols**](excontrols.md) | 2D cockpit and factory control panels: dials, knobs, switches, LED meters and glowing lamps. |
 | [![excockpit](img/excockpit.png)<br>**excockpit**](excockpit.md) | 3D cockpit and control cabinet with mouse picking and emissive LEDs. |
@@ -62,7 +62,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exshader](img/exshader.png)<br>**exshader**](exshader.md) | Loads a GLSL vertex and fragment shader from files and uses it to tint a sprite. |
 | [![exspriteeditor](img/exspriteeditor.png)<br>**exspriteeditor**](exspriteeditor.md) | A pixel sprite and animation editor with a resizable canvas, undo, zoom, frames and PNG spritesheet save and load. |
 | [![exsynth](img/exsynth.png)<br>**exsynth**](exsynth.md) | Procedural audio: generates laser, explosion, coin and tone samples from oscillator parameters at startup. |
-| [![exterrain](img/exterrain.png)<br>**exterrain**](exterrain.md) | A fly-over procedural terrain with normals, atmosphere, clouds, volumetrics, and instanced trees and rocks. |
+| [![exterrain](img/exterrain.png)<br>**exterrain**](exterrain.md) | A fly-over procedural terrain with normals, atmosphere, clouds, volumetrics, instanced trees and rocks, and a Gerstner-wave sea with a shoreline. |
 | [![extilemap](img/extilemap.png)<br>**extilemap**](extilemap.md) | Tile map rendering: a map built in code, or a Tiled `.tmj` map loaded from a path, scrolled with the arrow keys with tile collision. |
 | [![exxeno](img/exxeno.png)<br>**exxeno**](exxeno.md) | Lit top-down shooter with synthesised sound and music: a marine with a flashlight shoots xenomorphs; kills leave acid splats stamped with tile-map decals. |
 | [![extriangle](img/extriangle.png)<br>**extriangle**](extriangle.md) | Immediate-mode 2D primitives: outlined and filled triangles drawn over a loaded bitmap. |

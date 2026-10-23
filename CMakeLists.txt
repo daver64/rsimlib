@@ -377,6 +377,7 @@ add_library(simlib STATIC
     src/engine/controls.cpp
     src/engine/clutter_layer.cpp
     src/engine/terrain.cpp
+    src/engine/ocean.cpp
     src/engine/terrain_sources.cpp
     src/engine/renderer.cpp
     src/engine/animated_sprite.cpp
@@ -769,7 +770,10 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/exreel/exreel.cpp)
         src/examples/exreel/scenes_2d.cpp
         src/examples/exreel/scenes_3d.cpp
         src/examples/exreel/scenes_fx.cpp
-        src/examples/exreel/scenes_sim.cpp)
+        src/examples/exreel/scenes_sim.cpp
+        src/examples/exreel/scenes_new2d.cpp
+        src/examples/exreel/scenes_new3d.cpp
+        src/examples/exreel/scenes_sea.cpp)
     target_link_libraries(exreel PRIVATE simlib)
 endif()
 if(SIMLIB_GUI STREQUAL "imgui")

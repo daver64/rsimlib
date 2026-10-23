@@ -5,7 +5,7 @@ An ocean of rolling waves under volumetric clouds, with an early 20th century dr
 ![exocean screenshot](img/exocean.png)
 
 ## What it shows
-- A Gerstner-wave sea: six wave trains of different wavelength and direction, with sharp crests, analytic normals and foam where the surface pinches
+- A Gerstner-wave sea (the shared `sl::Ocean` class, also used by `exterrain` for shorelines): six wave trains of different wavelength and direction, with sharp crests, analytic normals and foam where the surface pinches
 - A polar grid mesh that follows the ship, dense close in and sparse towards the horizon, updated every frame with `update_mesh_vertices`; short waves fade out with distance so they never alias
 - A glossy PBR water material that picks up sun glitter, with `Environment3D` planet atmosphere, fog and sunsets
 - A ray-marched cumulus layer under a cirrus layer, with adjustable cover
@@ -45,6 +45,7 @@ sl::draw_mesh(sea_mesh.mesh, glm::mat4(1.0f), water);
 - P: pause, M: sound, Esc: exit
 
 ## Key APIs
+- `sl::Ocean` (`set_sea_state`, `update`, `draw`, `height_at`, `swell_height`)
 - `sl::create_mesh`, `sl::update_mesh_vertices`, `sl::draw_mesh`
 - `sl::Environment3D`, `sl::cloud_layer`, `sl::draw_sky_3d`, `sl::atmosphere_sun_colour`
 - `sl::Material` (`pbr`, `roughness`, `cull`, `blend`)

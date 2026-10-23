@@ -53,7 +53,7 @@ Then try:
 
 ## Terrain, Flight, and Space
 
-For spherical terrain and a larger set of rendering controls, try [`exterrain`](../src/examples/exterrain/exterrain.cpp) with its `planet` argument. See the [terrain](terrain.md) and [world flavour](world_flavour.md) guides for feature details.
+Flat terrain also carries an `sl::Ocean` sea with shoaling waves and shoreline foam (`O` key). For spherical terrain and a larger set of rendering controls, try [`exterrain`](../src/examples/exterrain/exterrain.cpp) with its `planet` argument. See the [terrain](terrain.md) and [world flavour](world_flavour.md) guides for feature details.
 
 Continue with [`exflight`](../src/examples/exflight/exflight.cpp) for aircraft lift, stalls, control surfaces, and landing gear, then [`exorbit`](../src/examples/exorbit/exorbit.cpp) for spacecraft, RCS, orbital prediction, and time warp. Shared APIs and conventions are documented in [Flight & Orbital Dynamics](flight.md).
 

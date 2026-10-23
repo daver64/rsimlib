@@ -78,6 +78,51 @@ namespace sl
     /** A parked twin-engine airliner on its gear, with a window row, swept wings and a tail. */
     MeshData make_aeroplane_data(float wingspan = 12.0f, Colour body = {232, 234, 238, 255}, Colour stripe = {40, 90, 170, 255});
 
+    // Rockets and spacecraft (Apollo era). Rocket and station parts are bodies of revolution about the Y axis, so they
+    // stack: each starts on y = 0 and ends at y = its length, and radii match when you give two parts the same radius.
+    // Place them with transform_mesh_data(), Builder-style translations or model matrices, and bake or draw as usual.
+    // Dimensions default to real Saturn V / Skylab sizes in metres. Umbilical conduits and doors face +Z.
+
+    /** One cylindrical stage (or a short ring such as an instrument unit): accent bands at both ends, tank rings and a +Z umbilical conduit. */
+    MeshData make_rocket_stage_data(float radius = 5.05f, float length = 20.0f, Colour body = {236, 236, 230, 255},
+                                    Colour accent = {28, 28, 32, 255}, std::uint32_t seed = 1);
+    /** An engine cluster hung under a stage of `stage_radius`: 1, 4 or 5 bells (4 and 5 sit on a ring, 5 adds one in the middle). Bell exits are on y = 0, the thrust frame is the top at y = length. */
+    MeshData make_rocket_engines_data(float stage_radius = 5.05f, int engines = 5, float length = 5.9f);
+    /** A conical interstage or adapter from `bottom_radius` on y = 0 to `top_radius` on y = length. */
+    MeshData make_rocket_adapter_data(float bottom_radius = 5.05f, float top_radius = 3.3f, float length = 3.3f,
+                                      Colour body = {236, 236, 230, 255}, Colour accent = {28, 28, 32, 255});
+    /** `count` swept tail fins around a stage; the root runs from y = 0 to `chord` against a stage of `radius`. The first fin is 45 degrees off +Z. */
+    MeshData make_rocket_fins_data(float radius = 5.05f, float span = 3.2f, float chord = 7.0f, int count = 4, Colour colour = {236, 236, 230, 255});
+    /** An ogive payload fairing: a short cylinder and a rounded nose, closed at both ends. */
+    MeshData make_payload_fairing_data(float radius = 2.0f, float length = 9.0f, Colour body = {236, 236, 230, 255}, Colour accent = {28, 28, 32, 255});
+    /** An Apollo launch escape tower: a four-legged truss under a solid motor and nose with a probe. */
+    MeshData make_launch_escape_tower_data(float height = 10.0f, Colour motor = {226, 226, 220, 255});
+    /** An Apollo command and service module: engine bell, service module with radiator panels and RCS quads, a conical command module with windows and a docking probe. About 7 radii tall; the bell exit is on y = 0. */
+    MeshData make_apollo_csm_data(float radius = 1.95f, Colour hull = {220, 220, 212, 255});
+    /** A Saturn V on the pad: S-IC with five F-1s and fins, S-II, S-IVB, instrument unit, adapter, boost cover and escape tower, about 115 m tall. */
+    MeshData make_saturn_v_data(float scale = 1.0f);
+    /** A launch umbilical tower: a braced four-legged lattice `height` tall with swing arms reaching toward +X and a crane on top. */
+    MeshData make_launch_tower_data(float height = 120.0f, float width = 8.0f, float arm_length = 14.0f, Colour colour = {196, 70, 52, 255});
+    /** A launch pad: a concrete slab with a flame trench opening in the middle and four lightning masts. Top of the slab is at y = 1.5. */
+    MeshData make_launch_pad_data(float size = 60.0f);
+
+    /** A cylindrical space-station module (Skylab workshop style): ribbed hull, windows on +Z and a docking port at the top. Axis along Y. */
+    MeshData make_station_module_data(float radius = 3.3f, float length = 14.6f, Colour hull = {236, 236, 230, 255}, std::uint32_t seed = 1);
+    /** A multiple docking adapter: a short module with an axial port on top and a radial port on +Z. */
+    MeshData make_docking_adapter_data(float radius = 1.5f, float length = 5.2f, Colour hull = {200, 200, 196, 255});
+    /** A solar array wing: hinged on x = 0, it spreads along +X for `length` metres, `width` wide along Y (centred on y = 0), `panels` hinged panels, cells on both faces. */
+    MeshData make_solar_array_data(float length = 10.0f, float width = 3.0f, int panels = 4, Colour cell = {30, 48, 118, 255});
+    /** Four solar wings in a cross around a hub on the origin, in the XY plane facing +Z (an Apollo Telescope Mount style windmill). */
+    MeshData make_solar_windmill_data(float blade_length = 7.0f, float blade_width = 3.0f);
+    /** A dish on a mast: the mast stands on y = 0 and the dish faces +Z, tilted 20 degrees up. */
+    MeshData make_antenna_dish_data(float radius = 1.0f);
+    /** A satellite body wrapped in gold foil with an instrument tube on +Z, thrusters, a whip antenna and a launch adapter ring at the bottom. About `size` wide. */
+    MeshData make_satellite_bus_data(float size = 1.5f, Colour foil = {200, 164, 72, 255}, std::uint32_t seed = 1);
+    /** A complete satellite: the bus, two solar wings along X and a dish on top. */
+    MeshData make_satellite_data(float size = 1.5f, std::uint32_t seed = 1);
+    /** Skylab, standing upright: workshop, airlock shroud and module, docking adapter, two large wings and an Apollo Telescope Mount windmill. About 38 m tall. */
+    MeshData make_skylab_data(float scale = 1.0f);
+
     // Control parts: the pieces of panels, cockpits and cabinets (see controls.h for the interactive layer).
     // Panel parts face +Z with the face of the panel on z = 0, are centred on x and y and are sized in metres.
     // Static parts (panels, dial faces, bases) are baked once; moving parts (needles, knobs, levers, caps) are
