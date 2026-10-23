@@ -57,6 +57,54 @@ namespace sl
             return vertex;
         }
 
+        void add_flat_triangle(MeshData &data, const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2, Colour colour)
+        {
+            const glm::vec3 cross = glm::cross(p1 - p0, p2 - p0);
+            const glm::vec3 normal = glm::length(cross) > 1e-9f ? glm::normalize(cross) : glm::vec3{0.0f, 1.0f, 0.0f};
+            const auto base = static_cast<std::uint32_t>(data.vertices.size());
+            data.vertices.push_back(make_vertex(p0, normal, colour));
+            data.vertices.push_back(make_vertex(p1, normal, colour));
+            data.vertices.push_back(make_vertex(p2, normal, colour));
+            data.indices.insert(data.indices.end(), {base, base + 1, base + 2});
+        }
+
+        /** A cone with a smooth side and no base, apex up. */
+        void add_cone(MeshData &data, float y0, float height, float radius, int sides, Colour colour)
+        {
+            const float slope = radius / std::max(height, 1e-4f);
+            for (int side = 0; side < sides; ++side)
+            {
+                const float a0 = 2.0f * pi * static_cast<float>(side) / static_cast<float>(sides);
+                const float a1 = 2.0f * pi * static_cast<float>(side + 1) / static_cast<float>(sides);
+                const float am = 0.5f * (a0 + a1);
+                const auto normal = [&](float angle)
+                { return glm::normalize(glm::vec3{std::sin(angle), slope, std::cos(angle)}); };
+                const auto base = static_cast<std::uint32_t>(data.vertices.size());
+                data.vertices.push_back(make_vertex({std::sin(a0) * radius, y0, std::cos(a0) * radius}, normal(a0), colour));
+                data.vertices.push_back(make_vertex({std::sin(a1) * radius, y0, std::cos(a1) * radius}, normal(a1), colour));
+                data.vertices.push_back(make_vertex({0.0f, y0 + height, 0.0f}, normal(am), colour));
+                // Counter-clockwise seen from outside.
+                data.indices.insert(data.indices.end(), {base, base + 1, base + 2});
+            }
+        }
+
+        void add_cylinder(MeshData &data, float y0, float y1, float radius, int sides, Colour colour)
+        {
+            for (int side = 0; side < sides; ++side)
+            {
+                const float a0 = 2.0f * pi * static_cast<float>(side) / static_cast<float>(sides);
+                const float a1 = 2.0f * pi * static_cast<float>(side + 1) / static_cast<float>(sides);
+                const glm::vec3 n0{std::sin(a0), 0.0f, std::cos(a0)};
+                const glm::vec3 n1{std::sin(a1), 0.0f, std::cos(a1)};
+                const auto base = static_cast<std::uint32_t>(data.vertices.size());
+                data.vertices.push_back(make_vertex(n0 * radius + glm::vec3{0.0f, y0, 0.0f}, n0, colour));
+                data.vertices.push_back(make_vertex(n1 * radius + glm::vec3{0.0f, y0, 0.0f}, n1, colour));
+                data.vertices.push_back(make_vertex(n1 * radius + glm::vec3{0.0f, y1, 0.0f}, n1, colour));
+                data.vertices.push_back(make_vertex(n0 * radius + glm::vec3{0.0f, y1, 0.0f}, n0, colour));
+                data.indices.insert(data.indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
+            }
+        }
+
         V centroid(const Ring &ring)
         {
             V sum{0.0f};
@@ -675,6 +723,52 @@ namespace sl
                       shade(foliage, 0.92f), 0.1f);
         }
         return b.data;
+    }
+
+    MeshData make_conifer_data(float height, float radius, Colour trunk, Colour foliage, int sides)
+    {
+        sides = std::max(sides, 3);
+        MeshData data;
+        add_cylinder(data, 0.0f, height * 0.3f, radius * 0.18f, std::min(sides, 6), trunk);
+        add_cone(data, height * 0.18f, height * 0.5f, radius, sides, shade(foliage, 0.85f));
+        add_cone(data, height * 0.45f, height * 0.55f, radius * 0.7f, sides, foliage);
+        return data;
+    }
+
+    MeshData make_rock_data(float radius, Colour colour, std::uint32_t seed)
+    {
+        constexpr int segments = 7;
+        constexpr int rings = 4;
+        // A displaced, flattened half-sphere of flat-shaded facets.
+        std::vector<glm::vec3> points;
+        for (int ring = 0; ring <= rings; ++ring)
+        {
+            const float elevation = 0.5f * pi * static_cast<float>(ring) / static_cast<float>(rings);
+            for (int segment = 0; segment < segments; ++segment)
+            {
+                const float angle = 2.0f * pi * static_cast<float>(segment) / static_cast<float>(segments);
+                const float jitter = 0.78f + 0.44f * hash01(seed * 131u + static_cast<std::uint32_t>(ring * 17 + segment));
+                const float r = radius * jitter;
+                points.push_back({std::cos(elevation) * std::sin(angle) * r, std::sin(elevation) * r * 0.7f,
+                                  std::cos(elevation) * std::cos(angle) * r});
+            }
+        }
+        MeshData data;
+        for (int ring = 0; ring < rings; ++ring)
+        {
+            for (int segment = 0; segment < segments; ++segment)
+            {
+                const int next = (segment + 1) % segments;
+                const glm::vec3 &p00 = points[static_cast<std::size_t>(ring * segments + segment)];
+                const glm::vec3 &p01 = points[static_cast<std::size_t>(ring * segments + next)];
+                const glm::vec3 &p10 = points[static_cast<std::size_t>((ring + 1) * segments + segment)];
+                const glm::vec3 &p11 = points[static_cast<std::size_t>((ring + 1) * segments + next)];
+                const Colour facet = shade(colour, 0.85f + 0.3f * hash01(seed + static_cast<std::uint32_t>(ring * 31 + segment)));
+                add_flat_triangle(data, p00, p01, p11, facet);
+                add_flat_triangle(data, p00, p11, p10, facet);
+            }
+        }
+        return data;
     }
 
     MeshData make_bush_data(float radius, Colour colour, std::uint32_t seed)

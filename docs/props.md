@@ -1,6 +1,6 @@
 # Props catalogue
 
-Every part in [`props3d.h`](../include/props3d.h) (plus the conifer and rock in [`clutter.h`](../include/clutter.h)), with its signature, size and how to put it in a scene. All parts are generated in code, so there are no asset files. See `exprops` for a lit gallery of all of them, and the lesson [Building a scene from parts](tutorial/3d-06-building-a-scene-from-parts.md).
+Every part in [`props3d.h`](../include/props3d.h) (including the conifer and rock, which used to live in `clutter.h`), with its signature, size and how to put it in a scene. All parts are generated in code, so there are no asset files. See `exprops` for a lit gallery of all of them, and the lesson [Building a scene from parts](tutorial/3d-06-building-a-scene-from-parts.md).
 
 ## Instantiating a prop
 
@@ -91,8 +91,8 @@ Each entry lists the arguments in order with their defaults.
 | `make_tree_data` | `height 6, radius 2, trunk {104,74,48}, foliage {64,134,58}, seed 1` | Broadleaf: short trunk and lumpy canopy. |
 | `make_bush_data` | `radius 0.8, colour {58,118,52}, seed 1` | |
 | `make_rock_cluster_data` | `radius 1.5, colour {120,118,112}, seed 1` | Three to five boulders. |
-| `make_conifer_data` (clutter.h) | `height 8, radius 2, trunk {96,64,40}, foliage {40,110,50}, sides 8` | Trunk and two foliage cones. |
-| `make_rock_data` (clutter.h) | `radius 1, colour {120,118,112}, seed 1` | One faceted boulder. |
+| `make_conifer_data` | `height 8, radius 2, trunk {96,64,40}, foliage {40,110,50}, sides 8` | Trunk and two foliage cones. |
+| `make_rock_data` | `radius 1, colour {120,118,112}, seed 1` | One faceted boulder. |
 
 ## Vehicles
 

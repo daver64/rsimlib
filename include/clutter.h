@@ -22,11 +22,6 @@ namespace sl
 
     /** Append `part` to `into`, offsetting its indices. */
     void append_mesh_data(MeshData &into, const MeshData &part);
-    /** A low-poly conifer standing on y = 0: a trunk and two stacked foliage cones. Vertex colours carry the shades. */
-    MeshData make_conifer_data(float height = 8.0f, float radius = 2.0f, Colour trunk = {96, 64, 40, 255},
-                               Colour foliage = {40, 110, 50, 255}, int sides = 8);
-    /** A faceted boulder of roughly the given radius, sitting on y = 0; `seed` varies the shape. */
-    MeshData make_rock_data(float radius = 1.0f, Colour colour = {120, 118, 112, 255}, std::uint32_t seed = 1);
 
     /**
      * One placed copy of an object. Objects stand on their local up axis, so on a planet pass the surface normal.
@@ -87,7 +82,7 @@ namespace sl
     /** One kind of object scattered over terrain by a ClutterLayer, with the rules that decide where it grows. */
     struct ClutterSpecies
     {
-        /** Geometry of one object standing on y = 0 (see make_conifer_data()). */
+        /** Geometry of one object standing on y = 0 (for example from make_conifer_data() in props3d.h). */
         MeshData mesh;
         Material material;
         /** Draw a cheap billboard instead of the mesh beyond near_distance. Without it nothing is drawn there. */

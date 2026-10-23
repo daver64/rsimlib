@@ -62,7 +62,12 @@ namespace sl
     /** A vertical storage tank with a domed top, ladder and pipe. */
     MeshData make_tank_data(float radius = 3.0f, float height = 6.0f, Colour colour = {196, 198, 200, 255});
 
-    // Nature. Rocks already exist as make_rock_data() and conifers as make_conifer_data().
+    // Nature.
+    /** A low-poly conifer standing on y = 0: a trunk and two stacked foliage cones. Vertex colours carry the shades. */
+    MeshData make_conifer_data(float height = 8.0f, float radius = 2.0f, Colour trunk = {96, 64, 40, 255},
+                               Colour foliage = {40, 110, 50, 255}, int sides = 8);
+    /** A faceted boulder of roughly the given radius, sitting on y = 0; `seed` varies the shape. */
+    MeshData make_rock_data(float radius = 1.0f, Colour colour = {120, 118, 112, 255}, std::uint32_t seed = 1);
     /** A broadleaf tree: a short trunk and a canopy of lumpy blobs. */
     MeshData make_tree_data(float height = 6.0f, float radius = 2.0f, Colour trunk = {104, 74, 48, 255}, Colour foliage = {64, 134, 58, 255},
                             std::uint32_t seed = 1);

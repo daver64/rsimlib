@@ -6,6 +6,7 @@
 
 #include "atmosphere.h"
 #include "clutter.h"
+#include "props3d.h"
 #include "draw.h"
 #include "fluid.h"
 #include "fluid3d.h"

@@ -31,7 +31,7 @@ light.colour = sl::atmosphere_sun_colour(env);   // reddens toward the horizon
 
 ## Clutter
 
-`bake_instances`, `bake_impostor` and `bake_billboards` build trees, rocks and the like into a few draw calls (`bake_instances` merges groups on the CPU; for instances that move or change, use `draw_mesh_instanced()` instead). `make_conifer_data` and `make_rock_data` give procedural starting shapes. `Material::alpha_cutoff` gives hard-edged cut-outs without sorting.
+`bake_instances`, `bake_impostor` and `bake_billboards` build trees, rocks and the like into a few draw calls (`bake_instances` merges groups on the CPU; for instances that move or change, use `draw_mesh_instanced()` instead). `make_conifer_data` and `make_rock_data` (from `props3d.h`) give procedural starting shapes. `Material::alpha_cutoff` gives hard-edged cut-outs without sorting.
 
 ### Scattering over terrain: `ClutterLayer`
 
