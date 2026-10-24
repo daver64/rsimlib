@@ -836,6 +836,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos/kosmos.cpp)
         src/examples/kosmos/scenario.cpp
         src/examples/kosmos/sim.cpp
         src/examples/kosmos/lua_console.cpp
+        src/examples/kosmos/menu.cpp
         src/examples/kosmos/TextEditor.cpp)
     target_link_libraries(kosmos PRIVATE imgui)
     target_link_libraries(kosmos PRIVATE simlib lua sol2)
