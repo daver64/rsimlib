@@ -5,6 +5,7 @@
 #include "graphics_fx_internal.h"
 
 #include "display.h"
+#include "error.h"
 #include "draw.h"
 #include "gl2d.h"
 #include "renderer.h"
@@ -130,9 +131,14 @@ namespace sl
 		{
 			return true;
 		}
-		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting") ||
-			!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
+		if (!shader_.load(load_glsl_shader("fullscreen.vert"), load_glsl_shader("lighting.frag"), "lighting"))
 		{
+			detail::set_error("Lighting shader: " + shader_.error());
+			return false;
+		}
+		if (!cullShader_.load_compute(load_glsl_shader("light_cull.comp"), "light-cull"))
+		{
+			detail::set_error("Light-culling compute shader: " + cullShader_.error());
 			return false;
 		}
 		if (!detail::active_renderer()->create_storage_buffer(sizeof(GpuLight), lightBuffer_) ||

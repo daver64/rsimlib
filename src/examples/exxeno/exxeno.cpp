@@ -374,9 +374,14 @@ namespace
 int main(int argc, char *argv[])
 {
     sl::set_text_panel_style({true});
-    if (!sl::configure_graphics_backend_from_args(argc, argv) ||
-        !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, screen_w, screen_h))
+    if (!sl::configure_graphics_backend_from_args(argc, argv))
         return -1;
+    if (!sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, screen_w, screen_h))
+    {
+        std::fprintf(stderr, "exxeno: graphics initialisation failed (%s): %s\n", sl::graphics_backend_name().c_str(),
+                     sl::last_error().c_str());
+        return -1;
+    }
 
     Audio audio;
     init_audio(audio);
@@ -389,7 +394,7 @@ int main(int argc, char *argv[])
     sl::TileMap *map = atlas_bitmap && splat_sheet ? make_arena(atlas_bitmap, splat_sheet, casters, splat_first_gid) : nullptr;
     if (!map || !scene || !lighting.initialise())
     {
-        std::fprintf(stderr, "exxeno: setup failed\n");
+        std::fprintf(stderr, "exxeno: setup failed (%s): %s\n", sl::graphics_backend_name().c_str(), sl::last_error().c_str());
         shutdown_audio(audio);
         sl::destroy_tilemap(map);
         sl::destroy_bitmap(scene);
