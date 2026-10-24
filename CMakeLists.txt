@@ -826,10 +826,18 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos/kosmos.cpp)
     add_executable(kosmos
         src/examples/kosmos/kosmos.cpp
         src/examples/kosmos/universe.cpp
+        src/examples/kosmos/base.cpp
         src/examples/kosmos/galaxy.cpp
         src/examples/kosmos/ship.cpp
         src/examples/kosmos/mfd.cpp
-        src/examples/kosmos/sim.cpp)
+        src/examples/kosmos/nav.cpp
+        src/examples/kosmos/planet_data.cpp
+        src/examples/kosmos/vsop87.cpp
+        src/examples/kosmos/scenario.cpp
+        src/examples/kosmos/sim.cpp
+        src/examples/kosmos/lua_console.cpp
+        src/examples/kosmos/TextEditor.cpp)
+    target_link_libraries(kosmos PRIVATE imgui)
     target_link_libraries(kosmos PRIVATE simlib lua sol2)
     target_include_directories(kosmos PRIVATE src/examples/common src/examples/kosmos)
     target_compile_definitions(kosmos PRIVATE KOSMOS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos")
@@ -1163,6 +1171,13 @@ endif()
 include(cmake/SimlibPackage.cmake)
 
 simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
+
+# kosmos_package: the game plus its data and addons. data/orbiter (imported third-party tiles) is left out.
+if(TARGET kosmos)
+    simlib_add_package(TARGET kosmos NAME kosmos-beta-${CMAKE_SYSTEM_NAME}
+        ASSETS src/examples/kosmos/data src/examples/kosmos/addons assets
+        EXCLUDE "/data/orbiter(/|$)" "/assets/(models|music|scripts|sfx|textures)(/|$)")
+endif()
 
 # simlib-demos-<system>.zip: every ex* example with the shared libraries, shaders and assets they need.
 get_directory_property(_simlib_all_targets BUILDSYSTEM_TARGETS)

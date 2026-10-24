@@ -30,6 +30,11 @@ namespace sl
         return height(longitude * radius, latitude * radius);
     }
 
+    double TerrainSource::height_on_sphere_lod(const dvec3 &direction, double radius, double) const
+    {
+        return height_on_sphere(direction, radius);
+    }
+
     bool TerrainSource::take_dirty_region(double &, double &, double &, double &)
     {
         return false;

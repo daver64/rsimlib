@@ -48,8 +48,11 @@ endforeach()
 
 foreach(_asset IN LISTS ASSETS)
     if(IS_DIRECTORY "${_asset}")
-        get_filename_component(_n "${_asset}" NAME)
-        file(COPY "${_asset}" DESTINATION "${STAGE}")
+        set(_filters "")
+        foreach(_re IN LISTS EXCLUDE)
+            list(APPEND _filters REGEX "${_re}" EXCLUDE)
+        endforeach()
+        file(COPY "${_asset}" DESTINATION "${STAGE}" ${_filters})
     elseif(EXISTS "${_asset}")
         file(COPY "${_asset}" DESTINATION "${STAGE}")
     else()
@@ -65,8 +68,13 @@ endforeach()
 
 get_filename_component(_parent "${STAGE}" DIRECTORY)
 get_filename_component(_folder "${STAGE}" NAME)
+if(FORMAT STREQUAL "zip")
+    set(_tar_args cf "${ZIP}" --format=zip)
+else()
+    set(_tar_args czf "${ZIP}")
+endif()
 execute_process(
-    COMMAND ${CMAKE_COMMAND} -E tar cf "${ZIP}" --format=zip "${_folder}"
+    COMMAND ${CMAKE_COMMAND} -E tar ${_tar_args} "${_folder}"
     WORKING_DIRECTORY "${_parent}"
     RESULT_VARIABLE _rc)
 if(NOT _rc EQUAL 0)

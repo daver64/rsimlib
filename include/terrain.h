@@ -44,6 +44,11 @@ namespace sl
          * direction to longitude and latitude (metres along the equator and meridian) and calls height().
          */
         virtual double height_on_sphere(const dvec3 &direction, double radius) const;
+        /**
+         * Like height_on_sphere() for a chunk whose grid spacing is cell_size metres, so a source backed by detailed data
+         * can read a coarser level for coarse chunks. The default ignores the spacing.
+         */
+        virtual double height_on_sphere_lod(const dvec3 &direction, double radius, double cell_size) const;
         /** Lowest height this source can return, used to bound chunks before they are built. */
         virtual double min_height() const = 0;
         /** Highest height this source can return. */
@@ -207,6 +212,8 @@ namespace sl
         dvec3 normal{0.0, 1.0, 0.0};
         /** Angle between the normal and straight up, in degrees (0 flat, 90 vertical). */
         double slope_degrees = 0.0;
+        /** Grid spacing in metres of the chunk being built; 0 when unknown. */
+        double cell_size = 0.0;
     };
 
     /** An extra texture for a layer, picked per tile by hashed noise to break up repetition. Same tile size as the layer. */
@@ -316,6 +323,11 @@ namespace sl
          * turns this on by itself while textures are set.
          */
         bool weights_in_vertex_colour = false;
+        /**
+         * Optional per-vertex surface colour (linear 0-1 rgb), such as from satellite imagery. When it returns true the
+         * colour replaces the layer-blended colour of untextured terrain; runs on worker threads, so it must be thread-safe.
+         */
+        std::function<bool(const TerrainSample &sample, float rgb[3])> colour_function;
         /**
          * Store, per vertex, the offset to the parent chunk's surface so the terrain shader can blend a chunk
          * toward its coarser shape as the camera moves away, hiding level-change pops. Costs one extra grid of

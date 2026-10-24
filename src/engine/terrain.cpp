@@ -72,6 +72,7 @@ namespace sl
             int cells;
             double root_size;
             int max_level;
+            double lod_cell = 0.0;
 
             Geometry(const TerrainConfig &c, const TerrainSource &s)
                 : config(c), source(s), sphere(c.shape == TerrainShape::sphere), cells(std::max(c.chunk_cells, 2)),
@@ -104,7 +105,9 @@ namespace sl
 
             double sample(const dvec3 &g) const
             {
-                return sphere ? source.height_on_sphere(g, config.radius) : source.height(g.x, g.z);
+                if (!sphere)
+                    return source.height(g.x, g.z);
+                return lod_cell > 0.0 ? source.height_on_sphere_lod(g, config.radius, lod_cell) : source.height_on_sphere(g, config.radius);
             }
 
             dvec3 position(const dvec3 &g, double h) const
@@ -132,7 +135,7 @@ namespace sl
                 auto point = [&](const dvec3 &d)
                 {
                     const dvec3 direction = glm::normalize(d);
-                    return direction * (config.radius + source.height_on_sphere(direction, config.radius));
+                    return direction * (config.radius + sample(direction));
                 };
                 const dvec3 d1 = point(g + angle * e1) - point(g - angle * e1);
                 const dvec3 d2 = point(g + angle * e2) - point(g - angle * e2);
@@ -230,7 +233,8 @@ namespace sl
 
     TerrainChunkData build_terrain_chunk(const TerrainConfig &config, const TerrainSource &source, const TerrainNodeKey &key)
     {
-        const Geometry geo(config, source);
+        Geometry geo(config, source);
+        geo.lod_cell = geo.cell_size(key.level);
         const int cells = geo.cells;
         const int stride = cells + 1;
         std::vector<TerrainLayer> layers = config.layers;
@@ -302,6 +306,7 @@ namespace sl
                 sample.height = height[index];
                 sample.normal = normal;
                 sample.slope_degrees = std::acos(std::clamp(glm::dot(normal, geo.up(ground[index])), -1.0, 1.0)) * 180.0 / pi;
+                sample.cell_size = cell;
                 float weights[terrain_max_layers];
                 layer_weights(config, layers, sample, weights);
                 float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -325,6 +330,9 @@ namespace sl
                         colour[1] += weights[k] * layers[k].colour.green / 255.0f;
                         colour[2] += weights[k] * layers[k].colour.blue / 255.0f;
                     }
+                    float rgb[3];
+                    if (config.colour_function && config.colour_function(sample, rgb))
+                        colour[0] = rgb[0], colour[1] = rgb[1], colour[2] = rgb[2];
                 }
                 double u, v;
                 uv_of(ground[index], geo.unit(key.level, key.x, i), geo.unit(key.level, key.y, j), u, v);

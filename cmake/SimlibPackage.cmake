@@ -1,4 +1,4 @@
-# simlib_add_package(): builds a redistributable zip of an application.
+# simlib_add_package(): builds a redistributable archive of an application (.zip on Windows, .tar.gz elsewhere).
 #
 #   include(SimlibPackage)   # provided by find_package(simlib)
 #   simlib_add_package(TARGET my_app
@@ -6,11 +6,13 @@
 #       ASSETS assets data/levels.zip  # optional files/directories copied next to the executable
 #       EXTRA_FILES README.txt         # optional files placed in the zip root
 #       EXTRA_TARGETS other_app ...    # optional further executables to put in the same zip
+#       EXCLUDE regex ...              # optional regular expressions; matching files under ASSETS are left out
+#       FORMAT zip|tar.gz              # optional, default zip on Windows and tar.gz elsewhere
 #       PACKAGE_TARGET my_zip)         # optional build target name, default <target>_package
 #
 #   cmake --build build --config Release --target my_app_package
 #
-# The zip holds the executable, the shared libraries it needs at run time (SDL2 DLLs and so on), simlib's
+# The archive holds the executable, the shared libraries it needs at run time (SDL2 DLLs and so on), simlib's
 # shaders (GLSL, HLSL and the compiled Vulkan SPIR-V), the DXC DLLs for Direct3D 12 when they are known, your
 # assets, and the licence files. Unzip it anywhere and run: simlib searches beside the executable for shaders.
 # Set SIMLIB_PACKAGE_DXC_DIR to a directory holding dxcompiler.dll and dxil.dll to bundle them (done
@@ -18,7 +20,7 @@
 # On Linux the system SDL2 libraries are not bundled; the target machine needs them installed.
 
 function(simlib_add_package)
-    cmake_parse_arguments(ARG "" "TARGET;NAME;OUTPUT_DIR;PACKAGE_TARGET" "ASSETS;EXTRA_FILES;EXTRA_TARGETS" ${ARGN})
+    cmake_parse_arguments(ARG "" "TARGET;NAME;OUTPUT_DIR;PACKAGE_TARGET;FORMAT" "ASSETS;EXTRA_FILES;EXTRA_TARGETS;EXCLUDE" ${ARGN})
     if(NOT ARG_TARGET)
         message(FATAL_ERROR "simlib_add_package needs TARGET")
     endif()
@@ -33,7 +35,14 @@ function(simlib_add_package)
     endif()
 
     set(_stage "${ARG_OUTPUT_DIR}/${ARG_NAME}")
-    set(_zip "${ARG_OUTPUT_DIR}/${ARG_NAME}.zip")
+    if(NOT ARG_FORMAT)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+            set(ARG_FORMAT zip)
+        else()
+            set(ARG_FORMAT tar.gz)
+        endif()
+    endif()
+    set(_zip "${ARG_OUTPUT_DIR}/${ARG_NAME}.${ARG_FORMAT}")
 
     set(_assets "")
     foreach(_a IN LISTS ARG_ASSETS)
@@ -68,10 +77,12 @@ function(simlib_add_package)
             "-DDXC_DIR=${_dxc_dir}"
             "-DASSETS=${_assets}"
             "-DEXTRA=${_extra}"
+            "-DEXCLUDE=${ARG_EXCLUDE}"
+            "-DFORMAT=${ARG_FORMAT}"
             -P "${_SIMLIB_PACKAGE_SCRIPT}"
         DEPENDS ${ARG_TARGET} ${ARG_EXTRA_TARGETS}
         VERBATIM
-        COMMENT "Packaging ${ARG_NAME}.zip")
+        COMMENT "Packaging ${ARG_NAME}.${ARG_FORMAT}")
 endfunction()
 
 set(_SIMLIB_PACKAGE_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/SimlibPackageRun.cmake")
