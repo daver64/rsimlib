@@ -4,10 +4,6 @@
 
 **[Watch showreel 1](https://www.youtube.com/watch?v=D1dyvnGUUNw)**: a three-minute tour of simlib, rendered entirely by simlib itself.
 
-[![simlib showreel 2 on YouTube: click to watch](docs/showreel2_thumbnail.png)](https://www.youtube.com/watch?v=XAhfCniKO2k)
-
-**[Watch showreel 2](https://www.youtube.com/watch?v=XAhfCniKO2k)**: storms and warships, airliners, 3D cockpits and an orbital burn, again rendered entirely by simlib.
-
 `simlib` is an easy-to-use, feature-rich C++ multimedia and rendering framework for 2D and 3D applications, with an Allegro 4-style API built on SDL2 and selectable OpenGL, Vulkan and Direct3D 12 backends.
 
 It combines immediate-mode 2D drawing and automatic batching with a powerful 3D rendering system, including meshes, materials, terrain, voxel worlds, lighting, normal mapping, post-processing and GPU compute. Beyond graphics, simlib provides integrated audio, video playback, physics, fluid simulation, procedural generation and Lua scripting — giving you the building blocks to create games, visual simulations and interactive applications in one library.
@@ -497,3 +493,22 @@ man 3 sl_Bitmap
 ```
 
 Add the `export MANPATH=...` line to your shell startup file to keep it across sessions.
+
+## Showreel Gallery
+
+More films rendered entirely by simlib (showreel 1 is at the top of this page).
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="https://www.youtube.com/watch?v=XAhfCniKO2k"><img src="docs/showreel2_thumbnail.png" width="320" alt="simlib showreel 2 on YouTube: click to watch"></a><br>
+      <b><a href="https://www.youtube.com/watch?v=XAhfCniKO2k">Showreel 2</a></b><br>
+      Storms and warships, airliners, 3D cockpits and an orbital burn.
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/showreel3_thumbnail.png" width="320" alt="simlib showreel 3: a Saturn V launch to orbit"><br>
+      <b>Showreel 3</b><br>
+      A Saturn V-style launch to orbit: mountains, staging, stars and an ambient finale.
+    </td>
+  </tr>
+</table>
