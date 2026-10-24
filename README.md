@@ -1,8 +1,8 @@
 # simlib
 
-[![simlib showreel 1 on YouTube: click to watch](docs/showreel1_thumbnail.png)](https://www.youtube.com/watch?v=D1dyvnGUUNw)
+![simlib showreel 3: a Saturn V launch to orbit](docs/showreel3_thumbnail.png)
 
-**[Watch showreel 1](https://www.youtube.com/watch?v=D1dyvnGUUNw)**: a three-minute tour of simlib, rendered entirely by simlib itself.
+**Showreel 3**: a Saturn V-style launch to orbit, rendered entirely by simlib itself, in real time, with mountains, staging, stars and an ambient finale.
 
 `simlib` is an easy-to-use, feature-rich C++ multimedia and rendering framework for 2D and 3D applications, with an Allegro 4-style API built on SDL2 and selectable OpenGL, Vulkan and Direct3D 12 backends.
 
@@ -498,7 +498,7 @@ Add the `export MANPATH=...` line to your shell startup file to keep it across s
 
 ## Showreel Gallery
 
-More films rendered entirely by simlib (showreel 1 is at the top of this page).
+Earlier films rendered entirely by simlib (the latest showreel is always at the top of this page).
 
 <table>
   <tr>
@@ -508,9 +508,9 @@ More films rendered entirely by simlib (showreel 1 is at the top of this page).
       Storms and warships, airliners, 3D cockpits and an orbital burn.
     </td>
     <td align="center" width="50%">
-      <img src="docs/showreel3_thumbnail.png" width="320" alt="simlib showreel 3: a Saturn V launch to orbit"><br>
-      <b>Showreel 3</b><br>
-      A Saturn V-style launch to orbit: mountains, staging, stars and an ambient finale.
+      <a href="https://www.youtube.com/watch?v=D1dyvnGUUNw"><img src="docs/showreel1_thumbnail.png" width="320" alt="simlib showreel 1 on YouTube: click to watch"></a><br>
+      <b><a href="https://www.youtube.com/watch?v=D1dyvnGUUNw">Showreel 1</a></b><br>
+      A three-minute tour of simlib.
     </td>
   </tr>
 </table>
