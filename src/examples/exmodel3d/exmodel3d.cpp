@@ -138,7 +138,20 @@ int main(int argc, char **argv)
         }
     }
     if (model_path.empty())
-        model_path = std::string(SIMLIB_SOURCE_DIR) + "/tests/fixtures/gltf_blender.glb";
+    {
+        // Fall back to the prop bundled with the examples, beside the working directory or the executable.
+        const std::filesystem::path bundled = std::filesystem::path("assets") / "models" / "box.glb";
+        const std::filesystem::path exe_dir = std::filesystem::path(argv[0]).parent_path();
+        for (const std::filesystem::path &candidate : {bundled, exe_dir / bundled})
+        {
+            std::error_code ec;
+            if (std::filesystem::exists(candidate, ec))
+            {
+                model_path = candidate.string();
+                break;
+            }
+        }
+    }
     if (model_path.empty())
     {
         std::fprintf(stderr, "Usage: exmodel3d [model.glb|model.ac|flightgear-model.xml] [--animations file.json] [--gl|--vulkan|--d3d12]\n");
