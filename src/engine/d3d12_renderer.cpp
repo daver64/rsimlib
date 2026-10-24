@@ -333,22 +333,45 @@ namespace sl::detail
                 std::fprintf(stderr, "[d3d12] access violation %s address 0x%p\n",
                              info->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
                              reinterpret_cast<void *>(info->ExceptionRecord->ExceptionInformation[1]));
-            void *frames[24] = {};
-            const USHORT count = CaptureStackBackTrace(0, 24, frames, nullptr);
-            void *fault = info->ExceptionRecord->ExceptionAddress;
-            for (int i = -1; i < static_cast<int>(count); ++i)
+            const auto describe = [](void *address, const char *prefix)
             {
-                void *address = i < 0 ? fault : frames[i];
                 HMODULE module = nullptr;
                 char name[MAX_PATH] = "?";
                 if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                                        static_cast<LPCSTR>(address), &module))
                     GetModuleFileNameA(module, name, sizeof(name));
                 const char *base = std::strrchr(name, '\\');
-                std::fprintf(stderr, "[d3d12]   %s %s+0x%llX\n", i < 0 ? "at" : "  ", base ? base + 1 : name,
+                std::fprintf(stderr, "[d3d12]   %s %s+0x%llX\n", prefix, base ? base + 1 : name,
                              static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(address) -
                                                               reinterpret_cast<std::uintptr_t>(module)));
+            };
+            describe(info->ExceptionRecord->ExceptionAddress, "at");
+            // The faulting thread's own stack, scanned for return addresses into this program and the driver: the
+            // exception dispatcher's frames hide the code that made the failing call.
+#if defined(_M_X64) || defined(__x86_64__)
+            const auto *stack = reinterpret_cast<const std::uintptr_t *>(info->ContextRecord->Rsp);
+            const HMODULE self = GetModuleHandleA(nullptr);
+            int shown = 0;
+            for (int i = 0; i < 4096 && shown < 40; ++i)
+            {
+                MEMORY_BASIC_INFORMATION memory{};
+                if (!VirtualQuery(stack + i, &memory, sizeof(memory)) || memory.State != MEM_COMMIT ||
+                    (memory.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
+                    break;
+                void *value = reinterpret_cast<void *>(stack[i]);
+                HMODULE module = nullptr;
+                if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                        static_cast<LPCSTR>(value), &module))
+                    continue;
+                char name[MAX_PATH] = "";
+                GetModuleFileNameA(module, name, sizeof(name));
+                if (module == self || std::strstr(name, "nvwgf2") || std::strstr(name, "amdxc") || std::strstr(name, "ig"))
+                {
+                    describe(value, "stack");
+                    ++shown;
+                }
             }
+#endif
             std::fflush(stderr);
             return EXCEPTION_CONTINUE_SEARCH;
         }
@@ -599,6 +622,12 @@ namespace sl::detail
                     sampler_heap_->Release();
                 if (srv_heap_)
                     srv_heap_->Release();
+                if (sampler_staging_heap_)
+                    sampler_staging_heap_->Release();
+                if (srv_staging_heap_)
+                    srv_staging_heap_->Release();
+                sampler_staging_heap_ = nullptr;
+                srv_staging_heap_ = nullptr;
                 if (render_target_heap_)
                     render_target_heap_->Release();
                 if (depth_stencil_heap_)
@@ -711,8 +740,14 @@ namespace sl::detail
                 srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
                 srv_desc.Texture2D.MipLevels = resource_desc.MipLevels;
+                // Descriptors are authored in a CPU-only staging heap and mirrored into the shader-visible heap: copying
+                // out of a shader-visible heap is not allowed and crashes NVIDIA's driver.
                 context_.device()->CreateShaderResourceView(
-                    resource.resource, &srv_desc, cpu_descriptor(srv_heap_, srv_descriptor_size_, descriptor));
+                    resource.resource, &srv_desc, cpu_descriptor(srv_staging_heap_, srv_descriptor_size_, descriptor));
+                context_.device()->CopyDescriptorsSimple(
+                    1, cpu_descriptor(srv_heap_, srv_descriptor_size_, descriptor),
+                    cpu_descriptor(srv_staging_heap_, srv_descriptor_size_, descriptor),
+                    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
                 const bool use_anisotropy = description.anisotropy > 1.0f && description.filter == TextureFilter::linear;
                 const UINT max_anisotropy = use_anisotropy ? static_cast<UINT>(std::clamp(description.anisotropy, 1.0f, 16.0f)) : 1u;
@@ -736,7 +771,11 @@ namespace sl::detail
                     sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
                     resource.sampler = static_cast<std::uint32_t>(sampler_slots_.size());
                     context_.device()->CreateSampler(
-                        &sampler_desc, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, resource.sampler));
+                        &sampler_desc, cpu_descriptor(sampler_staging_heap_, sampler_descriptor_size_, resource.sampler));
+                    context_.device()->CopyDescriptorsSimple(
+                        1, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, resource.sampler),
+                        cpu_descriptor(sampler_staging_heap_, sampler_descriptor_size_, resource.sampler),
+                        D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
                     sampler_slots_.emplace(sampler_key, resource.sampler);
                 }
 
@@ -3064,7 +3103,7 @@ namespace sl::detail
 
             bool ensure_descriptor_heaps()
             {
-                if (srv_heap_ && sampler_heap_)
+                if (srv_heap_ && sampler_heap_ && srv_staging_heap_ && sampler_staging_heap_)
                     return true;
                 D3D12_DESCRIPTOR_HEAP_DESC desc{};
                 desc.NumDescriptors = descriptor_capacity + transient_descriptor_capacity;
@@ -3080,6 +3119,27 @@ namespace sl::detail
                 {
                     srv_heap_->Release();
                     srv_heap_ = nullptr;
+                    return false;
+                }
+                D3D12_DESCRIPTOR_HEAP_DESC staging{};
+                staging.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+                staging.NumDescriptors = descriptor_capacity;
+                staging.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+                result = context_.device()->CreateDescriptorHeap(&staging, IID_PPV_ARGS(&srv_staging_heap_));
+                if (SUCCEEDED(result))
+                {
+                    staging.NumDescriptors = persistent_sampler_capacity;
+                    staging.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+                    result = context_.device()->CreateDescriptorHeap(&staging, IID_PPV_ARGS(&sampler_staging_heap_));
+                }
+                if (FAILED(result))
+                {
+                    for (ID3D12DescriptorHeap **heap : {&srv_heap_, &sampler_heap_, &srv_staging_heap_, &sampler_staging_heap_})
+                    {
+                        if (*heap)
+                            (*heap)->Release();
+                        *heap = nullptr;
+                    }
                     return false;
                 }
                 srv_descriptor_size_ =
@@ -3542,11 +3602,11 @@ namespace sl::detail
                             return false;
                         context_.device()->CopyDescriptorsSimple(
                             1, cpu_descriptor(srv_heap_, srv_descriptor_size_, texture_base + slot),
-                            cpu_descriptor(srv_heap_, srv_descriptor_size_, texture->second.descriptor),
+                            cpu_descriptor(srv_staging_heap_, srv_descriptor_size_, texture->second.descriptor),
                             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                         context_.device()->CopyDescriptorsSimple(
                             1, cpu_descriptor(sampler_heap_, sampler_descriptor_size_, sampler_base + slot),
-                            cpu_descriptor(sampler_heap_, sampler_descriptor_size_, texture->second.sampler),
+                            cpu_descriptor(sampler_staging_heap_, sampler_descriptor_size_, texture->second.sampler),
                             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
                     }
                     set_table(program.texture_parameter_base,
@@ -3731,6 +3791,8 @@ namespace sl::detail
             bool initialized_2d_ = false;
             bool shutdown_2d_pending_ = false;
             ID3D12DescriptorHeap *srv_heap_ = nullptr;
+            ID3D12DescriptorHeap *srv_staging_heap_ = nullptr;
+            ID3D12DescriptorHeap *sampler_staging_heap_ = nullptr;
             ID3D12DescriptorHeap *sampler_heap_ = nullptr;
             std::unordered_map<std::uint32_t, std::uint32_t> sampler_slots_;
             ID3D12DescriptorHeap *render_target_heap_ = nullptr;
