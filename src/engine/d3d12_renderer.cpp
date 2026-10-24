@@ -26,6 +26,7 @@
 #include <array>
 #include <climits>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cmath>
 #include <cstddef>
@@ -323,6 +324,35 @@ namespace sl::detail
             std::fflush(stderr);
         }
 
+        // With SIMLIB_D3D12_TRACE set, an unhandled crash reports its code and the faulting module and offset of each
+        // stack frame, so a bare "exit code 0xC0000005" can be traced back to a place in the code.
+        LONG WINAPI trace_crash_filter(EXCEPTION_POINTERS *info)
+        {
+            std::fprintf(stderr, "[d3d12] CRASH code 0x%08lX\n", static_cast<unsigned long>(info->ExceptionRecord->ExceptionCode));
+            if (info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && info->ExceptionRecord->NumberParameters >= 2)
+                std::fprintf(stderr, "[d3d12] access violation %s address 0x%p\n",
+                             info->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
+                             reinterpret_cast<void *>(info->ExceptionRecord->ExceptionInformation[1]));
+            void *frames[24] = {};
+            const USHORT count = CaptureStackBackTrace(0, 24, frames, nullptr);
+            void *fault = info->ExceptionRecord->ExceptionAddress;
+            for (int i = -1; i < static_cast<int>(count); ++i)
+            {
+                void *address = i < 0 ? fault : frames[i];
+                HMODULE module = nullptr;
+                char name[MAX_PATH] = "?";
+                if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                       static_cast<LPCSTR>(address), &module))
+                    GetModuleFileNameA(module, name, sizeof(name));
+                const char *base = std::strrchr(name, '\\');
+                std::fprintf(stderr, "[d3d12]   %s %s+0x%llX\n", i < 0 ? "at" : "  ", base ? base + 1 : name,
+                             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(address) -
+                                                              reinterpret_cast<std::uintptr_t>(module)));
+            }
+            std::fflush(stderr);
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+
         // Compiles translated HLSL with DXC (shader model 6) when available, otherwise fxc (shader model 5.1).
         bool compile_program_shader(ID3D12Device *device, const std::string &source, const char *stage,
                                     ID3DBlob **blob, std::string &error)
@@ -387,6 +417,8 @@ namespace sl::detail
             bool initialise(SDL_Window *window, std::string &error) override
             {
                 window_ = window;
+                if (std::getenv("SIMLIB_D3D12_TRACE"))
+                    SetUnhandledExceptionFilter(trace_crash_filter);
                 return context_.initialise(window, error);
             }
 
@@ -596,8 +628,16 @@ namespace sl::detail
             void present() override
             {
                 flush_2d();
+                static int traced_presents = 0;
+                const bool log_present = traced_presents < 3;
+                if (log_present)
+                    trace("present %d: suspend render target", traced_presents);
                 suspend_active_render_target();
+                if (log_present)
+                    trace("present %d: submit and flip", traced_presents);
                 context_.present(vsync_enabled_);
+                if (log_present)
+                    trace("present %d: done", traced_presents++);
                 release_retired_textures();
                 if (shutdown_2d_pending_)
                     release_2d_resources();
@@ -1822,6 +1862,9 @@ namespace sl::detail
                 if (!bind_program_resources(program, false))
                     return false;
                 commands->Dispatch(groups_x, groups_y, groups_z);
+                static int traced_dispatches = 0;
+                if (traced_dispatches++ < 3)
+                    trace("dispatch recorded");
                 restore_image_textures();
                 D3D12_RESOURCE_BARRIER barrier{};
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
@@ -2215,6 +2258,12 @@ namespace sl::detail
                 vertex_view.StrideInBytes = sizeof(Vertex2D);
                 commands->IASetVertexBuffers(0, 1, &vertex_view);
                 commands->IASetPrimitiveTopology(topology);
+                static int traced_draws = 0;
+                if (traced_draws < 6 || (active_program_ != 0 && traced_draws < 40))
+                {
+                    ++traced_draws;
+                    trace("draw 2d: %zu vertices%s", count, active_program_ != 0 ? " (user shader)" : "");
+                }
                 commands->DrawInstanced(static_cast<UINT>(count), 1, 0, 0);
                 restore_image_textures();
                 batch_vertices_.clear();

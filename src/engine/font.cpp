@@ -473,6 +473,20 @@ namespace
         detail::gl2d_submit(detail::PrimitiveType::triangle_fan, vertices, 4);
     }
 
+    // The bundled DejaVu fonts are the last resort for systems with none of the usual ones (a bare Wine prefix, say).
+    std::vector<std::filesystem::path> bundled_font_candidates(const char *name)
+    {
+        std::vector<std::filesystem::path> paths;
+        if (char *base = SDL_GetBasePath())
+        {
+            paths.push_back(std::filesystem::path(base) / "assets" / "fonts" / name);
+            SDL_free(base);
+        }
+        paths.push_back(std::filesystem::path("assets") / "fonts" / name);
+        paths.push_back(std::filesystem::path("..") / "assets" / "fonts" / name);
+        return paths;
+    }
+
     std::optional<std::vector<unsigned char>> load_font()
     {
         std::vector<std::filesystem::path> candidates;
@@ -488,6 +502,8 @@ namespace
             "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf"};
 #endif
+        for (const auto &bundled : bundled_font_candidates("DejaVuSansMono.ttf"))
+            candidates.push_back(bundled);
 
         for (const auto &fontPath : candidates)
         {
@@ -552,8 +568,11 @@ namespace
             "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"};
 #endif
+        std::vector<std::filesystem::path> search = candidates;
+        for (const auto &bundled : bundled_font_candidates("DejaVuSans.ttf"))
+            search.push_back(bundled);
 
-        for (const std::filesystem::path &path : candidates)
+        for (const std::filesystem::path &path : search)
         {
             if (std::filesystem::exists(path))
             {
