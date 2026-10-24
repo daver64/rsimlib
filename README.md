@@ -14,7 +14,7 @@ It combines immediate-mode 2D drawing and automatic batching with a powerful 3D 
 
 ## Start here
 
-simlib comes with a short [Tutorial](docs/tutorial/README.md) (16 lessons across 2D, 3D and simulation) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
+simlib comes with a short [Tutorial](docs/tutorial/README.md) (21 lessons across 2D, 3D, simulation and shipping an app) and a gallery of runnable examples with a page each in the [Example Gallery](docs/examples/README.md). Pick the route below that matches what you are building.
 
 | I want to... | Run | Read |
 |--------------|-----|------|
@@ -78,7 +78,7 @@ Create the archive used by `exresources` from the repository root with:
 ## Documentation Guides
 
 For in-depth guides and detailed API tables, see the documentation topics:
-- 🎓 **[Tutorial](docs/tutorial/README.md)** — Short, runnable lessons in three tracks (2D, 3D, simulation) for anyone new to simlib.
+- 🎓 **[Tutorial](docs/tutorial/README.md)** — Short, runnable lessons in four tracks (2D, 3D, simulation, shipping an app) for anyone new to simlib.
 - 📖 **[Core API Reference](docs/api_reference.md)** — Display, bitmaps, shape primitives, persistent font atlases, audio subsystems, fluid simulation, and ZIP archives.
 - 🗺️ **[Tile Maps & Tiled Import](#tile-maps--tiled-import)** — Load Tiled maps, animated tiles, collision, object layers, isometric maps.
 - 🧩 **[Entity Component System (ECS) Integration Guide](docs/ecs.md)** — Architectural patterns, clean separation of concerns, and interoperability with RECS, EnTT, Flecs, or custom ECS frameworks.

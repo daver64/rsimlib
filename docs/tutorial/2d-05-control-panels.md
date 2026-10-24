@@ -124,4 +124,4 @@ int main(int argc, char **argv)
 ## Go further
 
 - Example: [`excontrols`](../examples/excontrols.md) (a cockpit and a factory cabinet with a small simulation behind each). API: [Control panels](../api_reference.md#control-panels-includecontrolsh).
-- Next track: [Your first 3D scene](3d-01-first-scene.md); the same panel model appears in 3D in [A clickable 3D panel](3d-07-a-clickable-3d-panel.md).
+- Next: [Lighting and particles](2d-06-lighting-and-particles.md), then the next track: [Your first 3D scene](3d-01-first-scene.md); the same panel model appears in 3D in [A clickable 3D panel](3d-07-a-clickable-3d-panel.md).

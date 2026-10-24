@@ -110,4 +110,5 @@ int main(int argc, char *argv[])
 ## Go further
 
 - Examples: [`exprecip2d`](../examples/exprecip2d.md), [`exprecip3d`](../examples/exprecip3d.md) (the 3D version for first-person scenes). API: [Precipitation](../api_reference.md#precipitation-includeprecipitationh).
+- Next: [Flight](sim-04-flight.md).
 - Back to the [tutorial index](README.md), or try the [Showcase Guide](../showcases.md).

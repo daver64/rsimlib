@@ -142,4 +142,4 @@ int main(int argc, char **argv)
 ## Go further
 
 - Examples: [`excockpit`](../examples/excockpit.md) (cockpit and cabinet in one scene with three cameras), [`excontrols`](../examples/excontrols.md) (the same panels in 2D). API: [Control panels](../api_reference.md#control-panels-includecontrolsh) and [3D props](../api_reference.md#3d-props-includeprops3dh) for the individual dial, knob and lamp meshes.
-- Next track: [Physics bodies](sim-01-physics-bodies.md).
+- Next: [Terrain and sky](3d-08-terrain-and-sky.md), then the next track: [Physics bodies](sim-01-physics-bodies.md).

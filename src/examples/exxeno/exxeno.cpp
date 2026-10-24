@@ -515,9 +515,17 @@ int main(int argc, char *argv[])
                 fire_cooldown = 0.11f;
                 muzzle_flash = 0.06f;
                 const float jitter = random_between(-0.035f, 0.035f);
-                const float shot_dx = std::cos(aim + jitter), shot_dy = std::sin(aim + jitter);
                 const float gun_x = player_x + aim_dx * 30.0f - aim_dy * 5.0f;
                 const float gun_y = player_y + aim_dy * 30.0f + aim_dx * 5.0f;
+                // The gun sits off the marine's centre line, so aim from the muzzle at the cursor; a shot parallel
+                // to the centre line would always miss the crosshair by the offset. Close to the marine, keep the
+                // centre-line direction to avoid a wild angle.
+                const float to_cursor_x = static_cast<float>(sl::mouse_x()) - gun_x;
+                const float to_cursor_y = static_cast<float>(sl::mouse_y()) - gun_y;
+                const float shot_angle = std::hypot(to_cursor_x, to_cursor_y) > 40.0f
+                                             ? std::atan2(to_cursor_y, to_cursor_x)
+                                             : aim;
+                const float shot_dx = std::cos(shot_angle + jitter), shot_dy = std::sin(shot_angle + jitter);
                 bolts.push_back({gun_x, gun_y, shot_dx * 760.0f, shot_dy * 760.0f, 1.2f});
                 muzzle_emitter.set_position(gun_x, gun_y);
                 muzzle_emitter.set_active(true);
