@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <array>
 #include <climits>
+#include <cstdarg>
+#include <cstdio>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -306,13 +308,31 @@ namespace sl::detail
         bool dxc_compile(const std::string &, const char *, ID3DBlob **, std::string &) { return false; }
 #endif
 
+        // Set SIMLIB_D3D12_TRACE=1 to log shader compilation and pipeline creation to stderr.
+        void trace(const char *format, ...)
+        {
+            static const bool enabled = std::getenv("SIMLIB_D3D12_TRACE") != nullptr;
+            if (!enabled)
+                return;
+            char text[512];
+            va_list args;
+            va_start(args, format);
+            std::vsnprintf(text, sizeof(text), format, args);
+            va_end(args);
+            std::fprintf(stderr, "[d3d12] %s\n", text);
+            std::fflush(stderr);
+        }
+
         // Compiles translated HLSL with DXC (shader model 6) when available, otherwise fxc (shader model 5.1).
         bool compile_program_shader(ID3D12Device *device, const std::string &source, const char *stage,
                                     ID3DBlob **blob, std::string &error)
         {
-            if (dxc_available(device))
-                return dxc_compile(source, stage, blob, error);
-            return compile_shader(source, "main", (std::string(stage) + "_5_1").c_str(), blob, error);
+            const bool dxc = dxc_available(device);
+            trace("compile %s with %s", stage, dxc ? "DXC (sm 6_0)" : "FXC (sm 5_1)");
+            const bool ok = dxc ? dxc_compile(source, stage, blob, error)
+                                : compile_shader(source, "main", (std::string(stage) + "_5_1").c_str(), blob, error);
+            trace("compile %s %s%s%s", stage, ok ? "ok" : "FAILED: ", ok ? "" : error.c_str(), "");
+            return ok;
         }
 
         // Drivers sometimes reject DXC-built DXIL at pipeline creation; fxc's shader model 5.1 is the safe fallback.
@@ -1710,6 +1730,7 @@ namespace sl::detail
                 desc.CS = {program.compute_blob->GetBufferPointer(), program.compute_blob->GetBufferSize()};
                 HRESULT pipeline_result =
                     context_.device()->CreateComputePipelineState(&desc, IID_PPV_ARGS(&program.compute_pipeline));
+                trace("compute pipeline HRESULT 0x%08lX", static_cast<unsigned long>(pipeline_result));
                 if (FAILED(pipeline_result) && dxc_available(context_.device()) &&
                     program.samplers.size() <= max_program_samplers_sm5)
                 {
@@ -3553,7 +3574,9 @@ namespace sl::detail
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
                                           primitive, variant, elements, static_cast<UINT>(std::size(elements)), samples);
-                if (!create_pipeline_state(desc, slot) && !program.fxc_fallback && dxc_available(context_.device()) &&
+                if (!create_pipeline_state(desc, slot))
+                    trace("graphics pipeline for user shader FAILED (dxc=%d)", dxc_available(context_.device()) ? 1 : 0);
+                if (!slot && !program.fxc_fallback && dxc_available(context_.device()) &&
                     program.samplers.size() <= max_program_samplers_sm5)
                 {
                     ID3DBlob *vertex_fallback = nullptr;
