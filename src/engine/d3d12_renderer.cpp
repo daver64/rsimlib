@@ -699,6 +699,14 @@ namespace sl::detail
 
             bool create_texture(const TextureDesc &description, std::uint32_t &texture) override
             {
+                return create_texture_impl(description, DXGI_FORMAT_R8G8B8A8_UNORM,
+                                           description.mipmaps ? mip_level_count(description.width, description.height) : 1,
+                                           true, texture);
+            }
+
+            bool create_texture_impl(const TextureDesc &description, DXGI_FORMAT format, int mip_levels, bool allow_uav,
+                                     std::uint32_t &texture)
+            {
                 texture = 0;
                 if (description.width <= 0 || description.height <= 0 ||
                     !std::isfinite(description.anisotropy) ||
@@ -714,14 +722,13 @@ namespace sl::detail
                 resource_desc.Width = static_cast<UINT64>(description.width);
                 resource_desc.Height = static_cast<UINT>(description.height);
                 resource_desc.DepthOrArraySize = 1;
-                resource_desc.MipLevels = static_cast<UINT16>(
-                    description.mipmaps ? mip_level_count(description.width, description.height) : 1);
-                resource_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                resource_desc.MipLevels = static_cast<UINT16>(mip_levels);
+                resource_desc.Format = format;
                 resource_desc.SampleDesc.Count = 1;
                 resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
                 resource_desc.Flags = (description.render_target ? D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET
                                                                   : D3D12_RESOURCE_FLAG_NONE) |
-                                      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+                                      (allow_uav ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE);
                 Texture resource;
                 resource.descriptor = descriptor;
                 const D3D12_HEAP_PROPERTIES default_heap = heap_properties(D3D12_HEAP_TYPE_DEFAULT);
@@ -737,7 +744,7 @@ namespace sl::detail
 
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{};
                 srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-                srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                srv_desc.Format = format;
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
                 srv_desc.Texture2D.MipLevels = resource_desc.MipLevels;
                 // Descriptors are authored in a CPU-only staging heap and mirrored into the shader-visible heap: copying
@@ -832,6 +839,14 @@ namespace sl::detail
                     }
                 }
 
+                return upload_subresources(found->second, level_pixels, level_row_bytes);
+            }
+
+            bool upload_subresources(Texture &target, const std::vector<const std::uint8_t *> &level_pixels,
+                                     const std::vector<std::size_t> &level_row_bytes)
+            {
+                D3D12_RESOURCE_DESC destination_desc = target.resource->GetDesc();
+                const UINT level_count = destination_desc.MipLevels;
                 std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(level_count);
                 std::vector<UINT> row_counts(level_count);
                 std::vector<UINT64> unpadded_row_sizes(level_count);
@@ -886,9 +901,9 @@ namespace sl::detail
                     return false;
                 }
 
-                const D3D12_RESOURCE_STATES previous_state = found->second.state;
+                const D3D12_RESOURCE_STATES previous_state = target.state;
                 if (previous_state != D3D12_RESOURCE_STATE_COPY_DEST)
-                    transition_resource(commands, found->second.resource, previous_state,
+                    transition_resource(commands, target.resource, previous_state,
                                         D3D12_RESOURCE_STATE_COPY_DEST);
                 for (UINT level = 0; level < level_count; ++level)
                 {
@@ -897,12 +912,12 @@ namespace sl::detail
                     source_location.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
                     source_location.PlacedFootprint = footprints[level];
                     D3D12_TEXTURE_COPY_LOCATION destination_location{};
-                    destination_location.pResource = found->second.resource;
+                    destination_location.pResource = target.resource;
                     destination_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
                     destination_location.SubresourceIndex = level;
                     commands->CopyTextureRegion(&destination_location, 0, 0, 0, &source_location, nullptr);
                 }
-                transition_resource(commands, found->second.resource,
+                transition_resource(commands, target.resource,
                                     D3D12_RESOURCE_STATE_COPY_DEST,
                                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
                 result = commands->Close();
@@ -918,7 +933,74 @@ namespace sl::detail
                 upload->Release();
                 if (FAILED(result))
                     return false;
-                found->second.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                target.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                return true;
+            }
+
+            static DXGI_FORMAT compressed_dxgi_format(CompressedFormat format)
+            {
+                switch (format)
+                {
+                case CompressedFormat::bc1:
+                    return DXGI_FORMAT_BC1_UNORM;
+                case CompressedFormat::bc3:
+                    return DXGI_FORMAT_BC3_UNORM;
+                default:
+                    return DXGI_FORMAT_BC7_UNORM;
+                }
+            }
+
+            bool supports_compressed_format(CompressedFormat) const override { return context_.device() != nullptr; }
+
+            bool create_texture_compressed(const CompressedTextureDesc &description, const std::uint8_t *data,
+                                           std::uint32_t &texture) override
+            {
+                texture = 0;
+                if (!data || compressed_texture_byte_count(description) == 0)
+                    return false;
+                TextureDesc base;
+                base.width = description.width;
+                base.height = description.height;
+                base.filter = description.filter;
+                base.anisotropy = description.anisotropy;
+                std::uint32_t handle = 0;
+                if (!create_texture_impl(base, compressed_dxgi_format(description.format), description.mip_levels, false, handle))
+                    return false;
+                const auto found = textures_.find(handle);
+                if (found == textures_.end())
+                    return false;
+                if (context_.frame_open())
+                {
+                    flush_2d();
+                    if (!context_.execute_with(nullptr, 0))
+                    {
+                        destroy_texture(handle);
+                        return false;
+                    }
+                    rebind_frame_targets();
+                }
+                if (!context_.wait_idle())
+                {
+                    destroy_texture(handle);
+                    return false;
+                }
+                std::vector<const std::uint8_t *> level_pixels;
+                std::vector<std::size_t> level_row_bytes;
+                std::size_t offset = 0;
+                for (int level = 0; level < description.mip_levels; ++level)
+                {
+                    const int width = (std::max)(description.width >> level, 1);
+                    const int height = (std::max)(description.height >> level, 1);
+                    level_pixels.push_back(data + offset);
+                    level_row_bytes.push_back(compressed_level_byte_count(description.format, width, 4) );
+                    offset += compressed_level_byte_count(description.format, width, height);
+                }
+                if (!upload_subresources(found->second, level_pixels, level_row_bytes))
+                {
+                    destroy_texture(handle);
+                    return false;
+                }
+                texture = handle;
                 return true;
             }
 

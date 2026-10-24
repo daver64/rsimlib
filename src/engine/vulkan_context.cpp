@@ -1603,6 +1603,21 @@ namespace sl::detail
             upload_pixels.insert(upload_pixels.end(), chain.begin(), chain.end());
             upload_levels = image.mip_levels;
         }
+        std::vector<VkBufferImageCopy> copies;
+        VkDeviceSize level_offset = 0;
+        for (std::uint32_t level = 0; level < upload_levels; ++level)
+        {
+            const std::uint32_t level_width = std::max(static_cast<std::uint32_t>(width) >> level, 1u);
+            const std::uint32_t level_height = std::max(static_cast<std::uint32_t>(height) >> level, 1u);
+            VkBufferImageCopy copy{};
+            copy.bufferOffset = level_offset;
+            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.imageSubresource.mipLevel = level;
+            copy.imageSubresource.layerCount = 1;
+            copy.imageExtent = {level_width, level_height, 1};
+            copies.push_back(copy);
+            level_offset += static_cast<VkDeviceSize>(level_width) * level_height * 4;
+        }
         const std::size_t byte_count = upload_pixels.size();
         if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -1612,6 +1627,12 @@ namespace sl::detail
             destroy_buffer(staging);
             return false;
         }
+        return record_image_upload(image, staging, copies, error);
+    }
+
+    bool VulkanContext::record_image_upload(VulkanImage &image, VulkanBuffer &staging,
+                                            const std::vector<VkBufferImageCopy> &copies, std::string &error)
+    {
         const bool use_active_command = frame_active_;
         VkCommandBuffer command = command_buffer_;
         if (!use_active_command)
@@ -1652,21 +1673,6 @@ namespace sl::detail
                                                       : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         vkCmdPipelineBarrier(command, source_stage,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &to_transfer);
-        std::vector<VkBufferImageCopy> copies;
-        VkDeviceSize level_offset = 0;
-        for (std::uint32_t level = 0; level < upload_levels; ++level)
-        {
-            const std::uint32_t level_width = std::max(static_cast<std::uint32_t>(width) >> level, 1u);
-            const std::uint32_t level_height = std::max(static_cast<std::uint32_t>(height) >> level, 1u);
-            VkBufferImageCopy copy{};
-            copy.bufferOffset = level_offset;
-            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            copy.imageSubresource.mipLevel = level;
-            copy.imageSubresource.layerCount = 1;
-            copy.imageExtent = {level_width, level_height, 1};
-            copies.push_back(copy);
-            level_offset += static_cast<VkDeviceSize>(level_width) * level_height * 4;
-        }
         vkCmdCopyBufferToImage(command, staging.buffer, image.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                static_cast<std::uint32_t>(copies.size()), copies.data());
@@ -1709,6 +1715,58 @@ namespace sl::detail
         destroy_buffer(staging);
         image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         return true;
+    }
+
+
+    bool VulkanContext::upload_image_compressed(VulkanImage &image, const CompressedTextureDesc &description,
+                                                const std::uint8_t *data, std::string &error)
+    {
+        if (!flush_pending_draws(error))
+            return false;
+        const std::size_t byte_count = compressed_texture_byte_count(description);
+        if (image.image == VK_NULL_HANDLE || !data || byte_count == 0 ||
+            image.mip_levels != static_cast<std::uint32_t>(description.mip_levels))
+        {
+            error = "Invalid Vulkan compressed image upload.";
+            return false;
+        }
+        VulkanBuffer staging;
+        if (!create_buffer(byte_count, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                           staging, error) ||
+            !upload_buffer(staging, data, byte_count, error))
+        {
+            destroy_buffer(staging);
+            return false;
+        }
+        std::vector<VkBufferImageCopy> copies;
+        VkDeviceSize level_offset = 0;
+        for (int level = 0; level < description.mip_levels; ++level)
+        {
+            const int level_width = std::max(description.width >> level, 1);
+            const int level_height = std::max(description.height >> level, 1);
+            VkBufferImageCopy copy{};
+            copy.bufferOffset = level_offset;
+            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.imageSubresource.mipLevel = static_cast<std::uint32_t>(level);
+            copy.imageSubresource.layerCount = 1;
+            copy.imageExtent = {static_cast<std::uint32_t>(level_width), static_cast<std::uint32_t>(level_height), 1};
+            copies.push_back(copy);
+            level_offset += compressed_level_byte_count(description.format, level_width, level_height);
+        }
+        return record_image_upload(image, staging, copies, error);
+    }
+
+    bool VulkanContext::compressed_format_supported(VkFormat format) const
+    {
+        if (physical_device_ == VK_NULL_HANDLE)
+            return false;
+        VkFormatProperties properties{};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, format, &properties);
+        constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                                  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
+                                                  VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+        return (properties.optimalTilingFeatures & required) == required;
     }
 
     std::uint32_t VulkanContext::max_texture_size() const

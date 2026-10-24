@@ -17,6 +17,7 @@
 #include "audio.h"
 #include "config.h"
 #include "display.h"
+#include "dds.h"
 #include "draw.h"
 #include "error.h"
 #include "event.h"

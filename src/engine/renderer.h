@@ -86,6 +86,46 @@ namespace sl::detail
         bool mipmaps = false;
     };
 
+    /** Block-compressed texture formats (BC1 = DXT1, BC3 = DXT5). All store colour as unsigned normalised data. */
+    enum class CompressedFormat
+    {
+        bc1,
+        bc3,
+        bc7
+    };
+
+    /** Description of a block-compressed 2D texture whose mip levels are supplied by the caller. */
+    struct CompressedTextureDesc
+    {
+        int width = 0;
+        int height = 0;
+        CompressedFormat format = CompressedFormat::bc1;
+        /** Number of levels supplied in the data, largest first and tightly packed. */
+        int mip_levels = 1;
+        TextureFilter filter = TextureFilter::linear;
+        float anisotropy = 1.0f;
+    };
+
+    /** Bytes in one level of a block-compressed image: 4x4 blocks of 8 (BC1) or 16 bytes. */
+    inline std::size_t compressed_level_byte_count(CompressedFormat format, int width, int height)
+    {
+        const std::size_t blocks = static_cast<std::size_t>((std::max(width, 1) + 3) / 4) *
+                                   static_cast<std::size_t>((std::max(height, 1) + 3) / 4);
+        return blocks * (format == CompressedFormat::bc1 ? 8u : 16u);
+    }
+
+    /** Total bytes of every supplied level of a compressed texture, or 0 if the description is invalid. */
+    inline std::size_t compressed_texture_byte_count(const CompressedTextureDesc &description)
+    {
+        if (description.width <= 0 || description.height <= 0 || description.mip_levels <= 0)
+            return 0;
+        std::size_t total = 0;
+        for (int level = 0; level < description.mip_levels; ++level)
+            total += compressed_level_byte_count(description.format, std::max(description.width >> level, 1),
+                                                 std::max(description.height >> level, 1));
+        return total;
+    }
+
     /** Number of levels in a full mip chain for a width x height texture. */
     inline int mip_level_count(int width, int height)
     {
@@ -403,6 +443,14 @@ namespace sl::detail
         /** Upload RGBA8 pixels into a texture. */
         virtual bool upload_texture(std::uint32_t texture, int width, int height,
                                     const std::uint8_t *pixels) = 0;
+        /** Whether create_texture_compressed() accepts this format on the active device. */
+        virtual bool supports_compressed_format(CompressedFormat) const { return false; }
+        /** Create a read-only texture straight from block-compressed data holding every mip level. */
+        virtual bool create_texture_compressed(const CompressedTextureDesc &, const std::uint8_t *, std::uint32_t &texture)
+        {
+            texture = 0;
+            return false;
+        }
         /** Download RGBA8 pixels from a texture into host memory. */
         virtual bool download_texture(std::uint32_t texture, int width, int height,
                                       std::uint8_t *out_pixels) = 0;

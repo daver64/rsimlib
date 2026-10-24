@@ -183,6 +183,9 @@ namespace sl::detail
                            std::string &error);
         bool upload_image_rgba(VulkanImage &image, int width, int height,
                                const std::uint8_t *pixels, std::string &error);
+        bool upload_image_compressed(VulkanImage &image, const CompressedTextureDesc &description,
+                                     const std::uint8_t *data, std::string &error);
+        bool compressed_format_supported(VkFormat format) const;
         bool create_texture_array_image(const TextureArrayDesc &description, VulkanImage &result,
                                         std::string &error);
         bool upload_image_array_rgba(VulkanImage &image, const TextureArrayDesc &description,
@@ -199,6 +202,8 @@ namespace sl::detail
                           VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
                           std::uint32_t mip_levels = 1);
         void destroy_image(VulkanImage &image);
+        bool record_image_upload(VulkanImage &image, VulkanBuffer &staging,
+                                 const std::vector<VkBufferImageCopy> &copies, std::string &error);
         bool create_render_target_framebuffer(const VulkanImage &image, const VulkanImage &depth,
                                               int width, int height,
                                               VkFramebuffer &framebuffer, std::string &error,

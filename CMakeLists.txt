@@ -344,6 +344,7 @@ add_library(simlib STATIC
     src/engine/display.cpp
     src/engine/event.cpp
     src/engine/draw.cpp
+    src/engine/dds.cpp
     src/engine/surface3d.cpp
     src/engine/model3d.cpp
     src/engine/model_gltf_writer.cpp
@@ -825,6 +826,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos/kosmos.cpp)
     add_executable(kosmos
         src/examples/kosmos/kosmos.cpp
         src/examples/kosmos/universe.cpp
+        src/examples/kosmos/galaxy.cpp
         src/examples/kosmos/ship.cpp
         src/examples/kosmos/sim.cpp)
     target_link_libraries(kosmos PRIVATE simlib)
@@ -938,6 +940,10 @@ if(BUILD_TESTING)
     target_link_libraries(hdr_test PRIVATE simlib)
     target_compile_definitions(hdr_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME hdr COMMAND hdr_test)
+    add_executable(dds_test tests/dds_test.cpp)
+    target_link_libraries(dds_test PRIVATE simlib)
+    target_compile_definitions(dds_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME dds COMMAND dds_test)
     add_executable(blend3d_test tests/blend3d_test.cpp)
     target_link_libraries(blend3d_test PRIVATE simlib)
     target_compile_definitions(blend3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -1089,7 +1095,7 @@ if(BUILD_TESTING)
 
     # Tests rely on assert(); keep it active in Release builds, where NDEBUG would turn every check into a no-op.
     foreach(SIMLIB_TEST_TARGET
-            config_test isometric_test camera_collision_test props3d_test controls_test tilemap_test normalmap_test normalmap3d_test lights3d_test localshadow_test hdr_test rdb_test
+            config_test isometric_test camera_collision_test props3d_test controls_test tilemap_test normalmap_test normalmap3d_test lights3d_test localshadow_test hdr_test dds_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
             renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})

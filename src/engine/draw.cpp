@@ -121,6 +121,11 @@ namespace sl
 			{
 				return false;
 			}
+			if (bitmap->compressed)
+			{
+				sl::detail::set_error("Block-compressed bitmaps have no CPU pixels");
+				return false;
+			}
 			if (is_screen(bitmap))
 			{
 				return download_bitmap(bitmap);
@@ -1973,6 +1978,11 @@ namespace sl
 	{
 		if (!is_valid(bitmap))
 		{
+			return false;
+		}
+		if (bitmap->compressed)
+		{
+			sl::detail::set_error("Block-compressed bitmaps cannot be downloaded");
 			return false;
 		}
 		std::size_t size = 0;

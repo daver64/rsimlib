@@ -157,6 +157,8 @@ namespace sl
         float anisotropy = 1.0f;
         /** Build a mip chain when the pixels are uploaded, for cleaner minified sampling and effective anisotropy. */
         bool mipmaps = false;
+        /** True for a block-compressed GPU-only texture from load_dds(): there are no CPU pixels to read or edit. */
+        bool compressed = false;
     };
 
     /** The current display framebuffer, owned by the display subsystem. */

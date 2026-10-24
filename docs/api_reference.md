@@ -429,6 +429,15 @@ void destroy_bitmap(Bitmap *bitmap);
 ```
 - **Description**: Loads an image file (PNG, JPG, BMP) into a bitmap, exports a bitmap as a PNG image, or destroys a bitmap and frees all associated RAM/GPU memory.
 
+#### `load_dds(path, options)` ([include/dds.h](../include/dds.h))
+```cpp
+struct DdsOptions { int max_size = 0; bool smooth = true; float anisotropy = 1.0f; bool allow_compressed_upload = true; };
+Bitmap *load_dds(const std::string &path, const DdsOptions &options = {});
+```
+- **Description**: Loads a `.dds` file: BC1/DXT1, BC3/DXT5 or BC7 (DX10 header), or uncompressed 32-bit RGBA/BGRA. Block-compressed data is uploaded to the GPU as-is with every mip level in the file, so memory is a fraction of RGBA8 (BC1 is 1/8, BC3/BC7 1/4) and there is no CPU decode or mip generation. If the file is larger than `max_size` (0 = the renderer's limit) its biggest mip levels are skipped. Supported on OpenGL (S3TC/BPTC extensions), Vulkan and D3D12.
+- **Compressed bitmaps**: the result has `Bitmap::compressed` set and no CPU pixels: drawing and `bind_texture()` work, but `getpixel`, `putpixel` and `download_bitmap()` fail. `smooth`, `anisotropy` and trilinear mips are fixed at load.
+- **Fallback**: when the backend lacks the format, `allow_compressed_upload` is false, or the file has no smaller mip to fit `max_size`, BC1/BC3/uncompressed files are decoded (top level only) into an ordinary RGBA bitmap. BC7 has no CPU fallback. Returns `nullptr` on failure.
+
 #### `upload_bitmap(bitmap)` / `download_bitmap(bitmap)`
 ```cpp
 bool upload_bitmap(Bitmap *bitmap);
