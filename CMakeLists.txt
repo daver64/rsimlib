@@ -1098,6 +1098,14 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/man/simlib.3"
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man3
 )
 
+# Lets projects that add simlib with add_subdirectory use simlib_add_package() too.
+set(SIMLIB_PACKAGE_SHADER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/shaders;${CMAKE_CURRENT_BINARY_DIR}/shaders")
+set(SIMLIB_PACKAGE_LICENSE_DIRS "")
+if(_sc_prefix AND EXISTS "${_sc_prefix}/bin/dxcompiler.dll")
+    set(SIMLIB_PACKAGE_DXC_DIR "${_sc_prefix}/bin")
+endif()
+include(cmake/SimlibPackage.cmake)
+
 set(SIMLIB_INSTALL_TARGETS simlib lua pugixml-static)
 if(SIMLIB_GUI STREQUAL "imgui")
     list(APPEND SIMLIB_INSTALL_TARGETS imgui)
@@ -1168,6 +1176,8 @@ configure_package_config_file(
 )
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
     cmake/SimlibBlender.cmake
+    cmake/SimlibPackage.cmake
+    cmake/SimlibPackageRun.cmake
     tools/blender/export_glb.py
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )

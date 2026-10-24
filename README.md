@@ -234,6 +234,20 @@ Runtime shader assets (`share/simlib/shaders/{glsl,d3d,vulkan}`) are searched fo
 
 If you only move the install, point `SIMLIB_DATA_DIR` at the new location or place the `share/simlib` folder relative to your executable.
 
+### Distribute an Application
+
+`find_package(simlib)` also provides `simlib_add_package()`, which adds a `<target>_package` target that zips your executable with everything it needs at run time: shared libraries such as the SDL2 DLLs, simlib's shaders (including the compiled Vulkan SPIR-V), `dxcompiler.dll`/`dxil.dll` when known, your assets and the licences.
+
+```cmake
+simlib_add_package(TARGET my_app NAME my_app-1.0-win64 ASSETS assets EXTRA_FILES README.txt)
+```
+
+```bash
+cmake --build build --config Release --target my_app_package   # -> build/package/my_app-1.0-win64.zip
+```
+
+Unzip anywhere and run; simlib finds the shaders beside the executable. Set `SIMLIB_PACKAGE_DXC_DIR` to a folder holding the DXC DLLs if they are not detected. On Linux the system SDL2 libraries are not bundled. Vulkan users still need `vulkan-1.dll` from their GPU driver.
+
 Run the test suite:
 
 ```bash
