@@ -46,6 +46,7 @@
 #include "noise.h"
 #include "physics.h"
 #include "physics3d.h"
+#include "proptree.h"
 #include "resource.h"
 #include "scene3d.h"
 #include "surface3d.h"

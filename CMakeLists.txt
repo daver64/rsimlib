@@ -393,6 +393,8 @@ add_library(simlib STATIC
     src/engine/parallel_record.cpp
     src/engine/physics.cpp
     src/engine/physics3d.cpp
+    src/engine/proptree.cpp
+    src/engine/proptree_lua.cpp
     src/engine/flight.cpp
     src/engine/atmosphere.cpp
     src/engine/clutter.cpp
@@ -818,6 +820,17 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/exreel/exreel.cpp)
         src/examples/exreel/scenes_saturn.cpp)
     target_link_libraries(exreel PRIVATE simlib)
 endif()
+# kosmos is a space simulator developed outside the main repo (see .gitignore); it is built only when its sources are present.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos/kosmos.cpp)
+    add_executable(kosmos
+        src/examples/kosmos/kosmos.cpp
+        src/examples/kosmos/universe.cpp
+        src/examples/kosmos/ship.cpp
+        src/examples/kosmos/sim.cpp)
+    target_link_libraries(kosmos PRIVATE simlib)
+    target_include_directories(kosmos PRIVATE src/examples/common src/examples/kosmos)
+    target_compile_definitions(kosmos PRIVATE KOSMOS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos")
+endif()
 if(SIMLIB_GUI STREQUAL "imgui")
     add_executable(exlobby src/examples/exlobby/exlobby.cpp)
     target_link_libraries(exlobby PRIVATE simlib imgui)
@@ -884,6 +897,11 @@ if(BUILD_TESTING)
     target_link_libraries(physics3d_test PRIVATE simlib)
     target_compile_definitions(physics3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME physics3d COMMAND physics3d_test)
+
+    add_executable(proptree_test tests/proptree_test.cpp)
+    target_link_libraries(proptree_test PRIVATE simlib)
+    target_compile_definitions(proptree_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME proptree COMMAND proptree_test)
 
     add_executable(props3d_test tests/props3d_test.cpp)
     target_link_libraries(props3d_test PRIVATE simlib)
