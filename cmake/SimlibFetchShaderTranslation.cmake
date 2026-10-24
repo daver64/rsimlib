@@ -1,14 +1,21 @@
 # Builds glslang and SPIRV-Cross from source for the Direct3D 12 GLSL-to-HLSL translator.
 # Used when they are not installed (for example through vcpkg). Defines the targets
 # simlib_glslang, simlib_spirv_cross and the variable SIMLIB_TRANSLATION_FETCHED_INCLUDES.
+# Set SIMLIB_FETCH_GLSLANG_BINARIES to ON before including to also build the glslang-standalone
+# compiler (needs Python 3 at build time); it is used to generate the checked-in shaders' SPIR-V.
+# Safe to include more than once.
+include_guard(GLOBAL)
 include(FetchContent)
 
 set(_saved_shared "${BUILD_SHARED_LIBS}")
 set(BUILD_SHARED_LIBS OFF)
 
+if(NOT SIMLIB_FETCH_GLSLANG_BINARIES)
+    set(SIMLIB_FETCH_GLSLANG_BINARIES OFF)
+endif()
 set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
 set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
-set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_GLSLANG_BINARIES ${SIMLIB_FETCH_GLSLANG_BINARIES} CACHE BOOL "" FORCE)
 set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
 set(ENABLE_CTEST OFF CACHE BOOL "" FORCE)
 set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)

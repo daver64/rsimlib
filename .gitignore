@@ -1,4 +1,6 @@
 build
+build-verify
+build-spv
 html
 imgui.ini
 .vscode
