@@ -828,8 +828,9 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos/kosmos.cpp)
         src/examples/kosmos/universe.cpp
         src/examples/kosmos/galaxy.cpp
         src/examples/kosmos/ship.cpp
+        src/examples/kosmos/mfd.cpp
         src/examples/kosmos/sim.cpp)
-    target_link_libraries(kosmos PRIVATE simlib)
+    target_link_libraries(kosmos PRIVATE simlib lua sol2)
     target_include_directories(kosmos PRIVATE src/examples/common src/examples/kosmos)
     target_compile_definitions(kosmos PRIVATE KOSMOS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/src/examples/kosmos")
 endif()
