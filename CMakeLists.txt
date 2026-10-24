@@ -720,9 +720,6 @@ target_link_libraries(exfluid3d PRIVATE simlib)
 if(SIMLIB_RENDER_VULKAN)
     add_executable(ex3d_vulkan src/examples/ex3d_vulkan/ex3d_vulkan.cpp)
     target_include_directories(ex3d_vulkan PRIVATE src/engine)
-    target_compile_definitions(ex3d_vulkan PRIVATE
-        SIMLIB_SHADER_BINARY_DIR="${CMAKE_BINARY_DIR}/shaders"
-    )
     target_link_libraries(ex3d_vulkan PRIVATE simlib)
 endif()
 
