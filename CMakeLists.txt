@@ -1130,6 +1130,28 @@ if(_sc_prefix AND EXISTS "${_sc_prefix}/bin/dxcompiler.dll")
 endif()
 include(cmake/SimlibPackage.cmake)
 
+simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
+
+# simlib-demos-<system>.zip: every ex* example with the shared libraries, shaders and assets they need.
+get_directory_property(_simlib_all_targets BUILDSYSTEM_TARGETS)
+set(_simlib_example_targets "")
+foreach(_t IN LISTS _simlib_all_targets)
+    get_target_property(_type ${_t} TYPE)
+    if(_t MATCHES "^ex" AND _type STREQUAL "EXECUTABLE")
+        list(APPEND _simlib_example_targets ${_t})
+    endif()
+endforeach()
+list(SORT _simlib_example_targets)
+list(FIND _simlib_example_targets exxeno _simlib_primary_index)
+if(_simlib_primary_index GREATER -1)
+    list(REMOVE_ITEM _simlib_example_targets exxeno)
+    simlib_add_package(TARGET exxeno
+        NAME simlib-demos-${CMAKE_SYSTEM_NAME}
+        PACKAGE_TARGET simlib_demos_package
+        EXTRA_TARGETS ${_simlib_example_targets}
+        ASSETS assets)
+endif()
+
 set(SIMLIB_INSTALL_TARGETS simlib lua pugixml-static)
 if(SIMLIB_GUI STREQUAL "imgui")
     list(APPEND SIMLIB_INSTALL_TARGETS imgui)

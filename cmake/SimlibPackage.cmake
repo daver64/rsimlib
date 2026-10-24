@@ -4,7 +4,9 @@
 #   simlib_add_package(TARGET my_app
 #       NAME my_app-1.0-windows        # optional, default <target>-<system>
 #       ASSETS assets data/levels.zip  # optional files/directories copied next to the executable
-#       EXTRA_FILES README.txt)        # optional files placed in the zip root
+#       EXTRA_FILES README.txt         # optional files placed in the zip root
+#       EXTRA_TARGETS other_app ...    # optional further executables to put in the same zip
+#       PACKAGE_TARGET my_zip)         # optional build target name, default <target>_package
 #
 #   cmake --build build --config Release --target my_app_package
 #
@@ -16,9 +18,12 @@
 # On Linux the system SDL2 libraries are not bundled; the target machine needs them installed.
 
 function(simlib_add_package)
-    cmake_parse_arguments(ARG "" "TARGET;NAME;OUTPUT_DIR" "ASSETS;EXTRA_FILES" ${ARGN})
+    cmake_parse_arguments(ARG "" "TARGET;NAME;OUTPUT_DIR;PACKAGE_TARGET" "ASSETS;EXTRA_FILES;EXTRA_TARGETS" ${ARGN})
     if(NOT ARG_TARGET)
         message(FATAL_ERROR "simlib_add_package needs TARGET")
+    endif()
+    if(NOT ARG_PACKAGE_TARGET)
+        set(ARG_PACKAGE_TARGET ${ARG_TARGET}_package)
     endif()
     if(NOT ARG_NAME)
         set(ARG_NAME "${ARG_TARGET}-${CMAKE_SYSTEM_NAME}")
@@ -46,11 +51,17 @@ function(simlib_add_package)
         set(_dxc_dir "${SIMLIB_PACKAGE_DXC_DIR}")
     endif()
 
-    add_custom_target(${ARG_TARGET}_package
+    set(_extra_exes "")
+    foreach(_t IN LISTS ARG_EXTRA_TARGETS)
+        list(APPEND _extra_exes "$<TARGET_FILE:${_t}>")
+    endforeach()
+
+    add_custom_target(${ARG_PACKAGE_TARGET}
         COMMAND ${CMAKE_COMMAND}
             "-DSTAGE=${_stage}"
             "-DZIP=${_zip}"
             "-DEXE=$<TARGET_FILE:${ARG_TARGET}>"
+            "-DEXTRA_EXES=${_extra_exes}"
             "-DDLLS=$<TARGET_RUNTIME_DLLS:${ARG_TARGET}>"
             "-DSHADER_DIRS=${SIMLIB_PACKAGE_SHADER_DIRS}"
             "-DLICENSE_DIRS=${SIMLIB_PACKAGE_LICENSE_DIRS}"
@@ -58,8 +69,7 @@ function(simlib_add_package)
             "-DASSETS=${_assets}"
             "-DEXTRA=${_extra}"
             -P "${_SIMLIB_PACKAGE_SCRIPT}"
-        DEPENDS ${ARG_TARGET}
-        COMMAND_EXPAND_LISTS
+        DEPENDS ${ARG_TARGET} ${ARG_EXTRA_TARGETS}
         VERBATIM
         COMMENT "Packaging ${ARG_NAME}.zip")
 endfunction()

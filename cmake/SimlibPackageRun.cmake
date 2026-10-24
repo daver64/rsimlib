@@ -4,12 +4,27 @@ file(REMOVE "${ZIP}")
 file(MAKE_DIRECTORY "${STAGE}")
 
 file(COPY "${EXE}" DESTINATION "${STAGE}")
+foreach(_exe IN LISTS EXTRA_EXES)
+    file(COPY "${_exe}" DESTINATION "${STAGE}")
+endforeach()
 
 foreach(_dll IN LISTS DLLS)
     if(EXISTS "${_dll}")
         file(COPY "${_dll}" DESTINATION "${STAGE}")
     endif()
 endforeach()
+
+# Dependencies found through plain libraries rather than imported targets (vcpkg copies them beside the
+# executable) are missed by TARGET_RUNTIME_DLLS. vulkan-1.dll comes from the user's GPU driver.
+get_filename_component(_exe_dir "${EXE}" DIRECTORY)
+file(GLOB _local_dlls "${_exe_dir}/*.dll")
+foreach(_dll IN LISTS _local_dlls)
+    get_filename_component(_name "${_dll}" NAME)
+    if(NOT _name STREQUAL "vulkan-1.dll")
+        file(COPY "${_dll}" DESTINATION "${STAGE}")
+    endif()
+endforeach()
+file(REMOVE "${STAGE}/vulkan-1.dll")
 
 foreach(_dir IN LISTS SHADER_DIRS)
     if(IS_DIRECTORY "${_dir}")

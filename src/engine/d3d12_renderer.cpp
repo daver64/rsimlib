@@ -163,11 +163,11 @@ namespace sl::detail
         }
 
         bool compile_shader(const std::string &source, const char *entry, const char *target,
-                            ID3DBlob **blob, std::string &error)
+                            ID3DBlob **blob, std::string &error, UINT flags = 0)
         {
             ID3DBlob *messages = nullptr;
             const HRESULT result = D3DCompile(source.data(), source.size(), nullptr, nullptr, nullptr,
-                                              entry, target, D3DCOMPILE_ENABLE_STRICTNESS, 0, blob, &messages);
+                                              entry, target, D3DCOMPILE_ENABLE_STRICTNESS | flags, 0, blob, &messages);
             if (FAILED(result))
             {
                 error = messages ? static_cast<const char *>(messages->GetBufferPointer())
@@ -251,16 +251,15 @@ namespace sl::detail
         private:
             void load(ID3D12Device *device)
             {
-                // Highest shader model the device supports, capped at 6.6.
+                // Shader model 6.0 is enough for the translated shaders and the most widely supported DXIL model.
+                // Higher models gain nothing here, and shaders compiled for 6.6 are rejected with E_INVALIDARG
+                // when creating pipeline states on some drivers and runtimes.
                 struct Model
                 {
                     D3D_SHADER_MODEL model;
                     const wchar_t *suffix;
                 };
-                const Model models[] = {{D3D_SHADER_MODEL_6_6, L"6_6"}, {D3D_SHADER_MODEL_6_5, L"6_5"},
-                                        {D3D_SHADER_MODEL_6_4, L"6_4"}, {D3D_SHADER_MODEL_6_3, L"6_3"},
-                                        {D3D_SHADER_MODEL_6_2, L"6_2"}, {D3D_SHADER_MODEL_6_1, L"6_1"},
-                                        {D3D_SHADER_MODEL_6_0, L"6_0"}};
+                const Model models[] = {{D3D_SHADER_MODEL_6_0, L"6_0"}};
                 for (const Model &candidate : models)
                 {
                     D3D12_FEATURE_DATA_SHADER_MODEL support{candidate.model};
@@ -691,9 +690,12 @@ namespace sl::detail
                     return false;
                 if (context_.frame_open())
                 {
+                    // Submit what has been recorded so far without presenting, so earlier draws
+                    // in this frame are not lost, then restore the target state on the fresh list.
                     flush_2d();
-                    context_.present(vsync_enabled_);
-                    release_retired_textures();
+                    if (!context_.execute_with(nullptr, 0))
+                        return false;
+                    rebind_frame_targets();
                 }
                 if (!context_.wait_idle())
                     return false;
@@ -2627,8 +2629,10 @@ namespace sl::detail
                 }
                 ID3DBlob *vertex_blob = nullptr;
                 ID3DBlob *pixel_blob = nullptr;
+                // Optimisation level 0 keeps the loop-heavy sky shader from taking seconds to compile.
                 if (!compile_shader(vertex_source, "main", "vs_5_0", &vertex_blob, last_error_) ||
-                    !compile_shader(pixel_source, "main", "ps_5_0", &pixel_blob, last_error_))
+                    !compile_shader(pixel_source, "main", "ps_5_0", &pixel_blob, last_error_,
+                                    D3DCOMPILE_OPTIMIZATION_LEVEL0))
                 {
                     if (vertex_blob)
                         vertex_blob->Release();
@@ -2916,6 +2920,24 @@ namespace sl::detail
                 context_.command_list()->RSSetViewports(1, &viewport);
                 context_.command_list()->RSSetScissorRects(1, &scissor);
                 return true;
+            }
+
+            void rebind_frame_targets()
+            {
+                if (active_render_target_ != 0)
+                {
+                    bind_active_render_target();
+                    return;
+                }
+                context_.bind_backbuffer();
+                if (last_2d_width_ > 0 && last_2d_height_ > 0)
+                {
+                    D3D12_VIEWPORT viewport{0.0f, 0.0f, static_cast<float>(last_2d_width_),
+                                            static_cast<float>(last_2d_height_), 0.0f, 1.0f};
+                    D3D12_RECT scissor{0, 0, last_2d_width_, last_2d_height_};
+                    context_.command_list()->RSSetViewports(1, &viewport);
+                    context_.command_list()->RSSetScissorRects(1, &scissor);
+                }
             }
 
             void suspend_active_render_target()

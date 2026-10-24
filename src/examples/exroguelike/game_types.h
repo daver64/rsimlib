@@ -238,7 +238,8 @@ struct Room
 
 struct Overworld
 {
-    std::array<Tile, WORLD_WIDTH * WORLD_HEIGHT> tiles;
+    // About 2 MB, so it lives on the heap; a std::array here overflows the default Windows stack.
+    std::vector<Tile> tiles = std::vector<Tile>(WORLD_WIDTH * WORLD_HEIGHT);
 
     Tile &at(int x, int y) { return tiles[y * WORLD_WIDTH + x]; }
     const Tile &at(int x, int y) const { return tiles[y * WORLD_WIDTH + x]; }
