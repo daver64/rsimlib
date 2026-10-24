@@ -790,6 +790,8 @@ add_executable(exxeno src/examples/exxeno/exxeno.cpp)
 target_link_libraries(exxeno PRIVATE simlib)
 add_executable(exinvaders src/examples/exinvaders/exinvaders.cpp)
 target_link_libraries(exinvaders PRIVATE simlib)
+add_executable(exdefender src/examples/exdefender/exdefender.cpp)
+target_link_libraries(exdefender PRIVATE simlib)
 add_executable(exnormalmap src/examples/exnormalmap/exnormalmap.cpp)
 target_link_libraries(exnormalmap PRIVATE simlib)
 add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)
@@ -1151,6 +1153,8 @@ endif()
 include(cmake/SimlibPackage.cmake)
 
 simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
+simlib_add_package(TARGET exinvaders NAME exinvaders-${CMAKE_SYSTEM_NAME})
+simlib_add_package(TARGET exdefender NAME exdefender-${CMAKE_SYSTEM_NAME})
 
 # simlib-demos-<system>.zip: every ex* example with the shared libraries, shaders and assets they need.
 get_directory_property(_simlib_all_targets BUILDSYSTEM_TARGETS)

@@ -22,6 +22,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![excompute](img/excompute.png)<br>**excompute**](excompute.md) | GPU compute: a compute shader updates 1,000 particles stored in a shader storage buffer, then the results are read back and drawn. |
 | [![exconfig](img/exconfig.png)<br>**exconfig**](exconfig.md) | The JSON configuration subsystem (`sl::Config`): nested dotted-path keys and typed values edited live, saved to and loaded from `config_demo.json`. |
 | [![exdb](img/exdb.png)<br>**exdb**](exdb.md) | A small embedded database: opens a file, reads rows and lists them on screen. |
+| [![exdefender](img/exdefender.png)<br>**exdefender**](exdefender.md) | Neon-voxel arcade shooter with wraparound flight, alien waves, smart bombs, rescues and tumbling debris. |
 | [![execs](img/execs.png)<br>**execs**](execs.md) | A header-only archetype ECS (`recs.h`) driving thousands of simulated entities, rendered with simlib. |
 | [![exflight](img/exflight.png)<br>**exflight**](exflight.md) | Aircraft flight with `FlightWorld`: lifting and control surfaces, a jet engine, landing gear on a runway and an exponential atmosphere. |
 | [![exfluid3d](img/exfluid3d.png)<br>**exfluid3d**](exfluid3d.md) | 3D voxel fluid sandbox: spray materials into a voxel volume rendered as a mesh with an orbit camera. |
