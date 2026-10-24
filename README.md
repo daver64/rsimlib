@@ -154,7 +154,7 @@ vcpkg install glew:x64-windows libpng:x64-windows zlib:x64-windows glslang:x64-w
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake"
 ```
 
-The `[vulkan]` feature matters: vcpkg's default SDL2 is built without Vulkan, and the Vulkan backend then fails at startup with "Vulkan support is either not configured in SDL or not available". The Vulkan backend also needs `vulkan-1.dll` (installed with the GPU driver) and the compiled `.spv` shaders next to the executables. `glslang` and `spirv-cross` are needed for the Direct3D 12 effects (lighting, bloom, compute); without them those examples fail on `--d3d12`.
+The `[vulkan]` feature matters: vcpkg's default SDL2 is built without Vulkan, and the Vulkan backend then fails at startup with "Vulkan support is either not configured in SDL or not available". The Vulkan backend also needs `vulkan-1.dll` (installed with the GPU driver) and the compiled `.spv` shaders next to the executables. If `glslangValidator` is not installed (vcpkg's glslang omits it unless you ask for `glslang[tools]`, and the Vulkan SDK includes it), CMake builds glslang's compiler from source and uses it to generate the `.spv` files, which needs network access and Python 3 at configure/build time; pass `-DSIMLIB_BUILD_SHADER_COMPILER=OFF` to skip this. `glslang` and `spirv-cross` are needed for the Direct3D 12 effects (lighting, bloom, compute); without them those examples fail on `--d3d12`.
 
 ### Video Playback
 

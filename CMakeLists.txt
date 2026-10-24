@@ -60,11 +60,28 @@ message(STATUS "simlib renderers: ${SIMLIB_RENDERERS}")
 option(SIMLIB_D3D12_BUILD_TRANSLATION "Build glslang and SPIRV-Cross from source for Direct3D 12 when they are not installed (slower first build, needs network)" ON)
 option(SIMLIB_D3D12_REQUIRE_TRANSLATION "Fail the configure step if the Direct3D 12 GLSL translator (glslang, SPIRV-Cross) is missing" ON)
 option(SIMLIB_VALIDATE_SHADERS "Validate checked-in GLSL shaders with glslangValidator" ON)
+option(SIMLIB_BUILD_SHADER_COMPILER "Build glslang's compiler from source to generate the Vulkan .spv shaders when glslangValidator is not installed (needs network and Python 3)" ON)
 
+set(SIMLIB_SHADER_COMPILER_BUILT OFF)
 if(SIMLIB_VALIDATE_SHADERS)
     find_program(GLSLANG_VALIDATOR glslangValidator)
     find_program(SPIRV_VAL spirv-val)
-    if(GLSLANG_VALIDATOR)
+    set(SIMLIB_SHADER_COMPILER "${GLSLANG_VALIDATOR}")
+    if(NOT SIMLIB_SHADER_COMPILER AND SIMLIB_RENDER_VULKAN AND SIMLIB_BUILD_SHADER_COMPILER)
+        find_package(Python3 QUIET COMPONENTS Interpreter)
+        if(Python3_FOUND)
+            message(STATUS "glslangValidator not installed: building glslang's compiler from source to generate the Vulkan shaders")
+            set(SIMLIB_FETCH_GLSLANG_BINARIES ON)
+            include(cmake/SimlibFetchShaderTranslation.cmake)
+            set(SIMLIB_SHADER_COMPILER glslang-standalone)
+            set(SIMLIB_SHADER_COMPILER_BUILT ON)
+        else()
+            message(WARNING "glslangValidator not found and Python 3 is not available to build it from source: the Vulkan "
+                            "backend will have no .spv shaders. Install Python 3 or glslangValidator (Vulkan SDK, or "
+                            "'vcpkg install glslang[tools]'), or set -DSIMLIB_BUILD_SHADER_COMPILER=OFF to silence this.")
+        endif()
+    endif()
+    if(SIMLIB_SHADER_COMPILER)
         set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
         set(GLSL_SHADER_BINARY_DIR "${SHADER_BINARY_DIR}/glsl")
         set(VULKAN_SHADER_BINARY_DIR "${SHADER_BINARY_DIR}/vulkan")
@@ -114,7 +131,7 @@ if(SIMLIB_VALIDATE_SHADERS)
             endif()
             add_custom_command(
                 OUTPUT "${SHADER_BINARY}"
-                COMMAND "${GLSLANG_VALIDATOR}" -G --auto-map-locations --auto-map-bindings
+                COMMAND "${SIMLIB_SHADER_COMPILER}" -G --auto-map-locations --auto-map-bindings
                         -S "${SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${SHADER_SOURCE}"
                         -o "${SHADER_BINARY}"
                 DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${SHADER_SOURCE}"
@@ -147,7 +164,7 @@ if(SIMLIB_VALIDATE_SHADERS)
             set(VULKAN_SHADER_BINARY "${VULKAN_SHADER_BINARY_DIR}/${VULKAN_SHADER_SOURCE}.spv")
             add_custom_command(
                 OUTPUT "${VULKAN_SHADER_BINARY}"
-                COMMAND "${GLSLANG_VALIDATOR}" -V --auto-map-locations --auto-map-bindings
+                COMMAND "${SIMLIB_SHADER_COMPILER}" -V --auto-map-locations --auto-map-bindings
                         -S "${VULKAN_SHADER_STAGE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/${VULKAN_SHADER_SOURCE}"
                         -o "${VULKAN_SHADER_BINARY}"
                 DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/${VULKAN_SHADER_SOURCE}"
@@ -416,17 +433,21 @@ else()
     target_sources(simlib PRIVATE src/engine/video_none.cpp)
 endif()
 target_compile_definitions(simlib PUBLIC SIMLIB_VIDEO_BACKEND_${SIMLIB_VIDEO})
-if(NOT GLSLANG_VALIDATOR)
+if(NOT GLSLANG_VALIDATOR AND NOT SIMLIB_SHADER_COMPILER_BUILT)
     find_program(GLSLANG_VALIDATOR glslangValidator)
 endif()
-if(NOT GLSLANG_VALIDATOR)
-    set(GLSLANG_VALIDATOR "")
+if(SIMLIB_SHADER_COMPILER_BUILT)
+    # Runtime Vulkan shader compilation uses the compiler built alongside the library.
+    set(SIMLIB_RUNTIME_GLSLANG "$<TARGET_FILE:glslang-standalone>")
+    add_dependencies(simlib glslang-standalone)
+else()
+    set(SIMLIB_RUNTIME_GLSLANG "${GLSLANG_VALIDATOR}")
 endif()
 target_compile_definitions(simlib PRIVATE
     SIMLIB_INSTALL_DATA_DIR="${CMAKE_INSTALL_FULL_DATADIR}/simlib"
     SIMLIB_BUILD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     SIMLIB_BUILD_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
-    SIMLIB_GLSLANG_VALIDATOR="${GLSLANG_VALIDATOR}"
+    SIMLIB_GLSLANG_VALIDATOR="${SIMLIB_RUNTIME_GLSLANG}"
 )
 target_link_libraries(simlib PUBLIC PNG::PNG ZLIB::ZLIB lua sol2)
 if(SIMLIB_RENDER_GL)
@@ -453,7 +474,10 @@ if(SIMLIB_RENDER_D3D12)
     target_link_libraries(simlib PRIVATE d3d12 dxgi d3dcompiler)
     # The D3D12 backend translates GLSL to HLSL (glslang -> SPIR-V -> SPIRV-Cross) at runtime.
     # Install with: vcpkg install glslang:x64-windows spirv-cross:x64-windows
-    find_package(glslang CONFIG QUIET)
+    # When glslang was already fetched for the shader compiler, reuse that copy: mixing it with an installed one clashes on target names.
+    if(NOT TARGET simlib_glslang)
+        find_package(glslang CONFIG QUIET)
+    endif()
     set(_sc_prefix "")
     if(DEFINED _VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
         set(_sc_prefix "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
@@ -473,15 +497,15 @@ if(SIMLIB_RENDER_D3D12)
             list(APPEND _sc_libs optimized "${SPIRV_CROSS_${_sc_name}_RELEASE}" debug "${SPIRV_CROSS_${_sc_name}_DEBUG}")
         endif()
     endforeach()
-    if(TARGET glslang::glslang AND TARGET glslang::SPIRV AND SPIRV_CROSS_INCLUDE_DIR AND _sc_found)
+    if(NOT TARGET simlib_glslang AND TARGET glslang::glslang AND TARGET glslang::SPIRV AND SPIRV_CROSS_INCLUDE_DIR AND _sc_found)
         target_compile_definitions(simlib PRIVATE SIMLIB_D3D12_SHADER_TRANSLATION=1)
         target_include_directories(simlib PRIVATE "${SPIRV_CROSS_INCLUDE_DIR}")
         target_link_libraries(simlib PRIVATE glslang::glslang glslang::SPIRV
                               glslang::glslang-default-resource-limits ${_sc_libs})
-    elseif(SIMLIB_D3D12_BUILD_TRANSLATION)
-        message(STATUS "glslang/spirv-cross not installed: building them from source for the Direct3D 12 backend")
+    elseif(TARGET simlib_glslang OR SIMLIB_D3D12_BUILD_TRANSLATION)
+        message(STATUS "Building glslang/spirv-cross from source for the Direct3D 12 backend")
         include(cmake/SimlibFetchShaderTranslation.cmake)
-        target_compile_definitions(simlib PRIVATE SIMLIB_D3D12_SHADER_TRANSLATION=1)
+        target_compile_definitions(simlib PRIVATE SIMLIB_D3D12_SHADER_TRANSLATION=1 SIMLIB_TRANSLATION_FETCHED=1)
         target_include_directories(simlib PRIVATE ${SIMLIB_TRANSLATION_FETCHED_INCLUDES})
         # Not exported: an installed simlib built this way still needs these static libraries linked into client apps.
         target_link_libraries(simlib PRIVATE $<BUILD_LOCAL_INTERFACE:simlib_glslang> $<BUILD_LOCAL_INTERFACE:simlib_spirv_cross>)
