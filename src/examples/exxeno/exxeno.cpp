@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
     sl::TileMap *map = atlas_bitmap && splat_sheet ? make_arena(atlas_bitmap, splat_sheet, casters, splat_first_gid) : nullptr;
     if (!map || !scene || !lighting.initialise())
     {
-        std::fprintf(stderr, "exxeno: setup failed\n");
+        std::fprintf(stderr, "exxeno: setup failed: %s\n", sl::last_error().c_str());
         shutdown_audio(audio);
         sl::destroy_tilemap(map);
         sl::destroy_bitmap(scene);

@@ -138,6 +138,8 @@ namespace sl::detail
             int sampler_parameter_base = -1;
             std::array<ID3D12PipelineState *, pipeline_set_size * sample_slot_count> pipelines{};
             ID3D12PipelineState *compute_pipeline = nullptr;
+            // Set once the DXC-built shaders were rejected at pipeline creation and fxc (SM 5.1) replaced them.
+            bool fxc_fallback = false;
         };
 
         D3D12_BLEND_DESC blend_description(std::size_t variant)
@@ -310,6 +312,13 @@ namespace sl::detail
         {
             if (dxc_available(device))
                 return dxc_compile(source, stage, blob, error);
+            return compile_shader(source, "main", (std::string(stage) + "_5_1").c_str(), blob, error);
+        }
+
+        // Drivers sometimes reject DXC-built DXIL at pipeline creation; fxc's shader model 5.1 is the safe fallback.
+        bool compile_program_shader_fxc(const std::string &source, const char *stage, ID3DBlob **blob,
+                                        std::string &error)
+        {
             return compile_shader(source, "main", (std::string(stage) + "_5_1").c_str(), blob, error);
         }
 
@@ -1699,9 +1708,28 @@ namespace sl::detail
                 D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
                 desc.pRootSignature = program.root_signature;
                 desc.CS = {program.compute_blob->GetBufferPointer(), program.compute_blob->GetBufferSize()};
-                if (FAILED(context_.device()->CreateComputePipelineState(&desc, IID_PPV_ARGS(&program.compute_pipeline))))
+                HRESULT pipeline_result =
+                    context_.device()->CreateComputePipelineState(&desc, IID_PPV_ARGS(&program.compute_pipeline));
+                if (FAILED(pipeline_result) && dxc_available(context_.device()) &&
+                    program.samplers.size() <= max_program_samplers_sm5)
                 {
-                    error = "Unable to create the D3D12 compute pipeline state.";
+                    ID3DBlob *fallback = nullptr;
+                    std::string fallback_error;
+                    if (compile_program_shader_fxc(program.pixel.hlsl, "cs", &fallback, fallback_error))
+                    {
+                        program.compute_blob->Release();
+                        program.compute_blob = fallback;
+                        program.fxc_fallback = true;
+                        desc.CS = {fallback->GetBufferPointer(), fallback->GetBufferSize()};
+                        pipeline_result = context_.device()->CreateComputePipelineState(
+                            &desc, IID_PPV_ARGS(&program.compute_pipeline));
+                    }
+                }
+                if (FAILED(pipeline_result))
+                {
+                    char code[48];
+                    std::snprintf(code, sizeof(code), " (HRESULT 0x%08lX)", static_cast<unsigned long>(pipeline_result));
+                    error = std::string("Unable to create the D3D12 compute pipeline state.") + code;
                     release_program(program);
                     return false;
                 }
@@ -3522,14 +3550,39 @@ namespace sl::detail
                      static_cast<UINT>(offsetof(Vertex2D, u)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex2D, r)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-                const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
+                D3D12_GRAPHICS_PIPELINE_STATE_DESC desc =
                     make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
                                           primitive, variant, elements, static_cast<UINT>(std::size(elements)), samples);
-                if (!create_pipeline_state(desc, slot))
+                if (!create_pipeline_state(desc, slot) && !program.fxc_fallback && dxc_available(context_.device()) &&
+                    program.samplers.size() <= max_program_samplers_sm5)
                 {
-                    slot = nullptr;
-                    last_error_ = "Unable to create the D3D12 pipeline state for a user shader.";
+                    ID3DBlob *vertex_fallback = nullptr;
+                    ID3DBlob *pixel_fallback = nullptr;
+                    std::string fallback_error;
+                    if (compile_program_shader_fxc(program.vertex.hlsl, "vs", &vertex_fallback, fallback_error) &&
+                        compile_program_shader_fxc(program.pixel.hlsl, "ps", &pixel_fallback, fallback_error))
+                    {
+                        // Pipelines already built keep their own copy of the old bytecode.
+                        program.vertex_blob->Release();
+                        program.pixel_blob->Release();
+                        program.vertex_blob = vertex_fallback;
+                        program.pixel_blob = pixel_fallback;
+                        program.fxc_fallback = true;
+                        desc = make_2d_pipeline_desc(program.root_signature, program.vertex_blob, program.pixel_blob,
+                                                     primitive, variant, elements, static_cast<UINT>(std::size(elements)),
+                                                     samples);
+                        create_pipeline_state(desc, slot);
+                    }
+                    else
+                    {
+                        if (vertex_fallback)
+                            vertex_fallback->Release();
+                        if (pixel_fallback)
+                            pixel_fallback->Release();
+                    }
                 }
+                if (!slot)
+                    last_error_ = "Unable to create the D3D12 pipeline state for a user shader.";
                 return slot;
             }
 
