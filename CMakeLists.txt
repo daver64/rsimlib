@@ -392,6 +392,7 @@ add_library(simlib STATIC
     src/engine/async_load.cpp
     src/engine/parallel_record.cpp
     src/engine/physics.cpp
+    src/engine/physics3d.cpp
     src/engine/flight.cpp
     src/engine/atmosphere.cpp
     src/engine/clutter.cpp
@@ -784,6 +785,8 @@ add_executable(extilemap src/examples/extilemap/extilemap.cpp)
 target_link_libraries(extilemap PRIVATE simlib)
 add_executable(exxeno src/examples/exxeno/exxeno.cpp)
 target_link_libraries(exxeno PRIVATE simlib)
+add_executable(exinvaders src/examples/exinvaders/exinvaders.cpp)
+target_link_libraries(exinvaders PRIVATE simlib)
 add_executable(exnormalmap src/examples/exnormalmap/exnormalmap.cpp)
 target_link_libraries(exnormalmap PRIVATE simlib)
 add_executable(exnormalmap3d src/examples/exnormalmap3d/exnormalmap3d.cpp)
@@ -876,6 +879,11 @@ if(BUILD_TESTING)
     target_link_libraries(camera_collision_test PRIVATE simlib)
     target_compile_definitions(camera_collision_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME camera_collision COMMAND camera_collision_test)
+
+    add_executable(physics3d_test tests/physics3d_test.cpp)
+    target_link_libraries(physics3d_test PRIVATE simlib)
+    target_compile_definitions(physics3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME physics3d COMMAND physics3d_test)
 
     add_executable(props3d_test tests/props3d_test.cpp)
     target_link_libraries(props3d_test PRIVATE simlib)

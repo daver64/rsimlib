@@ -29,6 +29,12 @@
 
 ---
 
+## 3D Rigid Boxes (`physics3d.h`)
+
+Box2D is 2D only. `RigidBoxWorld3D` simulates oriented boxes in 3D under gravity, with a floor plane and static boxes, impulse contacts that include rotation and friction, lifetimes and an explosion helper. It is meant for debris and effects (bodies do not collide with each other); see the [API reference](api_reference.md) and the `exinvaders` example.
+
+---
+
 ## Lua Physics API
 
 In Lua scripts, physics functions are exposed under the `physics` table using safe integer handles:

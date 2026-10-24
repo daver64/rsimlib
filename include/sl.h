@@ -45,6 +45,7 @@
 #include "lua_runtime.h"
 #include "noise.h"
 #include "physics.h"
+#include "physics3d.h"
 #include "resource.h"
 #include "scene3d.h"
 #include "surface3d.h"

@@ -819,6 +819,37 @@ void set_physics_body_filter(PhysicsBody *body, std::uint16_t category_bits, std
 
 ---
 
+## 3D Rigid Boxes ([include/physics3d.h](../include/physics3d.h))
+
+Box2D is two-dimensional, so `physics3d.h` adds a small 3D rigid-body simulation for debris and other lightweight effects. Units are world units and seconds; nothing here uses pixels.
+
+#### `RigidBox3D`
+```cpp
+struct RigidBox3D {
+    glm::vec3 position, velocity, angular_velocity, half_extents;
+    glm::quat orientation;
+    float mass, restitution, friction, linear_damping, angular_damping;
+    float age, lifetime;       // lifetime 0 lives forever
+    std::uint32_t user;        // free for the caller
+    bool touching;             // touched the floor or an obstacle in the last step
+};
+```
+- **Description**: An oriented box with mass, a box inertia tensor, linear and angular velocity. `StaticBox3D { min, max }` is an axis-aligned box that bodies collide with.
+
+#### `RigidBoxWorld3D`
+```cpp
+RigidBox3D &add(const RigidBox3D &body);
+static void apply_impulse(RigidBox3D &body, const glm::vec3 &impulse, const glm::vec3 &point);
+void explode(const glm::vec3 &centre, float radius, float strength, float spin = 6.0f);
+void step(float dt, int substeps = 2);
+void clear();
+std::vector<RigidBox3D> &bodies();
+static glm::mat4 model_matrix(const RigidBox3D &body);
+```
+- **Description**: Public members `gravity` (default `{0, -9.81, 0}`), `has_floor`, `floor_height`, `obstacles` and `max_bodies`. `step()` applies gravity, resolves contacts with impulses (restitution, Coulomb friction, rotation about the contact point, so a cube landing on a corner tumbles), removes bodies past their `lifetime` and drops the oldest beyond `max_bodies`. Bodies collide with the floor and static boxes but not with each other. `apply_impulse()` pushes a body at a world point, which also spins it; `explode()` pushes every body within `radius` away from `centre` with a linear falloff and random spin. `model_matrix()` gives the transform for drawing a unit cube, ready for `draw_mesh_instanced()`. See `exinvaders`.
+
+---
+
 ## 3D Surfaces ([include/surface3d.h](../include/surface3d.h))
 
 A `Surface3D` is an offscreen colour+depth target you draw 3D meshes into, then composite into 2D with `draw_sprite(surface_3d_bitmap(surface), x, y)`. It works on the OpenGL, Vulkan and Direct3D 12 backends.

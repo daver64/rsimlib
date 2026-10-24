@@ -48,6 +48,7 @@ Then try:
 - [`extown`](../src/examples/extown/extown.cpp) for a 55k-triangle town and airfield built from `props3d.h` parts with baked instances, shadows and night lamps.
 - [`excontrols`](../src/examples/excontrols/excontrols.cpp) and [`excockpit`](../src/examples/excockpit/excockpit.cpp) for mouse-operated cockpit and factory control panels with glowing LEDs, in 2D and as 3D geometry.
 - [`exxeno`](../src/examples/exxeno/exxeno.cpp) for a lit 2D shooter combining tile-map decals, `LightingPass`, particles and synthesised audio.
+- [`exinvaders`](../src/examples/exinvaders/exinvaders.cpp) for a voxel Space Invaders with bloom and 3D debris from `RigidBoxWorld3D` ([guide](examples/exinvaders.md)).
 - [`extilemap`](../src/examples/extilemap/extilemap.cpp) and [`exphysics`](../src/examples/exphysics/exphysics.cpp) for tile maps and Box2D as focused building blocks.
 - [`exaudio`](../src/examples/exaudio/exaudio.cpp), [`exparticles`](../src/examples/exparticles/exparticles.cpp), and [`exlighting`](../src/examples/exlighting/exlighting.cpp) for sound, particles, and dynamic 2D light/shadow systems.
 
