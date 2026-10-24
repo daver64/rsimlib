@@ -1,8 +1,8 @@
 # simlib
 
-[![simlib showreel on YouTube: click to watch](docs/showreel_thumbnail.png)](https://www.youtube.com/watch?v=D1dyvnGUUNw)
+[![simlib showreel 1 on YouTube: click to watch](docs/showreel1_thumbnail.png)](https://www.youtube.com/watch?v=D1dyvnGUUNw)
 
-**[Watch the showreel](https://www.youtube.com/watch?v=D1dyvnGUUNw)**: a three-minute tour of simlib, rendered entirely by simlib itself.
+**[Watch showreel 1](https://www.youtube.com/watch?v=D1dyvnGUUNw)**: a three-minute tour of simlib, rendered entirely by simlib itself.
 
 [![simlib showreel 2 on YouTube: click to watch](docs/showreel2_thumbnail.png)](https://www.youtube.com/watch?v=XAhfCniKO2k)
 
