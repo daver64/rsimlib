@@ -142,13 +142,19 @@ Renderers are selected with `-DSIMLIB_RENDERERS="gl;vulkan;d3d12"` (default `gl;
 | `SIMLIB_RENDERERS` | `gl`, `vulkan`, `d3d12` (list) | `gl;vulkan` (+ `d3d12` on Windows) |
 | `SIMLIB_GUI` | `imgui`, `none` | `imgui` |
 | `SIMLIB_VIDEO` | `plmpeg`, `ffmpeg`, `none` | `plmpeg` |
+| `SIMLIB_D3D12_BUILD_TRANSLATION` | `ON`, `OFF` | `ON` (Windows, with `d3d12`) |
+| `SIMLIB_D3D12_REQUIRE_TRANSLATION` | `ON`, `OFF` | `ON` (Windows, with `d3d12`) |
+
+With `SIMLIB_D3D12_BUILD_TRANSLATION` (the default), glslang and SPIRV-Cross are downloaded and built from source when vcpkg does not provide them, which lengthens the first build. `SIMLIB_D3D12_REQUIRE_TRANSLATION` applies when that is `OFF`: it makes the configure step fail when glslang or SPIRV-Cross is missing, because without them the Direct3D 12 lighting, bloom and compute effects cannot run.
 
 On Windows, install GLEW, libpng, and zlib with vcpkg, then configure CMake with the vcpkg toolchain. GLEW loads the OpenGL 4.3 entry points used by the optional OpenGL backend; libpng and zlib are required by PNG export:
 
 ```powershell
-vcpkg install glew:x64-windows libpng:x64-windows zlib:x64-windows glslang:x64-windows spirv-cross:x64-windows directx-dxc:x64-windows
+vcpkg install glew:x64-windows libpng:x64-windows zlib:x64-windows glslang:x64-windows spirv-cross:x64-windows directx-dxc:x64-windows "sdl2[vulkan]:x64-windows"
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake"
 ```
+
+The `[vulkan]` feature matters: vcpkg's default SDL2 is built without Vulkan, and the Vulkan backend then fails at startup with "Vulkan support is either not configured in SDL or not available". The Vulkan backend also needs `vulkan-1.dll` (installed with the GPU driver) and the compiled `.spv` shaders next to the executables. `glslang` and `spirv-cross` are needed for the Direct3D 12 effects (lighting, bloom, compute); without them those examples fail on `--d3d12`.
 
 ### Video Playback
 

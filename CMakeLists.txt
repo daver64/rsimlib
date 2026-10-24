@@ -57,6 +57,8 @@ foreach(_renderer IN LISTS SIMLIB_RENDERERS)
 endforeach()
 message(STATUS "simlib renderers: ${SIMLIB_RENDERERS}")
 
+option(SIMLIB_D3D12_BUILD_TRANSLATION "Build glslang and SPIRV-Cross from source for Direct3D 12 when they are not installed (slower first build, needs network)" ON)
+option(SIMLIB_D3D12_REQUIRE_TRANSLATION "Fail the configure step if the Direct3D 12 GLSL translator (glslang, SPIRV-Cross) is missing" ON)
 option(SIMLIB_VALIDATE_SHADERS "Validate checked-in GLSL shaders with glslangValidator" ON)
 
 if(SIMLIB_VALIDATE_SHADERS)
@@ -476,9 +478,22 @@ if(SIMLIB_RENDER_D3D12)
         target_include_directories(simlib PRIVATE "${SPIRV_CROSS_INCLUDE_DIR}")
         target_link_libraries(simlib PRIVATE glslang::glslang glslang::SPIRV
                               glslang::glslang-default-resource-limits ${_sc_libs})
+    elseif(SIMLIB_D3D12_BUILD_TRANSLATION)
+        message(STATUS "glslang/spirv-cross not installed: building them from source for the Direct3D 12 backend")
+        include(cmake/SimlibFetchShaderTranslation.cmake)
+        target_compile_definitions(simlib PRIVATE SIMLIB_D3D12_SHADER_TRANSLATION=1)
+        target_include_directories(simlib PRIVATE ${SIMLIB_TRANSLATION_FETCHED_INCLUDES})
+        # Not exported: an installed simlib built this way still needs these static libraries linked into client apps.
+        target_link_libraries(simlib PRIVATE $<BUILD_LOCAL_INTERFACE:simlib_glslang> $<BUILD_LOCAL_INTERFACE:simlib_spirv_cross>)
     else()
-        message(WARNING "glslang/spirv-cross not found: D3D12 user shaders and effects will be unavailable. "
-                        "Run: vcpkg install glslang:x64-windows spirv-cross:x64-windows")
+        set(_sc_message "glslang/spirv-cross not found: D3D12 user shaders and effects (lighting, bloom, compute) would be "
+                        "unavailable. Run: vcpkg install glslang:x64-windows spirv-cross:x64-windows, pass the vcpkg toolchain file, "
+                        "and reconfigure with a fresh build directory, or enable SIMLIB_D3D12_BUILD_TRANSLATION.")
+        if(SIMLIB_D3D12_REQUIRE_TRANSLATION)
+            message(FATAL_ERROR "${_sc_message} (Or set -DSIMLIB_D3D12_REQUIRE_TRANSLATION=OFF to build without them.)")
+        else()
+            message(WARNING "${_sc_message}")
+        endif()
     endif()
     find_package(directx-dxc CONFIG QUIET)
     find_path(DXC_INCLUDE_DIR dxcapi.h HINTS "${_sc_prefix}/include" PATH_SUFFIXES directx-dxc)

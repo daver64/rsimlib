@@ -14,8 +14,16 @@
 #ifdef SIMLIB_D3D12_SHADER_TRANSLATION
 #include <glslang/Public/ResourceLimits.h>
 #include <glslang/Public/ShaderLang.h>
+#if __has_include(<glslang/SPIRV/GlslangToSpv.h>)
 #include <glslang/SPIRV/GlslangToSpv.h>
+#else
+#include <SPIRV/GlslangToSpv.h>
+#endif
+#if __has_include(<spirv_cross/spirv_hlsl.hpp>)
 #include <spirv_cross/spirv_hlsl.hpp>
+#else
+#include <spirv_hlsl.hpp>
+#endif
 #include <mutex>
 #endif
 
