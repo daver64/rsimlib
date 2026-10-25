@@ -29,8 +29,14 @@ namespace
     constexpr float pi = 3.14159265f;
 
     enum Colour { ship_c, enemy_c, bomber_c, human_c, shot_c, ground_c, colour_count };
-    const sl::Colour colours[colour_count] = {{70, 235, 255}, {255, 70, 205}, {255, 135, 40},
-                                               {180, 255, 90}, {100, 220, 255}, {70, 120, 255}};
+    const sl::Colour colours[colour_count] = {{0, 245, 255}, {255, 20, 215}, {255, 130, 0},
+                                               {110, 255, 30}, {60, 230, 255}, {140, 60, 255}};
+    void set_emissive(sl::Material &m, sl::Colour c, float k)
+    {
+        m.emissive[0] = c.red / 255.0f * k;
+        m.emissive[1] = c.green / 255.0f * k;
+        m.emissive[2] = c.blue / 255.0f * k;
+    }
     // Modelled on the arcade ship sprite: nose to the right, G grey, M magenta, B blue, O orange,
     // R red, W white, N green.
     constexpr float ship_scale = 1.2f;
@@ -526,12 +532,13 @@ namespace
         instance.model = glm::translate(glm::mat4(1), centre) * rotation * glm::scale(glm::mat4(1), size);
         instances.push_back(instance);
     }
-    void draw_ship(Renderer &r, glm::vec3 pos, bool flip_x)
+    void draw_ship(Renderer &r, glm::vec3 pos, bool flip_x, float yaw)
     {
         const std::string keys = "GMBORWN";
-        const sl::Colour palette[] = {{165, 165, 185}, {255, 40, 230}, {50, 30, 190}, {255, 170, 20},
-                                      {255, 40, 40}, {255, 255, 255}, {30, 200, 40}};
+        const sl::Colour palette[] = {{190, 200, 230}, {255, 20, 230}, {70, 50, 255}, {255, 150, 0},
+                                      {255, 20, 50}, {255, 255, 255}, {40, 255, 60}};
         std::array<std::vector<sl::InstanceData3D>, 7> pixels;
+        const glm::mat4 turn = glm::rotate(glm::mat4(1), yaw, glm::vec3(0, 1, 0));
         const int h = static_cast<int>(ship_shape.size()), w = static_cast<int>(ship_shape.front().size());
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x)
@@ -541,21 +548,23 @@ namespace
                     continue;
                 const float s = voxel * ship_scale;
                 const glm::vec3 offset((x - (w - 1) * 0.5f) * s * (flip_x ? -1.0f : 1.0f), ((h - 1) * 0.5f - y) * s, 0);
-                add_box(pixels[k], pos + offset, {s * 0.94f, s * 0.94f, 1.2f});
+                add_box(pixels[k], pos + glm::vec3(turn * glm::vec4(offset, 1.0f)), {s * 0.94f, s * 0.94f, 3.2f}, turn);
             }
         for (std::size_t i = 0; i < pixels.size(); ++i)
         {
             sl::Material material;
             material.lit = true;
             material.tint = palette[i];
+            set_emissive(material, palette[i], 1.0f);
             if (!pixels[i].empty())
                 sl::draw_mesh_instanced(r.cube, pixels[i], material);
         }
     }
     void draw_sprite(Renderer &r, glm::vec3 pos, const std::vector<std::string> &shape, Colour colour, float scale = 1,
-                     bool flip_x = false)
+                     bool flip_x = false, float yaw = 0)
     {
         std::vector<sl::InstanceData3D> pixels;
+        const glm::mat4 turn = glm::rotate(glm::mat4(1), yaw, glm::vec3(0, 1, 0));
         const int h = static_cast<int>(shape.size()), w = static_cast<int>(shape.front().size());
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x)
@@ -563,11 +572,12 @@ namespace
                 {
                     const float local_x = (x - (w - 1) * 0.5f) * voxel * scale * (flip_x ? -1.0f : 1.0f);
                     const glm::vec3 offset(local_x, ((h - 1) * 0.5f - y) * voxel * scale, 0);
-                    add_box(pixels, pos + offset, {voxel * scale * 0.94f, voxel * scale * 0.94f, 1.2f});
+                    add_box(pixels, pos + glm::vec3(turn * glm::vec4(offset, 1.0f)), {voxel * scale * 0.94f, voxel * scale * 0.94f, 3.0f * scale}, turn);
                 }
         sl::Material material;
         material.lit = true;
         material.tint = colours[colour];
+        set_emissive(material, colours[colour], 1.1f);
         if (!pixels.empty())
             sl::draw_mesh_instanced(r.cube, pixels, material);
     }
@@ -588,20 +598,45 @@ namespace
     void draw_scene(Renderer &r, Game &g)
     {
         sl::Camera camera;
-        camera.position = {g.x, 39, 138};
-        camera.target = {g.x, 39, 0};
-        camera.field_of_view = 34;
+        camera.position = {g.x + std::sin(g.time * 0.23f) * 9.0f, 56 + std::sin(g.time * 0.17f) * 3.0f, 132};
+        camera.target = {g.x, 33, 0};
+        camera.field_of_view = 36;
         camera.near_plane = 1;
         camera.far_plane = 350;
         if (!sl::begin_surface_3d(r.surface, camera))
             return;
-        sl::clear_surface_3d({3, 5, 17});
+        sl::clear_surface_3d({5, 3, 20});
         sl::Light3D light;
         light.direction = {-0.5f, -0.7f, -0.6f};
         light.ambient = 0.3f;
         sl::set_light_3d(light);
+        {
+            std::vector<sl::LocalLight3D> lights;
+            for (const Shot &s : g.shots)
+            {
+                sl::LocalLight3D l;
+                l.position = {near_x(s.x, g.x), s.y, 6.0f};
+                const sl::Colour c = s.enemy ? colours[enemy_c] : colours[shot_c];
+                l.colour = {c.red / 255.0f, c.green / 255.0f, c.blue / 255.0f};
+                l.intensity = 2.2f;
+                l.range = 18.0f;
+                if (lights.size() < sl::max_local_lights_3d)
+                    lights.push_back(l);
+            }
+            for (const Glow &gl : g.glows)
+                if (gl.life >= 0.5f && gl.size1 > 3.0f && lights.size() < sl::max_local_lights_3d)
+                {
+                    sl::LocalLight3D l;
+                    l.position = glm::vec3(near_x(gl.pos.x, g.x), gl.pos.y, gl.pos.z + 5.0f);
+                    l.colour = {gl.colour.red / 255.0f, gl.colour.green / 255.0f, gl.colour.blue / 255.0f};
+                    l.intensity = 3.0f * (1.0f - gl.age / gl.life);
+                    l.range = 28.0f;
+                    lights.push_back(l);
+                }
+            sl::set_local_lights_3d(lights);
+        }
         for (const glm::vec3 &star : r.stars)
-            draw_glow(r, {g.x + star.x, star.y, star.z}, {0.3f, 0.3f}, {160, 195, 255}, 0.6f);
+            draw_glow(r, {g.x + star.x, star.y, star.z}, {0.4f, 0.4f}, (static_cast<int>(star.y * 7.0f + star.x) % 3 == 0) ? sl::Colour{255, 90, 240} : sl::Colour{90, 240, 255}, 0.8f);
 
         std::vector<sl::InstanceData3D> ground;
         for (float x = -150; x <= 150; x += 10)
@@ -612,31 +647,42 @@ namespace
         ground_material.lit = false;
         ground_material.tint = colours[ground_c];
         sl::draw_mesh_instanced(r.cube, ground, ground_material);
+        draw_glow(r, {g.x, floor_y, 0}, {300, 6}, {70, 220, 255}, 0.4f);
+        draw_glow(r, {g.x, floor_y, -6}, {320, 18}, {150, 60, 255}, 0.25f);
 
         const float x = near_x(g.x, g.x);
         const glm::vec3 ship_pos{x, g.y, 0};
         if (g.state == State::playing && (g.invulnerable <= 0 || static_cast<int>(g.time * 12) % 2 == 0))
         {
-            draw_ship(r, ship_pos, g.facing_left);
+            draw_ship(r, ship_pos, g.facing_left, (g.facing_left ? -1.0f : 1.0f) * 0.35f + 0.25f * std::sin(g.time * 1.3f));
             draw_glow(r, ship_pos + glm::vec3(g.facing_left ? -ship_half_width : ship_half_width, 0, 0.8f),
                       {1.2f, 1.2f}, {220, 250, 255}, 0.75f);
-            draw_glow(r, ship_pos + glm::vec3(0, 0, -1), {4.2f, 2.8f}, colours[ship_c], 0.16f);
+            draw_glow(r, ship_pos + glm::vec3(0, 0, -1), {5.5f, 3.6f}, colours[ship_c], 0.45f);
+            draw_glow(r, ship_pos + glm::vec3(0, 0, -1.5f), {11.0f, 7.0f}, colours[ship_c], 0.25f);
         }
         for (const Enemy &e : g.enemies)
             if (e.alive)
             {
                 const glm::vec3 p{near_x(e.x, g.x), e.y, 0};
-                draw_sprite(r, p, e.bomber ? bomber_shape : fighter_shape, e.bomber ? bomber_c : enemy_c, e.bomber ? 1.2f : 1);
-                draw_glow(r, p + glm::vec3(0, 0, -1), {4.5f, 2.2f}, colours[e.bomber ? bomber_c : enemy_c], 0.16f);
+                draw_sprite(r, p, e.bomber ? bomber_shape : fighter_shape, e.bomber ? bomber_c : enemy_c, e.bomber ? 1.2f : 1, false,
+                            0.6f * std::sin(g.time * 1.7f + e.phase));
+                draw_glow(r, p + glm::vec3(0, 0, -1), {5.0f, 2.6f}, colours[e.bomber ? bomber_c : enemy_c], 0.45f);
+                draw_glow(r, p + glm::vec3(0, 0, -1.5f), {10.0f, 5.5f}, colours[e.bomber ? bomber_c : enemy_c], 0.25f);
             }
         for (const Human &h : g.humans)
             if (h.alive)
-                draw_sprite(r, {near_x(h.x, g.x), h.y + (h.falling ? std::sin(g.time * 16) * 0.15f : 0), 0}, human_shape, human_c);
+            {
+                const glm::vec3 hp{near_x(h.x, g.x), h.y + (h.falling ? std::sin(g.time * 16) * 0.15f : 0), 0};
+                draw_sprite(r, hp, human_shape, human_c, 1, false, 0.5f * std::sin(g.time * 2.0f + h.x));
+                draw_glow(r, hp + glm::vec3(0, 0, -1), {3.0f, 3.4f}, colours[human_c], 0.4f);
+            }
 
         for (const Shot &s : g.shots)
         {
             const glm::vec3 p{near_x(s.x, g.x), s.y, 0.8f};
-            draw_glow(r, p, {s.enemy ? 1.0f : 3.2f, s.enemy ? 1.0f : 0.7f}, s.enemy ? colours[enemy_c] : colours[shot_c], 0.95f);
+            draw_glow(r, p, {s.enemy ? 1.5f : 5.0f, s.enemy ? 1.5f : 1.0f}, s.enemy ? colours[enemy_c] : colours[shot_c], 1.0f);
+            draw_glow(r, p, {s.enemy ? 0.6f : 2.6f, s.enemy ? 0.6f : 0.35f}, {255, 255, 255}, 1.0f);
+            draw_glow(r, p, {s.enemy ? 3.5f : 8.0f, s.enemy ? 3.5f : 2.6f}, s.enemy ? colours[enemy_c] : colours[shot_c], 0.4f);
         }
         for (const Glow &gl : g.glows)
         {
@@ -658,6 +704,7 @@ namespace
             {
                 sl::Material material;
                 material.tint = colours[c];
+                set_emissive(material, colours[c], 1.5f);
                 sl::draw_mesh_instanced(r.cube, debris[c], material);
             }
         if (g.smart_flash > 0)
@@ -754,9 +801,9 @@ int main(int argc, char *argv[])
         sl::shutdown();
         return -1;
     }
-    renderer.bloom.set_threshold(0.5f);
-    renderer.bloom.set_intensity(1.3f);
-    renderer.bloom.set_radius(3);
+    renderer.bloom.set_threshold(0.35f);
+    renderer.bloom.set_intensity(1.9f);
+    renderer.bloom.set_radius(4);
     std::srand(19);
     for (int i = 0; i < 240; ++i)
         renderer.stars.push_back({between(-150, 150), between(8, 88), between(-160, -30)});

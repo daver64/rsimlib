@@ -31,8 +31,8 @@ namespace
 
     // Voxel colour groups, drawn as one instanced batch each.
     enum Palette { squid_c, crab_c, octopus_c, player_c, shield_c, ufo_c, palette_count };
-    const sl::Colour palette[palette_count] = {{255, 60, 230}, {40, 230, 255}, {255, 150, 30},
-                                               {170, 220, 255}, {150, 255, 40}, {255, 50, 80}};
+    const sl::Colour palette[palette_count] = {{255, 20, 235}, {0, 240, 255}, {255, 140, 0},
+                                               {60, 200, 255}, {100, 255, 20}, {255, 20, 70}};
 
     struct Sprite
     {
@@ -761,7 +761,7 @@ namespace
             s.size = between(0.15f, 0.5f);
             s.phase = between(0.0f, 6.28f);
             const float t = uniform();
-            s.colour = t < 0.6f ? sl::Colour{200, 220, 255} : (t < 0.8f ? sl::Colour{255, 170, 240} : sl::Colour{150, 200, 255});
+            s.colour = t < 0.6f ? sl::Colour{200, 220, 255} : (t < 0.8f ? sl::Colour{255, 90, 240} : sl::Colour{60, 240, 255});
             r.stars.push_back(s);
         }
         // Receding neon floor grid.
@@ -814,7 +814,7 @@ namespace
         camera.far_plane = 500.0f;
         if (!sl::begin_surface_3d(r.surface, camera))
             return;
-        sl::clear_surface_3d({4, 3, 14});
+        sl::clear_surface_3d({6, 2, 22});
         sl::Light3D light;
         light.direction = {-0.55f, -0.75f, -0.5f};
         light.ambient = 0.28f;
@@ -852,7 +852,7 @@ namespace
             sl::Material m;
             m.lit = false;
             m.fog = false;
-            m.tint = {90, 50, 230};
+            m.tint = {150, 60, 255};
             std::vector<sl::InstanceData3D> lines;
             for (std::size_t i = 0; i < r.grid_boxes_pos.size(); ++i)
                 draw_voxel_box(lines, r.grid_boxes_pos[i], r.grid_boxes_size[i]);
@@ -861,6 +861,7 @@ namespace
             draw_voxel_box(edge, {0.0f, floor_y - 0.1f, 0.0f}, {2.0f * field + 6.0f, 0.3f, 1.6f});
             m.tint = {80, 255, 255};
             sl::draw_mesh_instanced(r.cube, edge, m);
+            m.tint = {80, 255, 255, 255};
         }
 
         // Opaque voxels, one batch per colour.
@@ -905,7 +906,7 @@ namespace
         };
         for (int c = 0; c < palette_count; ++c)
             if (!solid[c].empty())
-                sl::draw_mesh_instanced(r.cube, solid[c], material_for(c, 0.6f));
+                sl::draw_mesh_instanced(r.cube, solid[c], material_for(c, 1.2f));
 
         // Debris fades by shrinking and becoming transparent.
         std::array<std::vector<sl::InstanceData3D>, palette_count> fading;
@@ -923,12 +924,14 @@ namespace
         for (int c = 0; c < palette_count; ++c)
             if (!fading[c].empty())
             {
-                sl::Material m = material_for(c, 1.0f);
+                sl::Material m = material_for(c, 1.8f);
                 m.blend = sl::MaterialBlend::alpha;
                 sl::draw_mesh_instanced(r.cube, fading[c], m);
             }
 
-        // Additive glows, back to front: stars, halos, then shots and explosions.
+        // Additive glows, back to front: stars, floor, halos, then shots and explosions.
+        draw_glow(r, {0.0f, floor_y, 0.0f}, {field * 2.2f, 5.0f}, {60, 240, 255}, 0.5f);
+        draw_glow(r, {0.0f, floor_y, -4.0f}, {field * 2.6f, 14.0f}, {160, 60, 255}, 0.3f);
         for (const Renderer::Star &s : r.stars)
             draw_glow(r, s.pos, {s.size * 2.0f, s.size * 2.0f}, s.colour, 0.5f + 0.5f * std::sin(g.time * 1.5f + s.phase));
         for (int rr = 0; rr < rows; ++rr)
@@ -936,28 +939,34 @@ namespace
                 if (g.alive[rr][c])
                 {
                     const Sprite &sp = sprites[sprite_for_row(rr)];
-                    draw_glow(r, {invader_x(g, c), invader_y(g, rr), -1.2f}, {sp.w * V * 0.95f, sp.h * V * 0.95f}, palette[sp.colour], 0.22f);
+                    draw_glow(r, {invader_x(g, c), invader_y(g, rr), -1.2f}, {sp.w * V * 1.0f, sp.h * V * 1.0f}, palette[sp.colour], 0.5f);
+                    draw_glow(r, {invader_x(g, c), invader_y(g, rr), -1.6f}, {sp.w * V * 1.9f, sp.h * V * 2.0f}, palette[sp.colour], 0.3f);
                 }
         if (cannon_visible)
-            draw_glow(r, {g.player_x, player_y, -1.2f}, {5.0f, 3.0f}, palette[player_c], 0.22f);
+            draw_glow(r, {g.player_x, player_y, -1.2f}, {5.5f, 3.4f}, palette[player_c], 0.5f);
+        if (cannon_visible)
+            draw_glow(r, {g.player_x, player_y, -1.6f}, {10.0f, 6.0f}, palette[player_c], 0.3f);
         for (const Shield &sh : g.shields)
-            draw_glow(r, {sh.x, sh.y, -1.2f}, {Shield::w * V * 0.62f, Shield::h * V * 0.8f}, palette[shield_c], 0.1f);
+            draw_glow(r, {sh.x, sh.y, -1.2f}, {Shield::w * V * 0.62f, Shield::h * V * 0.8f}, palette[shield_c], 0.22f);
         if (g.ufo_on)
-            draw_glow(r, {g.ufo_x, 69.0f, -1.2f}, {7.0f, 3.2f}, palette[ufo_c], 0.3f);
+            draw_glow(r, {g.ufo_x, 69.0f, -1.2f}, {7.5f, 3.6f}, palette[ufo_c], 0.55f);
+        if (g.ufo_on)
+            draw_glow(r, {g.ufo_x, 69.0f, -1.6f}, {15.0f, 7.0f}, palette[ufo_c], 0.3f);
 
         for (const Shot &s : g.shots)
         {
             if (s.player)
             {
-                draw_glow(r, {s.x, s.y, 0.2f}, {0.9f, 3.4f}, {120, 230, 255}, 0.95f);
+                draw_glow(r, {s.x, s.y, 0.2f}, {1.3f, 4.6f}, {40, 230, 255}, 1.0f);
+                draw_glow(r, {s.x, s.y - 1.5f, 0.1f}, {1.8f, 7.0f}, {40, 160, 255}, 0.5f);
                 draw_glow(r, {s.x, s.y, 0.3f}, {0.35f, 2.4f}, {255, 255, 255}, 1.0f);
-                draw_glow(r, {s.x, s.y + 1.2f, 0.3f}, {2.4f, 2.4f}, {160, 240, 255}, 0.6f);
+                draw_glow(r, {s.x, s.y + 1.2f, 0.3f}, {3.6f, 3.6f}, {100, 240, 255}, 0.8f);
             }
             else
             {
                 for (int k = 0; k < 4; ++k)
-                    draw_glow(r, {s.x + std::sin(s.phase * 18.0f + k * 1.2f) * 0.5f, s.y + k * 0.7f, 0.2f}, {0.9f, 0.9f}, {255, 90, 70}, 0.95f);
-                draw_glow(r, {s.x, s.y, 0.3f}, {2.6f, 2.6f}, {255, 140, 90}, 0.5f);
+                    draw_glow(r, {s.x + std::sin(s.phase * 18.0f + k * 1.2f) * 0.5f, s.y + k * 0.7f, 0.2f}, {1.3f, 1.3f}, {255, 40, 90}, 1.0f);
+                draw_glow(r, {s.x, s.y, 0.3f}, {4.0f, 4.0f}, {255, 90, 60}, 0.7f);
             }
         }
         for (const Glow &gl : g.glows)
@@ -1038,9 +1047,9 @@ int main(int argc, char *argv[])
         sl::shutdown();
         return -1;
     }
-    r.bloom.set_threshold(0.5f);
-    r.bloom.set_intensity(1.3f);
-    r.bloom.set_radius(3.0f);
+    r.bloom.set_threshold(0.35f);
+    r.bloom.set_intensity(1.9f);
+    r.bloom.set_radius(4.0f);
     build_scenery(r);
 
     static Game g;

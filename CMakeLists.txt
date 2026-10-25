@@ -800,8 +800,10 @@ add_executable(exinvaders src/examples/exinvaders/exinvaders.cpp)
 target_link_libraries(exinvaders PRIVATE simlib)
 add_executable(exdefender src/examples/exdefender/exdefender.cpp)
 target_link_libraries(exdefender PRIVATE simlib)
+add_executable(exasteroids src/examples/exasteroids/exasteroids.cpp)
+target_link_libraries(exasteroids PRIVATE simlib)
 # Each showcase game carries a major.build version in its VERSION file (see the Kosmos repo's scripts/publish-web.sh).
-foreach(_game exinvaders exdefender)
+foreach(_game exinvaders exdefender exasteroids)
     set(_version_file "${CMAKE_CURRENT_SOURCE_DIR}/src/examples/${_game}/VERSION")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_version_file}")
     file(STRINGS "${_version_file}" _version LIMIT_COUNT 1)
@@ -1194,6 +1196,7 @@ install(FILES assets/icon/simlib_icon.png assets/icon/simlib.ico DESTINATION ${C
 simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
 simlib_add_package(TARGET exinvaders NAME exinvaders-${CMAKE_SYSTEM_NAME})
 simlib_add_package(TARGET exdefender NAME exdefender-${CMAKE_SYSTEM_NAME})
+simlib_add_package(TARGET exasteroids NAME exasteroids-${CMAKE_SYSTEM_NAME})
 
 # simlib-demos-<system>.zip: every ex* example with the shared libraries, shaders and assets they need.
 get_directory_property(_simlib_all_targets BUILDSYSTEM_TARGETS)

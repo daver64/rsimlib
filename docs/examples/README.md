@@ -13,6 +13,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![ex3d_surface](img/ex3d_surface.png)<br>**ex3d_surface**](ex3d_surface.md) | Backend-independent 3D with `Surface3D`: procedural meshes, an OBJ pyramid loaded from memory, lighting and MSAA, composited into the 2D screen. |
 | [![ex3d_vulkan](img/ex3d_vulkan.png)<br>**ex3d_vulkan**](ex3d_vulkan.md) | A minimal raw Vulkan 3D example: a spinning model drawn with Vulkan-specific buffers and shaders. Vulkan only. |
 | [![exanimsprite](img/exanimsprite.png)<br>**exanimsprite**](exanimsprite.md) | Animated sprites: looping sprites at different frame rates, a rotated pulsing bar, and click-to-spawn explosion rings. |
+| [![exasteroids](img/exasteroids.png)<br>**exasteroids**](exasteroids.md) | Neon-voxel Asteroids: lumpy voxel rocks split into lumps and a fading shower of loose voxels; only the lumps are a hazard. |
 | [![exatlas](img/exatlas.png)<br>**exatlas**](exatlas.md) | Texture atlas browser: pick a tile from a grid atlas and see it drawn at 4x next to the full atlas texture. |
 | [![exaudio](img/exaudio.png)<br>**exaudio**](exaudio.md) | Audio playback: sound effect samples, streamed music, pause and resume, and volume control. |
 | [![exbitmap](img/exbitmap.png)<br>**exbitmap**](exbitmap.md) | Bitmap loading and blitting: loads a PNG and blits it to the screen at 60 FPS. |
