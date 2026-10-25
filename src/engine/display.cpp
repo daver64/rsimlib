@@ -10,6 +10,7 @@
 #include "font.h"
 #include "error.h"
 #include "renderer.h"
+#include "icon_data.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -212,6 +213,8 @@ namespace sl
             return false;
         }
 
+        reset_window_icon();
+
         std::string renderer_error;
         if (!renderer->initialise(window, renderer_error))
         {
@@ -297,6 +300,47 @@ namespace sl
     {
         mouseVisible = false;
         detail::refresh_mouse_cursor();
+    }
+
+    bool set_window_icon(Bitmap *icon)
+    {
+        if (!window || !icon || icon->width <= 0 || icon->height <= 0 || !acquire_bitmap(icon))
+            return false;
+        const bool ok = icon->pixels.size() >= static_cast<std::size_t>(icon->width) * static_cast<std::size_t>(icon->height) * 4;
+        if (ok)
+            if (SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormatFrom(icon->pixels.data(), icon->width, icon->height, 32,
+                                                                           icon->width * 4, SDL_PIXELFORMAT_RGBA32))
+            {
+                SDL_SetWindowIcon(window, surface); // SDL copies the pixels
+                SDL_FreeSurface(surface);
+            }
+        release_bitmap(icon);
+        return ok;
+    }
+
+    bool set_window_icon(const char *path)
+    {
+        if (!path)
+            return false;
+        Bitmap *icon = load_bitmap(path);
+        if (!icon)
+            return false;
+        const bool ok = set_window_icon(icon);
+        destroy_bitmap(icon);
+        return ok;
+    }
+
+    void reset_window_icon()
+    {
+        if (!window)
+            return;
+        if (SDL_Surface *icon = SDL_CreateRGBSurfaceWithFormatFrom(const_cast<unsigned char *>(detail::default_icon_rgba),
+                                                                   detail::default_icon_size, detail::default_icon_size, 32,
+                                                                   detail::default_icon_size * 4, SDL_PIXELFORMAT_RGBA32))
+        {
+            SDL_SetWindowIcon(window, icon);
+            SDL_FreeSurface(icon);
+        }
     }
 
     void set_window_title(const char *title)

@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(simlib LANGUAGES C CXX)
+if(WIN32)
+    enable_language(RC)
+endif()
 
 include(CTest)
 include(GNUInstallDirs)
@@ -342,6 +345,7 @@ endif()
 
 add_library(simlib STATIC
     src/engine/display.cpp
+    src/engine/icon_data.cpp
     src/engine/event.cpp
     src/engine/draw.cpp
     src/engine/dds.cpp
@@ -949,6 +953,12 @@ if(BUILD_TESTING)
         add_test(NAME blend3d_d3d12 COMMAND blend3d_test --d3d12)
     endif()
 
+    add_executable(window_icon_test tests/window_icon_test.cpp)
+    target_link_libraries(window_icon_test PRIVATE simlib)
+    target_compile_definitions(window_icon_test PRIVATE SIMLIB_TEST_ICON="${CMAKE_CURRENT_SOURCE_DIR}/assets/icon/simlib_icon.png"
+        $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME window_icon COMMAND window_icon_test)
+
     add_executable(parallel_record_test tests/parallel_record_test.cpp)
     target_link_libraries(parallel_record_test PRIVATE simlib)
     target_compile_definitions(parallel_record_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -1151,6 +1161,19 @@ if(_sc_prefix AND EXISTS "${_sc_prefix}/bin/dxcompiler.dll")
     set(SIMLIB_PACKAGE_DXC_DIR "${_sc_prefix}/bin")
 endif()
 include(cmake/SimlibPackage.cmake)
+
+# Windows: embed the default icon in every executable so Explorer and the taskbar show it (SDL reads resource ID 1).
+option(SIMLIB_EMBED_ICON "Embed the default simlib application icon in Windows executables" ON)
+if(WIN32 AND SIMLIB_EMBED_ICON)
+    get_directory_property(_simlib_icon_targets BUILDSYSTEM_TARGETS)
+    foreach(_t IN LISTS _simlib_icon_targets)
+        get_target_property(_type ${_t} TYPE)
+        if(_type STREQUAL "EXECUTABLE")
+            target_sources(${_t} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon/simlib.rc")
+        endif()
+    endforeach()
+endif()
+install(FILES assets/icon/simlib_icon.png assets/icon/simlib.ico DESTINATION ${CMAKE_INSTALL_DATADIR}/simlib/icon)
 
 simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
 simlib_add_package(TARGET exinvaders NAME exinvaders-${CMAKE_SYSTEM_NAME})

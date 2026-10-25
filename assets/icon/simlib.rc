@@ -1,0 +1,2 @@
+// Windows icon resource. SDL looks up resource ID 1 for the window and taskbar icon, and Explorer uses the first icon.
+1 ICON "simlib.ico"

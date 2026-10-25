@@ -47,6 +47,15 @@ namespace sl
     void display_handle_event(const Event &event);
     /** Set the window title. */
     void set_window_title(const char *title);
+    /**
+     * Set the window and taskbar icon from a bitmap (any size; 32x32 to 256x256 square suits most desktops).
+     * Returns false if there is no window, the bitmap is null, or its pixels cannot be read.
+     */
+    bool set_window_icon(Bitmap *icon);
+    /** Load an image file (PNG, etc.) and use it as the window icon. Returns false on failure; see get_error(). */
+    bool set_window_icon(const char *path);
+    /** Restore the built-in simlib icon. */
+    void reset_window_icon();
     /** Enable or disable desktop fullscreen mode. */
     bool set_fullscreen(bool enabled);
     /** Return whether the display is currently fullscreen. */
