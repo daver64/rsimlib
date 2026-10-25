@@ -22,6 +22,8 @@
 namespace
 {
     constexpr int window_w = 960, window_h = 720;
+    // Size of the 3D surface; exreel renders the games larger than their window.
+    int surface_w = window_w, surface_h = window_h;
     constexpr float V = 0.4f;           // voxel size
     constexpr int cols = 11, rows = 5;  // invader formation
     constexpr float col_gap = 7.2f, row_gap = 5.4f;
@@ -807,7 +809,7 @@ namespace
         const float shake = g.shake > 0 ? g.shake * 1.2f : 0.0f;
         sl::Camera camera;
         const float sway = std::sin(g.time * 0.23f);
-        camera.position = {g.player_x * 0.2f + sway * 11.0f + between(-shake, shake), 44.0f + std::sin(g.time * 0.17f) * 3.0f + between(-shake, shake), 108.0f};
+        camera.position = {g.player_x * 0.2f + sway * 11.0f + std::sin(g.time * 71.0f) * shake, 44.0f + std::sin(g.time * 0.17f) * 3.0f + std::cos(g.time * 53.0f) * shake, 108.0f};
         camera.target = {0.0f, 31.0f, 0.0f};
         camera.field_of_view = 40.0f;
         camera.near_plane = 1.0f;
@@ -977,7 +979,7 @@ namespace
             draw_glow(r, gl.pos, {size, size}, gl.colour, alpha);
         }
         sl::end_surface_3d();
-        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, window_w, window_h);
+        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, surface_w, surface_h);
     }
 
     void draw_hud(Game &g)

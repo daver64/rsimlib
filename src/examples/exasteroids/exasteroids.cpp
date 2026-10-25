@@ -22,6 +22,8 @@
 namespace
 {
     constexpr int window_w = 960, window_h = 720;
+    // Size of the 3D surface; exreel renders the games larger than their window.
+    int surface_w = window_w, surface_h = window_h;
     constexpr float half_w = 61.0f, half_h = 50.0f; // wrapping play field, a little taller than the tilted camera's view so wrapping happens off screen
     constexpr float dom_w = half_w * 2.0f, dom_h = half_h * 2.0f;
     constexpr float pi = 3.14159265f;
@@ -730,7 +732,7 @@ namespace
     {
         const float shake = g.shake > 0 ? g.shake * 1.2f : 0.0f;
         sl::Camera camera;
-        camera.position = {std::sin(g.time * 0.23f) * 12.0f + between(-shake, shake), -24.0f + std::sin(g.time * 0.17f) * 4.0f + between(-shake, shake), 118.0f};
+        camera.position = {std::sin(g.time * 0.23f) * 12.0f + std::sin(g.time * 71.0f) * shake, -24.0f + std::sin(g.time * 0.17f) * 4.0f + std::cos(g.time * 53.0f) * shake, 118.0f};
         camera.target = {0.0f, 2.0f, 0.0f};
         camera.field_of_view = 40.0f;
         camera.near_plane = 1.0f;
@@ -871,7 +873,7 @@ namespace
             draw_glow(r, gl.pos, {size, size}, gl.colour, gl.strength * (1.0f - t) * (1.0f - t));
         }
         sl::end_surface_3d();
-        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, window_w, window_h);
+        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, surface_w, surface_h);
     }
 
     void draw_hud(Game &g)

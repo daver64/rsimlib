@@ -22,6 +22,8 @@
 namespace
 {
     constexpr int window_w = 960, window_h = 720;
+    // Size of the 3D surface; exreel renders the games larger than their window.
+    int surface_w = window_w, surface_h = window_h;
     constexpr float world_w = 240.0f, world_h = 82.0f;
     constexpr float voxel = 0.48f, floor_y = 2.0f;
     constexpr float ship_half_width = 15 * voxel * 1.2f * 0.5f;
@@ -710,7 +712,7 @@ namespace
         if (g.smart_flash > 0)
             draw_glow(r, {g.x, g.y, 1}, {70 * (1 - g.smart_flash), 70 * (1 - g.smart_flash)}, {180, 240, 255}, g.smart_flash);
         sl::end_surface_3d();
-        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, window_w, window_h);
+        r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, surface_w, surface_h);
     }
     // Scanner across the top: the whole wrapping world, centred on the player.
     void draw_radar(const Game &g)

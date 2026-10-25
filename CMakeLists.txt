@@ -838,7 +838,10 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/examples/exreel/exreel.cpp)
         src/examples/exreel/scenes_new2d.cpp
         src/examples/exreel/scenes_new3d.cpp
         src/examples/exreel/scenes_sea.cpp
-        src/examples/exreel/scenes_saturn.cpp)
+        src/examples/exreel/scenes_saturn.cpp
+        src/examples/exreel/scenes_arcade_invaders.cpp
+        src/examples/exreel/scenes_arcade_defender.cpp
+        src/examples/exreel/scenes_arcade_asteroids.cpp)
     target_link_libraries(exreel PRIVATE simlib)
 endif()
 
