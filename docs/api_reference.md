@@ -916,6 +916,21 @@ Also `find_model_clip`, `model_clip_duration`, `stop_model_clip`, `model_clip_pl
 
 See `src/examples/ex3d_surface`, `src/examples/exmodel3d` and `src/examples/expbr`. glTF cameras/lights and morph targets are not supported.
 
+**Tiled planet textures (`PlanetTiles`).** Streams a Celestia-style virtual texture (a `.ctx` file or a folder of `levelN/tx_<col>_<row>.<ext>` tiles) onto a unit sphere. Each frame `update()` picks a quadtree of tiles from the camera, loads missing ones on worker threads (LRU cache, `max_cached_tiles`) and `draw()` renders them as sphere patches, so any backend works. Tiles may be PNG/JPG/DDS (DXT1, DXT3, DXT5, BC7). Levels may be sparse: a missing tile falls back to the nearest coarser one, but the coarsest level must be complete.
+
+```cpp
+sl::PlanetTilesOptions o;
+o.colour = "data/celestia/hires/earth/earth.ctx";   // or the folder
+o.specular = "data/celestia/hires/earth_specular";  // optional gloss map: white is shiny
+o.normal = "data/celestia/hires/earth_normal";      // optional
+auto earth = sl::PlanetTiles::create(o);            // nullptr on failure, see last_error()
+// each frame, with the planet's centre at the origin of 'model':
+earth->update(eye_in_planet_space, fov_y_radians, viewport_height, &view_projection);
+earth->draw(model, material);
+```
+
+Specular is drawn as an additive PBR pass tinted by `specular_strength`, with the gloss map inverted into roughness (floor `specular_min_roughness`). Limits: normal tiles apply only where a normal tile exists at the colour tile's level; level seams are hidden by skirts rather than stitched; tile size is detected from the first loaded tile. Direct3D 12 is untested. Related: `load_dds()` decodes BC2/DXT3 on the CPU and `AsyncBitmapOptions::invert` / `invert_floor` invert tiles on the worker. See `tests/planet_tiles_test.cpp` and `src/examples/exearth`, which takes the data paths on the command line (`exearth --colour <.ctx> [--specular <.ctx>] [--normal <.ctx>] --lat 51.06 --lon -4 --alt 6`) so no texture data lives in this repository.
+
 **Async loading.** `load_model_async()` and `load_bitmap_async()` decode on worker threads and upload on the main thread inside `end_frame()`, so large assets don't stall a frame.
 
 ```cpp

@@ -17,6 +17,7 @@ namespace sl
         enum class DdsKind
         {
             bc1,
+            bc2,
             bc3,
             bc7,
             rgba32
@@ -64,6 +65,8 @@ namespace sl
             {
                 if (!std::strcmp(four, "DXT1"))
                     info.kind = DdsKind::bc1;
+                else if (!std::strcmp(four, "DXT3"))
+                    info.kind = DdsKind::bc2;
                 else if (!std::strcmp(four, "DXT5"))
                     info.kind = DdsKind::bc3;
                 else if (!std::strcmp(four, "DX10"))
@@ -78,6 +81,8 @@ namespace sl
                     const std::uint32_t format = read_u32(head + 128);
                     if (format == 71 || format == 72)
                         info.kind = DdsKind::bc1;
+                    else if (format == 74 || format == 75)
+                        info.kind = DdsKind::bc2;
                     else if (format == 77 || format == 78)
                         info.kind = DdsKind::bc3;
                     else if (format == 98 || format == 99)
@@ -90,7 +95,7 @@ namespace sl
                 }
                 else
                 {
-                    why = "unsupported FourCC (need DXT1, DXT5 or BC7)";
+                    why = "unsupported FourCC (need DXT1, DXT3, DXT5 or BC7)";
                     return false;
                 }
             }
@@ -120,13 +125,15 @@ namespace sl
             out[2] = static_cast<std::uint8_t>((b << 3) | (b >> 2));
         }
 
-        void decode_block(const std::uint8_t *blk, bool bc3, std::uint8_t out[16][4])
+        void decode_block(const std::uint8_t *blk, DdsKind kind, std::uint8_t out[16][4])
         {
-            const std::uint8_t *colour = blk + (bc3 ? 8 : 0);
+            const bool bc3 = kind == DdsKind::bc3;
+            const bool has_alpha_block = bc3 || kind == DdsKind::bc2;
+            const std::uint8_t *colour = blk + (has_alpha_block ? 8 : 0);
             std::uint16_t c0, c1;
             std::memcpy(&c0, colour, 2);
             std::memcpy(&c1, colour + 2, 2);
-            const bool four_colour = c0 > c1 || bc3;
+            const bool four_colour = c0 > c1 || has_alpha_block;
             std::uint8_t pal[4][4];
             expand565(c0, pal[0]);
             expand565(c1, pal[1]);
@@ -136,12 +143,21 @@ namespace sl
                 pal[3][k] = static_cast<std::uint8_t>(four_colour ? (pal[0][k] + 2 * pal[1][k]) / 3 : 0);
             }
             for (int k = 0; k < 4; ++k)
-                pal[k][3] = (!bc3 && !four_colour && k == 3) ? 0 : 255;
+                pal[k][3] = (!has_alpha_block && !four_colour && k == 3) ? 0 : 255;
             std::uint32_t bits;
             std::memcpy(&bits, colour + 4, 4);
             std::uint8_t alpha[16];
             std::fill(alpha, alpha + 16, std::uint8_t{255});
-            if (bc3)
+            if (kind == DdsKind::bc2)
+            {
+                // Explicit alpha: 4 bits per texel, low nibble first.
+                for (int i = 0; i < 16; ++i)
+                {
+                    const int nibble = (blk[i / 2] >> (4 * (i & 1))) & 15;
+                    alpha[i] = static_cast<std::uint8_t>(nibble * 17);
+                }
+            }
+            else if (bc3)
             {
                 std::uint8_t a[8] = {blk[0], blk[1]};
                 if (a[0] > a[1])
@@ -198,8 +214,7 @@ namespace sl
                         std::swap(dst[i], dst[i + 2]);
                 return bitmap;
             }
-            const bool bc3 = info.kind == DdsKind::bc3;
-            const int block_bytes = bc3 ? 16 : 8;
+            const int block_bytes = info.kind == DdsKind::bc1 ? 8 : 16;
             const int blocks_x = (info.width + 3) / 4, blocks_y = (info.height + 3) / 4;
             std::vector<std::uint8_t> row(static_cast<std::size_t>(blocks_x) * block_bytes);
             for (int by = 0; by < blocks_y; ++by)
@@ -213,7 +228,7 @@ namespace sl
                 for (int bx = 0; bx < blocks_x; ++bx)
                 {
                     std::uint8_t texels[16][4];
-                    decode_block(row.data() + static_cast<std::size_t>(bx) * block_bytes, bc3, texels);
+                    decode_block(row.data() + static_cast<std::size_t>(bx) * block_bytes, info.kind, texels);
                     for (int i = 0; i < 16; ++i)
                     {
                         const int x = bx * 4 + i % 4, y = by * 4 + i / 4;
@@ -243,7 +258,7 @@ namespace sl
         }
 
         detail::Renderer *renderer = detail::active_renderer();
-        const bool block_format = info.kind != DdsKind::rgba32;
+        const bool block_format = info.kind != DdsKind::rgba32 && info.kind != DdsKind::bc2;
         if (block_format && options.allow_compressed_upload && renderer &&
             renderer->supports_compressed_format(to_compressed(info.kind)))
         {

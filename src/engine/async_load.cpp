@@ -1,10 +1,12 @@
 #include "async_load.h"
 
 #include "async_internal.h"
+#include "dds.h"
 #include "deferred_mesh.h"
 #include "error.h"
 
 #include <algorithm>
+#include <cctype>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -112,7 +114,27 @@ namespace sl
                 }
                 else
                 {
-                    job->bitmap = load_bitmap(job->path);
+                    const std::size_t dot = job->path.rfind('.');
+                    std::string extension = dot == std::string::npos ? std::string() : job->path.substr(dot);
+                    for (char &c : extension)
+                        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    if (extension == ".dds")
+                    {
+                        // Decoded to RGBA here, because the GPU upload happens on the main thread.
+                        DdsOptions dds;
+                        dds.allow_compressed_upload = false;
+                        job->bitmap = load_dds(job->path, dds);
+                    }
+                    else
+                        job->bitmap = load_bitmap(job->path);
+                    if (job->bitmap && job->options.invert && !job->bitmap->pixels.empty())
+                    {
+                        const int floor = std::clamp(job->options.invert_floor, 0, 255);
+                        std::vector<std::uint8_t> &px = job->bitmap->pixels;
+                        for (std::size_t i = 0; i + 3 < px.size(); i += 4)
+                            for (int k = 0; k < 3; ++k)
+                                px[i + k] = static_cast<std::uint8_t>(std::max(255 - px[i + k], floor));
+                    }
                     if (job->bitmap)
                     {
                         job->bitmap->smooth = job->options.smooth;

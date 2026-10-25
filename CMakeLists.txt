@@ -349,6 +349,7 @@ add_library(simlib STATIC
     src/engine/event.cpp
     src/engine/draw.cpp
     src/engine/dds.cpp
+    src/engine/planet_tiles.cpp
     src/engine/surface3d.cpp
     src/engine/model3d.cpp
     src/engine/model_gltf_writer.cpp
@@ -721,6 +722,9 @@ target_link_libraries(exclouds PRIVATE simlib)
 add_executable(expbr src/examples/expbr/expbr.cpp)
 target_link_libraries(expbr PRIVATE simlib)
 
+add_executable(exearth src/examples/exearth/exearth.cpp)
+target_link_libraries(exearth PRIVATE simlib)
+
 add_executable(exvoxel src/examples/exvoxel/exvoxel.cpp)
 target_link_libraries(exvoxel PRIVATE simlib)
 
@@ -943,6 +947,10 @@ if(BUILD_TESTING)
     target_link_libraries(hdr_test PRIVATE simlib)
     target_compile_definitions(hdr_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME hdr COMMAND hdr_test)
+    add_executable(planet_tiles_test tests/planet_tiles_test.cpp)
+    target_link_libraries(planet_tiles_test PRIVATE simlib)
+    target_compile_definitions(planet_tiles_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME planet_tiles COMMAND planet_tiles_test)
     add_executable(dds_test tests/dds_test.cpp)
     target_link_libraries(dds_test PRIVATE simlib)
     target_compile_definitions(dds_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
@@ -1104,7 +1112,7 @@ if(BUILD_TESTING)
 
     # Tests rely on assert(); keep it active in Release builds, where NDEBUG would turn every check into a no-op.
     foreach(SIMLIB_TEST_TARGET
-            config_test isometric_test camera_collision_test props3d_test controls_test tilemap_test normalmap_test normalmap3d_test lights3d_test localshadow_test hdr_test dds_test rdb_test
+            config_test isometric_test camera_collision_test props3d_test controls_test tilemap_test normalmap_test normalmap3d_test lights3d_test localshadow_test hdr_test dds_test planet_tiles_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
             renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})

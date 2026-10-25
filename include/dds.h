@@ -21,7 +21,7 @@ namespace sl
     };
 
     /**
-     * Load a .dds file (BC1/DXT1, BC3/DXT5 or BC7 via a DX10 header, or uncompressed 32-bit RGBA/BGRA).
+     * Load a .dds file (BC1/DXT1, BC3/DXT5 or BC7 via a DX10 header, or uncompressed 32-bit RGBA/BGRA; BC2/DXT3 is decoded to RGBA on the CPU).
      *
      * Block-compressed files are uploaded straight to the GPU with every mip level they contain, which keeps video
      * and system memory at a fraction of RGBA8 (BC1 is 1/8). If the file is wider than the size limit its largest
@@ -30,7 +30,7 @@ namespace sl
      *
      * Where the renderer cannot take the format, or the file has no smaller mips to fit within the limit, BC1/BC3
      * and uncompressed files are decoded (top level only) into an ordinary RGBA bitmap that uploads like load_bitmap().
-     * Returns nullptr on failure; see get_error().
+     * Returns nullptr on failure; see last_error().
      */
     Bitmap *load_dds(const std::string &path, const DdsOptions &options = {});
 

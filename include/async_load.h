@@ -59,6 +59,12 @@ namespace sl
         bool smooth = false;
         bool mipmaps = false;
         float anisotropy = 1.0f;
+        /**
+         * Invert the red, green and blue channels on the worker thread, then raise each to at least `invert_floor`
+         * (0-255). Turns a gloss map (white is shiny) into the roughness map that Material::metallic_roughness wants.
+         */
+        bool invert = false;
+        int invert_floor = 0;
     };
 
     /** A bitmap loading in the background. The texture is already on the GPU when ready() turns true. */
@@ -87,7 +93,7 @@ namespace sl
         explicit AsyncModel(std::shared_ptr<detail::AsyncJob> job) : AsyncHandle(std::move(job)) {}
     };
 
-    /** Start loading an image file in the background (same formats as load_bitmap()). */
+    /** Start loading an image file in the background (same formats as load_bitmap(), plus .dds files, which are decoded to RGBA). */
     AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {});
     /** Start loading an .obj, .gltf, .glb or .ac model in the background (same as load_model()). */
     AsyncModel load_model_async(const std::string &path);

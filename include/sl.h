@@ -53,6 +53,7 @@
 #include "surface3d.h"
 #include "model3d.h"
 #include "async_load.h"
+#include "planet_tiles.h"
 #include "parallel_render.h"
 #include "voxel.h"
 #include "particles.h"
