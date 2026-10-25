@@ -1,5 +1,6 @@
 build
 build-verify
+build-win
 build-spv
 html
 imgui.ini

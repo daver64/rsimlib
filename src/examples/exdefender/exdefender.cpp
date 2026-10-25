@@ -117,7 +117,7 @@ namespace
     {
         State state = State::title;
         int score = 0, hiscore = 0, lives = 3, wave = 0, rescued = 0, bombs = 2;
-        float x = 0, y = 35, invulnerable = 0;
+        float x = 0, y = 35, vx = 0, vy = 0, invulnerable = 0;
         float timer = 0, fire_timer = 0, enemy_timer = 0, smart_flash = 0, time = 0;
         bool facing_left = false;
         Human humans[human_count];
@@ -178,6 +178,33 @@ namespace
             g.enemies[i] = {wrap_x(-world_w * 0.5f + 15 + i * 29.0f), between(25, 70), between(0, 2 * pi), true, (i % 3) == 0};
         g.enemy_timer = 1.3f;
     }
+    // Puts the ship somewhere with no enemy or enemy shot nearby, preferring the spot it already occupies.
+    void place_player_safely(Game &g, float preferred_x, float preferred_y)
+    {
+        constexpr float enemy_clearance = 32.0f, shot_clearance = 22.0f;
+        auto clearance = [&](float x, float y) {
+            float worst = 1e9f;
+            for (const Enemy &e : g.enemies)
+                if (e.alive)
+                    worst = std::min(worst, std::hypot(distance_x(e.x, x), (e.y - y) * 0.6f) / enemy_clearance);
+            for (const Shot &s : g.shots)
+                if (s.enemy)
+                    worst = std::min(worst, std::hypot(distance_x(s.x, x), s.y - y) / shot_clearance);
+            return worst;
+        };
+        float best_x = preferred_x, best_y = preferred_y, best = clearance(preferred_x, preferred_y);
+        for (int i = 0; i < 96 && best < 1.0f; ++i)
+        {
+            const float x = i == 0 ? preferred_x : wrap_x(between(-world_w * 0.5f, world_w * 0.5f));
+            const float y = between(floor_y + 8.0f, world_h - 8.0f);
+            const float c = clearance(x, y);
+            if (c > best)
+                best = c, best_x = x, best_y = y;
+        }
+        g.x = best_x;
+        g.y = best_y;
+        g.vx = g.vy = 0;
+    }
     void new_game(Game &g)
     {
         g.score = 0;
@@ -191,7 +218,9 @@ namespace
         g.invulnerable = 1.5f;
         g.debris.clear();
         g.glows.clear();
+        g.vx = g.vy = 0;
         reset_wave(g);
+        place_player_safely(g, g.x, g.y);
         g.state = State::playing;
         play(g.audio, g.audio.start, 0);
     }
@@ -262,14 +291,15 @@ namespace
                     else
                     {
                         g.state = State::playing;
-                        g.x = 0;
-                        g.y = 35;
+                        place_player_safely(g, 0, 35);
                         g.facing_left = false;
                     }
                 }
                 else
                 {
                     reset_wave(g);
+                    place_player_safely(g, g.x, g.y);
+                    g.invulnerable = std::max(g.invulnerable, 1.5f);
                     g.state = State::playing;
                 }
             }
@@ -280,9 +310,22 @@ namespace
         const float move_y = static_cast<float>(in.up) - static_cast<float>(in.down);
         if (move_x != 0)
             g.facing_left = move_x < 0;
-        constexpr float move_speed = 34.0f;
-        g.x = wrap_x(g.x + move_x * move_speed * dt);
-        g.y = std::clamp(g.y + move_y * move_speed * dt, floor_y + 2.4f, world_h - 2.0f);
+        // Momentum: input accelerates the ship, drag bleeds speed off, and the speed is clamped.
+        constexpr float max_speed_x = 40.0f, max_speed_y = 28.0f, accel = 200.0f, drag = 4.0f;
+        g.vx += move_x * accel * dt;
+        g.vy += move_y * accel * dt;
+        g.vx -= g.vx * std::min(1.0f, drag * dt);
+        g.vy -= g.vy * std::min(1.0f, drag * dt);
+        g.vx = std::clamp(g.vx, -max_speed_x, max_speed_x);
+        g.vy = std::clamp(g.vy, -max_speed_y, max_speed_y);
+        g.x = wrap_x(g.x + g.vx * dt);
+        g.y += g.vy * dt;
+        const float min_y = floor_y + 2.4f, max_y = world_h - 2.0f;
+        if (g.y < min_y || g.y > max_y)
+        {
+            g.y = std::clamp(g.y, min_y, max_y);
+            g.vy = 0;
+        }
 
         if (in.fire && g.fire_timer <= 0)
         {
@@ -622,6 +665,28 @@ namespace
         sl::end_surface_3d();
         r.bloom.apply(sl::surface_3d_bitmap(r.surface), 0, 0, window_w, window_h);
     }
+    // Scanner across the top: the whole wrapping world, centred on the player.
+    void draw_radar(const Game &g)
+    {
+        constexpr float left = window_w * 0.5f - 190, right = window_w * 0.5f + 190, top = 58, bottom = 100;
+        sl::rectfill(sl::screen, left, top, right, bottom, {4, 10, 28, 200});
+        sl::rect(sl::screen, left, top, right, bottom, {60, 120, 255});
+        const float view = (right - left) * 34.0f / world_w;
+        sl::rect(sl::screen, (left + right) * 0.5f - view * 0.5f, top + 1, (left + right) * 0.5f + view * 0.5f, bottom - 1, {40, 80, 160});
+        auto blip = [&](float x, float y, sl::Colour c, float size) {
+            const float px = (left + right) * 0.5f + wrap_x(x - g.x) / world_w * (right - left);
+            const float py = bottom - 3 - std::clamp((y - floor_y) / (world_h - floor_y), 0.0f, 1.0f) * (bottom - top - 6);
+            sl::rectfill(sl::screen, px - size, py - size, px + size, py + size, c);
+        };
+        for (const Human &h : g.humans)
+            if (h.alive)
+                blip(h.x, h.y, {110, 255, 110}, 1.5f);
+        for (const Enemy &e : g.enemies)
+            if (e.alive)
+                blip(e.x, e.y, colours[e.bomber ? bomber_c : enemy_c], 2.0f);
+        if (g.state == State::playing)
+            blip(g.x, g.y, {255, 255, 255}, 2.5f);
+    }
     void draw_hud(const Game &g)
     {
         const sl::Colour white{235, 240, 255}, cyan{70, 235, 255}, pink{255, 90, 220}, lime{180, 255, 90};
@@ -631,6 +696,8 @@ namespace
         sl::gprintf_center(30, white, "%06d", g.hiscore);
         sl::gprintf(window_w - 150, 10, pink, "WAVE");
         sl::gprintf(window_w - 150, 30, white, "%d", std::max(g.wave, 1));
+        if (g.state != State::title)
+            draw_radar(g);
         sl::gprintf(24, window_h - 30, cyan, "SHIPS  %d   BOMBS  %d", g.lives, g.bombs);
         sl::gprintf(window_w - 170, window_h - 30, lime, "RESCUED  %d", g.rescued);
         if (g.state == State::title)

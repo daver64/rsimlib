@@ -369,7 +369,7 @@ The full catalog of focused runnable examples follows.
 ./build/exanimsprite    # AnimationManager: looping, rotated, paused and one-shot animated sprites from an atlas
 ./build/exxeno         # Lit top-down shooter with tile-map decal splats (WASD + mouse)
 ./build/exinvaders      # Space Invaders in glowing neon voxels with 3D debris physics (arrows + Space)
-./build/exdefender      # Neon-voxel Defender: four-way movement, wraparound combat and rescues
+./build/exdefender      # Neon-voxel Defender: four-way momentum movement, radar, wraparound combat and rescues
 ./build/extilemap       # Scrolling tile map with collision and animated tiles (optionally a Tiled .tmj path)
 ./build/exconfig        # JSON configuration loading, saving, dotted keys, and live UI
 ./build/expostprocess   # Full post-processing effects and ping-pong chaining
@@ -443,7 +443,7 @@ Each entry links to its source and to a page with a screenshot, controls and key
 - **[`exanimsprite`](src/examples/exanimsprite/exanimsprite.cpp)** — A procedural atlas driven by `AnimationManager`: sprites at different frame rates, a rotated sprite, pausing, and click-spawned one-shot explosions. [Screenshot & guide](docs/examples/exanimsprite.md).
 - **[`exxeno`](src/examples/exxeno/exxeno.cpp)** — Lit 2D shooter with synthesised sound effects and an adrenaline music loop: WASD and mouse aim, glowing bolts, particles, shadow-casting walls and acid splats stamped as tile-map decals. [Screenshot & guide](docs/examples/exxeno.md).
 - **[`exinvaders`](src/examples/exinvaders/exinvaders.cpp)** — Classic Space Invaders built from glowing voxels, seen side-on: eroding shields, bloom, additive missiles and explosions, and 3D rigid-body voxel debris from `RigidBoxWorld3D`. [Screenshot & guide](docs/examples/exinvaders.md).
-- **[`exdefender`](src/examples/exdefender/exdefender.cpp)** — A neon-voxel Defender-inspired arcade shooter: direct four-way wraparound movement, alien waves, smart bombs, synthesized sound, rescues, bloom and tumbling 3D debris. [Screenshot & guide](docs/examples/exdefender.md).
+- **[`exdefender`](src/examples/exdefender/exdefender.cpp)** — A neon-voxel Defender-inspired arcade shooter: four-way wraparound movement with momentum, radar, alien waves, smart bombs, synthesized sound, rescues, bloom and tumbling 3D debris. [Screenshot & guide](docs/examples/exdefender.md).
 - **[`extilemap`](src/examples/extilemap/extilemap.cpp)** — Scrolling tile map with layers, collision, tile animation and Tiled JSON loading. [Screenshot & guide](docs/examples/extilemap.md).
 - **[`exconfig`](src/examples/exconfig/exconfig.cpp)** — JSON configuration loading, saving, dotted key paths, and typed getters/setters. [Screenshot & guide](docs/examples/exconfig.md).
 - **[`excompute`](src/examples/excompute/excompute.cpp)** — GPU compute shader particle simulation and SSBO data readback. [Screenshot & guide](docs/examples/excompute.md).
