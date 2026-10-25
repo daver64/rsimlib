@@ -1,6 +1,6 @@
 # exgui
 
-Dear ImGui integration: the retained and debug GUI drawn on top of simlib, with the active backend and window size shown.
+Dear ImGui integration: an immediate-mode GUI (widgets, sliders, colour picker, demo and metrics windows) drawn on top of simlib, with the active backend and window size shown.
 
 ![exgui screenshot](img/exgui.png)
 
