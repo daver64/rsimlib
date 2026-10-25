@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
         sl::shutdown();
         return -1;
     }
-    lighting.set_ambient(0.18f);
+    lighting.set_ambient(0.45f);
     const std::vector<sl::ShadowCaster> casters = {
         sl::make_rectangle_shadow_caster(300.0f, 370.0f, 500.0f, 400.0f),
         {{{170.0f, 390.0f}, {230.0f, 320.0f}, {290.0f, 390.0f}}},
@@ -73,21 +73,21 @@ int main(int argc, char *argv[])
         sl::Light warm_light;
         warm_light.x = 400.0f + std::cos(static_cast<float>(sl::time_ms()) * 0.001f) * 220.0f;
         warm_light.y = 300.0f - std::sin(static_cast<float>(sl::time_ms()) * 0.001f) * 160.0f;
-        warm_light.radius = 320.0f;
-        warm_light.intensity = 1.4f;
+        warm_light.radius = 460.0f;
+        warm_light.intensity = 2.2f;
         warm_light.shadow_softness = hard_shadows ? 0.0f : 3.0f;
         warm_light.colour = {255, 190, 110};
 
         sl::Light cool_light;
         cool_light.x = 620.0f;
         cool_light.y = 190.0f;
-        cool_light.radius = 220.0f;
-        cool_light.intensity = 0.65f;
+        cool_light.radius = 340.0f;
+        cool_light.intensity = 1.5f;
         cool_light.shadow_softness = hard_shadows ? 0.0f : 2.0f;
         cool_light.direction_x = -0.8944f;
         cool_light.direction_y = 0.4472f;
         cool_light.inner_angle = 12.0f;
-        cool_light.outer_angle = 28.0f;
+        cool_light.outer_angle = 34.0f;
         cool_light.colour = {100, 170, 255};
 
         const std::vector<sl::Light> lights = {warm_light, cool_light};
