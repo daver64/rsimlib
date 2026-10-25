@@ -45,6 +45,14 @@ namespace sl
     MeshData make_radar_data(float height = 8.0f, float dish_radius = 3.0f, Colour colour = {205, 208, 212, 255});
     /** A radar dome: a plinth and a faceted white radome. */
     MeshData make_domed_radar_data(float radius = 4.0f, Colour colour = {236, 238, 240, 255});
+    /** A pressurised dome for an airless world: a foundation ring, a ribbed shell, an airlock block facing +Z and a vent stack. */
+    MeshData make_pressure_dome_data(float radius = 8.0f, Colour colour = {226, 229, 234, 255});
+    /** A habitat tube lying along Z on two footings, with ribs, windows along both sides and a hatch at the +Z end. */
+    MeshData make_habitat_tube_data(float length = 12.0f, float radius = 2.2f, Colour colour = {222, 224, 226, 255});
+    /** A pressurised rover with six wheels, a solar panel and a mast dish; it faces +Z. */
+    MeshData make_lunar_rover_data(float length = 3.5f, Colour colour = {214, 214, 208, 255});
+    /** A circular landing pad of sintered regolith with a painted ring, an H and amber edge lights. */
+    MeshData make_landing_pad_data(float radius = 15.0f);
     /** An airport control tower: a terminal block, a shaft and a flared glazed cab with a roof antenna. */
     MeshData make_control_tower_data(float height = 24.0f, std::uint32_t seed = 1);
     /** A street lamp with a pole and an arm reaching +Z; the lamp head glows underneath at (0, height, arm length). */

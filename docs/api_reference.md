@@ -1419,7 +1419,7 @@ sl::draw_mesh(houses, sl::model_matrix({0, 0, 0}, {0, 0, 0}));
 
 - Conventions: metres, +Y up, the base on `y = 0`, centred on x and z, and the front facing +Z. Fence, wall and container run along X; roads run along Z. `seed` varies colours, lit windows and small details deterministically. Parts are static.
 - Buildings: `make_house_data`, `make_office_data`, `make_skyscraper_data`, `make_hangar_data`.
-- Structures: `make_wall_data`, `make_fence_data`, `make_water_tower_data`, `make_radar_data`, `make_domed_radar_data`, `make_control_tower_data`, `make_street_lamp_data` (the lamp head glows at `(0, height, 0.9)`, the place for a local light), `make_road_data`.
+- Structures: `make_wall_data`, `make_fence_data`, `make_water_tower_data`, `make_radar_data`, `make_domed_radar_data`, `make_control_tower_data`, `make_pressure_dome_data`, `make_habitat_tube_data`, `make_lunar_rover_data`, `make_landing_pad_data` (airless-world base parts), `make_street_lamp_data` (the lamp head glows at `(0, height, 0.9)`, the place for a local light), `make_road_data`.
 - Small props: `make_barrel_data`, `make_crate_data`, `make_container_data`, `make_tank_data`.
 - Nature: `make_tree_data`, `make_conifer_data`, `make_bush_data`, `make_rock_data`, `make_rock_cluster_data`.
 - Vehicles: `make_car_data`, `make_spaceship_data`, `make_aeroplane_data`.

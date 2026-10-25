@@ -71,6 +71,10 @@ Each entry lists the arguments in order with their defaults.
 | `make_water_tower_data` | `height 16, tank_radius 3, tank {120,140,160}` | Braced legs, tank and conical lid. |
 | `make_radar_data` | `height 8, dish_radius 3, colour {205,208,212}` | Mast and tilted dish facing +Z. |
 | `make_domed_radar_data` | `radius 4, colour {236,238,240}` | Plinth and faceted radome. |
+| `make_pressure_dome_data` | `radius 8, colour {226,229,234}` | Ribbed dome on a foundation ring with an airlock block facing +Z and a vent stack. |
+| `make_habitat_tube_data` | `length 12, radius 2.2, colour {222,224,226}` | Ribbed tube along Z on footings, side windows, hatch at +Z. |
+| `make_lunar_rover_data` | `length 3.5, colour {214,214,208}` | Six-wheeled pressurised rover facing +Z. |
+| `make_landing_pad_data` | `radius 15` | Round regolith pad with a ring, an H and edge lights. |
 | `make_control_tower_data` | `height 24, seed 1` | Terminal block, shaft and glazed cab. |
 | `make_street_lamp_data` | `height 6, colour {70,74,80}` | The lamp head glows at `(0, height, 0.9)`, the place for a local light. |
 | `make_road_data` | `length 10, width 6` | Runs along Z, 0.06 m thick, with kerbs and a dashed centre line. |

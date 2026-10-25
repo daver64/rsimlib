@@ -1,5 +1,7 @@
 # exinvaders
 
+Version: see `VERSION` (major.build, shown in the window title; the major number is 1).
+
 Classic Space Invaders in glowing neon voxels. The invaders, the cannon, the three shields and the mystery ship are all built from 3D boxes, and the camera sits side-on so the play is the same as the 2D original. When something is hit its voxels shatter into tumbling debris that fades away while an additive flash blooms where it died.
 
 ![exinvaders screenshot](img/exinvaders.png)

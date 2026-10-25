@@ -1,5 +1,7 @@
 # exdefender
 
+Version: see `VERSION` (major.build, shown in the window title; the major number is 1).
+
 A neon-voxel tribute to the classic side-scrolling space-rescue arcade game. Move a ship through a wraparound playfield, break up alien waves, and rescue people from the ground or before they fall. The ship stays level and faces left or right; movement is direct rather than thrust-based. Voxel ships and enemies shatter into tumbling 3D debris while additive explosions bloom across a starfield.
 
 ![exdefender screenshot](img/exdefender.png)

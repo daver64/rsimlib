@@ -1025,7 +1025,7 @@ int main(int argc, char *argv[])
     if (!sl::configure_graphics_backend_from_args(static_cast<int>(backend_args.size()), backend_args.data()) ||
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, window_w, window_h))
         return -1;
-    sl::set_window_title("exinvaders");
+    sl::set_window_title("exinvaders v" EXINVADERS_VERSION);
 
     Renderer r;
     r.surface = sl::create_surface_3d(window_w, window_h, 4);

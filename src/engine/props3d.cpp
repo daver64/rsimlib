@@ -549,6 +549,104 @@ namespace sl
         return b.data;
     }
 
+    MeshData make_pressure_dome_data(float radius, Colour colour)
+    {
+        Builder b;
+        radius = std::max(radius, 3.0f);
+        const Colour skin = colour;
+        const float ring_h = 0.6f;
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, ring_h, 0.0f}, radius * 1.08f, radius * 1.08f, 24, shade(skin, 0.6f));
+        column(b, {0.0f, ring_h, 0.0f}, {0.0f, ring_h + 0.15f, 0.0f}, radius * 1.0f, radius * 1.0f, 24, shade(skin, 0.45f), false, true);
+        ellipsoid(b, {0.0f, ring_h, 0.0f}, {radius, radius * 0.72f, radius}, 24, 8, 0.0f, 0.5f * pi, 0.0f, 1u, skin, 0.06f, false);
+        // Meridian ribs standing proud of the skin.
+        for (int i = 0; i < 12; ++i)
+        {
+            const float a = 2.0f * pi * static_cast<float>(i) / 12.0f;
+            V prev{std::sin(a) * radius * 1.01f, ring_h, std::cos(a) * radius * 1.01f};
+            for (int k = 1; k <= 8; ++k)
+            {
+                const float lat = 0.5f * pi * static_cast<float>(k) / 8.0f;
+                const V next{std::sin(a) * std::cos(lat) * radius * 1.01f, ring_h + std::sin(lat) * radius * 0.72f * 1.01f, std::cos(a) * std::cos(lat) * radius * 1.01f};
+                if (glm::length(next - prev) > 1e-3f)
+                    column(b, prev, next, 0.09f, 0.09f, 4, shade(skin, 0.55f), false, false);
+                prev = next;
+            }
+        }
+        // An airlock block with a door on the +Z side and a vent stack.
+        const float lock_w = std::max(1.6f, radius * 0.22f);
+        box(b, {-lock_w, 0.0f, radius * 0.78f}, {lock_w, lock_w * 1.25f, radius * 1.32f}, shade(skin, 0.85f));
+        box(b, {-lock_w - 0.1f, lock_w * 1.25f, radius * 0.78f}, {lock_w + 0.1f, lock_w * 1.25f + 0.2f, radius * 1.34f}, shade(skin, 0.6f));
+        panel(b, {0.0f, lock_w * 0.55f, radius * 1.32f + 0.02f}, {0.0f, 0.0f, 1.0f}, lock_w * 0.9f, lock_w * 1.0f, {60, 66, 78, 255});
+        panel(b, {0.0f, lock_w * 1.1f, radius * 1.32f + 0.03f}, {0.0f, 0.0f, 1.0f}, lock_w * 0.5f, 0.2f, {240, 170, 60, 255});
+        column(b, {radius * 0.3f, ring_h + radius * 0.7f, radius * 0.1f}, {radius * 0.3f, ring_h + radius * 0.7f + 1.2f, radius * 0.1f}, 0.18f, 0.18f, 6, steel);
+        return b.data;
+    }
+
+    MeshData make_habitat_tube_data(float length, float radius, Colour colour)
+    {
+        Builder b;
+        length = std::max(length, 4.0f);
+        radius = std::max(radius, 1.0f);
+        const float hl = 0.5f * length, cy = radius + 0.5f;
+        for (const float z : {-0.38f, 0.38f})
+            box(b, {-radius * 0.7f, 0.0f, z * length - 0.3f}, {radius * 0.7f, cy - radius * 0.6f, z * length + 0.3f}, shade(colour, 0.55f));
+        column(b, {0.0f, cy, -hl}, {0.0f, cy, hl}, radius, radius, 16, colour, true, true);
+        for (int i = 0; i <= 6; ++i)
+        {
+            const float z = -hl + length * static_cast<float>(i) / 6.0f;
+            column(b, {0.0f, cy, z - 0.12f}, {0.0f, cy, z + 0.12f}, radius * 1.03f, radius * 1.03f, 16, shade(colour, 0.65f), false, false);
+        }
+        for (const float side : {-1.0f, 1.0f})
+            for (int i = 0; i < 4; ++i)
+            {
+                const float z = -hl + length * (0.2f + 0.2f * static_cast<float>(i));
+                panel(b, {side * (radius * 0.98f), cy + radius * 0.25f, z}, {side, 0.0f, 0.0f}, 0.6f, 0.4f, glass_dark);
+            }
+        panel(b, {0.0f, cy, hl + 0.02f}, {0.0f, 0.0f, 1.0f}, radius * 0.9f, radius * 1.1f, {60, 66, 78, 255});
+        return b.data;
+    }
+
+    MeshData make_lunar_rover_data(float length, Colour colour)
+    {
+        Builder b;
+        length = std::max(length, 1.5f);
+        const float s = length / 3.5f, wheel = 0.45f * s;
+        box(b, {-0.8f * s, 0.55f * s, -1.5f * s}, {0.8f * s, 1.05f * s, 1.5f * s}, colour);
+        box(b, {-0.6f * s, 1.05f * s, -0.4f * s}, {0.6f * s, 1.55f * s, 0.9f * s}, shade(colour, 0.85f));
+        panel(b, {0.0f, 1.3f * s, 0.9f * s + 0.01f}, {0.0f, 0.0f, 1.0f}, 0.9f * s, 0.35f * s, glass_dark);
+        for (const float side : {-1.0f, 1.0f})
+            for (const float z : {-1.2f * s, 0.0f, 1.2f * s})
+            {
+                const float x = side * 1.05f * s;
+                column(b, {x - side * 0.15f * s, wheel, z}, {x + side * 0.15f * s, wheel, z}, wheel, wheel, 10, {44, 46, 50, 255});
+                box(b, {std::min(x, side * 0.8f * s), 0.5f * s, z - 0.06f * s}, {std::max(x, side * 0.8f * s), 0.6f * s, z + 0.06f * s}, steel);
+            }
+        box(b, {-0.8f * s, 1.05f * s, -1.4f * s}, {0.8f * s, 1.12f * s, -0.5f * s}, {30, 48, 118, 255});
+        column(b, {0.5f * s, 1.55f * s, -0.2f * s}, {0.5f * s, 2.2f * s, -0.2f * s}, 0.03f * s, 0.03f * s, 5, steel);
+        ellipsoid(b, {0.5f * s, 2.2f * s, -0.2f * s}, {0.3f * s, 0.12f * s, 0.3f * s}, 10, 3, 0.0f, 0.5f * pi, 0.0f, 1u, {235, 235, 232, 255}, 0.0f);
+        return b.data;
+    }
+
+    MeshData make_landing_pad_data(float radius)
+    {
+        Builder b;
+        radius = std::max(radius, 4.0f);
+        const Colour pad{96, 94, 90, 255};
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.2f, 0.0f}, radius, radius, 32, pad);
+        column(b, {0.0f, 0.2f, 0.0f}, {0.0f, 0.23f, 0.0f}, radius * 0.9f, radius * 0.9f, 32, {226, 226, 222, 255}, false, true);
+        column(b, {0.0f, 0.2f, 0.0f}, {0.0f, 0.24f, 0.0f}, radius * 0.86f, radius * 0.86f, 32, shade(pad, 1.05f), false, true);
+        box(b, {-radius * 0.5f, 0.24f, -radius * 0.04f}, {radius * 0.5f, 0.26f, radius * 0.04f}, {226, 226, 222, 255});
+        box(b, {-radius * 0.5f, 0.24f, -radius * 0.04f}, {-radius * 0.42f, 0.26f, radius * 0.5f}, {226, 226, 222, 255});
+        box(b, {radius * 0.42f, 0.24f, -radius * 0.04f}, {radius * 0.5f, 0.26f, radius * 0.5f}, {226, 226, 222, 255});
+        for (int i = 0; i < 8; ++i)
+        {
+            const float a = 2.0f * pi * static_cast<float>(i) / 8.0f;
+            const float x = std::sin(a) * radius * 0.96f, z = std::cos(a) * radius * 0.96f;
+            column(b, {x, 0.2f, z}, {x, 0.55f, z}, 0.12f, 0.12f, 5, {255, 200, 90, 255});
+        }
+        return b.data;
+    }
+
     MeshData make_control_tower_data(float height, std::uint32_t seed)
     {
         Builder b;
