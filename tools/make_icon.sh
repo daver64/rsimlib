@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Regenerates the default application icon from assets/textures/buddhabrot.png (needs ImageMagick).
+# Regenerates the default application icon from assets/textures/sauronbrotsmall.ico (needs ImageMagick).
 # Outputs: assets/icon/simlib_icon.png, assets/icon/simlib.ico (Windows resource) and src/engine/icon_data.cpp (embedded window icon).
 set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-convert "$root/assets/textures/buddhabrot.png" -crop 340x340+22+30 +repage -modulate 125,115 \
-    \( -size 340x340 xc:none -fill white -draw "roundrectangle 0,0 339,339 60,60" \) -alpha set -compose DstIn -composite "$tmp/big.png"
-convert "$tmp/big.png" -resize 256x256 "$root/assets/icon/simlib_icon.png"
-convert "$tmp/big.png" -define icon:auto-resize=256,128,64,48,32,16 "$root/assets/icon/simlib.ico"
+# The source is a 32x32 icon: upscale it smoothly for the large sizes and keep it native at 32 and below.
+convert "$root/assets/textures/sauronbrotsmall.ico[0]" -filter Lanczos -resize 256x256 "$root/assets/icon/simlib_icon.png"
+for size in 128 64 48 32 16; do
+    convert "$root/assets/textures/sauronbrotsmall.ico[0]" -filter Lanczos -resize ${size}x${size} "$tmp/$size.png"
+done
+cp "$root/assets/icon/simlib_icon.png" "$tmp/256.png"
+convert "$tmp/256.png" "$tmp/128.png" "$tmp/64.png" "$tmp/48.png" "$tmp/32.png" "$tmp/16.png" "$root/assets/icon/simlib.ico"
 convert "$root/assets/icon/simlib_icon.png" -resize 64x64 -depth 8 "rgba:$tmp/icon.rgba"
 python3 - "$tmp/icon.rgba" "$root/src/engine/icon_data.cpp" <<'PY'
 import sys

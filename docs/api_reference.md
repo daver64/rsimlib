@@ -150,7 +150,7 @@ bool set_window_icon(Bitmap *icon);
 bool set_window_icon(const char *path);
 void reset_window_icon();
 ```
-- **Description**: Sets the icon shown in the taskbar, window switcher and title bar. Every simlib window starts with the built-in buddhabrot icon; call these after `set_gfx_mode()` to replace it, or `reset_window_icon()` to restore it. A square image of 32x32 to 256x256 works best. On Windows the executable's own file icon (shown in Explorer) is a separate resource: simlib embeds `assets/icon/simlib.ico` by default (turn off with `-DSIMLIB_EMBED_ICON=OFF`), and an app can add its own `.rc` file to override it.
+- **Description**: Sets the icon shown in the taskbar, window switcher and title bar. Every simlib window starts with the built-in sauronbrot icon; call these after `set_gfx_mode()` to replace it, or `reset_window_icon()` to restore it. A square image of 32x32 to 256x256 works best. On Windows the executable's own file icon (shown in Explorer) is a separate resource: simlib embeds `assets/icon/simlib.ico` by default (turn off with `-DSIMLIB_EMBED_ICON=OFF`), and an app can add its own `.rc` file to override it.
 - **Parameters**:
   - `icon` (`Bitmap*`): Any bitmap with readable pixels; it is not consumed.
   - `path` (`const char*`): An image file to load as the icon.
