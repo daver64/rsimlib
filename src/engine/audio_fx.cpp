@@ -134,6 +134,8 @@ class FxWorker
 FxWorker worker;
 std::atomic<std::uint64_t> next_voice{1};
 std::unordered_map<std::uint64_t, int> voices;
+// Each mixer channel's own 0-255 volume, kept so a master volume change can rescale it instead of overwriting it.
+std::unordered_map<int, int> channel_levels;
 int master_volume = 255;
 
 /** Convert the public 0-255 volume range to SDL_mixer's range. */
@@ -321,6 +323,7 @@ std::uint64_t play_sample(Sample *sample, int volume, int pan, int frequency, in
             return;
         }
         voices[voice] = channel;
+        channel_levels[channel] = volume;
         Mix_Volume(channel, mixer_volume(volume) * master_volume / 255);
         apply_pan(channel, pan);
     });
@@ -375,6 +378,7 @@ void stop_all_samples()
         std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
         Mix_HaltChannel(-1);
         voices.clear();
+        channel_levels.clear();
     });
 }
 
@@ -409,7 +413,10 @@ void set_voice_volume(std::uint64_t voice, int volume)
         std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
         const auto found = voices.find(voice);
         if (found != voices.end())
+        {
+            channel_levels[found->second] = volume;
             Mix_Volume(found->second, mixer_volume(volume) * master_volume / 255);
+        }
     });
 }
 
@@ -422,7 +429,12 @@ void audio_fx_set_volume(int volume)
     worker.enqueue([volume] {
         master_volume = std::clamp(volume, 0, 255);
         std::lock_guard<std::mutex> lock(audio_detail::mixer_mutex());
-        Mix_Volume(-1, mixer_volume(master_volume));
+        // Setting every channel to the master volume would make each voice jump to full level for a moment.
+        for (int channel = 0, count = Mix_AllocateChannels(-1); channel < count; ++channel)
+        {
+            const auto level = channel_levels.find(channel);
+            Mix_Volume(channel, mixer_volume(level != channel_levels.end() ? level->second : 255) * master_volume / 255);
+        }
     });
 }
 

@@ -147,6 +147,7 @@ namespace sl::detail
         bool record_sky_draw(VkPipeline pipeline, VkPipelineLayout layout, const float *sky_rows,
                              std::string &error);
         bool clear_active_frame_3d(float red, float green, float blue, float alpha, std::string &error);
+        bool clear_active_depth_3d(std::string &error);
         /**
          * Record any mesh draws queued for parallel recording into the primary command buffer, in order. Every
          * method that records commands or destroys resources calls this first, so queued draws never reorder.

@@ -1352,6 +1352,25 @@ namespace sl::detail
         return true;
     }
 
+    bool VulkanContext::clear_active_depth_3d(std::string &error)
+    {
+        if (!flush_pending_draws(error))
+            return false;
+        if (!frame_active_ || !command_buffer_recording_ || !render_pass_active_)
+        {
+            error = "Vulkan frame is not active.";
+            return false;
+        }
+        VkClearAttachment attachment{};
+        attachment.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        attachment.clearValue.depthStencil = {1.0f, 0};
+        VkClearRect rect{};
+        rect.rect.extent = active_extent_;
+        rect.layerCount = 1;
+        vkCmdClearAttachments(command_buffer_, 1, &attachment, 1, &rect);
+        return true;
+    }
+
     bool VulkanContext::record_lighting_draw(VkPipeline pipeline, VkPipelineLayout layout,
                                              VkBuffer vertex_buffer, VkDescriptorSet texture_descriptor,
                                              VkDescriptorSet storage_descriptor, std::uint32_t vertex_count,

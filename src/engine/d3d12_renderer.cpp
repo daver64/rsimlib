@@ -1798,6 +1798,20 @@ namespace sl::detail
                     depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
                 return true;
             }
+            bool clear_depth_3d() override
+            {
+                if (active_render_target_ == 0 || !ensure_frame())
+                    return false;
+                const auto target = render_targets_.find(active_render_target_);
+                if (target == render_targets_.end() || !target->second.depth)
+                    return false;
+                flush_2d();
+                D3D12_CPU_DESCRIPTOR_HANDLE depth =
+                    cpu_descriptor(depth_stencil_heap_, depth_stencil_descriptor_size_,
+                                   target->second.depth_descriptor);
+                context_.command_list()->ClearDepthStencilView(depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+                return true;
+            }
             bool create_shader(const ShaderSource &vertex_source, const ShaderSource &fragment_source,
                                std::uint32_t &handle, std::string &error) override
             {

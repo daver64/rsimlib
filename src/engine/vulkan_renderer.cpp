@@ -716,6 +716,11 @@ namespace sl::detail
                 flush_2d();
                 return context_.clear_active_frame_3d(red, green, blue, alpha, last_error_);
             }
+            bool clear_depth_3d() override
+            {
+                flush_2d();
+                return context_.clear_active_depth_3d(last_error_);
+            }
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
             {
                 const auto found = meshes_.find(handle);

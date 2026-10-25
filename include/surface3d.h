@@ -199,6 +199,14 @@ namespace sl
     void end_surface_3d();
     /** Clear the active surface's colour and depth. */
     void clear_surface_3d(Colour colour);
+    /**
+     * Clear only the active surface's depth, keeping what is drawn. With set_camera_3d() this lets a scene be drawn in
+     * layers with different near and far planes: distant bodies first, then the nearby objects over them. Returns false
+     * (and clears nothing) on a backend that cannot.
+     */
+    bool clear_depth_3d();
+    /** Replace the camera used by the draws that follow, within begin_surface_3d() and end_surface_3d(). */
+    void set_camera_3d(const Camera &camera);
     /** Set the light used by lit materials on subsequent draws. */
     void set_light_3d(const Light3D &light);
     /** The light most recently passed to set_light_3d(). */

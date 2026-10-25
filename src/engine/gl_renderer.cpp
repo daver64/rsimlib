@@ -807,6 +807,25 @@ namespace sl::detail
                 return true;
             }
 
+            bool clear_depth_3d() override
+            {
+                flush_2d();
+                GLdouble previous_clear_depth = 1.0;
+                GLboolean previous_depth_mask = GL_TRUE;
+                const GLboolean scissor_was_enabled = glIsEnabled(GL_SCISSOR_TEST);
+                glGetDoublev(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+                glGetBooleanv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
+                glDisable(GL_SCISSOR_TEST);
+                glDepthMask(GL_TRUE);
+                glClearDepth(1.0);
+                glClear(GL_DEPTH_BUFFER_BIT);
+                glClearDepth(previous_clear_depth);
+                glDepthMask(previous_depth_mask);
+                if (scissor_was_enabled)
+                    glEnable(GL_SCISSOR_TEST);
+                return true;
+            }
+
             struct GLInstanceBuffer
             {
                 GLuint buffer = 0;

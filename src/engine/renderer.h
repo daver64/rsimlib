@@ -505,6 +505,8 @@ namespace sl::detail
         virtual bool draw_sky(const SkyDrawParams &) { return false; }
         /** Clear the active render target's colour and depth. */
         virtual bool clear_3d(float, float, float, float) { return false; }
+        /** Clear only the active render target's depth. */
+        virtual bool clear_depth_3d() { return false; }
         /**
          * Build the pipeline states 3D drawing needs for a render-target sample count ahead of the first draw, so the
          * first frame does not stall compiling them. Backends without pipeline objects do nothing.

@@ -399,6 +399,21 @@ namespace sl
                            colour.alpha / 255.0f);
     }
 
+    bool clear_depth_3d()
+    {
+        detail::Renderer *renderer = detail::active_renderer();
+        return active.surface && renderer && renderer->clear_depth_3d();
+    }
+
+    void set_camera_3d(const Camera &camera)
+    {
+        if (!active.surface || !active.surface->bitmap)
+            return;
+        const float aspect = static_cast<float>(active.surface->bitmap->width) / static_cast<float>(active.surface->bitmap->height);
+        active.camera = camera;
+        active.view_projection = camera.projection_matrix(aspect) * camera.view_matrix();
+    }
+
     void set_light_3d(const Light3D &light)
     {
         current_light = light;
