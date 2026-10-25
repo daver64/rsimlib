@@ -128,6 +128,9 @@ namespace
         float x = 0, y = 35, vx = 0, vy = 0, invulnerable = 0;
         float timer = 0, fire_timer = 0, enemy_timer = 0, smart_flash = 0, time = 0;
         bool facing_left = false;
+        // Autoplay pilot memory: the way it is racing and when it last turned round.
+        mutable int bot_dir = 1;
+        mutable float bot_turned = -10.0f;
         Human humans[human_count];
         Enemy enemies[enemy_count];
         std::vector<Shot> shots;
@@ -468,24 +471,145 @@ namespace
         }
     }
 
+    // Autoplay pilot: races along the world at full throttle, picking targets off the radar (nearest ahead first,
+    // carriers of abducted colonists before anything else), lining up its height for a shot down the track, and
+    // diving to catch falling colonists. It only turns round after a minimum hold time, so it never dithers.
     Input bot_input(const Game &g)
     {
         Input in;
-        in.fire = true;
-        float target = 0, target_y = g.y, best = 1e9f;
-        for (const Enemy &e : g.enemies)
-            if (e.alive && distance_x(e.x, g.x) < best)
+        if (g.state != State::playing)
+            return in;
+
+        // Threat check, with our own velocity taken into account: shots that will pass close push us up or down.
+        float danger = 0, soonest = 1e9f;
+        for (const Shot &s : g.shots)
+        {
+            if (!s.enemy)
+                continue;
+            const glm::vec2 p{wrap_x(s.x - g.x), s.y - g.y}, v{s.vx - g.vx, s.vy - g.vy};
+            const float speed2 = v.x * v.x + v.y * v.y;
+            if (speed2 < 1.0f)
+                continue;
+            const float t = std::clamp(-(p.x * v.x + p.y * v.y) / speed2, 0.0f, 1.8f);
+            const glm::vec2 closest = p + v * t;
+            if (glm::length(closest) < 4.5f && t < soonest)
             {
-                best = distance_x(e.x, g.x);
-                target = e.x;
-                target_y = e.y;
+                soonest = t;
+                danger = closest.y > 0 ? -1.0f : 1.0f;
             }
-        const float dx = wrap_x(target - g.x);
-        in.left = dx < -2.0f;
-        in.right = dx > 2.0f;
-        in.up = target_y > g.y + 2.0f;
-        in.down = target_y < g.y - 2.0f;
-        in.fire = best < 35.0f && std::fabs(target_y - g.y) < 8.0f;
+        }
+
+        // Choose the target: a rescue first, else a carrier, else the best raider (ahead of us counts for more).
+        float tx = 0, ty = g.y;
+        bool rescue = false, any = false;
+        const Enemy *foe = nullptr;
+        float best_rescue = 1e9f;
+        for (const Human &h : g.humans)
+            if (h.alive && h.falling)
+            {
+                const float d = distance_x(h.x, g.x);
+                if (d < best_rescue)
+                {
+                    best_rescue = d;
+                    tx = h.x;
+                    ty = std::max(floor_y + 3.0f, h.y - 10.0f * std::min(d / 40.0f, 1.2f));
+                    rescue = true;
+                }
+            }
+        int swarm = 0;
+        float closest_foe = 1e9f, best_score = 1e9f;
+        for (int i = 0; i < enemy_count; ++i)
+        {
+            const Enemy &e = g.enemies[i];
+            if (!e.alive)
+                continue;
+            const float dx = wrap_x(e.x - g.x), d = std::fabs(dx);
+            if (d < 14.0f)
+                ++swarm;
+            if (d < 5.0f && std::fabs(e.y - g.y) < 5.0f)
+                closest_foe = std::min(closest_foe, d);
+            bool carrier = false;
+            for (const Human &h : g.humans)
+                carrier |= h.alive && h.abducted && h.carrier == i;
+            const bool ahead = (dx < 0) == (g.bot_dir < 0);
+            const float score = d + (ahead ? 0.0f : 30.0f) - (carrier ? 60.0f : 0.0f);
+            if (score < best_score)
+            {
+                best_score = score;
+                foe = &e;
+            }
+            any = true;
+        }
+        if (!any && !rescue)
+        {
+            in.right = g.bot_dir > 0;
+            in.left = g.bot_dir < 0;
+            return in;
+        }
+        if (!rescue && foe)
+        {
+            // Aim where the raider will be when the shot arrives.
+            tx = foe->x;
+            ty = foe->y;
+        }
+        if (g.bombs > 0 && (swarm >= 4 || closest_foe < 2.8f))
+            in.bomb = true;
+
+        // Heading: keep going the same way unless the target is well behind and we have held this heading a while.
+        const float dx = wrap_x(tx - g.x);
+        int dir = g.bot_dir;
+        const bool want_flip = (dx < 0) != (g.bot_dir < 0) && std::fabs(dx) > (rescue ? 4.0f : 10.0f);
+        if (want_flip && (g.time - g.bot_turned > (rescue ? 0.4f : 1.6f)))
+        {
+            dir = dx < 0 ? -1 : 1;
+            g.bot_dir = dir;
+            g.bot_turned = g.time;
+        }
+        in.left = dir < 0;
+        in.right = dir > 0;
+        // A rescue is a dive: close on the colonist at a speed proportional to the gap, coasting when it is about right.
+        if (rescue && std::fabs(dx) < 10.0f)
+        {
+            const float wanted = std::clamp(dx * 5.0f, -40.0f, 40.0f);
+            in.left = g.vx - wanted > 8.0f;
+            in.right = wanted - g.vx > 8.0f;
+        }
+
+        // Height: hold the target's height (with a little prediction), dodging shots and raiders on the way past.
+        float want = ty - g.y - g.vy * 0.15f;
+        if (!rescue)
+            for (const Enemy &e : g.enemies)
+                if (e.alive && &e != foe)
+                {
+                    const float ex = wrap_x(e.x - g.x), gap = std::fabs(e.y - g.y);
+                    if (std::fabs(ex) < 12.0f && gap < 5.0f && (ex * g.vx > 0 || std::fabs(ex) < 5.0f))
+                        danger = e.y > g.y ? -1.0f : 1.0f;
+                }
+        if (danger != 0)
+        {
+            if (g.y > world_h - 10.0f)
+                danger = -1.0f;
+            else if (g.y < floor_y + 10.0f)
+                danger = 1.0f;
+            want = danger * 10.0f;
+        }
+        in.up = want > 0.8f;
+        in.down = want < -0.8f;
+
+        // Fire down the track when the target is ahead in range and our height matches.
+        if (foe && !rescue)
+        {
+            const float fx = wrap_x(foe->x - g.x);
+            const bool ahead = (fx < 0) == g.facing_left;
+            in.fire = ahead && std::fabs(fx) < 60.0f && std::fabs(foe->y - g.y) < 1.8f;
+        }
+        else if (any)
+            for (const Enemy &e : g.enemies)
+            {
+                const float fx = wrap_x(e.x - g.x);
+                if (e.alive && (fx < 0) == g.facing_left && std::fabs(fx) < 60.0f && std::fabs(e.y - g.y) < 1.8f)
+                    in.fire = true;
+            }
         return in;
     }
 

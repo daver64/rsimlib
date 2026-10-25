@@ -1,8 +1,8 @@
 # simlib
 
-![simlib showreel 3: a Saturn V launch to orbit](docs/showreel3_thumbnail.png)
+[![simlib showreel 4 on YouTube: three neon voxel arcade games, click to watch](docs/showreel4_thumbnail.png)](https://www.youtube.com/watch?v=KE_AFGd7Tj0)
 
-**Showreel 3**: a Saturn V-style launch to orbit, rendered entirely by simlib itself, in real time, with mountains, staging, stars and an ambient finale.
+**[Showreel 4](https://www.youtube.com/watch?v=KE_AFGd7Tj0)**: the three neon arcade games, [exinvaders](docs/examples/exinvaders.md), [exdefender](docs/examples/exdefender.md) and [exasteroids](docs/examples/exasteroids.md), each played by its own autoplay bot to a techno beat, rendered entirely by simlib itself with HDR bloom, emissive voxels and rigid-body debris.
 
 `simlib` is an easy-to-use, feature-rich C++ multimedia and rendering framework for 2D and 3D applications, with an Allegro 4-style API built on SDL2 and selectable OpenGL, Vulkan and Direct3D 12 backends.
 
@@ -502,19 +502,27 @@ Add the `export MANPATH=...` line to your shell startup file to keep it across s
 
 ## Showreel Gallery
 
-Earlier films rendered entirely by simlib (the latest showreel is always at the top of this page).
+Earlier films rendered entirely by simlib (the latest showreel is always at the top of this page). All of them are in the [simlib playlist on YouTube](https://www.youtube.com/playlist?list=PLUxsfSDozX5k).
 
 <table>
   <tr>
+    <td align="center" width="50%">
+      <a href="https://www.youtube.com/watch?v=8g6SrcvGjKM"><img src="docs/showreel3_thumbnail.png" width="320" alt="simlib showreel 3 on YouTube: click to watch"></a><br>
+      <b><a href="https://www.youtube.com/watch?v=8g6SrcvGjKM">Showreel 3</a></b><br>
+      A Saturn V-style launch to orbit, with mountains, staging, stars and an ambient finale.
+    </td>
     <td align="center" width="50%">
       <a href="https://www.youtube.com/watch?v=XAhfCniKO2k"><img src="docs/showreel2_thumbnail.png" width="320" alt="simlib showreel 2 on YouTube: click to watch"></a><br>
       <b><a href="https://www.youtube.com/watch?v=XAhfCniKO2k">Showreel 2</a></b><br>
       Storms and warships, airliners, 3D cockpits and an orbital burn.
     </td>
+  </tr>
+  <tr>
     <td align="center" width="50%">
       <a href="https://www.youtube.com/watch?v=D1dyvnGUUNw"><img src="docs/showreel1_thumbnail.png" width="320" alt="simlib showreel 1 on YouTube: click to watch"></a><br>
       <b><a href="https://www.youtube.com/watch?v=D1dyvnGUUNw">Showreel 1</a></b><br>
       A three-minute tour of simlib.
     </td>
+    <td></td>
   </tr>
 </table>
