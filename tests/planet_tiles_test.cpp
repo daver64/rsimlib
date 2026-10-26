@@ -157,6 +157,8 @@ int main(int argc, char *argv[])
     options.colour = (root / "colour.ctx").string();
     options.segments = 6;
     options.max_loads_in_flight = 4;
+    options.feather = 0.0f;
+    options.fade_seconds = 0.0f;
 
     // Near the one deepest tile: all four levels are used.
     {
@@ -206,6 +208,28 @@ int main(int argc, char *argv[])
         const Shot without = look(surface, *plain, 0.15, 0.53, 1.5f, 1, 1.0f, true);
         std::printf("glint: with %d,%d,%d without %d,%d,%d\n", with.centre.red, with.centre.green, with.centre.blue, without.centre.red, without.centre.green, without.centre.blue);
         assert(with.centre.red > without.centre.red + 10);
+    }
+    // The lone white level-3 tile has no neighbours, so it feathers out onto the blue level-2 tile at its edge and is solid in its middle.
+    {
+        sl::PlanetTilesOptions soft = options;
+        soft.feather = 0.3f;
+        auto middle = sl::PlanetTiles::create(soft);
+        const Shot inside = look(surface, *middle, 2.5 / 16.0, 4.5 / 8.0, 1.02f, 3, 1.0f);
+        assert(inside.stats.deepest_level == 3);
+        assert(near_colour(inside.centre, 255, 255, 255));
+        auto edge = sl::PlanetTiles::create(soft);
+        const Shot rim = look(surface, *edge, 2.03 / 16.0, 4.5 / 8.0, 1.02f, 3, 1.0f);
+        std::printf("feather edge: %d,%d,%d\n", rim.centre.red, rim.centre.green, rim.centre.blue);
+        assert(rim.centre.blue > 200 && rim.centre.red < 120);
+    }
+    // A tile that has just loaded fades in over its parent rather than popping.
+    {
+        sl::PlanetTilesOptions slow = options;
+        slow.fade_seconds = 1000.0f;
+        auto planet = sl::PlanetTiles::create(slow);
+        const Shot shot = look(surface, *planet, 2.5 / 16.0, 4.5 / 8.0, 1.02f, 3, 1.0f);
+        assert(shot.stats.deepest_level == 3);
+        assert(shot.centre.blue > 200 && shot.centre.red < 120);
     }
     // A missing folder fails cleanly.
     {

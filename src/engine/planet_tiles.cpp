@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -197,6 +198,14 @@ namespace sl
         rect[3] = v0 + size;
     }
 
+    namespace
+    {
+        double now_seconds()
+        {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+    } // namespace
+
     struct PlanetTiles::Impl
     {
         struct Tile
@@ -206,6 +215,7 @@ namespace sl
             bool loading = false;
             bool failed = false;
             std::uint64_t used = 0;
+            double arrived = -1.0e9; // seconds on now_seconds()'s clock when the bitmap became resident
         };
 
         struct MeshEntry
@@ -220,6 +230,9 @@ namespace sl
             int up;      // levels up to the colour tile that is drawn
             int spec_up; // levels up to the specular tile, or -1
             Bitmap *colour = nullptr, *normal = nullptr, *specular = nullptr;
+            Bitmap *under = nullptr; // the parent tile drawn beneath a leaf that is fading in or feathered at its edges
+            float fade = 1.0f;       // opacity while the tile fades in over its parent
+            int edges = 0;           // bits 0-3: sides of the patch (i = 0, i = n, j = 0, j = n) with no neighbour at this level
         };
 
         PlanetTilesOptions options;
@@ -304,6 +317,7 @@ namespace sl
             --in_flight;
             tile.bitmap = tile.load.ready() ? tile.load.get() : nullptr;
             tile.failed = tile.bitmap == nullptr;
+            tile.arrived = wait ? -1.0e9 : now_seconds();
             tile.load = AsyncBitmap();
         }
 
@@ -382,6 +396,33 @@ namespace sl
                         break;
                     }
                 }
+            if (up == 0 && level > sets[colour_layer].min_level)
+            {
+                Tile *parent = resident(colour_layer, level - 1, column >> 1, row >> 1);
+                if (parent)
+                {
+                    const double age = now_seconds() - colour->arrived;
+                    if (options.fade_seconds > 0.0f && age < options.fade_seconds)
+                        leaf.fade = static_cast<float>(std::max(age, 0.0) / options.fade_seconds);
+                    if (options.feather > 0.0f)
+                    {
+                        const int cols = columns(level, sets[colour_layer].base_split), rws = rows(level, sets[colour_layer].base_split);
+                        auto missing = [&](int c, int r)
+                        {
+                            if (r < 0 || r >= rws)
+                                return false;
+                            return !sets[colour_layer].has(level, (c + cols) % cols, r);
+                        };
+                        leaf.edges = (missing(column - 1, row) ? 1 : 0) | (missing(column + 1, row) ? 2 : 0) | (missing(column, row - 1) ? 4 : 0) |
+                                     (missing(column, row + 1) ? 8 : 0);
+                    }
+                    if (leaf.fade < 1.0f || leaf.edges)
+                    {
+                        parent->used = frame;
+                        leaf.under = parent->bitmap;
+                    }
+                }
+            }
             leaves.push_back(leaf);
         }
 
@@ -426,9 +467,11 @@ namespace sl
             }
         }
 
-        Mesh *patch_mesh(int level, int column, int row, int up, int layer)
+        Mesh *patch_mesh(int level, int column, int row, int up, int layer, int edges = 0)
         {
-            const std::uint64_t key = tile_key(level, column, row) ^ (static_cast<std::uint64_t>(up) << 52) ^ (static_cast<std::uint64_t>(layer) << 50);
+            // Layers: 0 colour, 1 specular glint, 2 the lowered underlay, 3 the edge-feathered colour patch.
+            const std::uint64_t key = tile_key(level, column, row) ^ (static_cast<std::uint64_t>(up) << 52) ^ (static_cast<std::uint64_t>(layer) << 50) ^
+                                      (static_cast<std::uint64_t>(edges) << 46);
             MeshEntry &entry = meshes[key];
             entry.used = frame;
             if (entry.mesh)
@@ -465,11 +508,29 @@ namespace sl
                 }
                 v.uv[0] = rect[0] + (rect[2] - rect[0]) * static_cast<float>(fu);
                 v.uv[1] = rect[1] + (rect[3] - rect[1]) * static_cast<float>(fv);
+                if (edges && options.feather > 0.0f)
+                {
+                    // Opaque inside, fading to clear along each side that has no neighbour at this level.
+                    double opacity = 1.0;
+                    const double w = options.feather;
+                    if (edges & 1)
+                        opacity = std::min(opacity, fu / w);
+                    if (edges & 2)
+                        opacity = std::min(opacity, (1.0 - fu) / w);
+                    if (edges & 4)
+                        opacity = std::min(opacity, fv / w);
+                    if (edges & 8)
+                        opacity = std::min(opacity, (1.0 - fv) / w);
+                    opacity = std::clamp(opacity, 0.0, 1.0);
+                    v.colour[3] = static_cast<float>(opacity * opacity * (3.0 - 2.0 * opacity));
+                }
                 vertices.push_back(v);
             };
+            // The underlay sits just beneath the patch drawn over it, well within the skirt, so the two never fight for depth.
+            const double surface = layer == 2 ? 1.0 - 0.2 * skirt_depth : 1.0;
             for (int j = 0; j <= n; ++j)
                 for (int i = 0; i <= n; ++i)
-                    add_vertex(i, j, 1.0);
+                    add_vertex(i, j, surface);
             for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
                 {
@@ -628,12 +689,32 @@ namespace sl
     void PlanetTiles::draw(const glm::mat4 &model, const Material &material)
     {
         Impl &m = *impl_;
+        // Opaque patches first; those fading in or feathered at their edges put their parent tile down here and are blended over it after.
         for (const Impl::Leaf &leaf : m.leaves)
         {
             Material patch = material;
+            if (leaf.under)
+            {
+                patch.texture = leaf.under;
+                if (Mesh *mesh = m.patch_mesh(leaf.level, leaf.column, leaf.row, 1, 2))
+                    draw_mesh(mesh, model, patch);
+                continue;
+            }
             patch.texture = leaf.colour;
             patch.normal_map = leaf.normal;
             if (Mesh *mesh = m.patch_mesh(leaf.level, leaf.column, leaf.row, leaf.up, 0))
+                draw_mesh(mesh, model, patch);
+        }
+        for (const Impl::Leaf &leaf : m.leaves)
+        {
+            if (!leaf.under)
+                continue;
+            Material patch = material;
+            patch.texture = leaf.colour;
+            patch.normal_map = leaf.normal;
+            patch.blend = MaterialBlend::alpha;
+            patch.tint.alpha = static_cast<std::uint8_t>(static_cast<float>(material.tint.alpha) * leaf.fade);
+            if (Mesh *mesh = leaf.edges ? m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 3, leaf.edges) : m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 0))
                 draw_mesh(mesh, model, patch);
         }
         if (!m.sets[specular_layer].valid() || m.options.specular_strength <= 0.0f)
