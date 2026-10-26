@@ -2,6 +2,8 @@
 
 #include "renderer.h"
 
+#include <glm/gtc/quaternion.hpp>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -818,14 +820,12 @@ namespace sl
         double pixel_scale = 1.0;
         /** Turn of the body-fixed frame about +Y, in radians. */
         std::atomic<double> rotation{0.0};
+        std::atomic<double> axis_x{0.0}, axis_y{1.0}, axis_z{0.0};
 
-        static dvec3 turn(const dvec3 &v, double angle)
-        {
-            const double c = std::cos(angle), s = std::sin(angle);
-            return {c * v.x + s * v.z, v.y, -s * v.x + c * v.z};
-        }
-        dvec3 to_body(const dvec3 &world_vector) const { return turn(world_vector, -rotation.load()); }
-        dvec3 to_world(const dvec3 &body_vector) const { return turn(body_vector, rotation.load()); }
+        dvec3 axis() const { return {axis_x.load(), axis_y.load(), axis_z.load()}; }
+        glm::dquat turn_quat() const { return glm::angleAxis(rotation.load(), axis()); }
+        dvec3 to_body(const dvec3 &world_vector) const { return glm::inverse(turn_quat()) * world_vector; }
+        dvec3 to_world(const dvec3 &body_vector) const { return turn_quat() * body_vector; }
         bool turning() const { return geo.sphere && rotation.load() != 0.0; }
         /** The view expressed in the body-fixed frame the chunks are built in. */
         TerrainView body_view(const TerrainView &view) const
@@ -1285,7 +1285,15 @@ namespace sl
     const std::shared_ptr<TerrainSource> &Terrain::source() const { return impl_->source; }
     int Terrain::max_level() const { return impl_->geo.max_level; }
 
-    void Terrain::set_rotation(double angle) const { impl_->rotation.store(angle); }
+    void Terrain::set_rotation(double angle, const dvec3 &axis) const
+    {
+        const double length = glm::length(axis);
+        const dvec3 unit = length > 0.0 ? axis / length : dvec3(0.0, 1.0, 0.0);
+        impl_->axis_x.store(unit.x);
+        impl_->axis_y.store(unit.y);
+        impl_->axis_z.store(unit.z);
+        impl_->rotation.store(angle);
+    }
     double Terrain::rotation() const { return impl_->rotation.load(); }
 
     void Terrain::update(const TerrainView &view) { impl_->update(impl_->body_view(view)); }
@@ -1368,11 +1376,15 @@ namespace sl
             const bool shader_turn = turning && impl.textured.load();
             if (turning && !shader_turn)
             {
-                model = glm::rotate(model, static_cast<float>(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+                model = glm::rotate(model, static_cast<float>(angle), glm::vec3(impl.axis()));
                 shaded.terrain.enabled = false;
             }
             const dvec3 eye = shader_turn ? impl.to_world(eye_body) : eye_body;
-            shaded.terrain.rotation = shader_turn ? static_cast<float>(angle) : 0.0f;
+            const glm::dquat q = impl.turn_quat();
+            shaded.terrain.rotation[0] = shader_turn ? static_cast<float>(q.x) : 0.0f;
+            shaded.terrain.rotation[1] = shader_turn ? static_cast<float>(q.y) : 0.0f;
+            shaded.terrain.rotation[2] = shader_turn ? static_cast<float>(q.z) : 0.0f;
+            shaded.terrain.rotation[3] = shader_turn ? static_cast<float>(q.w) : 1.0f;
             shaded.terrain.eye[0] = static_cast<float>(eye.x);
             shaded.terrain.eye[1] = static_cast<float>(eye.y);
             shaded.terrain.eye[2] = static_cast<float>(eye.z);

@@ -447,13 +447,13 @@ namespace sl
         int max_level() const;
 
         /**
-         * Turn a planet about its +Y axis through config().origin, in radians. The chunks stay built in the body-fixed
+         * Turn a planet by `angle` radians about `axis` (default +Y) through config().origin. The chunks stay built in the body-fixed
          * frame; update(), draw() and every query that takes or returns a world direction or position (height_at_direction,
          * normal_at_direction, surface_point, altitude_of, normal_below, raycast) then work in the turned world frame. Zero
          * (the default) leaves the planet fixed. Ignored for flat terrain. Const and atomic so a FlightWorld can drive it
          * from its simulation clock (see FlightBody::spin_phase).
          */
-        void set_rotation(double angle) const;
+        void set_rotation(double angle, const glm::dvec3 &axis = glm::dvec3(0.0, 1.0, 0.0)) const;
         double rotation() const;
         /** Choose the chunks to draw for the view, request missing chunks and upload finished ones. */
         void update(const TerrainView &view);

@@ -1156,6 +1156,8 @@ namespace sl::detail
                 glUniform1i(glGetUniformLocation(terrain_program_, "uNormals"), 1);
                 glUniformMatrix4fv(glGetUniformLocation(terrain_program_, "uMvp"), 1, GL_FALSE, params.mvp);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uTerrain"), 2, &params.normal_rows[1][0]);
+                glUniform4f(glGetUniformLocation(terrain_program_, "uTurn"), params.normal_rows[0][0], params.normal_rows[0][1],
+                            params.normal_rows[0][2], params.normal_rows[2][3]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLayers"), terrain_layer_count, &params.terrain_layers[0][0]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uAverage"), terrain_layer_count, &params.terrain_average[0][0]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uMacro"), 1, macro);

@@ -723,7 +723,9 @@ namespace sl
             // Terrain is only translated, so the normal matrix is not needed and its slots carry the terrain
             // parameters. A negative tint red marks the mode for the shaders.
             const TerrainShading &t = material.terrain;
-            params.normal_rows[0][0] = params.normal_rows[0][1] = params.normal_rows[0][2] = 0.0f;
+            params.normal_rows[0][0] = t.rotation[0];
+            params.normal_rows[0][1] = t.rotation[1];
+            params.normal_rows[0][2] = t.rotation[2];
             params.normal_rows[0][3] = -1.0f;
             params.normal_rows[1][0] = t.eye[0];
             params.normal_rows[1][1] = t.eye[1];
@@ -732,7 +734,7 @@ namespace sl
             params.normal_rows[2][0] = t.morph_end;
             params.normal_rows[2][1] = t.fade_start;
             params.normal_rows[2][2] = t.fade_end;
-            params.normal_rows[2][3] = t.rotation;
+            params.normal_rows[2][3] = t.rotation[3];
             if (const TerrainTextures *textures = t.textures; textures && textures->albedo_array != 0)
             {
                 params.terrain_albedo = textures->albedo_array;

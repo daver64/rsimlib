@@ -102,10 +102,10 @@ namespace sl
         float fade_start = 0.0f;
         float fade_end = 0.0f;
         /**
-         * Radians about +Y that the shaders turn mesh coordinates by before the model matrix (a rotating planet). Terrain::draw
-         * sets it; `eye` is then in world axes, relative to the chunk.
+         * Quaternion (x, y, z, w) the shaders turn mesh coordinates by before the model matrix (a rotating planet).
+         * Terrain::draw sets it; `eye` is then in world axes, relative to the chunk.
          */
-        float rotation = 0.0f;
+        float rotation[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         /** Not owned; must stay valid during the draw. */
         const TerrainTextures *textures = nullptr;
     };

@@ -213,7 +213,9 @@ namespace sl
         double radius = 0.0;
         /** Spin about +Y in rad/s. Drives the surface velocity used by the atmosphere and gear. */
         double spin_rate = 0.0;
-        /** Turn about +Y in radians at time zero; with spin_rate it gives the body-fixed frame's angle at any time. */
+        /** Unit axis the body spins about (the pole, in world axes). */
+        dvec3 spin_axis{0.0, 1.0, 0.0};
+        /** Turn about spin_axis in radians at time zero; with spin_rate it gives the body-fixed frame's angle at any time. */
         double spin_phase = 0.0;
         /**
          * Optional terrain for the surface of a body with a radius. Gear collides with its height and altitude
