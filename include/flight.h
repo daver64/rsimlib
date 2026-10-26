@@ -183,6 +183,8 @@ namespace sl
         double brake = 0.0;
         /** Compression in metres from the most recent step (0 when airborne). */
         double compression = 0.0;
+        /** False while the gear is retracted: the contact produces no force and reports no compression. */
+        bool enabled = true;
     };
 
     /** Atmosphere with exponentially falling density. */

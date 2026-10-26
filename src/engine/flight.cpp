@@ -827,6 +827,11 @@ namespace sl
 
         for (GearContact &g : b.gear)
         {
+            if (!g.enabled)
+            {
+                g.compression = 0.0;
+                continue;
+            }
             const dvec3 point = k.position + rot * g.position;
             const dvec3 point_velocity = k.velocity + rot * glm::cross(w, g.position);
             double compression = 0.0;
