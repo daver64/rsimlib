@@ -390,6 +390,7 @@ add_library(simlib STATIC
     src/engine/noise.cpp
     src/engine/fluid.cpp
     src/engine/fluid3d.cpp
+    src/engine/gas_vessel.cpp
     src/engine/gui.cpp
     src/engine/shader_paths.cpp
     src/engine/gl2d.cpp
@@ -1109,6 +1110,11 @@ if(BUILD_TESTING)
     target_compile_definitions(fluid3d_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
     add_test(NAME fluid3d COMMAND fluid3d_test)
 
+    add_executable(gas_vessel_test tests/gas_vessel_test.cpp)
+    target_link_libraries(gas_vessel_test PRIVATE simlib)
+    target_compile_definitions(gas_vessel_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
+    add_test(NAME gas_vessel COMMAND gas_vessel_test)
+
     if(SIMLIB_RENDER_D3D12)
         add_executable(d3d12_renderer_test tests/d3d12_renderer_test.cpp)
         target_link_libraries(d3d12_renderer_test PRIVATE simlib)
@@ -1120,7 +1126,7 @@ if(BUILD_TESTING)
     foreach(SIMLIB_TEST_TARGET
             config_test isometric_test camera_collision_test props3d_test controls_test tilemap_test normalmap_test normalmap3d_test lights3d_test localshadow_test hdr_test dds_test planet_tiles_test rdb_test
             backend_selection_test event_test lua_canvas_test resource_test physics_test
-            renderer_test voxel_test fluid3d_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
+            renderer_test voxel_test fluid3d_test gas_vessel_test flight_test terrain_test world_flavour_test net_test lobby_test pathfinder_test d3d12_renderer_test)
         if(TARGET ${SIMLIB_TEST_TARGET})
             if(MSVC)
                 # A force-included #undef avoids MSVC's D9025 warning that /UNDEBUG would trigger.

@@ -24,6 +24,7 @@
 #include "font.h"
 #include "fluid.h"
 #include "fluid3d.h"
+#include "gas_vessel.h"
 #include "flight.h"
 #include "hud.h"
 #include "atmosphere.h"
