@@ -311,11 +311,19 @@ namespace sl::detail
         if (FAILED(result))
         {
             error = hresult_error("Unable to resize the D3D12 swap chain", result);
+            // Keep rendering at the old size rather than leaving the swap chain without back buffers.
+            std::string ignored;
+            create_backbuffers(ignored);
+            frame_index_ = swap_chain_->GetCurrentBackBufferIndex();
             return false;
         }
         width_ = width;
         height_ = height;
-        return create_backbuffers(error);
+        if (!create_backbuffers(error))
+            return false;
+        // The flip-model swap chain restarts its buffer numbering after a resize.
+        frame_index_ = swap_chain_->GetCurrentBackBufferIndex();
+        return true;
     }
 
     bool D3D12Context::is_valid() const

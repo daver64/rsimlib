@@ -183,6 +183,51 @@ namespace sl
 			case Event::Key::keypad_enter:
 			sdl_key=SDL_SCANCODE_KP_ENTER;
 			break;
+			case Event::Key::keypad_divide:
+			sdl_key=SDL_SCANCODE_KP_DIVIDE;
+			break;
+			case Event::Key::keypad_multiply:
+			sdl_key=SDL_SCANCODE_KP_MULTIPLY;
+			break;
+			case Event::Key::keypad_minus:
+			sdl_key=SDL_SCANCODE_KP_MINUS;
+			break;
+			case Event::Key::keypad_plus:
+			sdl_key=SDL_SCANCODE_KP_PLUS;
+			break;
+			case Event::Key::keypad_0:
+			sdl_key=SDL_SCANCODE_KP_0;
+			break;
+			case Event::Key::keypad_1:
+			sdl_key=SDL_SCANCODE_KP_1;
+			break;
+			case Event::Key::keypad_2:
+			sdl_key=SDL_SCANCODE_KP_2;
+			break;
+			case Event::Key::keypad_3:
+			sdl_key=SDL_SCANCODE_KP_3;
+			break;
+			case Event::Key::keypad_4:
+			sdl_key=SDL_SCANCODE_KP_4;
+			break;
+			case Event::Key::keypad_5:
+			sdl_key=SDL_SCANCODE_KP_5;
+			break;
+			case Event::Key::keypad_6:
+			sdl_key=SDL_SCANCODE_KP_6;
+			break;
+			case Event::Key::keypad_7:
+			sdl_key=SDL_SCANCODE_KP_7;
+			break;
+			case Event::Key::keypad_8:
+			sdl_key=SDL_SCANCODE_KP_8;
+			break;
+			case Event::Key::keypad_9:
+			sdl_key=SDL_SCANCODE_KP_9;
+			break;
+			case Event::Key::keypad_period:
+			sdl_key=SDL_SCANCODE_KP_PERIOD;
+			break;
 			case Event::Key::backspace:
 			sdl_key=SDL_SCANCODE_BACKSPACE;
 			break;
