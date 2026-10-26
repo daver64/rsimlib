@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 
 namespace sl
@@ -49,6 +51,13 @@ void set_pan(std::uint64_t voice, int pan);
 void set_voice_volume(std::uint64_t voice, int volume);
 /** Set the global sound effects volume. */
 void audio_fx_set_volume(int volume);
+
+/**
+ * Receive the final mixed output (effects and music) for recording. The callback runs on the audio thread with
+ * interleaved signed 16-bit samples; keep it short and do not call back into the audio API. Pass an empty function
+ * to stop. Returns false if the mixer is not open or its format is not signed 16-bit; rate and channels report the format.
+ */
+bool audio_set_capture(std::function<void(const std::int16_t *samples, std::size_t frames)> callback, int *rate = nullptr, int *channels = nullptr);
 
 struct Stream;
 

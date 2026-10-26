@@ -439,3 +439,11 @@ void audio_fx_set_volume(int volume)
 }
 
 } // namespace sl
+
+namespace sl
+{
+bool audio_set_capture(std::function<void(const std::int16_t *samples, std::size_t frames)> callback, int *rate, int *channels)
+{
+    return audio_detail::set_capture(std::move(callback), rate, channels);
+}
+} // namespace sl
