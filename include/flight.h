@@ -213,10 +213,12 @@ namespace sl
         double radius = 0.0;
         /** Spin about +Y in rad/s. Drives the surface velocity used by the atmosphere and gear. */
         double spin_rate = 0.0;
+        /** Turn about +Y in radians at time zero; with spin_rate it gives the body-fixed frame's angle at any time. */
+        double spin_phase = 0.0;
         /**
          * Optional terrain for the surface of a body with a radius. Gear collides with its height and altitude
          * is measured above it. The terrain's sphere settings (radius, source) are used; its origin is ignored,
-         * because the terrain follows the body. It does not spin with spin_rate. Not owned; must outlive the world.
+         * because the terrain follows the body. It turns with spin_phase + spin_rate * time: the world sets Terrain::rotation() itself, so a spinning planet's ground moves under the gear. Not owned; must outlive the world.
          */
         const Terrain *terrain = nullptr;
         Atmosphere atmosphere;

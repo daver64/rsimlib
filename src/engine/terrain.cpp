@@ -628,7 +628,7 @@ namespace sl
                     entries[static_cast<std::size_t>(i)].push_back({});
                 total += static_cast<int>(entries[static_cast<std::size_t>(i)].size());
             }
-            if (!any_albedo)
+            if (!any_albedo && !(options.colour_detail && options.macro_texture))
                 return false;
             const bool use_macro = options.macro_texture && options.macro_strength > 0.0 && bitmap_pixels(options.macro_texture);
             if (use_macro)
@@ -702,7 +702,8 @@ namespace sl
                     normal.fill(next, 128, 128, 255, 255);
                 out.macro_layer = next;
                 out.macro_tile_metres = static_cast<float>(period / snapped_tiles(period, macro_tile));
-                out.macro_strength = static_cast<float>(options.macro_strength);
+                // A negative strength tells the shader the vertex colour is the albedo and the macro texture only modulates it.
+                out.macro_strength = static_cast<float>(options.colour_detail ? -options.macro_strength : options.macro_strength);
                 ++next;
             }
             albedo.build_mips();
@@ -796,6 +797,7 @@ namespace sl
         detail::Renderer *texture_owner = nullptr;
         TerrainTextures textures;
         std::atomic<bool> textured{false};
+        std::atomic<bool> colour_detail{false};
         std::atomic<double> uv_period{0.0};
 
         void release_textures()
@@ -814,6 +816,28 @@ namespace sl
         double fade_end = 0.0;
         dvec3 view_position{0.0};
         double pixel_scale = 1.0;
+        /** Turn of the body-fixed frame about +Y, in radians. */
+        std::atomic<double> rotation{0.0};
+
+        static dvec3 turn(const dvec3 &v, double angle)
+        {
+            const double c = std::cos(angle), s = std::sin(angle);
+            return {c * v.x + s * v.z, v.y, -s * v.x + c * v.z};
+        }
+        dvec3 to_body(const dvec3 &world_vector) const { return turn(world_vector, -rotation.load()); }
+        dvec3 to_world(const dvec3 &body_vector) const { return turn(body_vector, rotation.load()); }
+        bool turning() const { return geo.sphere && rotation.load() != 0.0; }
+        /** The view expressed in the body-fixed frame the chunks are built in. */
+        TerrainView body_view(const TerrainView &view) const
+        {
+            if (!turning())
+                return view;
+            TerrainView v = view;
+            v.position = config.origin + to_body(view.position - config.origin);
+            v.forward = to_body(view.forward);
+            v.up = to_body(view.up);
+            return v;
+        }
 
         int thread_count = 0;
         std::vector<std::thread> workers;
@@ -827,7 +851,7 @@ namespace sl
         TerrainChunkData build_chunk(const TerrainNodeKey &key) const
         {
             TerrainConfig local = config;
-            local.weights_in_vertex_colour = config.weights_in_vertex_colour || textured.load();
+            local.weights_in_vertex_colour = config.weights_in_vertex_colour || (textured.load() && !colour_detail.load());
             if (textured.load())
                 local.uv_period_metres = uv_period.load();
             return build_terrain_chunk(local, *source, key);
@@ -1261,12 +1285,15 @@ namespace sl
     const std::shared_ptr<TerrainSource> &Terrain::source() const { return impl_->source; }
     int Terrain::max_level() const { return impl_->geo.max_level; }
 
-    void Terrain::update(const TerrainView &view) { impl_->update(view); }
+    void Terrain::set_rotation(double angle) const { impl_->rotation.store(angle); }
+    double Terrain::rotation() const { return impl_->rotation.load(); }
+
+    void Terrain::update(const TerrainView &view) { impl_->update(impl_->body_view(view)); }
 
     void Terrain::prefetch(const TerrainView &view)
     {
         Impl &impl = *impl_;
-        const Frustum frustum = impl.make_frustum(view);
+        const Frustum frustum = impl.make_frustum(impl.body_view(view));
         std::vector<TerrainNodeKey> drawn;
         drawn.swap(impl.visible);
         for (const TerrainNodeKey &root : impl.roots())
@@ -1293,6 +1320,7 @@ namespace sl
                 impl.texture_owner = renderer;
                 impl.textures = built.textures;
                 impl.uv_period = built.period;
+                impl.colour_detail = options.colour_detail;
                 impl.fade_start = options.fade_start;
                 impl.fade_end = options.fade_end;
                 ok = true;
@@ -1331,8 +1359,20 @@ namespace sl
             if (it == impl.nodes.end() || !it->second.mesh)
                 continue;
             const dvec3 centre = it->second.center;
-            const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(centre - origin));
-            const dvec3 eye = impl.view_position - centre;
+            const dvec3 eye_body = impl.view_position - centre;
+            const bool turning = impl.turning();
+            const double angle = turning ? impl.rotation.load() : 0.0;
+            const dvec3 placed = turning ? impl.config.origin + impl.to_world(centre - impl.config.origin) : centre;
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(placed - origin));
+            // Textured terrain is turned by its shaders (the eye is then given in world axes); a plain mesh just takes the turn in its model.
+            const bool shader_turn = turning && impl.textured.load();
+            if (turning && !shader_turn)
+            {
+                model = glm::rotate(model, static_cast<float>(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+                shaded.terrain.enabled = false;
+            }
+            const dvec3 eye = shader_turn ? impl.to_world(eye_body) : eye_body;
+            shaded.terrain.rotation = shader_turn ? static_cast<float>(angle) : 0.0f;
             shaded.terrain.eye[0] = static_cast<float>(eye.x);
             shaded.terrain.eye[1] = static_cast<float>(eye.y);
             shaded.terrain.eye[2] = static_cast<float>(eye.z);
@@ -1358,7 +1398,7 @@ namespace sl
     {
         for (int i = 0; i < max_updates; ++i)
         {
-            impl_->update(view);
+            impl_->update(impl_->body_view(view));
             bool complete = true;
             for (const TerrainNodeKey &key : select_nodes(view))
             {
@@ -1379,7 +1419,7 @@ namespace sl
     std::vector<TerrainNodeKey> Terrain::select_nodes(const TerrainView &view) const
     {
         std::vector<TerrainNodeKey> keys;
-        const Frustum frustum = impl_->make_frustum(view);
+        const Frustum frustum = impl_->make_frustum(impl_->body_view(view));
         const double hmin = impl_->source->min_height();
         const double hmax = impl_->source->max_height();
         for (const TerrainNodeKey &root : impl_->roots())
@@ -1404,7 +1444,7 @@ namespace sl
         const double length = glm::length(direction);
         if (length <= 0.0)
             return 0.0;
-        return impl_->source->height_on_sphere(direction / length, impl_->config.radius);
+        return impl_->source->height_on_sphere(impl_->to_body(direction / length), impl_->config.radius);
     }
 
     dvec3 Terrain::normal_at_direction(const dvec3 &direction) const
@@ -1412,7 +1452,7 @@ namespace sl
         const double length = glm::length(direction);
         if (length <= 0.0)
             return {0.0, 1.0, 0.0};
-        return impl_->geo.normal(direction / length, std::max(impl_->config.finest_cell_size * 0.5, 1.0e-3));
+        return impl_->to_world(impl_->geo.normal(impl_->to_body(direction / length), std::max(impl_->config.finest_cell_size * 0.5, 1.0e-3)));
     }
 
     dvec3 Terrain::surface_point(const dvec3 &direction) const
@@ -1420,8 +1460,9 @@ namespace sl
         const double length = glm::length(direction);
         if (length <= 0.0)
             return impl_->config.origin;
-        const dvec3 unit = direction / length;
-        return impl_->geo.position(unit, impl_->source->height_on_sphere(unit, impl_->config.radius));
+        const dvec3 unit = impl_->to_body(direction / length);
+        const dvec3 point = impl_->geo.position(unit, impl_->source->height_on_sphere(unit, impl_->config.radius));
+        return impl_->turning() ? impl_->config.origin + impl_->to_world(point - impl_->config.origin) : point;
     }
 
     double Terrain::altitude_of(const dvec3 &position) const

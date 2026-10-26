@@ -201,7 +201,9 @@ void main()
     vec2 slope = vec2(0.0);
     float total = 0.0;
     float gloss = 0.0;
-    for (int layer = 0; layer < 8; ++layer)
+    // A negative macro strength is the colour-detail mode: the vertex colour is the albedo, its alpha the gloss.
+    bool colour_mode = uMacro.z < 0.0;
+    for (int layer = 0; layer < 8 && !colour_mode; ++layer)
     {
         float weight = weights[layer];
         if (weight < 0.004)
@@ -224,16 +226,38 @@ void main()
             slope += weight * n * (1.0 - vFade);
         }
     }
-    albedo /= max(total, 1e-4);
-    gloss /= max(total, 1e-4);
-    slope /= max(total, 1e-4);
+    if (colour_mode)
+    {
+        albedo = vWeightsA.rgb;
+        gloss = vWeightsA.a;
+    }
+    else
+    {
+        albedo /= max(total, 1e-4);
+        gloss /= max(total, 1e-4);
+        slope /= max(total, 1e-4);
+    }
 
     if (uMacro.x >= 0.0)
     {
         vec2 macro_uv = vUv / uMacro.y;
         vec3 macro = textureGrad(uAlbedo, vec3(macro_uv, uMacro.x), uv_dx / uMacro.y, uv_dy / uMacro.y).rgb;
         float brightness = dot(macro, vec3(0.299, 0.587, 0.114));
-        albedo *= max(1.0 + uMacro.z * (brightness - 0.5) * 2.0, 0.0);
+        if (colour_mode)
+        {
+            // Three octaves at whole-number repeats (so chunks still agree): blotches, clods and grain.
+            brightness = 0.0;
+            float octave_weight[3] = float[3](0.4, 0.35, 0.25);
+            float octave_scale[3] = float[3](1.0, 4.0, 16.0);
+            for (int o = 0; o < 3; ++o)
+            {
+                vec3 c = textureGrad(uAlbedo, vec3(macro_uv * octave_scale[o], uMacro.x), uv_dx * octave_scale[o] / uMacro.y, uv_dy * octave_scale[o] / uMacro.y).rgb;
+                brightness += octave_weight[o] * dot(c, vec3(0.299, 0.587, 0.114));
+            }
+            albedo *= max(1.0 + (-uMacro.z) * (1.0 - vFade) * (brightness - 0.5) * 3.0, 0.0);
+        }
+        else
+            albedo *= max(1.0 + uMacro.z * (brightness - 0.5) * 2.0, 0.0);
     }
 
     if (has_normals)

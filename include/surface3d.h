@@ -101,6 +101,11 @@ namespace sl
         /** Beyond fade_start the layers blend to their average colour, fully by fade_end (metres). */
         float fade_start = 0.0f;
         float fade_end = 0.0f;
+        /**
+         * Radians about +Y that the shaders turn mesh coordinates by before the model matrix (a rotating planet). Terrain::draw
+         * sets it; `eye` is then in world axes, relative to the chunk.
+         */
+        float rotation = 0.0f;
         /** Not owned; must stay valid during the draw. */
         const TerrainTextures *textures = nullptr;
     };

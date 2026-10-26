@@ -25,6 +25,7 @@
 #include "fluid.h"
 #include "fluid3d.h"
 #include "flight.h"
+#include "hud.h"
 #include "atmosphere.h"
 #include "clutter.h"
 #include "props3d.h"

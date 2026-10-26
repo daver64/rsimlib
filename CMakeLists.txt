@@ -402,6 +402,7 @@ add_library(simlib STATIC
     src/engine/proptree.cpp
     src/engine/proptree_lua.cpp
     src/engine/flight.cpp
+    src/engine/hud.cpp
     src/engine/atmosphere.cpp
     src/engine/clutter.cpp
     src/engine/props3d.cpp

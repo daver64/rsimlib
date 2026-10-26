@@ -11,7 +11,8 @@ layout(location = 4) in vec4 aTangent;
 layout(location = 5) in vec4 aWeightsB;
 
 uniform mat4 uMvp;
-// [0] xyz: eye (mesh space), w: morph start. [1] x: morph end, y: fade start, z: fade end.
+// [0] xyz: eye (world axes, relative to the chunk), w: morph start. [1] x: morph end, y: fade start, z: fade end,
+// w: turn of the planet about +Y in radians.
 uniform vec4 uTerrain[2];
 
 out vec3 vNormal;
@@ -27,11 +28,14 @@ out float vViewDepth;
 void main()
 {
     vec3 eye = uTerrain[0].xyz;
-    float morph = smoothstep(uTerrain[0].w, uTerrain[1].x, distance(aPosition, eye));
-    vec3 position = aPosition + aTangent.xyz * morph;
+    float c = cos(uTerrain[1].w), s = sin(uTerrain[1].w);
+    mat3 turn = mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
+    vec3 turned = turn * aPosition;
+    float morph = smoothstep(uTerrain[0].w, uTerrain[1].x, distance(turned, eye));
+    vec3 position = turned + turn * aTangent.xyz * morph;
     gl_Position = uMvp * vec4(position, 1.0);
     vViewDepth = gl_Position.w;
-    vNormal = aNormal;
+    vNormal = turn * aNormal;
     vPosition = position;
     vWeightsA = aWeightsA;
     vWeightsB = aWeightsB;

@@ -735,6 +735,8 @@ namespace sl
         {
             const FlightBody &b = bodies_[i];
             Kinematics &k = kin_[i];
+            if (b.terrain && (b.spin_rate != 0.0 || b.spin_phase != 0.0))
+                b.terrain->set_rotation(b.spin_phase + b.spin_rate * t);
             if (slot_[i] >= 0)
             {
                 const double *v = &y[slot_[i]];

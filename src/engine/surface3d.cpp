@@ -732,7 +732,7 @@ namespace sl
             params.normal_rows[2][0] = t.morph_end;
             params.normal_rows[2][1] = t.fade_start;
             params.normal_rows[2][2] = t.fade_end;
-            params.normal_rows[2][3] = 0.0f;
+            params.normal_rows[2][3] = t.rotation;
             if (const TerrainTextures *textures = t.textures; textures && textures->albedo_array != 0)
             {
                 params.terrain_albedo = textures->albedo_array;

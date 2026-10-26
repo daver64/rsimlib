@@ -278,6 +278,13 @@ namespace sl
         double macro_tile_metres = 2000.0;
         /** 0 disables the macro texture; 1 swings brightness by +-100%. */
         double macro_strength = 0.35;
+        /**
+         * Use the macro texture as a detail overlay on a coloured terrain instead of splatting layer textures: the vertex
+         * colour (TerrainConfig::colour_function, or the layer colours) stays the albedo and the macro texture's
+         * brightness modulates it by +-macro_strength, fading out with distance (fade_start, fade_end). No layer needs a
+         * texture. The map should be seamless; macro_tile_metres is its repeat size.
+         */
+        bool colour_detail = false;
         /** Largest layer edge in texels; the array uses a power of two up to this. */
         int max_size = 2048;
     };
@@ -439,6 +446,15 @@ namespace sl
         /** Deepest quadtree level. */
         int max_level() const;
 
+        /**
+         * Turn a planet about its +Y axis through config().origin, in radians. The chunks stay built in the body-fixed
+         * frame; update(), draw() and every query that takes or returns a world direction or position (height_at_direction,
+         * normal_at_direction, surface_point, altitude_of, normal_below, raycast) then work in the turned world frame. Zero
+         * (the default) leaves the planet fixed. Ignored for flat terrain. Const and atomic so a FlightWorld can drive it
+         * from its simulation clock (see FlightBody::spin_phase).
+         */
+        void set_rotation(double angle) const;
+        double rotation() const;
         /** Choose the chunks to draw for the view, request missing chunks and upload finished ones. */
         void update(const TerrainView &view);
         /**
