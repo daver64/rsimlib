@@ -352,6 +352,24 @@ namespace
     }
 }
 
+void test_isp_pressure()
+{
+    sl::FlightBody body;
+    body.tanks.push_back({1000.0, 1000.0});
+    sl::Thruster t;
+    t.max_thrust = 1000.0;
+    t.isp = 400.0;
+    t.isp_sea_level = 300.0;
+    t.tank = 0;
+    t.level = 1.0;
+    body.thrusters.push_back(t);
+    check(std::fabs(sl::thruster_output(body, t, 0.0) - 1000.0) < 1e-9, "vacuum thrust is the rated thrust");
+    check(std::fabs(sl::thruster_output(body, t, 1.225) - 750.0) < 1e-6, "sea-level thrust follows the sea-level Isp");
+    sl::Thruster flat = t;
+    flat.isp_sea_level = 0.0;
+    check(std::fabs(sl::thruster_output(body, flat, 1.225) - 1000.0) < 1e-9, "no sea-level Isp leaves thrust alone");
+}
+
 int main()
 {
     test_kepler();
@@ -363,6 +381,7 @@ int main()
     test_aero();
     test_gear();
     test_prediction();
+    test_isp_pressure();
     if (failures)
     {
         std::cerr << failures << " flight test(s) failed.\n";

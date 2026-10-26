@@ -275,6 +275,15 @@ namespace sl
     dvec3 FlightBody::direction_to_world(const dvec3 &d) const { return orientation * d; }
     dvec3 FlightBody::direction_to_local(const dvec3 &d) const { return glm::inverse(orientation) * d; }
 
+    // Isp at this air density divided by the vacuum Isp; 1 unless the thruster has a sea-level Isp.
+    static double isp_ratio(const Thruster &t, double air_density)
+    {
+        if (t.isp_sea_level <= 0.0 || t.air_breathing || t.isp <= 0.0)
+            return 1.0;
+        const double p = std::clamp(air_density / sea_level_density, 0.0, 1.0);
+        return (t.isp + (t.isp_sea_level - t.isp) * p) / t.isp;
+    }
+
     double thruster_output(const FlightBody &body, const Thruster &t, double air_density)
     {
         const double level = std::clamp(t.level, 0.0, 1.0);
@@ -285,7 +294,7 @@ namespace sl
         double force = level * t.max_thrust;
         if (t.air_breathing)
             force *= std::clamp(air_density / sea_level_density, 0.0, 1.5);
-        return force;
+        return force * isp_ratio(t, air_density);
     }
 
     // ---- Bodies ----
@@ -967,7 +976,7 @@ namespace sl
                     continue;
                 const double thrust = thruster_output(b, t, rho);
                 PropellantTank &tank = b.tanks[t.tank];
-                tank.mass = std::max(0.0, tank.mass - thrust / (t.isp * standard_gravity) * h);
+                tank.mass = std::max(0.0, tank.mass - thrust / (t.isp * isp_ratio(t, rho) * standard_gravity) * h);
             }
         }
     }

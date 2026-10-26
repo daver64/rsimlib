@@ -123,6 +123,12 @@ namespace sl
         double level = 0.0;
         /** If true, thrust scales with air density relative to sea level, so it fades with altitude. */
         bool air_breathing = false;
+        /**
+         * Specific impulse at sea-level pressure in seconds, or 0 for an engine whose Isp does not change. `isp` is then the
+         * vacuum value, propellant flow stays constant and thrust follows the Isp, falling as the air gets denser
+         * (the Orbiter model); `max_thrust` is the vacuum thrust.
+         */
+        double isp_sea_level = 0.0;
     };
 
     /** A named set of thrusters controlled together (main, retro, hover, RCS axes and so on). */
