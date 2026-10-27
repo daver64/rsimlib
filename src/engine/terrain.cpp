@@ -1295,6 +1295,7 @@ namespace sl
         impl_->rotation.store(angle);
     }
     double Terrain::rotation() const { return impl_->rotation.load(); }
+    dvec3 Terrain::rotation_axis() const { return impl_->axis(); }
 
     void Terrain::update(const TerrainView &view) { impl_->update(impl_->body_view(view)); }
 

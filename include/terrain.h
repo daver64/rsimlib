@@ -455,6 +455,8 @@ namespace sl
          */
         void set_rotation(double angle, const glm::dvec3 &axis = glm::dvec3(0.0, 1.0, 0.0)) const;
         double rotation() const;
+        /** The unit axis set_rotation() turns the planet about. */
+        glm::dvec3 rotation_axis() const;
         /** Choose the chunks to draw for the view, request missing chunks and upload finished ones. */
         void update(const TerrainView &view);
         /**

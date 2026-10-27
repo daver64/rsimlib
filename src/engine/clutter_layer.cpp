@@ -3,6 +3,7 @@
 #include "error.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -117,6 +118,8 @@ namespace sl
         };
 
         const Terrain &terrain;
+        double turn = 0.0;
+        dvec3 axis{0.0, 1.0, 0.0};
         ClutterConfig config;
         bool sphere;
         int grid = 1;
@@ -465,13 +468,41 @@ namespace sl
 
     int ClutterLayer::species_count() const { return static_cast<int>(impl_->species.size()); }
 
-    void ClutterLayer::update(const TerrainView &view) { impl_->update(view); }
+    void ClutterLayer::update(const TerrainView &view)
+    {
+        // Cells are built in the planet's body-fixed frame, so a turning planet takes the view in that frame and
+        // draw() turns the result back into the world.
+        const Terrain &terrain = impl_->terrain;
+        impl_->turn = terrain.config().shape == TerrainShape::sphere ? terrain.rotation() : 0.0;
+        if (impl_->turn == 0.0)
+        {
+            impl_->update(view);
+            return;
+        }
+        impl_->axis = terrain.rotation_axis();
+        const dvec3 centre = terrain.config().origin;
+        const glm::dquat inverse = glm::inverse(glm::angleAxis(impl_->turn, impl_->axis));
+        TerrainView v = view;
+        v.position = centre + inverse * (view.position - centre);
+        v.forward = inverse * view.forward;
+        v.up = inverse * view.up;
+        impl_->update(v);
+    }
 
     bool ClutterLayer::draw(const dvec3 &origin) const
     {
         bool ok = true;
+        const bool turning = impl_->turn != 0.0;
+        const dvec3 centre = impl_->terrain.config().origin;
+        const glm::dquat turn = glm::angleAxis(impl_->turn, impl_->axis);
         for (const DrawItem &item : impl_->items)
-            ok = draw_mesh(item.mesh, glm::translate(glm::mat4(1.0f), glm::vec3(item.origin - origin)), item.material) && ok;
+        {
+            const dvec3 placed = turning ? centre + turn * (item.origin - centre) : item.origin;
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(placed - origin));
+            if (turning)
+                model = glm::rotate(model, static_cast<float>(impl_->turn), glm::vec3(impl_->axis));
+            ok = draw_mesh(item.mesh, model, item.material) && ok;
+        }
         return ok;
     }
 
