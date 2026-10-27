@@ -113,6 +113,8 @@ namespace sl
         int tile_size() const;
         /** True when a specular map was opened. */
         bool has_specular() const;
+        /** Changes the brightness of the specular overlay, 0-1, from the next draw (so it can fade with altitude). */
+        void set_specular_strength(float strength);
         PlanetTilesStats stats() const;
 
         /**

@@ -429,6 +429,21 @@ namespace sl
         return local_lights;
     }
 
+    namespace
+    {
+        RenderStyle3D g_render_style = RenderStyle3D::normal;
+    }
+
+    void set_render_style_3d(RenderStyle3D style)
+    {
+        g_render_style = style;
+    }
+
+    RenderStyle3D render_style_3d()
+    {
+        return g_render_style;
+    }
+
     Light3D get_light_3d()
     {
         return current_light;
@@ -682,6 +697,7 @@ namespace sl
         if (shadow_pass && (material.blend != MaterialBlend::opaque || !material.lit || material.terrain.enabled))
             return true;
         detail::MeshDrawParams params{};
+        params.style = shadow_pass ? 0u : static_cast<std::uint32_t>(g_render_style);
         const glm::mat4 mvp = active.view_projection * model;
         for (int column = 0; column < 4; ++column)
             for (int row = 0; row < 4; ++row)
@@ -786,7 +802,8 @@ namespace sl
         const bool want_locals = material.lit && !local_lights.empty();
         const bool want_shadow = material.lit && current_shadow && current_shadow->surface;
         const bool want_local_shadow = want_locals && current_local_shadow && current_local_shadow->slots_used > 0;
-        const bool have_camera = (want_pbr || want_locals || want_shadow) && detail::apply_pbr_camera(params);
+        // The flat style rebuilds face normals from the camera rays, so it needs them too.
+        const bool have_camera = (want_pbr || want_locals || want_shadow || params.style != 0) && detail::apply_pbr_camera(params);
         if (want_shadow && have_camera)
         {
             params.shadow[0] = 1.0f;

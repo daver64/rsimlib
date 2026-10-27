@@ -223,6 +223,23 @@ float4 main(PixelInput input) : SV_TARGET
         float b = min(floor(v + 0.5), 255.0);
         return float4(r, g, b, 255.0) / 255.0;
     }
+    if (camera_forward.w > 0.5)
+    {
+        // Render style: 1 flat shaded, 2 wireframe (the pipeline fills lines). No textures, fog or specular.
+        // Blended draws (glows, stars, haze) would paint over the scene as opaque colour.
+        if (input.terrain.x < 0.0 && (emissive.w > 0.0 || (light_colour.w > 0.0 && input.color.a * texture_alpha < light_colour.w)))
+            discard;
+        float2 style_pixel = input.position.xy * fog_view.zw * 2.0;
+        float2 style_ndc = float2(style_pixel.x - 1.0, 1.0 - style_pixel.y);
+        float3 p = (camera_forward.xyz + style_ndc.x * camera_right.xyz + style_ndc.y * camera_up.xyz) * input.view_depth;
+        float3 face = normalize(cross(ddx(p), ddy(p)));
+        if (dot(face, p) > 0.0)
+            face = -face;
+        float lit = camera_forward.w > 1.5 ? 1.5 : light.w + (1.0 - light.w) * max(dot(face, light.xyz), 0.0);
+        // A coarse mip keeps the broad colours (continents, hulls) without the cost of full texture detail.
+        float3 base = input.terrain.x < 0.0 ? input.color.rgb * texture_value.SampleLevel(texture_sampler, input.texcoord, 3.0).rgb : input.color.rgb;
+        return float4(base * lit, 1.0);
+    }
     float3 colour;
     bool use_pbr = pbr.x > 0.5 && input.terrain.x < 0.0;
     // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.

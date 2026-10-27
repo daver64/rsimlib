@@ -1541,6 +1541,7 @@ namespace sl::detail
                 std::copy(std::begin(params.camera_right), std::end(params.camera_right), pbr_constants.begin() + 8);
                 std::copy(std::begin(params.camera_up), std::end(params.camera_up), pbr_constants.begin() + 12);
                 std::copy(std::begin(params.camera_forward), std::end(params.camera_forward), pbr_constants.begin() + 16);
+                pbr_constants[19] = static_cast<float>(params.style);
                 std::copy(std::begin(params.camera_position), std::end(params.camera_position), pbr_constants.begin() + 20);
                 const std::size_t local_lights =
                     static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
@@ -1573,7 +1574,7 @@ namespace sl::detail
 
                 ID3D12PipelineState *mesh_pipeline =
                     get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr,
-                                      std::min<std::uint32_t>(params.blend, 2));
+                                      std::min<std::uint32_t>(params.blend, 2), params.style == 2);
                 if (!mesh_pipeline)
                     return false;
 
@@ -2781,10 +2782,10 @@ namespace sl::detail
                 return true;
             }
 
-            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false, std::uint32_t blend = 0)
+            ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false, std::uint32_t blend = 0, bool wire = false)
             {
                 ID3D12PipelineState *&slot =
-                    (instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)[sample_slot(samples) * 9 + blend * 3 + cull];
+                    (instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)[(wire ? 9 * sample_slot_count : 0) + sample_slot(samples) * 9 + blend * 3 + cull];
                 if (slot)
                     return slot;
                 static const D3D12_INPUT_ELEMENT_DESC elements[] = {
@@ -2824,7 +2825,7 @@ namespace sl::detail
                     target.BlendOpAlpha = D3D12_BLEND_OP_ADD;
                 }
                 pipeline_desc.SampleMask = UINT_MAX;
-                pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+                pipeline_desc.RasterizerState.FillMode = wire ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
                 pipeline_desc.RasterizerState.CullMode =
                     cull == 0 ? D3D12_CULL_MODE_BACK :
                     cull == 1 ? D3D12_CULL_MODE_FRONT : D3D12_CULL_MODE_NONE;
@@ -3925,8 +3926,8 @@ namespace sl::detail
             BlendMode blend_mode_ = BlendMode::normal;
             bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
-            std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_pipelines_{};
-            std::array<ID3D12PipelineState *, 9 * sample_slot_count> mesh_instanced_pipelines_{};
+            std::array<ID3D12PipelineState *, 18 * sample_slot_count> mesh_pipelines_{}; // The second half is wireframe.
+            std::array<ID3D12PipelineState *, 18 * sample_slot_count> mesh_instanced_pipelines_{};
             std::uint64_t pipelines_created_ = 0;
             std::vector<QueuedMeshDraw> queued_draws_;
             std::size_t inline_mesh_run_ = 0;

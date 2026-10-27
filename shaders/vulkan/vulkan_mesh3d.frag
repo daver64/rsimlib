@@ -177,6 +177,24 @@ void main()
         fragColor = vec4(r, g, b, 255.0) / 255.0;
         return;
     }
+    if (environment.cameraForward.w > 0.5)
+    {
+        // Render style: 1 flat shaded, 2 wireframe (the pipeline draws lines). No textures, fog or specular.
+        // Blended draws (glows, stars, haze) would paint over the scene as opaque colour.
+        if (vTerrain < 0.0 && (environment.emissive.w > 0.0 || (environment.lightColour.w > 0.0 && vColour.a * textureAlpha < environment.lightColour.w)))
+            discard;
+        vec2 pixel = gl_FragCoord.xy * environment.fogView.zw * 2.0;
+        vec2 ndc = vec2(pixel.x - 1.0, 1.0 - pixel.y);
+        vec3 p = (environment.cameraForward.xyz + ndc.x * environment.cameraRight.xyz + ndc.y * environment.cameraUp.xyz) * vViewDepth;
+        vec3 face = normalize(cross(dFdx(p), dFdy(p)));
+        if (dot(face, p) > 0.0)
+            face = -face;
+        float lit = environment.cameraForward.w > 1.5 ? 1.5 : lighting.light.w + (1.0 - lighting.light.w) * max(dot(face, lighting.light.xyz), 0.0);
+        // A coarse mip keeps the broad colours (continents, hulls) without the cost of full texture detail.
+        vec3 base = vTerrain < 0.0 ? vColour.rgb * textureLod(uTexture, vUv, 3.0).rgb : vColour.rgb;
+        fragColor = vec4(base * lit, 1.0);
+        return;
+    }
     vec3 colour;
     bool pbr = environment.pbr.x > 0.5 && vTerrain < 0.0;
     // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.

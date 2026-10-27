@@ -744,6 +744,7 @@ namespace sl
     int PlanetTiles::deepest_level() const { return impl_->sets[colour_layer].max_level; }
     int PlanetTiles::tile_size() const { return impl_->tile_px; }
     bool PlanetTiles::has_specular() const { return impl_->sets[specular_layer].valid(); }
+    void PlanetTiles::set_specular_strength(float strength) { impl_->options.specular_strength = strength; }
 
     PlanetTilesStats PlanetTiles::stats() const
     {

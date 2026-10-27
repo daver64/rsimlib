@@ -157,6 +157,29 @@ float local_visibility(vec3 world, vec3 normal, vec3 light_position, bool spot, 
 
 void main()
 {
+    if (environment.pbr.w > 0.5)
+    {
+        // Render style: 1 flat shaded, 2 wireframe. Vertex colour or layer average, no textures, fog or specular.
+        vec3 face = normalize(cross(dFdx(vPosition), dFdy(vPosition)));
+        if (dot(face, vPosition - environment.cameraPosition.xyz) > 0.0)
+            face = -face;
+        vec3 base = vWeightsA.rgb;
+        if (environment.macro.z >= 0.0)
+        {
+            float total = 0.0;
+            float w[8] = float[8](vWeightsA.x, vWeightsA.y, vWeightsA.z, vWeightsA.w, vWeightsB.x, vWeightsB.y, vWeightsB.z, vWeightsB.w);
+            base = vec3(0.0);
+            for (int i = 0; i < 8; ++i)
+            {
+                base += w[i] * environment.average[i].rgb;
+                total += w[i];
+            }
+            base /= max(total, 1e-4);
+        }
+        float lit = environment.pbr.w > 1.5 ? 1.5 : lighting.light.w + (1.0 - lighting.light.w) * max(dot(face, lighting.light.xyz), 0.0);
+        fragColor = vec4(base * lit, 1.0);
+        return;
+    }
     vec3 normal = normalize(vNormal);
     vec2 uv_dx = dFdx(vUv);
     vec2 uv_dy = dFdy(vUv);

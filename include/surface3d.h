@@ -110,6 +110,16 @@ namespace sl
         const TerrainTextures *textures = nullptr;
     };
 
+    /** Global shading style for 3D draws (OpenGL backend only): flat is cheap faceted lighting, wireframe draws edges. */
+    enum class RenderStyle3D
+    {
+        normal,
+        flat,
+        wireframe
+    };
+    void set_render_style_3d(RenderStyle3D style);
+    RenderStyle3D render_style_3d();
+
     /** How a material's colour combines with what is already in the framebuffer. */
     enum class MaterialBlend
     {

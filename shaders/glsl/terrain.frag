@@ -42,6 +42,7 @@ uniform mat4 uShadowMatrix;
 uniform vec4 uLocals[160];
 uniform sampler2D uLocalShadowMap;
 uniform vec4 uCameraPosition;
+uniform float uStyle;
 
 out vec4 fragColor;
 
@@ -175,6 +176,33 @@ float local_visibility(vec3 world, vec3 normal, vec3 light_position, bool spot, 
 
 void main()
 {
+    if (uStyle > 0.5)
+    {
+        // Cheap style: vertex colour (or the layer average) with a face normal, no textures, fog or specular.
+        vec3 face = normalize(cross(dFdx(vPosition), dFdy(vPosition)));
+        if (dot(face, vPosition - uTerrain[0].xyz) > 0.0)
+            face = -face;
+        vec3 base = uMacro.z < 0.0 ? vWeightsA.rgb : vec3(0.0);
+        if (uMacro.z >= 0.0)
+        {
+            float total = 0.0;
+            float w[8] = float[8](vWeightsA.x, vWeightsA.y, vWeightsA.z, vWeightsA.w, vWeightsB.x, vWeightsB.y, vWeightsB.z, vWeightsB.w);
+            for (int i = 0; i < 8; ++i)
+            {
+                base += w[i] * uAverage[i].rgb;
+                total += w[i];
+            }
+            base /= max(total, 1e-4);
+        }
+        if (uStyle > 1.5)
+        {
+            fragColor = vec4(base * 1.5, 1.0);
+            return;
+        }
+        float lit = uLight.w + (1.0 - uLight.w) * max(dot(face, uLight.xyz), 0.0);
+        fragColor = vec4(base * lit, 1.0);
+        return;
+    }
     vec3 normal = normalize(vNormal);
 
     // Derivatives are taken outside any branch so every sample uses well defined gradients.

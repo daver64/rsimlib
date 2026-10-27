@@ -41,6 +41,7 @@ namespace sl::detail
             std::memcpy(environment + 28, params.camera_up, sizeof(float) * 4);
             std::memcpy(environment + 32, params.camera_forward, sizeof(float) * 4);
             std::memcpy(environment + 36, params.camera_position, sizeof(float) * 4);
+            environment[35] = static_cast<float>(params.style);
             std::memcpy(environment + 40, params.shadow, sizeof(float) * 4);
             std::memcpy(environment + 44, params.shadow_matrix, sizeof(float) * 16);
             const std::size_t lights = static_cast<std::size_t>(std::clamp(params.camera_position[3], 0.0f, 16.0f));
@@ -728,8 +729,9 @@ namespace sl::detail
                     return false;
                 const bool terrain = params.terrain_albedo != 0;
                 const int target_samples = current_target_samples();
-                const MeshPipelineSet *pipelines = terrain ? ensure_terrain_pipelines(target_samples)
-                                                           : ensure_mesh_pipelines(target_samples);
+                const bool wire = params.style == 2;
+                const MeshPipelineSet *pipelines = terrain ? ensure_terrain_pipelines(target_samples, wire)
+                                                           : ensure_mesh_pipelines(target_samples, wire);
                 if (!pipelines)
                     return false;
                 flush_2d();
@@ -804,6 +806,7 @@ namespace sl::detail
                     std::memcpy(environment + 88, params.shadow, sizeof(float) * 4);
                     std::memcpy(environment + 92, params.shadow_matrix, sizeof(float) * 16);
                     std::memcpy(environment + 108, params.pbr, sizeof(float) * 4);
+                    environment[111] = static_cast<float>(params.style);
                     std::memcpy(environment + 112, params.local_lights, sizeof(float) * 16 * lights);
                     std::size_t environment_bytes = sizeof(float) * (112 + 16 * lights);
                     if (params.shadow[3] >= 0.5f)
@@ -900,7 +903,7 @@ namespace sl::detail
                 if (found == meshes_.end() || instances == instance_buffers_.end() || count == 0 ||
                     count > instances->second.capacity || params.terrain_albedo != 0)
                     return false;
-                const MeshPipelineSet *pipelines = ensure_mesh_instanced_pipelines(current_target_samples());
+                const MeshPipelineSet *pipelines = ensure_mesh_instanced_pipelines(current_target_samples(), params.style == 2);
                 if (!pipelines)
                     return false;
                 flush_2d();
@@ -2914,7 +2917,7 @@ namespace sl::detail
                         context_.destroy_graphics_pipeline(culled);
                 mesh_instanced_pipelines_.clear();
             }
-            const MeshPipelineSet *ensure_mesh_pipelines(int samples)
+            const MeshPipelineSet *ensure_mesh_pipelines(int samples, bool wire = false)
             {
                 if (!mesh_pipeline_ready_)
                 {
@@ -2928,7 +2931,8 @@ namespace sl::detail
                     }
                     mesh_pipeline_ready_ = true;
                 }
-                const auto existing = mesh_pipelines_.find(samples);
+                const int pipeline_key = samples + (wire ? 1000 : 0);
+                const auto existing = mesh_pipelines_.find(pipeline_key);
                 if (existing != mesh_pipelines_.end())
                     return &existing->second;
                 MeshPipelineSet set{};
@@ -2939,14 +2943,14 @@ namespace sl::detail
                     if (!context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
                                                            PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
                                                            true, false, blend == 2, true, flags[mode % 3], samples, false,
-                                                           false, 0, blend == 0))
+                                                           false, 0, blend == 0, wire))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);
                         return nullptr;
                     }
                 }
-                return &(mesh_pipelines_[samples] = set);
+                return &(mesh_pipelines_[pipeline_key] = set);
             }
             struct VulkanInstanceBuffer
             {
@@ -2958,10 +2962,10 @@ namespace sl::detail
             std::map<int, MeshPipelineSet> mesh_instanced_pipelines_; // Keyed by sample count.
             VulkanShaderModule mesh_instanced_vertex_module_;
             bool mesh_instanced_module_ready_ = false;
-            const MeshPipelineSet *ensure_mesh_instanced_pipelines(int samples)
+            const MeshPipelineSet *ensure_mesh_instanced_pipelines(int samples, bool wire = false)
             {
                 // The fragment stage and descriptor layouts are shared with plain meshes.
-                if (!ensure_mesh_pipelines(samples))
+                if (!ensure_mesh_pipelines(samples, wire))
                     return nullptr;
                 if (!mesh_instanced_module_ready_)
                 {
@@ -2974,7 +2978,8 @@ namespace sl::detail
                     }
                     mesh_instanced_module_ready_ = true;
                 }
-                const auto existing = mesh_instanced_pipelines_.find(samples);
+                const int pipeline_key = samples + (wire ? 1000 : 0);
+                const auto existing = mesh_instanced_pipelines_.find(pipeline_key);
                 if (existing != mesh_instanced_pipelines_.end())
                     return &existing->second;
                 MeshPipelineSet set{};
@@ -2985,14 +2990,14 @@ namespace sl::detail
                     if (!context_.create_graphics_pipeline(mesh_instanced_vertex_module_, mesh_fragment_module_,
                                                            descriptor_layout_, PrimitiveType::triangles, set[mode],
                                                            last_error_, nullptr, 0, true, false, blend == 2, true,
-                                                           flags[mode % 3], samples, false, true, 0, blend == 0))
+                                                           flags[mode % 3], samples, false, true, 0, blend == 0, wire))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);
                         return nullptr;
                     }
                 }
-                return &(mesh_instanced_pipelines_[samples] = set);
+                return &(mesh_instanced_pipelines_[pipeline_key] = set);
             }
             std::map<int, MeshPipelineSet> terrain_pipelines_;
             VulkanShaderModule terrain_vertex_module_;
@@ -3011,7 +3016,7 @@ namespace sl::detail
                     terrain_pipeline_ready_ = false;
                 }
             }
-            const MeshPipelineSet *ensure_terrain_pipelines(int samples)
+            const MeshPipelineSet *ensure_terrain_pipelines(int samples, bool wire = false)
             {
                 if (!terrain_pipeline_ready_)
                 {
@@ -3025,7 +3030,8 @@ namespace sl::detail
                     }
                     terrain_pipeline_ready_ = true;
                 }
-                const auto existing = terrain_pipelines_.find(samples);
+                const int pipeline_key = samples + (wire ? 1000 : 0);
+                const auto existing = terrain_pipelines_.find(pipeline_key);
                 if (existing != terrain_pipelines_.end())
                     return &existing->second;
                 MeshPipelineSet set{};
@@ -3034,14 +3040,14 @@ namespace sl::detail
                 {
                     if (!context_.create_graphics_pipeline(terrain_vertex_module_, terrain_fragment_module_, descriptor_layout_,
                                                            PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
-                                                           true, false, false, true, flags[mode], samples))
+                                                           true, false, false, true, flags[mode], samples, false, false, 0, true, wire))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);
                         return nullptr;
                     }
                 }
-                return &(terrain_pipelines_[samples] = set);
+                return &(terrain_pipelines_[pipeline_key] = set);
             }
             std::map<int, VulkanGraphicsPipeline> sky_pipelines_; // Keyed by sample count.
             VulkanShaderModule sky_vertex_module_;

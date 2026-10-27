@@ -205,6 +205,7 @@ namespace sl::detail
          * vectors are in world space: right and up are scaled by tan(fov/2) (and the aspect ratio for right), so the view
          * ray through a pixel is forward + ndc.x * right + ndc.y * up. Backends without PBR ignore all of these.
          */
+        std::uint32_t style = 0;
         float pbr[4] = {0.0f, 1.0f, 1.0f, 1.0f};
         float emissive[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         float camera_right[4] = {};

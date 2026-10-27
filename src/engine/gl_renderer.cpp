@@ -990,6 +990,9 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(program, "uShadow"), 1, params.shadow);
                 glUniformMatrix4fv(glGetUniformLocation(program, "uShadowMatrix"), 1, GL_FALSE, params.shadow_matrix);
                 glUniform4fv(glGetUniformLocation(program, "uPbr"), 1, params.pbr);
+                glUniform1f(glGetUniformLocation(program, "uStyle"), static_cast<float>(params.style));
+                if (params.style == 2)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                 glUniform4fv(glGetUniformLocation(program, "uEmissive"), 1, params.emissive);
                 glUniform4fv(glGetUniformLocation(program, "uCameraRight"), 1, params.camera_right);
                 glUniform4fv(glGetUniformLocation(program, "uCameraUp"), 1, params.camera_up);
@@ -1040,6 +1043,8 @@ namespace sl::detail
                 {
                     glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
                 }
+                if (params.style == 2)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));
@@ -1162,6 +1167,9 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uAverage"), terrain_layer_count, &params.terrain_average[0][0]);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uMacro"), 1, macro);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uPbr"), 1, params.pbr);
+                glUniform1f(glGetUniformLocation(terrain_program_, "uStyle"), static_cast<float>(params.style));
+                if (params.style == 2)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLight"), 1, params.light);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLightColour"), 1, params.light_colour);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uFogColour"), 1, params.fog_colour);
@@ -1169,6 +1177,8 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uFogView"), 1, params.fog_view);
                 glBindVertexArray(mesh.vao);
                 glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, nullptr);
+                if (params.style == 2)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));

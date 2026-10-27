@@ -36,6 +36,7 @@ uniform vec4 uCameraForward;
 
 // World-space eye position (xyz) and the number of local lights (w); three vec4s per light, see MeshDrawParams.
 uniform vec4 uCameraPosition;
+uniform float uStyle;
 uniform vec4 uLocals[160];
 uniform sampler2D uLocalShadowMap;
 
@@ -173,6 +174,28 @@ float local_visibility(vec3 world, vec3 normal, vec3 light_position, bool spot, 
 
 void main()
 {
+    if (uStyle > 0.5)
+    {
+        // Cheap style: no textures, fog or specular. Flat uses a face normal from screen derivatives.
+        vec2 ndc = gl_FragCoord.xy * uFogView.zw * 2.0 - 1.0;
+        vec3 p = (uCameraForward.xyz + ndc.x * uCameraRight.xyz + ndc.y * uCameraUp.xyz) * vViewDepth;
+        vec3 face = normalize(cross(dFdx(p), dFdy(p)));
+        if (dot(face, p) > 0.0)
+            face = -face;
+        // A coarse mip keeps the broad colours (continents, hulls) without the cost of full texture detail.
+        vec3 base = vTerrain < 0.0 ? vColour.rgb * textureLod(uTexture, vUv, 3.0).rgb : vColour.rgb;
+        // Blended draws (glows, stars, haze) would paint over the scene as opaque colour.
+        if (vTerrain < 0.0 && (uEmissive.w > 0.0 || (uLightColour.w > 0.0 && vColour.a * texture(uTexture, vUv).a < uLightColour.w)))
+            discard;
+        if (uStyle > 1.5)
+        {
+            fragColor = vec4(base * 1.5, 1.0);
+            return;
+        }
+        float lit = uLight.w + (1.0 - uLight.w) * max(dot(face, uLight.xyz), 0.0);
+        fragColor = vec4(base * lit, 1.0);
+        return;
+    }
     vec3 normal = normalize(vNormal);
     vec3 albedo;
     if (vTerrain >= 0.0)

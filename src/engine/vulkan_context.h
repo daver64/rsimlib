@@ -291,7 +291,8 @@ namespace sl::detail
                                       bool sky = false,
                                       bool instanced = false,
                                       int blend_variant = 0,
-                                      bool depth_write = true);
+                                      bool depth_write = true,
+                                      bool wireframe = false);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,
@@ -377,7 +378,8 @@ namespace sl::detail
         // dynamic offset as the last descriptor set of mesh and sky pipelines. The single frame fence makes
         // reusing the buffer from the start of every frame safe.
         static constexpr VkDeviceSize environment_slot_size = 3072;
-        static constexpr std::uint32_t environment_slot_count = 1024;
+        // Draws pack their blocks at 256-byte alignment (the most the spec allows for a uniform offset) into 24 MB.
+        static constexpr VkDeviceSize environment_buffer_size = 24u * 1024u * 1024u;
         // A fully resolved mesh draw: everything workers need to record it without touching shared state.
         struct MeshDrawRecord
         {
@@ -420,7 +422,8 @@ namespace sl::detail
         VkDescriptorSet environment_set_ = VK_NULL_HANDLE;
         VulkanBuffer environment_buffer_;
         std::uint8_t *environment_mapped_ = nullptr;
-        std::uint32_t environment_next_ = 0;
+        std::uint32_t environment_next_ = 0; // Bytes used this frame.
+        std::uint32_t environment_last_offset_ = 0;
         std::size_t environment_last_bytes_ = 0;
         bool image_available_consumed_ = false;
         bool command_buffer_recording_ = false;
@@ -429,6 +432,7 @@ namespace sl::detail
         VkImage active_offscreen_image_ = VK_NULL_HANDLE;
         bool vsync_enabled_ = true;
         bool sampler_anisotropy_enabled_ = false;
+        bool fill_mode_non_solid_enabled_ = false;
         float max_sampler_anisotropy_ = 1.0f;
 
         std::uint32_t find_memory_type(std::uint32_t type_filter,
