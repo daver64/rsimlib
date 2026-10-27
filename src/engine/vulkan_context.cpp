@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -99,13 +100,7 @@ namespace sl::detail
         std::vector<VkPhysicalDevice> devices(device_count);
         vkEnumeratePhysicalDevices(instance_, &device_count, devices.data());
 
-        // Prefer an integrated GPU over a discrete one when both support presentation. On this
-        // hybrid (Optimus/PRIME) laptop, sustained heavy GPU workloads (compute + high particle
-        // counts + render-target churn) have been observed to make the NVIDIA driver's
-        // vkDeviceWaitIdle()/vkDestroySwapchainKHR() take many seconds to tens of seconds to
-        // return - the GPU is genuinely still busy at that point, not hung, so it looks like a
-        // real driver-side synchronization issue rather than anything fixable from here. The
-        // integrated GPU does not exhibit this for the same workloads.
+        // Prefer a discrete GPU when several support presentation.
         // Override: SIMLIB_VULKAN_DEVICE_TYPE=discrete|integrated|any.
         const char *forced_device_type = std::getenv("SIMLIB_VULKAN_DEVICE_TYPE");
         auto device_score = [forced_device_type](VkPhysicalDeviceType type) -> int
@@ -122,9 +117,9 @@ namespace sl::detail
             switch (type)
             {
             case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-                return 3;
-            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
                 return 2;
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+                return 3;
             case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
                 return 1;
             default:
@@ -198,6 +193,7 @@ namespace sl::detail
                                       ? std::min(selected_properties.limits.maxSamplerAnisotropy, 16.0f)
                                       : 1.0f;
         device_info.pEnabledFeatures = &enabled_features;
+        std::fprintf(stderr, "Vulkan device: %s (driver %u)\n", selected_properties.deviceName, selected_properties.driverVersion);
         if (vkCreateDevice(physical_device_, &device_info, nullptr, &device_) != VK_SUCCESS)
         {
             error = "Unable to create Vulkan logical device.";

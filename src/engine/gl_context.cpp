@@ -10,6 +10,7 @@
 #endif
 
 #include <SDL2/SDL.h>
+#include <cstdio>
 
 namespace sl::detail
 {
@@ -56,6 +57,8 @@ namespace sl::detail
         }
         glGetError();
 #endif
+        std::fprintf(stderr, "OpenGL renderer: %s (%s)\n", reinterpret_cast<const char *>(glGetString(GL_RENDERER)),
+                reinterpret_cast<const char *>(glGetString(GL_VERSION)));
         return true;
     }
 
