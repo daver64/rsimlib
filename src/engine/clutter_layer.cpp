@@ -120,6 +120,19 @@ namespace sl
         const Terrain &terrain;
         double turn = 0.0;
         dvec3 axis{0.0, 1.0, 0.0};
+
+        // Cells live in the body-fixed frame but the terrain's direction queries take and return world vectors, so a
+        // turning planet needs the turn applied going in and undone coming out.
+        glm::dquat turn_quat() const { return glm::angleAxis(turn, axis); }
+        dvec3 query_direction(const dvec3 &body_direction) const { return turn != 0.0 ? turn_quat() * body_direction : body_direction; }
+        dvec3 body_vector(const dvec3 &world_vector) const { return turn != 0.0 ? glm::inverse(turn_quat()) * world_vector : world_vector; }
+        dvec3 body_point(const dvec3 &world_point) const
+        {
+            if (turn == 0.0)
+                return world_point;
+            const dvec3 centre = terrain.config().origin;
+            return centre + glm::inverse(turn_quat()) * (world_point - centre);
+        }
         ClutterConfig config;
         bool sphere;
         int grid = 1;
@@ -182,7 +195,7 @@ namespace sl
                 const double s = -1.0 + 2.0 * (key.x + 0.5) / grid;
                 const double t = -1.0 + 2.0 * (key.z + 0.5) / grid;
                 const dvec3 direction = face_direction(key.face, s, t);
-                cell.origin = terrain.surface_point(direction);
+                cell.origin = body_point(terrain.surface_point(query_direction(direction)));
                 cell.up = direction;
             }
             else
@@ -220,9 +233,10 @@ namespace sl
                     const double s = -1.0 + 2.0 * (cell.key.x + u1) / grid;
                     const double t = -1.0 + 2.0 * (cell.key.z + u2) / grid;
                     const dvec3 direction = face_direction(cell.key.face, s, t);
-                    height = terrain.height_at_direction(direction);
-                    position = terrain.surface_point(direction);
-                    normal = terrain.normal_at_direction(direction);
+                    const dvec3 query = query_direction(direction);
+                    height = terrain.height_at_direction(query);
+                    position = body_point(terrain.surface_point(query));
+                    normal = body_vector(terrain.normal_at_direction(query));
                     up = direction;
                 }
                 else
