@@ -115,6 +115,7 @@ namespace sl
         {
             ClutterSpecies spec;
             Impostor *impostor = nullptr;
+            double radius = 0.0, height = 0.0;
         };
 
         const Terrain &terrain;
@@ -476,6 +477,18 @@ namespace sl
             if (!entry.impostor)
                 return -1;
         }
+        {
+            // The trunk or base: the horizontal reach of the vertices in the lowest third of the object.
+            float top = 0.0f;
+            for (const Vertex3D &v : species.mesh.vertices)
+                top = std::max(top, v.position[1]);
+            float reach = 0.0f;
+            for (const Vertex3D &v : species.mesh.vertices)
+                if (v.position[1] <= top * 0.3f)
+                    reach = std::max(reach, std::hypot(v.position[0], v.position[2]));
+            entry.radius = std::max(reach, 0.1f);
+            entry.height = top;
+        }
         impl_->species.push_back(std::move(entry));
         return static_cast<int>(impl_->species.size()) - 1;
     }
@@ -551,5 +564,37 @@ namespace sl
     }
 
     ClutterStats ClutterLayer::stats() const { return impl_->stats; }
+
+    void ClutterLayer::obstacles(const dvec3 &point, double range, std::vector<ClutterObstacle> &out) const
+    {
+        const Impl &impl = *impl_;
+        const dvec3 centre = impl.terrain.config().origin;
+        const dvec3 here = impl.body_point(point);
+        const glm::dquat turn = impl.turn_quat();
+        for (const auto &entry : impl.cells)
+        {
+            const Cell &cell = entry.second;
+            if (glm::length(cell.origin - here) > range + impl.config.cell_size * 1.5)
+                continue;
+            for (std::size_t i = 0; i < cell.species.size() && i < impl.species.size(); ++i)
+            {
+                const Impl::Species &sp = impl.species[i];
+                if (!sp.spec.solid)
+                    continue;
+                for (const Instance3D &inst : cell.species[i].instances)
+                {
+                    const dvec3 body_position = cell.origin + dvec3(inst.position);
+                    if (glm::length(body_position - here) > range)
+                        continue;
+                    ClutterObstacle o;
+                    o.position = impl.turn != 0.0 ? centre + turn * (body_position - centre) : body_position;
+                    o.radius = sp.radius * inst.scale;
+                    o.height = sp.height * inst.scale;
+                    o.species = static_cast<int>(i);
+                    out.push_back(o);
+                }
+            }
+        }
+    }
 
 } // namespace sl

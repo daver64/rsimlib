@@ -79,6 +79,15 @@ namespace sl
     /** The material that draws bake_billboards() quads of the given view. */
     Material impostor_material(const Impostor &impostor, int view);
 
+    /** A placed object that something walking on the terrain can bump into: a vertical cylinder standing on `position`. */
+    struct ClutterObstacle
+    {
+        dvec3 position{0.0};
+        double radius = 0.0;
+        double height = 0.0;
+        int species = 0;
+    };
+
     /** One kind of object scattered over terrain by a ClutterLayer, with the rules that decide where it grows. */
     struct ClutterSpecies
     {
@@ -109,6 +118,8 @@ namespace sl
         float far_distance = 900.0f;
         /** Optional extra rule: the chance (0-1) that a candidate spot is used, e.g. to keep trees off snow. */
         std::function<float(const TerrainSample &sample)> suitability;
+        /** Whether obstacles() reports this species. */
+        bool solid = true;
         /** Changes the arrangement; species with different seeds do not line up. */
         std::uint32_t seed = 1;
     };
@@ -165,6 +176,11 @@ namespace sl
         /** Flat terrain: forget the cells overlapping a world rectangle. */
         void invalidate_region(double x0, double z0, double x1, double z1);
         ClutterStats stats() const;
+        /**
+         * Objects within `range` of a world point, from the cells already built (those near the last update() view). Each is
+         * a cylinder: the footprint of the species' mesh near the ground and its full height, times the instance's scale.
+         */
+        void obstacles(const dvec3 &point, double range, std::vector<ClutterObstacle> &out) const;
 
     private:
         struct Impl;
