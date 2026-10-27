@@ -6,6 +6,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <string>
+#include <functional>
 #include <vector>
 
 namespace sl
@@ -232,6 +233,10 @@ namespace sl
          */
         const Terrain *terrain = nullptr;
         Atmosphere atmosphere;
+        /** Wind in m/s (world frame) added to the planet's rotating air, inside its atmosphere. Applies to bodies with a radius and an atmosphere. */
+        dvec3 wind{0.0};
+        /** When set, gives the wind (world frame, m/s) at a point from its offset from the planet's centre, instead of `wind`; lets each ship feel its own local wind. */
+        std::function<dvec3(const dvec3 &offset)> wind_field;
 
         dvec3 position{0.0};
         dvec3 velocity{0.0};

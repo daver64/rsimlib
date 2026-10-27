@@ -590,7 +590,8 @@ namespace sl
             if (rho > density)
             {
                 density = rho;
-                velocity = kin[j].velocity + glm::cross(planet.spin_axis * planet.spin_rate, d);
+                velocity = kin[j].velocity + glm::cross(planet.spin_axis * planet.spin_rate, d) +
+                           (planet.wind_field ? planet.wind_field(d) : planet.wind);
             }
         }
     }

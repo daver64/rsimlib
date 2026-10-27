@@ -1749,7 +1749,7 @@ namespace sl
         box(b, {-half, 0.0f, hole}, {half, thick, half}, concrete);
         box(b, {-half, 0.0f, -hole}, {-hole, thick, hole}, shade(concrete, 0.95f));
         box(b, {hole, 0.0f, -hole}, {half, thick, hole}, shade(concrete, 0.95f));
-        box(b, {-hole, 0.0f, -hole}, {hole, 0.2f, hole}, {40, 36, 34, 255});
+        box(b, {-hole, 0.0f, -hole}, {hole, thick + 0.02f, hole}, {40, 36, 34, 255}); // flame-deflector plate, level with the deck so ships can rest on it
         for (const float x : {-1.0f, 1.0f})
         {
             for (const float z : {-1.0f, 1.0f})
