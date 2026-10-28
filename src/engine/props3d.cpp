@@ -632,17 +632,18 @@ namespace sl
         Builder b;
         radius = std::max(radius, 4.0f);
         const Colour pad{96, 94, 90, 255};
-        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.2f, 0.0f}, radius, radius, 32, pad);
-        column(b, {0.0f, 0.2f, 0.0f}, {0.0f, 0.23f, 0.0f}, radius * 0.9f, radius * 0.9f, 32, {226, 226, 222, 255}, false, true);
-        column(b, {0.0f, 0.2f, 0.0f}, {0.0f, 0.24f, 0.0f}, radius * 0.86f, radius * 0.86f, 32, shade(pad, 1.05f), false, true);
-        box(b, {-radius * 0.5f, 0.24f, -radius * 0.04f}, {radius * 0.5f, 0.26f, radius * 0.04f}, {226, 226, 222, 255});
-        box(b, {-radius * 0.5f, 0.24f, -radius * 0.04f}, {-radius * 0.42f, 0.26f, radius * 0.5f}, {226, 226, 222, 255});
-        box(b, {radius * 0.42f, 0.24f, -radius * 0.04f}, {radius * 0.5f, 0.26f, radius * 0.5f}, {226, 226, 222, 255});
+        // Each layer stands a few centimetres proud of the one below so the depth buffer can separate them at a distance.
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, 0.3f, 0.0f}, radius, radius, 32, pad);
+        column(b, {0.0f, 0.3f, 0.0f}, {0.0f, 0.36f, 0.0f}, radius * 0.9f, radius * 0.9f, 32, {226, 226, 222, 255}, false, true);
+        column(b, {0.0f, 0.3f, 0.0f}, {0.0f, 0.42f, 0.0f}, radius * 0.86f, radius * 0.86f, 32, shade(pad, 1.05f), false, true);
+        box(b, {-radius * 0.5f, 0.42f, -radius * 0.04f}, {radius * 0.5f, 0.48f, radius * 0.04f}, {226, 226, 222, 255});
+        box(b, {-radius * 0.5f, 0.42f, -radius * 0.04f}, {-radius * 0.42f, 0.48f, radius * 0.5f}, {226, 226, 222, 255});
+        box(b, {radius * 0.42f, 0.42f, -radius * 0.04f}, {radius * 0.5f, 0.48f, radius * 0.5f}, {226, 226, 222, 255});
         for (int i = 0; i < 8; ++i)
         {
             const float a = 2.0f * pi * static_cast<float>(i) / 8.0f;
             const float x = std::sin(a) * radius * 0.96f, z = std::cos(a) * radius * 0.96f;
-            column(b, {x, 0.2f, z}, {x, 0.55f, z}, 0.12f, 0.12f, 5, {255, 200, 90, 255});
+            column(b, {x, 0.3f, z}, {x, 0.65f, z}, 0.12f, 0.12f, 5, {255, 200, 90, 255});
         }
         return b.data;
     }
