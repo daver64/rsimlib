@@ -245,8 +245,8 @@ namespace sl
         TcpListener(const TcpListener &) = delete;
         TcpListener &operator=(const TcpListener &) = delete;
 
-        /** Listen on a port; 0 picks a free one (see port()). */
-        bool listen(std::uint16_t port, int backlog = 16);
+        /** Listen on a port; 0 picks a free one (see port()). With loopback_only only programs on this machine can connect (127.0.0.1). */
+        bool listen(std::uint16_t port, int backlog = 16, bool loopback_only = false);
         void close();
         bool listening() const;
         std::uint16_t port() const;

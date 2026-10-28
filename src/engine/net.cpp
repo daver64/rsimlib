@@ -647,7 +647,7 @@ namespace sl
     TcpListener::TcpListener() : impl_(std::make_unique<Impl>()) {}
     TcpListener::~TcpListener() { close(); }
 
-    bool TcpListener::listen(std::uint16_t port, int backlog)
+    bool TcpListener::listen(std::uint16_t port, int backlog, bool loopback_only)
     {
         close();
         if (!impl_->ref.acquire())
@@ -655,7 +655,7 @@ namespace sl
         ENetSocket socket = enet_socket_create(ENET_SOCKET_TYPE_STREAM);
         ENetAddress address;
         std::memset(&address, 0, sizeof(address));
-        address.host = ENET_HOST_ANY;
+        address.host = loopback_only ? enet_v4_localhost : ENET_HOST_ANY;
         address.port = port;
         if (socket != ENET_SOCKET_NULL)
         {
