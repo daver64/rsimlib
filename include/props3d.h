@@ -136,6 +136,12 @@ namespace sl
     /** Skylab, standing upright: workshop, airlock shroud and module, docking adapter, two large wings and an Apollo Telescope Mount windmill. About 38 m tall. */
     MeshData make_skylab_data(float scale = 1.0f);
 
+    // Ordnance. Bodies of revolution about the Y axis like the rocket parts: the nose is at y = length, the fins at y = 0.
+    /** A general-purpose free-fall bomb: olive casing, ogive nose, a boat-tail and four tail fins joined by a ring. About 3 m long. */
+    MeshData make_bomb_data(float radius = 0.25f, float length = 3.0f, Colour casing = {88, 96, 62, 255}, Colour band = {214, 190, 60, 255});
+    /** A "Fat Man" implosion bomb: an egg-shaped dark casing with a box-section tail and four fins. About 3.3 m long and 1.5 m across. */
+    MeshData make_fatman_data(float radius = 0.75f, float length = 3.3f, Colour casing = {44, 46, 50, 255});
+
     // Control parts: the pieces of panels, cockpits and cabinets (see controls.h for the interactive layer).
     // Panel parts face +Z with the face of the panel on z = 0, are centred on x and y and are sized in metres.
     // Static parts (panels, dial faces, bases) are baked once; moving parts (needles, knobs, levers, caps) are

@@ -94,6 +94,8 @@ int main(int argc, char **argv)
     props.push_back(make_prop("payload fairing", sl::make_payload_fairing_data()));
     props.push_back(make_prop("escape tower", sl::make_launch_escape_tower_data()));
     props.push_back(make_prop("apollo csm", sl::make_apollo_csm_data()));
+    props.push_back(make_prop("bomb", sl::make_bomb_data()));
+    props.push_back(make_prop("fatman", sl::make_fatman_data()));
     props.push_back(make_prop("launch tower", sl::make_launch_tower_data()));
     props.push_back(make_prop("launch pad", sl::make_launch_pad_data()));
     props.push_back(make_prop("skylab", sl::make_skylab_data()));

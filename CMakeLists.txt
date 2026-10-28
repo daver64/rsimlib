@@ -395,6 +395,7 @@ add_library(simlib STATIC
     src/engine/shader_paths.cpp
     src/engine/gl2d.cpp
     src/engine/particles.cpp
+    src/engine/particles3d.cpp
     src/engine/precipitation.cpp
     src/engine/async_load.cpp
     src/engine/parallel_record.cpp

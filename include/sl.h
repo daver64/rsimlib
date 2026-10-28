@@ -59,6 +59,7 @@
 #include "parallel_render.h"
 #include "voxel.h"
 #include "particles.h"
+#include "particles3d.h"
 #include "precipitation.h"
 #include "net.h"
 #include "system.h"
