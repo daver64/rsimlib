@@ -3354,6 +3354,9 @@ namespace sl::detail
         if (device_ != VK_NULL_HANDLE)
         {
             wait_device_idle();
+            frame_active_ = false;
+            command_buffer_recording_ = false;
+            render_pass_active_ = false;
             for (VkFramebuffer framebuffer : framebuffers_)
             {
                 vkDestroyFramebuffer(device_, framebuffer, nullptr);

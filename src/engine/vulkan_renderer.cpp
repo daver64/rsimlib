@@ -337,6 +337,14 @@ namespace sl::detail
                 }
                 drawable_width_ = width;
                 drawable_height_ = height;
+                // Events can arrive while a frame is half recorded. Recreating the swapchain destroys the command buffer, fence
+                // and render passes that frame uses, so wait until it has been presented.
+                if (frame_active_)
+                {
+                    resize_pending_ = true;
+                    return true;
+                }
+                resize_pending_ = false;
                 if (!context_.recreate_swapchain(width, height, last_error_))
                 {
                     error = last_error_;
@@ -369,6 +377,15 @@ namespace sl::detail
                     context_.end_frame(last_error_);
                     frame_active_ = false;
                 }
+                apply_pending_resize();
+            }
+            void apply_pending_resize()
+            {
+                if (resize_pending_ && !frame_active_)
+                {
+                    std::string error;
+                    resize(drawable_width_, drawable_height_, error);
+                }
             }
             void wait_idle() override
             {
@@ -382,6 +399,7 @@ namespace sl::detail
                     frame_active_ = false;
                 if (frame_active_)
                     return true;
+                apply_pending_resize();
                 frame_active_ = context_.begin_frame(error);
                 if (frame_active_)
                 {
@@ -415,7 +433,9 @@ namespace sl::detail
                     return true;
                 flush_2d();
                 frame_active_ = false;
-                return context_.end_frame(error);
+                const bool ok = context_.end_frame(error);
+                apply_pending_resize();
+                return ok;
             }
             SDL_GLContext native_context() const override { return nullptr; }
             VulkanContext *vulkan_context() override { return &context_; }
@@ -2772,6 +2792,7 @@ namespace sl::detail
             int last_2d_height_ = 0;
             std::uint32_t white_texture_ = 0;
             bool frame_active_ = false;
+            bool resize_pending_ = false;
             std::map<unsigned int, std::uint32_t> global_storage_bindings_;
             // Matches the VulkanContext default above.
             bool vsync_enabled_ = true;
