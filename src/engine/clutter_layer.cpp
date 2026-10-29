@@ -106,6 +106,7 @@ namespace sl
             Mesh *mesh;
             dvec3 origin;
             Material material;
+            bool billboard = false;
         };
     } // namespace
 
@@ -120,6 +121,7 @@ namespace sl
 
         const Terrain &terrain;
         double turn = 0.0;
+        float impostor_light = 1.0f;
         dvec3 axis{0.0, 1.0, 0.0};
 
         // Cells live in the body-fixed frame but the terrain's direction queries take and return world vectors, so a
@@ -421,7 +423,7 @@ namespace sl
                         {
                             Material material = impostor_material(*sp.impostor, index);
                             material.fog = sp.spec.material.fog;
-                            items.push_back({mesh, cell.origin, material});
+                            items.push_back({mesh, cell.origin, material, true});
                             ++stats.drawn_meshes;
                             stats.drawn_billboards += static_cast<int>(sc.instances.size());
                         }
@@ -516,6 +518,8 @@ namespace sl
         impl_->update(v);
     }
 
+    void ClutterLayer::set_impostor_light(float brightness) { impl_->impostor_light = std::clamp(brightness, 0.0f, 1.0f); }
+
     bool ClutterLayer::draw(const dvec3 &origin) const
     {
         bool ok = true;
@@ -528,7 +532,17 @@ namespace sl
             glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(placed - origin));
             if (turning)
                 model = glm::rotate(model, static_cast<float>(impl_->turn), glm::vec3(impl_->axis));
-            ok = draw_mesh(item.mesh, model, item.material) && ok;
+            if (item.billboard && impl_->impostor_light < 1.0f)
+            {
+                Material dimmed = item.material;
+                const float k = impl_->impostor_light;
+                dimmed.tint.red = static_cast<std::uint8_t>(dimmed.tint.red * k);
+                dimmed.tint.green = static_cast<std::uint8_t>(dimmed.tint.green * k);
+                dimmed.tint.blue = static_cast<std::uint8_t>(dimmed.tint.blue * k);
+                ok = draw_mesh(item.mesh, model, dimmed) && ok;
+            }
+            else
+                ok = draw_mesh(item.mesh, model, item.material) && ok;
         }
         return ok;
     }

@@ -168,6 +168,11 @@ namespace sl
 
         /** Build what the view needs and choose what to draw. Call each frame, outside begin_surface_3d(). */
         void update(const TerrainView &view);
+        /**
+         * Billboards are baked with a fixed light and drawn unlit, so they stay as bright as by day. This scales them
+         * (0 black, 1 as baked) to follow the scene's light, for example at night. Meshes are lit normally and unaffected.
+         */
+        void set_impostor_light(float brightness);
         /** Draw the chosen objects. `origin` is the same camera origin passed to Terrain::draw(). */
         bool draw(const dvec3 &origin) const;
 
