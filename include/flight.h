@@ -188,6 +188,8 @@ namespace sl
         double brake_friction = 0.8;
         /** Brake level from 0 to 1. */
         double brake = 0.0;
+        /** Driving force in N along the rolling direction (negative reverses). It is limited by traction, lateral_friction times the load on the contact. */
+        double drive_force = 0.0;
         /** Compression in metres from the most recent step (0 when airborne). */
         double compression = 0.0;
         /** False while the gear is retracted: the contact produces no force and reports no compression. */

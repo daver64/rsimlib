@@ -868,6 +868,8 @@ namespace sl
                     f -= side_dir * (g.lateral_friction * normal_force * std::clamp(v_side / v0, -1.0, 1.0));
                     f -= roll_dir * ((g.rolling_resistance + g.brake_friction * g.brake) * normal_force *
                                      std::clamp(v_long / v0, -1.0, 1.0));
+                    const double traction = g.lateral_friction * normal_force;
+                    f += roll_dir * std::clamp(g.drive_force, -traction, traction);
                 }
                 else
                 {
