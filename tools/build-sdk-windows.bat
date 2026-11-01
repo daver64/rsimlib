@@ -1,6 +1,6 @@
 @echo off
 rem Builds the simlib SDK with Microsoft Visual Studio (MSVC) and zips it as simlib-sdk-<VERSION>-Windows-MSVC.zip.
-rem Run it from a regular Windows prompt; CMake locates Visual Studio and its MSVC toolchain.
+rem Run it from a regular Windows prompt; CMake selects the installed Visual Studio toolchain.
 rem
 rem Needs: Visual Studio 2022 (C++ workload), CMake, Git, and vcpkg. Set VCPKG_ROOT to your vcpkg checkout; if it is
 rem unset, vcpkg is cloned to %USERPROFILE%\vcpkg. Install the Vulkan SDK (sets VULKAN_SDK) to include the Vulkan
@@ -37,7 +37,7 @@ echo == Installing dependencies with vcpkg ==
     glslang spirv-cross directx-dxc || exit /b 1
 
 echo == Configuring simlib %SIMVER% (renderers: %RENDERERS%) ==
-cmake --fresh -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 ^
+cmake --fresh -S . -B build-msvc ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
     -DVCPKG_TARGET_TRIPLET=x64-windows ^

@@ -2,6 +2,7 @@ build
 build-verify
 build-win
 build-spv
+build-msvc
 html
 imgui.ini
 .vscode
