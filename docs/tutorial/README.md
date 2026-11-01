@@ -15,7 +15,7 @@ Short, hands-on lessons that teach simlib in order. They complement the [Example
 
 ## Setting up once
 
-Add a target to your own `CMakeLists.txt` (see [Configure a Consumer](../../README.md#configure-a-consumer) for using an installed copy):
+Add a target to your own `CMakeLists.txt` (see [Configure a Consumer](../building.md#configure-a-consumer) for using an installed copy):
 
 ```cmake
 add_executable(lesson src/lesson.cpp)

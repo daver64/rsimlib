@@ -62,5 +62,5 @@ The result is `build/package/my_app-1.0-win64.zip`. It holds the executable, the
 
 ## Go further
 
-- README: [Distribute an application](../../README.md#distribute-an-application) and [Configure a consumer](../../README.md#configure-a-consumer).
+- [Distribute an application](../building.md#distribute-an-application) and [Configure a consumer](../building.md#configure-a-consumer).
 - Back to the [tutorial index](README.md), or try the [Showcase Guide](../showcases.md).

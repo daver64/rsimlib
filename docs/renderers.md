@@ -8,6 +8,8 @@ The window/context, presentation lifecycle, 2D texture and render-target resourc
 
 ## Backend Selection
 
+**Backend status.** OpenGL and Vulkan are built and tested on Linux (the `ctest` suite includes pixel-level 3D blending checks that run on both). Direct3D 12 implements the same API but is Windows-only and is not covered by the Linux test runs, so treat it as less proven until you have run the suite on your own hardware. Use `ex3d_surface --gl`, `--vulkan` or `--d3d12` to compare backends. While developing, `sl::draw_frame_stats()` shows FPS and per-frame 3D draw counts.
+
 `simlib` supports selectable rendering backends:
 - **OpenGL 4.3** (default on Linux)
 - **Vulkan**
