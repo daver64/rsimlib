@@ -1,6 +1,6 @@
 @echo off
 rem Builds the simlib SDK with Microsoft Visual Studio (MSVC) and zips it as simlib-sdk-<VERSION>-Windows-MSVC.zip.
-rem Run it from a "x64 Native Tools Command Prompt for VS" (or any prompt after vcvars64.bat) on Windows.
+rem Run it from a regular Windows prompt; CMake locates Visual Studio and its MSVC toolchain.
 rem
 rem Needs: Visual Studio 2022 (C++ workload), CMake, Git, and vcpkg. Set VCPKG_ROOT to your vcpkg checkout; if it is
 rem unset, vcpkg is cloned to %USERPROFILE%\vcpkg. Install the Vulkan SDK (sets VULKAN_SDK) to include the Vulkan
@@ -19,7 +19,6 @@ set /p SIMVER=<VERSION
 for /f "tokens=* delims= " %%a in ("%SIMVER%") do set "SIMVER=%%a"
 set "NAME=simlib-sdk-%SIMVER%-Windows-MSVC"
 
-where cl >nul 2>nul || (echo cl.exe not found: run this from a Visual Studio x64 Native Tools prompt.& exit /b 1)
 where cmake >nul 2>nul || (echo cmake not found.& exit /b 1)
 where git >nul 2>nul || (echo git not found.& exit /b 1)
 
@@ -38,7 +37,7 @@ echo == Installing dependencies with vcpkg ==
     glslang spirv-cross directx-dxc || exit /b 1
 
 echo == Configuring simlib %SIMVER% (renderers: %RENDERERS%) ==
-cmake -S . -B build-msvc -G "Ninja" ^
+cmake --fresh -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
     -DVCPKG_TARGET_TRIPLET=x64-windows ^
@@ -46,11 +45,11 @@ cmake -S . -B build-msvc -G "Ninja" ^
     -DCMAKE_INSTALL_PREFIX="%CD%\build-msvc\sdk\%NAME%" || exit /b 1
 
 echo == Building ==
-cmake --build build-msvc --parallel || exit /b 1
+cmake --build build-msvc --config Release --parallel || exit /b 1
 
 echo == Installing ==
 if exist "build-msvc\sdk" rmdir /s /q "build-msvc\sdk"
-cmake --install build-msvc || exit /b 1
+cmake --install build-msvc --config Release || exit /b 1
 
 echo == Packaging %NAME%.zip ==
 if exist "%OUT%\%NAME%.zip" del "%OUT%\%NAME%.zip"
