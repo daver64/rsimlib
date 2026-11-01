@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
-project(simlib LANGUAGES C CXX)
+# simlib is versioned MAJOR.MINOR from the VERSION file (see release.sh).
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" SIMLIB_VERSION LIMIT_COUNT 1)
+project(simlib VERSION ${SIMLIB_VERSION} LANGUAGES C CXX)
 if(WIN32)
     enable_language(RC)
 endif()
@@ -801,12 +804,14 @@ add_executable(exxeno src/examples/exxeno/exxeno.cpp)
 target_link_libraries(exxeno PRIVATE simlib)
 add_executable(exinvaders src/examples/exinvaders/exinvaders.cpp)
 target_link_libraries(exinvaders PRIVATE simlib)
+add_executable(exbomberman src/examples/exbomberman/exbomberman.cpp)
+target_link_libraries(exbomberman PRIVATE simlib)
 add_executable(exdefender src/examples/exdefender/exdefender.cpp)
 target_link_libraries(exdefender PRIVATE simlib)
 add_executable(exasteroids src/examples/exasteroids/exasteroids.cpp)
 target_link_libraries(exasteroids PRIVATE simlib)
 # Each showcase game carries a major.build version in its VERSION file (see the Kosmos repo's scripts/publish-web.sh).
-foreach(_game exinvaders exdefender exasteroids)
+foreach(_game exinvaders exbomberman exdefender exasteroids)
     set(_version_file "${CMAKE_CURRENT_SOURCE_DIR}/src/examples/${_game}/VERSION")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_version_file}")
     file(STRINGS "${_version_file}" _version LIMIT_COUNT 1)
@@ -1206,6 +1211,7 @@ install(FILES assets/icon/simlib_icon.png assets/icon/simlib.ico DESTINATION ${C
 
 simlib_add_package(TARGET exxeno NAME exxeno-${CMAKE_SYSTEM_NAME} ASSETS assets)
 simlib_add_package(TARGET exinvaders NAME exinvaders-${CMAKE_SYSTEM_NAME})
+simlib_add_package(TARGET exbomberman NAME exbomberman-${CMAKE_SYSTEM_NAME})
 simlib_add_package(TARGET exdefender NAME exdefender-${CMAKE_SYSTEM_NAME})
 simlib_add_package(TARGET exasteroids NAME exasteroids-${CMAKE_SYSTEM_NAME})
 
@@ -1297,7 +1303,13 @@ configure_package_config_file(
     "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simlib
 )
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/simlibConfigVersion.cmake"
+    VERSION ${SIMLIB_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/simlibConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/simlibConfigVersion.cmake"
     cmake/SimlibBlender.cmake
     cmake/SimlibPackage.cmake
     cmake/SimlibPackageRun.cmake

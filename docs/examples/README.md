@@ -17,6 +17,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exatlas](img/exatlas.png)<br>**exatlas**](exatlas.md) | Texture atlas browser: pick a tile from a grid atlas and see it drawn at 4x next to the full atlas texture. |
 | [![exaudio](img/exaudio.png)<br>**exaudio**](exaudio.md) | Audio playback: sound effect samples, streamed music, pause and resume, and volume control. |
 | [![exbitmap](img/exbitmap.png)<br>**exbitmap**](exbitmap.md) | Bitmap loading and blitting: loads a PNG and blits it to the screen at 60 FPS. |
+| [![exbomberman](img/exbomberman.png)<br>**exbomberman**](exbomberman.md) | Neon Bomberman-inspired arena action: place bombs, outsmart pursuing bots, and blast through destructible 8×8×8 voxel walls. |
 | [![excafluid](img/excafluid.png)<br>**excafluid**](excafluid.md) | A falling-sand style sandbox: a multi-material cellular-automata fluid engine coupled to Box2D bodies, with lighting and bloom. |
 | [![excamera2d](img/excamera2d.png)<br>**excamera2d**](excamera2d.md) | A 2D camera with zoom, rotation and shake, plus clip rectangles, extended sprite parameters and tweens. |
 | [![exclouds](img/exclouds.png)<br>**exclouds**](exclouds.md) | A sky viewer for procedural cloud types, with altitude, sun position, planet curvature and volumetric rendering. |
