@@ -555,7 +555,8 @@ namespace sl
         return kin;
     }
 
-    dvec3 FlightWorld::gravity_from(const std::vector<Kinematics> &kin, const dvec3 &point, int skip) const
+    template <class K>
+    dvec3 FlightWorld::gravity_from(const K &kin, const dvec3 &point, int skip) const
     {
         dvec3 a = uniform_gravity;
         for (std::size_t j = 0; j < bodies_.size(); ++j)
@@ -572,7 +573,8 @@ namespace sl
         return a;
     }
 
-    void FlightWorld::air_from(const std::vector<Kinematics> &kin, const dvec3 &point, double &density,
+    template <class K>
+    void FlightWorld::air_from(const K &kin, const dvec3 &point, double &density,
                                dvec3 &velocity) const
     {
         density = 0.0;
@@ -596,7 +598,8 @@ namespace sl
         }
     }
 
-    double FlightWorld::altitude_from(const std::vector<Kinematics> &kin, const dvec3 &point) const
+    template <class K>
+    double FlightWorld::altitude_from(const K &kin, const dvec3 &point) const
     {
         double best = std::numeric_limits<double>::infinity();
         if (flat_ground)
@@ -613,13 +616,13 @@ namespace sl
         return best;
     }
 
-    dvec3 FlightWorld::gravity_at(const dvec3 &point) const { return gravity_from(master_kinematics(), point, -1); }
+    dvec3 FlightWorld::gravity_at(const dvec3 &point) const { return gravity_from(bodies_, point, -1); }
 
     double FlightWorld::air_density_at(const dvec3 &point) const
     {
         double rho;
         dvec3 v;
-        air_from(master_kinematics(), point, rho, v);
+        air_from(bodies_, point, rho, v);
         return rho;
     }
 
@@ -627,11 +630,11 @@ namespace sl
     {
         double rho;
         dvec3 v;
-        air_from(master_kinematics(), point, rho, v);
+        air_from(bodies_, point, rho, v);
         return v;
     }
 
-    double FlightWorld::altitude_of(const dvec3 &point) const { return altitude_from(master_kinematics(), point); }
+    double FlightWorld::altitude_of(const dvec3 &point) const { return altitude_from(bodies_, point); }
 
     double FlightWorld::specific_energy(int id) const
     {
