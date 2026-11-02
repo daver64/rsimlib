@@ -764,7 +764,16 @@ namespace sl
                      b.rails_parent < static_cast<int>(i))
             {
                 const Kinematics &parent = kin_[b.rails_parent];
-                const OrbitState rel = state_from_orbit(bodies_[b.rails_parent].gm, b.rails_orbit, t - b.rails_epoch);
+                if (rails_cache_.size() != bodies_.size())
+                    rails_cache_.assign(bodies_.size(), {});
+                RailsSample &s = rails_cache_[i];
+                if (!s.valid || s.time != t)
+                {
+                    s.state = state_from_orbit(bodies_[b.rails_parent].gm, b.rails_orbit, t - b.rails_epoch);
+                    s.time = t;
+                    s.valid = true;
+                }
+                const OrbitState &rel = s.state;
                 k.position = parent.position + rel.position;
                 k.velocity = parent.velocity + rel.velocity;
                 k.orientation = b.orientation;
@@ -968,14 +977,13 @@ namespace sl
 
     void FlightWorld::deplete_propellant(double h)
     {
-        const std::vector<Kinematics> kin = master_kinematics();
         for (FlightBody &b : bodies_)
         {
             if (!b.active || b.mode != FlightBodyMode::dynamic || b.tanks.empty())
                 continue;
             double rho;
             dvec3 v;
-            air_from(kin, b.position, rho, v);
+            air_from(bodies_, b.position, rho, v);
             for (const Thruster &t : b.thrusters)
             {
                 if (t.tank < 0 || t.tank >= static_cast<int>(b.tanks.size()) || t.isp <= 0.0)
@@ -989,6 +997,7 @@ namespace sl
 
     void FlightWorld::substep(double h)
     {
+        rails_cache_.clear();
         slot_.assign(bodies_.size(), -1);
         std::size_t offset = 0;
         for (std::size_t i = 0; i < bodies_.size(); ++i)
@@ -1107,12 +1116,14 @@ namespace sl
         for (int i = 0; i < count; ++i)
             substep(h);
 
-        const std::vector<Kinematics> kin = master_kinematics();
+        std::vector<Kinematics> kin;
         for (std::size_t i = 0; i < bodies_.size(); ++i)
         {
             FlightBody &b = bodies_[i];
             if (b.active && b.mode == FlightBodyMode::dynamic && !b.gear.empty())
             {
+                if (kin.empty())
+                    kin = master_kinematics();
                 dvec3 f, t;
                 body_loads(static_cast<int>(i), kin, f, t, true);
             }

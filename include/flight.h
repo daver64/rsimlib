@@ -404,6 +404,13 @@ namespace sl
 
         std::vector<FlightBody> bodies_;
         std::vector<Kinematics> kin_;
+        struct RailsSample
+        {
+            OrbitState state;
+            double time = 0.0;
+            bool valid = false;
+        };
+        std::vector<RailsSample> rails_cache_;
         std::vector<int> slot_;
         std::vector<std::vector<double>> stage_;
         double time_ = 0.0;

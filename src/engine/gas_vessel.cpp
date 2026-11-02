@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace sl
 {
@@ -97,29 +98,36 @@ namespace sl
             if (v->vent[i] > 0.0f)
                 vent_cells.push_back(i);
 
+        // The open mask is public, so the face list is rebuilt per call and shared by every gas and substep.
+        thread_local std::vector<std::pair<int, int>> faces;
+        faces.clear();
+        for (int z = 1; z < n - 1; ++z)
+            for (int y = 1; y < n - 1; ++y)
+                for (int x = 1; x < n - 1; ++x)
+                {
+                    const int a = idx(v, x, y, z);
+                    if (!v->open[a])
+                        continue;
+                    for (const auto &dir : dirs)
+                    {
+                        const int b = idx(v, x + dir[0], y + dir[1], z + dir[2]);
+                        if (v->open[b])
+                            faces.emplace_back(a, b);
+                    }
+                }
+
         for (int s = 0; s < steps; ++s)
         {
             for (int g = 0; g < kVesselGasCount; ++g)
             {
                 auto &m = v->mass[g];
                 // Exchange across each interior face (each pair visited once); symmetric, so mass is conserved.
-                for (int z = 1; z < n - 1; ++z)
-                    for (int y = 1; y < n - 1; ++y)
-                        for (int x = 1; x < n - 1; ++x)
-                        {
-                            const int a = idx(v, x, y, z);
-                            if (!v->open[a])
-                                continue;
-                            for (const auto &dir : dirs)
-                            {
-                                const int b = idx(v, x + dir[0], y + dir[1], z + dir[2]);
-                                if (!v->open[b])
-                                    continue;
-                                const float flow = d * (m[a] - m[b]);
-                                m[a] -= flow;
-                                m[b] += flow;
-                            }
-                        }
+                for (const auto &face : faces)
+                {
+                    const float flow = d * (m[face.first] - m[face.second]);
+                    m[face.first] -= flow;
+                    m[face.second] += flow;
+                }
                 // Vents sit in hull cells and drain every open neighbour toward vacuum.
                 for (const int cell : vent_cells)
                 {
