@@ -596,7 +596,7 @@ namespace sl
                 }
                 return;
             }
-            const double full = options.limb_fade, clear = 0.07 * options.limb_fade;
+            const double full = options.limb_fade, clear = 0.3 * options.limb_fade;
             bool any = false;
             std::vector<float> alpha(entry.vertices.size());
             for (std::size_t i = 0; i < entry.vertices.size(); ++i)

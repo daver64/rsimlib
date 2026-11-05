@@ -61,7 +61,7 @@ namespace sl
         /**
          * For a translucent layer such as clouds: patches fade out where the view grazes the sphere, so a thin shell seen
          * edge-on near the horizon does not smear into streaks. The value is the cosine of the angle between the line of
-         * sight and the surface normal at which the layer is fully opaque (it is clear at 0.07 of that). 0 turns it off.
+         * sight and the surface normal at which the layer is fully opaque (it is clear at 0.3 of that). 0 turns it off.
          * The fade is rewritten into the patch vertices each draw, so it costs some upload bandwidth near the limb.
          */
         float limb_fade = 0.0f;
