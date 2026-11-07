@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
 
 namespace
 {
@@ -125,6 +126,97 @@ namespace
                                      (mars_reference / mars_r) * (mars_reference / mars_r) * std::cos(inclination) * 86400.0;
         check(std::fabs(mars_drift - mars_expected) < std::fabs(mars_expected) * 0.03,
               "Mars J2 nodal drift agrees with secular theory within 3 percent");
+    }
+
+    void test_harmonic_gravity()
+    {
+        constexpr double reference = 6378136.3;
+        constexpr double j2 = 1.08262668e-3;
+        Orbit orbit(reference + 400000.0, sl::FlightIntegrator::rk4, 5.0);
+        auto model = std::make_shared<sl::GravityHarmonics>();
+        model->degree = 2;
+        model->gm = mu_earth;
+        model->reference_radius = reference;
+        model->cosine.assign(6, 0.0);
+        model->sine.assign(6, 0.0);
+        model->cosine[3] = -j2 / std::sqrt(5.0);
+        sl::FlightBody *planet = orbit.world.body(orbit.planet);
+        planet->gravity_j2 = j2;
+        planet->gravity_reference_radius = reference;
+        orbit.world.nonspherical_gravity = true;
+        const sl::dvec3 point(5e6, 3e6, -4e6);
+        const sl::dvec3 j2_acceleration = orbit.world.gravity_at(point);
+        planet->gravity_harmonics = model;
+        check(glm::length(orbit.world.gravity_at(point) - j2_acceleration) < 1e-12,
+              "normalized harmonic C20 matches analytic J2 without double counting");
+        check(glm::length(orbit.world.gravity_at({0, reference + 400000.0, 0}) -
+                          sl::dvec3(0, -mu_earth / std::pow(reference + 400000.0, 2) *
+                                         (1.0 - 3.0 * j2 * std::pow(reference / (reference + 400000.0), 2)), 0)) < 1e-12,
+              "harmonic field is finite and correct at pole");
+        model->cosine[5] = 0.0001;
+        model->sine[5] = 0.00007;
+        orbit.world.body(orbit.ship)->position = point;
+        const sl::dvec3 acceleration = orbit.world.gravity_at(point);
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            const double epsilon = 10.0;
+            orbit.world.body(orbit.ship)->position = point;
+            orbit.world.body(orbit.ship)->position[axis] += epsilon;
+            const double plus = orbit.world.specific_energy(orbit.ship);
+            orbit.world.body(orbit.ship)->position[axis] -= 2.0 * epsilon;
+            const double minus = orbit.world.specific_energy(orbit.ship);
+            check(std::fabs(acceleration[axis] + (plus - minus) / (2.0 * epsilon)) < 1e-8,
+                  "harmonic acceleration matches potential gradient");
+        }
+        orbit.world.body(orbit.ship)->position = point;
+        const sl::dvec3 before = orbit.world.gravity_at(point);
+        planet->gravity_orientation = glm::angleAxis(pi / 2.0, sl::dvec3(0, 1, 0));
+        check(glm::length(orbit.world.gravity_at(point) - before) > 1e-5,
+              "tesseral harmonic rotates with the body");
+        planet->gravity_orientation = sl::dquat(1, 0, 0, 0);
+        planet->spin_rate = 0.01;
+        orbit.world.step(20.0);
+        const sl::dvec3 spun = orbit.world.gravity_at(point);
+        planet->gravity_orientation = glm::angleAxis(0.2, sl::dvec3(0, 1, 0));
+        planet->spin_rate = 0.0;
+        check(glm::length(orbit.world.gravity_at(point) - spun) < 1e-12,
+              "harmonic field follows elapsed spin time");
+        planet->gravity_orientation = sl::dquat(1, 0, 0, 0);
+        planet->gravity_frame = [](double time) { return glm::angleAxis(0.01 * time, sl::dvec3(0, 1, 0)); };
+        check(glm::length(orbit.world.gravity_at(point) - spun) < 1e-12,
+              "time-dependent gravity-frame callback is used");
+        planet->gravity_frame = {};
+        planet->gravity_orientation = sl::dquat(1, 0, 0, 0);
+        orbit.world.nonspherical_gravity = false;
+        check(glm::length(orbit.world.gravity_at(point) + mu_earth * point / std::pow(glm::length(point), 3)) < 1e-12,
+              "disabled harmonic field preserves point gravity");
+
+        model->cosine[5] = 0.02;
+        Orbit coarse(reference + 400000.0, sl::FlightIntegrator::rk4, 1.0);
+        Orbit fine(reference + 400000.0, sl::FlightIntegrator::rk4, 0.05);
+        for (Orbit *run : {&coarse, &fine})
+        {
+            run->world.nonspherical_gravity = true;
+            run->world.body(run->planet)->gravity_harmonics = model;
+            run->world.body(run->planet)->gravity_frame = [](double time) {
+                return glm::angleAxis(0.02 * time, sl::dvec3(0, 1, 0));
+            };
+            run->world.step(10.0);
+        }
+        check(glm::length(coarse.world.body(coarse.ship)->position - fine.world.body(fine.ship)->position) < 0.001,
+              "RK stages sample the rotating harmonic field at their own times");
+        auto invalid = std::make_shared<sl::GravityHarmonics>();
+        coarse.world.body(coarse.planet)->gravity_harmonics = invalid;
+        bool rejected = false;
+        try
+        {
+            coarse.world.gravity_at(point);
+        }
+        catch (const std::invalid_argument &)
+        {
+            rejected = true;
+        }
+        check(rejected, "malformed harmonic model is rejected");
     }
 
     void test_kepler()
@@ -454,6 +546,7 @@ int main()
 {
     test_kepler();
     test_j2_gravity();
+    test_harmonic_gravity();
     test_integrators();
     test_rails();
     test_rocket();
