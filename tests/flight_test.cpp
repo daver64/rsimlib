@@ -61,6 +61,72 @@ namespace
         return orbit.position_error(1200.0);
     }
 
+    void test_j2_gravity()
+    {
+        constexpr double reference = 6378136.3;
+        constexpr double j2 = 1.08262668e-3;
+        constexpr double r = reference + 400000.0;
+        Orbit orbit(r, sl::FlightIntegrator::rk4, 20.0);
+        sl::FlightBody *planet = orbit.world.body(orbit.planet);
+        planet->gravity_j2 = j2;
+        planet->gravity_reference_radius = reference;
+        const double g = mu_earth / (r * r);
+        const double correction = 1.5 * j2 * (reference / r) * (reference / r);
+        const sl::dvec3 point(r, 0, 0);
+        check(glm::length(orbit.world.gravity_at(point) - sl::dvec3(-g, 0, 0)) < 1e-12,
+              "J2 disabled preserves point gravity");
+        orbit.world.nonspherical_gravity = true;
+        check(glm::length(orbit.world.gravity_at(point) - sl::dvec3(-g * (1.0 + correction), 0, 0)) < 1e-12,
+              "J2 equatorial gravity");
+        check(glm::length(orbit.world.gravity_at({0, r, 0}) - sl::dvec3(0, -g * (1.0 - 2.0 * correction), 0)) < 1e-12,
+              "J2 polar gravity");
+        planet->spin_axis = {1, 0, 0};
+        check(glm::length(orbit.world.gravity_at(point) - sl::dvec3(-g * (1.0 - 2.0 * correction), 0, 0)) < 1e-12,
+              "J2 follows the body's pole");
+        planet->spin_axis = {0, 1, 0};
+
+        const double inclination = 51.6 * pi / 180.0;
+        const double v = std::sqrt(mu_earth / r);
+        orbit.world.body(orbit.ship)->velocity = {0, v * std::sin(inclination), -v * std::cos(inclination)};
+        const double initial_energy = orbit.world.specific_energy(orbit.ship);
+        const auto node = [&]() {
+            const sl::FlightBody *ship = orbit.world.body(orbit.ship);
+            const sl::dvec3 h = glm::cross(ship->position, ship->velocity);
+            return std::atan2(h.x, h.z);
+        };
+        const double initial = node();
+        for (int i = 0; i < 1440; ++i)
+            orbit.world.step(60.0);
+        const double drift = std::remainder(node() - initial, 2.0 * pi);
+        const double expected = -1.5 * std::sqrt(mu_earth / (r * r * r)) * j2 *
+                                (reference / r) * (reference / r) * std::cos(inclination) * 86400.0;
+        check(std::fabs(drift - expected) < std::fabs(expected) * 0.03,
+              "J2 nodal drift agrees with secular theory within 3 percent");
+        check(std::fabs(orbit.world.specific_energy(orbit.ship) - initial_energy) < std::fabs(initial_energy) * 1e-6,
+              "J2 potential contributes to conserved specific energy");
+
+        constexpr double mars_mu = 4.282837e13;
+        constexpr double mars_reference = 3396000.0;
+        constexpr double mars_j2 = 1.956608634e-3;
+        constexpr double mars_r = mars_reference + 400000.0;
+        Orbit mars(mars_r, sl::FlightIntegrator::rk4, 20.0);
+        mars.world.body(mars.planet)->gm = mars_mu;
+        mars.world.body(mars.planet)->gravity_j2 = mars_j2;
+        mars.world.body(mars.planet)->gravity_reference_radius = mars_reference;
+        mars.world.nonspherical_gravity = true;
+        const double mars_v = std::sqrt(mars_mu / mars_r);
+        mars.world.body(mars.ship)->velocity = {0, mars_v * std::sin(inclination), -mars_v * std::cos(inclination)};
+        for (int i = 0; i < 1440; ++i)
+            mars.world.step(60.0);
+        const sl::FlightBody *mars_ship = mars.world.body(mars.ship);
+        const sl::dvec3 mars_h = glm::cross(mars_ship->position, mars_ship->velocity);
+        const double mars_drift = std::atan2(mars_h.x, mars_h.z);
+        const double mars_expected = -1.5 * std::sqrt(mars_mu / (mars_r * mars_r * mars_r)) * mars_j2 *
+                                     (mars_reference / mars_r) * (mars_reference / mars_r) * std::cos(inclination) * 86400.0;
+        check(std::fabs(mars_drift - mars_expected) < std::fabs(mars_expected) * 0.03,
+              "Mars J2 nodal drift agrees with secular theory within 3 percent");
+    }
+
     void test_kepler()
     {
         const sl::dvec3 r(6.8e6, 1.2e6, -2.1e6);
@@ -387,6 +453,7 @@ void test_isp_pressure()
 int main()
 {
     test_kepler();
+    test_j2_gravity();
     test_integrators();
     test_rails();
     test_rocket();

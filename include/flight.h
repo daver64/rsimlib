@@ -222,6 +222,9 @@ namespace sl
         double gm = 0.0;
         /** Surface radius in metres. Above zero makes the body a ground surface and the atmosphere's base. */
         double radius = 0.0;
+        /** Dimensionless J2 gravity coefficient and its reference radius in metres; zero disables the correction. */
+        double gravity_j2 = 0.0;
+        double gravity_reference_radius = 0.0;
         /** Spin about +Y in rad/s. Drives the surface velocity used by the atmosphere and gear. */
         double spin_rate = 0.0;
         /** Unit axis the body spins about (the pole, in world axes). */
@@ -312,6 +315,8 @@ namespace sl
         int max_substeps_per_step = 2000;
         /** Uniform gravitational acceleration in m/s^2, applied to dynamic bodies in addition to gm sources. */
         dvec3 uniform_gravity{0.0};
+        /** Include J2 corrections from configured gravity sources during dynamic integration. Rails remain Keplerian. */
+        bool nonspherical_gravity = false;
         /** Flat ground at the given height with an up normal of +Y. Gear collides with it. */
         bool flat_ground = false;
         double flat_ground_height = 0.0;

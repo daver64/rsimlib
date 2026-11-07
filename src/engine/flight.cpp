@@ -575,6 +575,20 @@ namespace sl
             if (r2 < 1e-6)
                 continue;
             a += d * (src.gm / (r2 * std::sqrt(r2)));
+            if (nonspherical_gravity && src.gravity_j2 != 0.0 && src.gravity_reference_radius > 0.0)
+            {
+                const double axis_length = glm::length(src.spin_axis);
+                if (axis_length > 0.0)
+                {
+                    const dvec3 axis = src.spin_axis / axis_length;
+                    const dvec3 r = -d;
+                    const double z = glm::dot(r, axis);
+                    const double scale = 1.5 * src.gravity_j2 * src.gm *
+                                         src.gravity_reference_radius * src.gravity_reference_radius /
+                                         (r2 * r2 * std::sqrt(r2));
+                    a += scale * ((5.0 * z * z / r2 - 1.0) * r - 2.0 * z * axis);
+                }
+            }
         }
         return a;
     }
@@ -652,9 +666,21 @@ namespace sl
         {
             if (!bodies_[j].active || bodies_[j].gm <= 0.0 || static_cast<int>(j) == id)
                 continue;
-            const double r = glm::length(bodies_[j].position - b->position);
+            const FlightBody &src = bodies_[j];
+            const dvec3 offset = b->position - src.position;
+            const double r = glm::length(offset);
             if (r > 0.0)
-                energy -= bodies_[j].gm / r;
+            {
+                energy -= src.gm / r;
+                const double axis_length = glm::length(src.spin_axis);
+                if (nonspherical_gravity && src.gravity_j2 != 0.0 &&
+                    src.gravity_reference_radius > 0.0 && axis_length > 0.0)
+                {
+                    const double sin_lat = glm::dot(offset, src.spin_axis) / (r * axis_length);
+                    const double ratio = src.gravity_reference_radius / r;
+                    energy += src.gm / r * src.gravity_j2 * ratio * ratio * (3.0 * sin_lat * sin_lat - 1.0) * 0.5;
+                }
+            }
         }
         energy -= glm::dot(uniform_gravity, b->position);
         return energy;
