@@ -74,6 +74,20 @@ namespace
         const sl::OrbitState later = sl::state_from_orbit(mu_earth, el, el.period(mu_earth));
         check(glm::length(later.position - r) < 1e-3, "period closes the orbit");
 
+        for (const double eccentricity : {0.8, 0.95, 0.990797, 0.9999})
+            for (int i = -500; i <= 500; ++i)
+            {
+                sl::OrbitElements input;
+                input.semi_major_axis = 180.0e6;
+                input.eccentricity = eccentricity;
+                input.mean_anomaly = pi * i / 500.0;
+                const sl::OrbitState state = sl::state_from_orbit(mu_earth, input);
+                sl::OrbitElements recovered;
+                const bool valid = sl::orbit_from_state(mu_earth, state.position, state.velocity, recovered);
+                check(valid && std::abs(std::remainder(recovered.mean_anomaly - input.mean_anomaly, 2.0 * pi)) < 1e-9,
+                      "high-eccentricity mean anomaly round trip");
+            }
+
         sl::OrbitElements circ;
         check(sl::orbit_from_state(mu_earth, {7e6, 0, 0}, {0, 0, -std::sqrt(mu_earth / 7e6)}, circ), "circular");
         const sl::OrbitState circ_back = sl::state_from_orbit(mu_earth, circ);

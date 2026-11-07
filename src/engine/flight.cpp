@@ -56,15 +56,21 @@ namespace sl
 
         double solve_elliptic(double mean, double e)
         {
-            double big_e = e < 0.8 ? mean : pi;
+            double lo = -pi, hi = pi;
+            double big_e = e < 0.8 ? mean : (mean < 0.0 ? -pi : pi);
             for (int i = 0; i < 60; ++i)
             {
                 const double f = big_e - e * std::sin(big_e) - mean;
-                const double d = 1.0 - e * std::cos(big_e);
-                const double step = f / d;
-                big_e -= step;
-                if (std::fabs(step) < 1e-14)
+                if (std::fabs(f) < 1e-15)
                     break;
+                if (f > 0.0)
+                    hi = big_e;
+                else
+                    lo = big_e;
+                double next = big_e - f / (1.0 - e * std::cos(big_e));
+                if (!(next > lo && next < hi))
+                    next = (lo + hi) / 2.0;
+                big_e = next;
             }
             return big_e;
         }
