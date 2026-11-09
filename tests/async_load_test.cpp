@@ -88,6 +88,29 @@ int main(int argc, char *argv[])
         sl::destroy_bitmap(loaded);
     }
 
+    // Archive and generated image loaders run off-thread and receive the same upload and options as file loads.
+    {
+        const std::thread::id main_thread = std::this_thread::get_id();
+        std::atomic<bool> worker{false};
+        sl::AsyncBitmapOptions options;
+        options.smooth = true;
+        sl::AsyncBitmap async = sl::load_bitmap_async([&worker, main_thread]
+        {
+            worker.store(std::this_thread::get_id() != main_thread);
+            sl::Bitmap *bitmap = sl::create_bitmap(4, 4);
+            if (bitmap)
+                bitmap->pixels[0] = 123;
+            return bitmap;
+        }, options);
+        check(wait_frames(async) && async.ready(), "custom bitmap loader finishes");
+        sl::Bitmap *loaded = async.get();
+        check(worker.load(), "custom loader runs on worker");
+        check(loaded && loaded->gpu_texture != 0 && loaded->pixels[0] == 123 && loaded->smooth, "custom bitmap uploaded");
+        sl::destroy_bitmap(loaded);
+        sl::AsyncBitmap failed = sl::load_bitmap_async([]() -> sl::Bitmap * { return nullptr; });
+        check(wait_frames(failed) && failed.failed() && !failed.error().empty(), "custom loader failure reported");
+    }
+
     // Failures report why and never produce a result.
     {
         sl::AsyncBitmap missing = sl::load_bitmap_async(root + "textures/does_not_exist.png");
@@ -96,6 +119,29 @@ int main(int argc, char *argv[])
         check(missing.get() == nullptr, "failed load has no result");
         sl::AsyncModel bad = sl::load_model_async(root + "models/does_not_exist.glb");
         check(wait_frames(bad) && bad.failed(), "missing model fails");
+    }
+
+    // Mesh generation runs on a worker; only a successfully uploaded mesh can be taken.
+    {
+        std::atomic<bool> worker{false};
+        const auto main_thread = std::this_thread::get_id();
+        sl::AsyncMesh async = sl::build_mesh_async([&worker, main_thread](sl::AsyncMeshData &data)
+        {
+            worker.store(std::this_thread::get_id() != main_thread);
+            data.vertices.resize(3);
+            data.vertices[1].position[0] = 1.0f;
+            data.vertices[2].position[1] = 1.0f;
+            data.indices = {0, 1, 2};
+            return true;
+        });
+        check(wait_frames(async) && async.ready(), "async mesh finishes");
+        sl::Mesh *mesh = async.get();
+        check(worker.load() && mesh && mesh->handle != 0 && mesh->vertex_count == 3, "async mesh uploaded");
+        sl::destroy_mesh(mesh);
+        sl::AsyncMesh failed = sl::build_mesh_async([](sl::AsyncMeshData &) { return false; });
+        check(wait_frames(failed) && failed.failed() && !failed.error().empty(), "mesh builder failure reported");
+        sl::AsyncMesh invalid = sl::build_mesh_async([](sl::AsyncMeshData &) { return true; });
+        check(wait_frames(invalid) && invalid.failed() && !invalid.error().empty(), "invalid mesh failure reported");
     }
 
     // Models match the synchronous loaders and render identically.

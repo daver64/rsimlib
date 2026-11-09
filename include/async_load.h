@@ -4,8 +4,10 @@
 #include "model3d.h"
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace sl
 {
@@ -77,6 +79,7 @@ namespace sl
 
     private:
         friend AsyncBitmap load_bitmap_async(const std::string &, const AsyncBitmapOptions &);
+        friend AsyncBitmap load_bitmap_async(std::function<Bitmap *()>, const AsyncBitmapOptions &);
         explicit AsyncBitmap(std::shared_ptr<detail::AsyncJob> job) : AsyncHandle(std::move(job)) {}
     };
 
@@ -93,8 +96,40 @@ namespace sl
         explicit AsyncModel(std::shared_ptr<detail::AsyncJob> job) : AsyncHandle(std::move(job)) {}
     };
 
+    /** CPU geometry returned by an asynchronous mesh builder. */
+    struct AsyncMeshData
+    {
+        std::vector<Vertex3D> vertices;
+        std::vector<std::uint32_t> indices;
+    };
+
+    /** A mesh built on a worker and uploaded on the display thread. */
+    class AsyncMesh : public AsyncHandle
+    {
+    public:
+        AsyncMesh() = default;
+        /** Take the finished mesh; free it with destroy_mesh(). */
+        Mesh *get() { return static_cast<Mesh *>(take_result()); }
+
+    private:
+        friend AsyncMesh build_mesh_async(std::function<bool(AsyncMeshData &)>);
+        explicit AsyncMesh(std::shared_ptr<detail::AsyncJob> job) : AsyncHandle(std::move(job)) {}
+    };
+
     /** Start loading an image file in the background (same formats as load_bitmap(), plus .dds files, which are decoded to RGBA). */
     AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {});
+    /**
+     * Run a thread-safe CPU bitmap loader on a worker and upload its result on the display thread. The loader must
+     * return a RAM-backed bitmap with no GPU resources, or nullptr with last_error() set. The async handle owns the
+     * result until get() is called; captured objects must remain valid until the loader has finished.
+     */
+    AsyncBitmap load_bitmap_async(std::function<Bitmap *()> loader, const AsyncBitmapOptions &options = {});
+    /**
+     * Build mesh data on a worker; its buffers are uploaded on the display thread. The builder returns false with
+     * last_error() set on failure, and must not touch GPU resources.
+     * Captured objects must remain valid until the loader finishes.
+     */
+    AsyncMesh build_mesh_async(std::function<bool(AsyncMeshData &)> builder);
     /** Start loading an .obj, .gltf, .glb or .ac model in the background (same as load_model()). */
     AsyncModel load_model_async(const std::string &path);
 

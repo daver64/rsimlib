@@ -8,6 +8,7 @@
 #include <fstream>
 #include <memory>
 #include <new>
+#include <sstream>
 #include <vector>
 
 namespace sl
@@ -40,7 +41,7 @@ namespace sl
             return value;
         }
 
-        bool parse_header(std::ifstream &in, DdsInfo &info, std::string &why)
+        bool parse_header(std::istream &in, DdsInfo &info, std::string &why)
         {
             std::uint8_t head[148] = {};
             in.read(reinterpret_cast<char *>(head), 128);
@@ -182,11 +183,11 @@ namespace sl
                 out[i][0] = c[0];
                 out[i][1] = c[1];
                 out[i][2] = c[2];
-                out[i][3] = alpha[i];
+                out[i][3] = has_alpha_block ? alpha[i] : pal[(bits >> (2 * i)) & 3][3];
             }
         }
 
-        Bitmap *decode_top_level(std::ifstream &in, const DdsInfo &info, std::string &why)
+        Bitmap *decode_top_level(std::istream &in, const DdsInfo &info, std::string &why)
         {
             if (info.kind == DdsKind::bc7)
             {
@@ -241,14 +242,8 @@ namespace sl
         }
     } // namespace
 
-    Bitmap *load_dds(const std::string &path, const DdsOptions &options)
+    static Bitmap *load_dds_stream(std::istream &in, const std::string &path, const DdsOptions &options)
     {
-        std::ifstream in(path, std::ios::binary);
-        if (!in)
-        {
-            detail::set_error("Unable to open " + path);
-            return nullptr;
-        }
         DdsInfo info;
         std::string why;
         if (!parse_header(in, info, why))
@@ -317,6 +312,13 @@ namespace sl
             }
         }
 
+        const std::uint64_t decoded_bytes = static_cast<std::uint64_t>(info.width) *
+                                            static_cast<std::uint64_t>(info.height) * 4;
+        if (options.max_decoded_bytes > 0 && decoded_bytes > options.max_decoded_bytes)
+        {
+            detail::set_error("Unable to load " + path + ": decoded DDS exceeds the configured byte limit");
+            return nullptr;
+        }
         Bitmap *bitmap = decode_top_level(in, info, why);
         if (!bitmap)
         {
@@ -326,6 +328,28 @@ namespace sl
         bitmap->smooth = options.smooth;
         bitmap->anisotropy = options.anisotropy;
         return bitmap;
+    }
+
+    Bitmap *load_dds(const std::string &path, const DdsOptions &options)
+    {
+        std::ifstream in(path, std::ios::binary);
+        if (!in)
+        {
+            detail::set_error("Unable to open " + path);
+            return nullptr;
+        }
+        return load_dds_stream(in, path, options);
+    }
+
+    Bitmap *load_dds_from_memory(const std::uint8_t *data, std::size_t size, const DdsOptions &options)
+    {
+        if (!data || size == 0)
+        {
+            detail::set_error("Unable to load DDS memory: empty input");
+            return nullptr;
+        }
+        std::istringstream in(std::string(reinterpret_cast<const char *>(data), size), std::ios::binary);
+        return load_dds_stream(in, "DDS memory", options);
     }
 
 } // namespace sl

@@ -2,6 +2,8 @@
 
 #include "draw.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace sl
@@ -18,6 +20,8 @@ namespace sl
         float anisotropy = 1.0f;
         /** Allow block-compressed data to be uploaded as-is. Set false to always decode to RGBA on the CPU. */
         bool allow_compressed_upload = true;
+        /** Maximum bytes for a CPU-decoded RGBA image; zero leaves it unlimited. */
+        std::size_t max_decoded_bytes = 0;
     };
 
     /**
@@ -33,5 +37,11 @@ namespace sl
      * Returns nullptr on failure; see last_error().
      */
     Bitmap *load_dds(const std::string &path, const DdsOptions &options = {});
+
+    /**
+     * Load DDS data already held in memory. Uses the same formats, options and ownership as load_dds().
+     * Set allow_compressed_upload to false when calling from a worker thread.
+     */
+    Bitmap *load_dds_from_memory(const std::uint8_t *data, std::size_t size, const DdsOptions &options = {});
 
 } // namespace sl

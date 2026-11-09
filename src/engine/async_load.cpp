@@ -36,7 +36,10 @@ namespace sl
         struct AsyncJob
         {
             bool is_model = false;
+            bool is_mesh = false;
             std::string path;
+            std::function<Bitmap *()> bitmap_loader;
+            std::function<bool(AsyncMeshData &)> mesh_loader;
             AsyncBitmapOptions options;
             bool retain_mesh_data = false;
 
@@ -46,6 +49,7 @@ namespace sl
 
             Bitmap *bitmap = nullptr;
             Model *model = nullptr;
+            Mesh *mesh = nullptr;
             std::vector<DeferredMesh> meshes;
             std::size_t next_mesh = 0;
             std::size_t next_texture = 0;
@@ -78,8 +82,11 @@ namespace sl
                     destroy_model(job.model);
                 if (job.bitmap)
                     destroy_bitmap(job.bitmap);
+                if (job.mesh)
+                    destroy_mesh(job.mesh);
                 job.model = nullptr;
                 job.bitmap = nullptr;
+                job.mesh = nullptr;
                 job.meshes.clear();
             }
 
@@ -106,7 +113,16 @@ namespace sl
                 }
                 job->state.store(state_decoding);
                 clear_error();
-                if (job->is_model)
+                if (job->is_mesh)
+                {
+                    set_mesh_cpu_data_retained(job->retain_mesh_data);
+                    DeferredMeshScope scope(job->meshes);
+                    AsyncMeshData data;
+                    if (job->mesh_loader)
+                        if (job->mesh_loader(data))
+                            job->mesh = create_mesh(data.vertices, data.indices);
+                }
+                else if (job->is_model)
                 {
                     set_mesh_cpu_data_retained(job->retain_mesh_data);
                     DeferredMeshScope scope(job->meshes);
@@ -118,7 +134,9 @@ namespace sl
                     std::string extension = dot == std::string::npos ? std::string() : job->path.substr(dot);
                     for (char &c : extension)
                         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                    if (extension == ".dds")
+                    if (job->bitmap_loader)
+                        job->bitmap = job->bitmap_loader();
+                    else if (extension == ".dds")
                     {
                         // Decoded to RGBA here, because the GPU upload happens on the main thread.
                         DdsOptions dds;
@@ -143,7 +161,7 @@ namespace sl
                     }
                 }
                 std::lock_guard<std::mutex> lock(p.mutex);
-                if (!job->model && !job->bitmap)
+                if (!job->model && !job->bitmap && !job->mesh)
                 {
                     job->meshes.clear();
                     fail(*job, last_error().empty() ? "Unable to load " + job->path : last_error());
@@ -201,7 +219,7 @@ namespace sl
             /** Upload as much of the job as the budget allows; returns true when nothing is left to do. */
             bool upload_step(AsyncJob &job, std::size_t &remaining, bool &uploaded_any)
             {
-                if (!job.is_model)
+                if (!job.is_model && !job.is_mesh)
                 {
                     if (uploaded_any && remaining == 0)
                         return false;
@@ -233,7 +251,7 @@ namespace sl
                     }
                     ++job.next_mesh;
                 }
-                while (job.next_texture < job.model->textures.size())
+                while (job.is_model && job.next_texture < job.model->textures.size())
                 {
                     if (uploaded_any && remaining == 0)
                         return false;
@@ -403,9 +421,11 @@ namespace sl
             return nullptr;
         detail::Pool &p = detail::pool();
         std::lock_guard<std::mutex> lock(p.mutex);
-        void *result = job_->is_model ? static_cast<void *>(job_->model) : static_cast<void *>(job_->bitmap);
+        void *result = job_->is_model ? static_cast<void *>(job_->model)
+            : job_->is_mesh ? static_cast<void *>(job_->mesh) : static_cast<void *>(job_->bitmap);
         job_->model = nullptr;
         job_->bitmap = nullptr;
+        job_->mesh = nullptr;
         job_->meshes.clear();
         job_->state.store(detail::state_taken);
         detail::remove_from_registry(p, job_);
@@ -421,6 +441,15 @@ namespace sl
         return AsyncBitmap(detail::submit(std::move(job)));
     }
 
+    AsyncBitmap load_bitmap_async(std::function<Bitmap *()> loader, const AsyncBitmapOptions &options)
+    {
+        auto job = std::make_shared<AsyncJob>();
+        job->path = "bitmap loader";
+        job->bitmap_loader = std::move(loader);
+        job->options = options;
+        return AsyncBitmap(detail::submit(std::move(job)));
+    }
+
     AsyncModel load_model_async(const std::string &path)
     {
         auto job = std::make_shared<AsyncJob>();
@@ -428,6 +457,16 @@ namespace sl
         job->path = path;
         job->retain_mesh_data = mesh_cpu_data_retained();
         return AsyncModel(detail::submit(std::move(job)));
+    }
+
+    AsyncMesh build_mesh_async(std::function<bool(AsyncMeshData &)> loader)
+    {
+        auto job = std::make_shared<AsyncJob>();
+        job->is_mesh = true;
+        job->path = "mesh builder";
+        job->mesh_loader = std::move(loader);
+        job->retain_mesh_data = mesh_cpu_data_retained();
+        return AsyncMesh(detail::submit(std::move(job)));
     }
 
     void set_async_upload_budget(std::size_t bytes_per_frame)
