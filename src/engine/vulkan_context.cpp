@@ -2457,7 +2457,7 @@ namespace sl::detail
     }
 
     bool VulkanContext::create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
-                                       float anisotropy, bool mipmaps)
+                                       float anisotropy, bool mipmaps, bool repeat)
     {
         result = {};
         if (!std::isfinite(anisotropy))
@@ -2472,8 +2472,8 @@ namespace sl::detail
         sampler_info.mipmapMode = filter == TextureFilter::linear
                                       ? VK_SAMPLER_MIPMAP_MODE_LINEAR
                                       : VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.addressModeU = repeat ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_info.addressModeV = repeat ? VK_SAMPLER_ADDRESS_MODE_REPEAT : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         // Anisotropic filtering blurs nearest-filtered (pixel-art) textures on some drivers, so it needs linear filtering.
         sampler_info.anisotropyEnable = sampler_anisotropy_enabled_ && anisotropy > 1.0f && filter == TextureFilter::linear ? VK_TRUE : VK_FALSE;

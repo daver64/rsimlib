@@ -67,6 +67,8 @@ namespace sl
          */
         bool invert = false;
         int invert_floor = 0;
+        /** Repeat outside the 0-1 UV range instead of clamping. */
+        bool repeat = false;
     };
 
     /** A bitmap loading in the background. The texture is already on the GPU when ready() turns true. */

@@ -157,6 +157,8 @@ namespace sl
         float anisotropy = 1.0f;
         /** Build a mip chain when the pixels are uploaded, for cleaner minified sampling and effective anisotropy. */
         bool mipmaps = false;
+        /** Repeat outside the 0-1 UV range instead of clamping. Read when the GPU texture is first created. */
+        bool repeat = false;
         /** True for a block-compressed GPU-only texture from load_dds(): there are no CPU pixels to read or edit. */
         bool compressed = false;
     };

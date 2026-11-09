@@ -216,6 +216,13 @@ namespace sl
          */
         void draw_relative(const glm::dmat4 &model, const Material &material = {});
 
+        /**
+         * Sample the currently selected elevated mesh along a body-fixed radial direction. Returns the height in
+         * planet-radius units, or false with last_error() set if that direction is not covered by a ready mesh.
+         * Requires match_elevation_edges and disabled tile fading/feathering. Call after update_relative().
+         */
+        bool drawn_elevation(const glm::dvec3 &direction, double &height) const;
+
         /** Deepest level the colour map has. */
         int deepest_level() const;
         /** Width in pixels of one tile. */

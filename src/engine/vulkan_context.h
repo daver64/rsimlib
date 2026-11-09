@@ -221,7 +221,7 @@ namespace sl::detail
         bool create_descriptor_pool(VulkanDescriptorPool &result, std::string &error);
         void destroy_descriptor_pool(VulkanDescriptorPool &pool);
         bool create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
-                            float anisotropy = 1.0f, bool mipmaps = false);
+                            float anisotropy = 1.0f, bool mipmaps = false, bool repeat = false);
         void destroy_sampler(VulkanSampler &sampler);
         bool allocate_texture_descriptor(const VulkanDescriptorPool &pool,
                                          const VulkanDescriptorSetLayout &layout,

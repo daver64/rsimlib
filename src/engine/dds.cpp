@@ -270,6 +270,7 @@ namespace sl
                 desc.mip_levels = info.levels - skip;
                 desc.filter = options.smooth ? detail::TextureFilter::linear : detail::TextureFilter::nearest;
                 desc.anisotropy = options.anisotropy;
+                desc.repeat = options.repeat;
                 std::streamoff offset = info.data_offset;
                 for (int level = 0; level < skip; ++level)
                     offset += static_cast<std::streamoff>(detail::compressed_level_byte_count(
@@ -306,6 +307,7 @@ namespace sl
                     bitmap->smooth = options.smooth;
                     bitmap->anisotropy = options.anisotropy;
                     bitmap->mipmaps = desc.mip_levels > 1;
+                    bitmap->repeat = options.repeat;
                     bitmap->compressed = true;
                     return bitmap.release();
                 }
@@ -327,6 +329,7 @@ namespace sl
         }
         bitmap->smooth = options.smooth;
         bitmap->anisotropy = options.anisotropy;
+        bitmap->repeat = options.repeat;
         return bitmap;
     }
 

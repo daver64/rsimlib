@@ -84,6 +84,7 @@ namespace sl::detail
         float anisotropy = 1.0f;
         /** Allocate a full mip chain; upload_texture() of the whole texture then fills every level. */
         bool mipmaps = false;
+        bool repeat = false;
     };
 
     /** Block-compressed texture formats (BC1 = DXT1, BC3 = DXT5). All store colour as unsigned normalised data. */
@@ -104,6 +105,7 @@ namespace sl::detail
         int mip_levels = 1;
         TextureFilter filter = TextureFilter::linear;
         float anisotropy = 1.0f;
+        bool repeat = false;
     };
 
     /** Bytes in one level of a block-compressed image: 4x4 blocks of 8 (BC1) or 16 bytes. */

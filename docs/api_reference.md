@@ -385,10 +385,11 @@ struct Bitmap {
     bool smooth = false;
     float anisotropy = 1.0f;
     bool mipmaps = false;
+    bool repeat = false;
 };
 ```
 
-`smooth` selects bilinear filtering, `anisotropy` requests anisotropic filtering (`1.0f` disables it), and `mipmaps` builds a full mip chain when the pixels are uploaded, for cleaner minified sampling (distant 3D surfaces, scaled-down sprites). Mipmaps are off by default so pixel art stays crisp; models loaded by `load_model()` enable them, with 16x anisotropy, on their textures. Anisotropy is clamped to the active renderer's supported maximum. All three settings are read when the GPU texture is first created, so set them before the first draw or `upload_bitmap()`. Mip levels are regenerated on each upload of the whole bitmap; offscreen render targets are not mipmapped.
+`smooth` selects bilinear filtering, `anisotropy` requests anisotropic filtering (`1.0f` disables it), and `mipmaps` builds a full mip chain when the pixels are uploaded, for cleaner minified sampling (distant 3D surfaces, scaled-down sprites). `repeat` makes UVs wrap in both axes rather than clamp to the image edges. Mipmaps are off by default so pixel art stays crisp; repeat is also off by default. Models loaded by `load_model()` enable mipmaps, with 16x anisotropy, on their textures. Anisotropy is clamped to the active renderer's supported maximum. These settings are read when the GPU texture is first created, so set them before the first draw or `upload_bitmap()`. Mip levels are regenerated on each upload of the whole bitmap; offscreen render targets are not mipmapped.
 
 Global screen pointer: `extern Bitmap *screen;`
 
@@ -443,12 +444,19 @@ void destroy_bitmap(Bitmap *bitmap);
 
 #### `load_dds(path, options)` ([include/dds.h](../include/dds.h))
 ```cpp
-struct DdsOptions { int max_size = 0; bool smooth = true; float anisotropy = 1.0f; bool allow_compressed_upload = true; };
+struct DdsOptions {
+    int max_size = 0;
+    bool smooth = true;
+    float anisotropy = 1.0f;
+    bool allow_compressed_upload = true;
+    std::size_t max_decoded_bytes = 0;
+    bool repeat = false;
+};
 Bitmap *load_dds(const std::string &path, const DdsOptions &options = {});
 ```
-- **Description**: Loads a `.dds` file: BC1/DXT1, BC3/DXT5 or BC7 (DX10 header), or uncompressed 32-bit RGBA/BGRA. Block-compressed data is uploaded to the GPU as-is with every mip level in the file, so memory is a fraction of RGBA8 (BC1 is 1/8, BC3/BC7 1/4) and there is no CPU decode or mip generation. If the file is larger than `max_size` (0 = the renderer's limit) its biggest mip levels are skipped. Supported on OpenGL (S3TC/BPTC extensions), Vulkan and D3D12.
-- **Compressed bitmaps**: the result has `Bitmap::compressed` set and no CPU pixels: drawing and `bind_texture()` work, but `getpixel`, `putpixel` and `download_bitmap()` fail. `smooth`, `anisotropy` and trilinear mips are fixed at load.
-- **Fallback**: when the backend lacks the format, `allow_compressed_upload` is false, or the file has no smaller mip to fit `max_size`, BC1/BC3/uncompressed files are decoded (top level only) into an ordinary RGBA bitmap. BC7 has no CPU fallback. Returns `nullptr` on failure.
+- **Description**: Loads a `.dds` file: BC1/DXT1, BC2/DXT3, BC3/DXT5 or BC7 (DX10 header), or uncompressed 32-bit RGBA/BGRA. Supported block-compressed data other than BC2 is uploaded to the GPU as-is with every mip level in the file, so memory is a fraction of RGBA8 (BC1 is 1/8, BC3/BC7 1/4) and there is no CPU decode or mip generation. If the file is larger than `max_size` (0 = the renderer's limit) its biggest mip levels are skipped. Compressed uploads are supported on OpenGL (S3TC/BPTC extensions), Vulkan and D3D12.
+- **Compressed bitmaps**: the result has `Bitmap::compressed` set and no CPU pixels: drawing and `bind_texture()` work, but `getpixel`, `putpixel` and `download_bitmap()` fail. `smooth`, `anisotropy`, `repeat` and trilinear mips are fixed at load.
+- **Fallback**: BC2 is decoded on the CPU. When the backend lacks the format, `allow_compressed_upload` is false, or the file has no smaller mip to fit `max_size`, BC1/BC3/uncompressed files are also decoded (top level only) into an ordinary RGBA bitmap. `max_decoded_bytes` bounds the decoded RGBA allocation; zero means unlimited. BC7 has no CPU fallback. Returns `nullptr` on failure.
 
 #### `upload_bitmap(bitmap)` / `download_bitmap(bitmap)`
 ```cpp
@@ -934,7 +942,7 @@ Specular is drawn as an additive PBR pass tinted by `specular_strength`, with th
 **Async loading.** `load_model_async()` and `load_bitmap_async()` decode on worker threads and upload on the main thread inside `end_frame()`, so large assets don't stall a frame.
 
 ```cpp
-AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {}); // smooth, mipmaps, anisotropy
+AsyncBitmap load_bitmap_async(const std::string &path, const AsyncBitmapOptions &options = {}); // smooth, mipmaps, anisotropy, repeat
 AsyncModel  load_model_async(const std::string &path);
 void        set_async_upload_budget(std::size_t bytes);   // per-frame upload cap, default 8 MiB
 std::size_t async_loads_pending();

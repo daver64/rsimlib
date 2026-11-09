@@ -450,7 +450,7 @@ namespace sl::detail
                                                                      mip_level_count(description.width, description.height))
                                                                : 1u) ||
                     !context_.create_sampler(description.filter, resource.sampler, last_error_,
-                                             description.anisotropy, description.mipmaps))
+                                             description.anisotropy, description.mipmaps, description.repeat))
                 {
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
@@ -497,7 +497,7 @@ namespace sl::detail
                                            last_error_, VK_SAMPLE_COUNT_1_BIT,
                                            static_cast<std::uint32_t>(description.mip_levels)) ||
                     !context_.create_sampler(description.filter, resource.sampler, last_error_, description.anisotropy,
-                                             mipmapped) ||
+                                             mipmapped, description.repeat) ||
                     !context_.upload_image_compressed(resource.image, description, data, last_error_) ||
                     !context_.allocate_texture_descriptor(descriptor_pool_, descriptor_layout_, resource.image,
                                                           resource.sampler, resource.descriptor, last_error_))

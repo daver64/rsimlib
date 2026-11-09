@@ -22,6 +22,8 @@ namespace sl
         bool allow_compressed_upload = true;
         /** Maximum bytes for a CPU-decoded RGBA image; zero leaves it unlimited. */
         std::size_t max_decoded_bytes = 0;
+        /** Repeat outside the 0-1 UV range instead of clamping, including for compressed GPU uploads. */
+        bool repeat = false;
     };
 
     /**

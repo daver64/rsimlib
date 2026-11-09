@@ -24,7 +24,7 @@ namespace sl
          * the supplied tangent as is (terrain meshes store their geomorph offset here).
          */
         float tangent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        /** Weights of terrain layers 4-7 (layers 0-3 are in the colour). Unused by ordinary meshes. */
+        /** Terrain layer weights 4-7; PlanetTiles reserves xy for tile-local coordinates. Unused by ordinary mesh shading. */
         float extra[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 

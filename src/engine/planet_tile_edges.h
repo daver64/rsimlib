@@ -168,10 +168,12 @@ namespace sl::detail
                 move_vertex(i, j, matched_position, matched_normal);
                 const float along = static_cast<float>((position - start) * span / segments);
                 fine[at].uv[uv_axis] = uv_first + (uv_last - uv_first) * along;
+                fine[at].extra[uv_axis] = along;
                 const int ring = j == 0 && i < segments ? i :
                                  i == segments && j < segments ? segments + j :
                                  j == segments && i > 0 ? 3 * segments - i : 4 * segments - j;
                 fine[static_cast<std::size_t>(stride * stride + ring)].uv[uv_axis] = fine[at].uv[uv_axis];
+                fine[static_cast<std::size_t>(stride * stride + ring)].extra[uv_axis] = along;
                 priority[at] = edge.levels_up;
             }
         }

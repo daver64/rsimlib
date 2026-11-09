@@ -768,8 +768,9 @@ namespace sl::detail
 
                 const bool use_anisotropy = description.anisotropy > 1.0f && description.filter == TextureFilter::linear;
                 const UINT max_anisotropy = use_anisotropy ? static_cast<UINT>(std::clamp(description.anisotropy, 1.0f, 16.0f)) : 1u;
-                const std::uint32_t sampler_key = (use_anisotropy ? max_anisotropy : 0u) * 2u +
-                                                  (description.filter == TextureFilter::linear ? 1u : 0u);
+                const std::uint32_t sampler_key = (use_anisotropy ? max_anisotropy : 0u) * 4u +
+                                                  (description.filter == TextureFilter::linear ? 1u : 0u) +
+                                                  (description.repeat ? 2u : 0u);
                 const auto known = sampler_slots_.find(sampler_key);
                 if (known != sampler_slots_.end())
                     resource.sampler = known->second;
@@ -782,8 +783,8 @@ namespace sl::detail
                                                     ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
                                                     : D3D12_FILTER_MIN_MAG_MIP_POINT;
                     sampler_desc.MaxAnisotropy = max_anisotropy;
-                    sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                    sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+                    sampler_desc.AddressU = description.repeat ? D3D12_TEXTURE_ADDRESS_MODE_WRAP : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+                    sampler_desc.AddressV = description.repeat ? D3D12_TEXTURE_ADDRESS_MODE_WRAP : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
                     sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
                     sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
                     resource.sampler = static_cast<std::uint32_t>(sampler_slots_.size());
@@ -972,6 +973,7 @@ namespace sl::detail
                 base.height = description.height;
                 base.filter = description.filter;
                 base.anisotropy = description.anisotropy;
+                base.repeat = description.repeat;
                 std::uint32_t handle = 0;
                 if (!create_texture_impl(base, compressed_dxgi_format(description.format), description.mip_levels, false, handle))
                     return false;

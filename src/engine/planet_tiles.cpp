@@ -841,6 +841,9 @@ namespace sl
                 }
                 v.uv[0] = rect[0] + (rect[2] - rect[0]) * static_cast<float>(fu);
                 v.uv[1] = rect[1] + (rect[3] - rect[1]) * static_cast<float>(fv);
+                // Tile-local coordinates stay independent of the colour ancestor and its edge inset.
+                v.extra[0] = static_cast<float>(fu);
+                v.extra[1] = static_cast<float>(fv);
                 if (edges && options.feather > 0.0f)
                 {
                     // Opaque inside, fading to clear along each side that has no neighbour at this level.
@@ -1177,7 +1180,8 @@ namespace sl
                             break;
                         }
                     for (int axis = 0; !changed && axis < 2; ++axis)
-                        changed = candidate[i].uv[axis] != entry.vertices[i].uv[axis];
+                        changed = candidate[i].uv[axis] != entry.vertices[i].uv[axis] ||
+                                  candidate[i].extra[axis] != entry.vertices[i].extra[axis];
                 }
                 if (changed)
                 {
@@ -1489,6 +1493,78 @@ namespace sl
     void PlanetTiles::draw(const glm::mat4 &model, const Material &material)
     {
         draw_relative(glm::dmat4(model), material);
+    }
+
+    bool PlanetTiles::drawn_elevation(const glm::dvec3 &direction, double &height) const
+    {
+        const Impl &m = *impl_;
+        const double length = glm::length(direction);
+        if (!m.options.elevation || !m.options.match_elevation_edges || m.options.fade_seconds > 0.0f ||
+            m.options.feather > 0.0f || !std::isfinite(length) || length < 1e-12)
+        {
+            detail::set_error("PlanetTiles: drawn elevation requires a valid direction and edge-matched relief without fading");
+            return false;
+        }
+        const glm::dvec3 ray = direction / length;
+        double u = std::atan2(-ray.z, ray.x) / (2.0 * glm::pi<double>());
+        if (u < 0.0)
+            u += 1.0;
+        const double v = std::acos(std::clamp(ray.y, -1.0, 1.0)) / glm::pi<double>();
+        const int n = std::max(m.options.segments, 2);
+        const int base_split = m.sets[colour_layer].base_split;
+        for (const Impl::Leaf &leaf : m.leaves)
+        {
+            const int cols = columns(leaf.level, base_split), rws = rows(leaf.level, base_split);
+            double x = u * cols - leaf.column;
+            if (x < -0.5 * cols)
+                x += cols;
+            else if (x > 0.5 * cols)
+                x -= cols;
+            const double y = v * rws - leaf.row;
+            if (x < -1.0 / n || x > 1.0 + 1.0 / n || y < -1.0 / n || y > 1.0 + 1.0 / n)
+                continue;
+            const auto found = m.meshes.find(Impl::MeshKey{tile_key(leaf.level, leaf.column, leaf.row), leaf.up, 0, 0});
+            if (found == m.meshes.end() || !found->second.mesh ||
+                found->second.vertices.size() < static_cast<std::size_t>((n + 1) * (n + 1)))
+                continue;
+            const auto &entry = found->second;
+            const glm::dvec3 centre = sphere_point((leaf.column + 0.5) / cols, (leaf.row + 0.5) / rws);
+            const int cell_x = static_cast<int>(std::floor(x * n)), cell_y = static_cast<int>(std::floor(y * n));
+            for (int j = std::max(0, cell_y - 1); j <= std::min(n - 1, cell_y + 1); ++j)
+                for (int i = std::max(0, cell_x - 1); i <= std::min(n - 1, cell_x + 1); ++i)
+                {
+                    const std::size_t cell = static_cast<std::size_t>(j * n + i);
+                    const bool flipped = entry.diagonals && (*entry.diagonals)[cell] != 0;
+                    const auto indices = detail::planet_tile_cell_indices(static_cast<std::uint32_t>(j * (n + 1) + i),
+                                                                          static_cast<std::uint32_t>(n + 1), flipped);
+                    for (int triangle = 0; triangle < 2; ++triangle)
+                    {
+                        glm::dvec3 p[3];
+                        for (int k = 0; k < 3; ++k)
+                        {
+                            const Vertex3D &vertex = entry.vertices[indices[triangle * 3 + k]];
+                            p[k] = centre + glm::dvec3(vertex.position[0], vertex.position[1], vertex.position[2]);
+                        }
+                        const glm::dvec3 e1 = p[1] - p[0], e2 = p[2] - p[0];
+                        const glm::dvec3 cross = glm::cross(ray, e2);
+                        const double determinant = glm::dot(e1, cross);
+                        if (std::fabs(determinant) < 1e-25)
+                            continue;
+                        const glm::dvec3 from_vertex = -p[0];
+                        const double a = glm::dot(from_vertex, cross) / determinant;
+                        const glm::dvec3 q = glm::cross(from_vertex, e1);
+                        const double b = glm::dot(ray, q) / determinant;
+                        const double distance = glm::dot(e2, q) / determinant;
+                        if (a >= -1e-8 && b >= -1e-8 && a + b <= 1.0 + 1e-8 && distance > 0.0)
+                        {
+                            height = distance - 1.0;
+                            return true;
+                        }
+                    }
+                }
+        }
+        detail::set_error("PlanetTiles: no ready drawn relief mesh covers this direction");
+        return false;
     }
 
     void PlanetTiles::draw_relative(const glm::dmat4 &model, const Material &material)

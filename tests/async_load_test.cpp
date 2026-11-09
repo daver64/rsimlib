@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
         sl::AsyncBitmapOptions options;
         options.smooth = true;
         options.mipmaps = true;
+        options.repeat = true;
         sl::AsyncBitmap async = sl::load_bitmap_async(image_path, options);
         check(async.valid(), "async bitmap handle is valid");
         check(wait_frames(async) && async.ready(), "async bitmap finishes");
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
             check(loaded->width == reference->width && loaded->height == reference->height, "bitmap size matches");
             check(loaded->pixels == reference->pixels, "bitmap pixels match");
             check(loaded->gpu_texture != 0, "bitmap texture uploaded before ready");
-            check(loaded->smooth && loaded->mipmaps, "bitmap options applied");
+            check(loaded->smooth && loaded->mipmaps && loaded->repeat, "bitmap options applied");
         }
         else
             check(false, "bitmaps loaded");

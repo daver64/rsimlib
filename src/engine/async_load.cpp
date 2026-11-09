@@ -158,6 +158,7 @@ namespace sl
                         job->bitmap->smooth = job->options.smooth;
                         job->bitmap->mipmaps = job->options.mipmaps;
                         job->bitmap->anisotropy = job->options.anisotropy;
+                        job->bitmap->repeat = job->options.repeat;
                     }
                 }
                 std::lock_guard<std::mutex> lock(p.mutex);

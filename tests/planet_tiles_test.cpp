@@ -288,6 +288,8 @@ int main(int argc, char *argv[])
             {
                 fine[static_cast<std::size_t>(j * stride + i)].uv[0] = static_cast<float>(i) / n;
                 fine[static_cast<std::size_t>(j * stride + i)].uv[1] = static_cast<float>(j) / n;
+                fine[static_cast<std::size_t>(j * stride + i)].extra[0] = static_cast<float>(i) / n;
+                fine[static_cast<std::size_t>(j * stride + i)].extra[1] = static_cast<float>(j) / n;
             }
         std::array<sl::detail::PlanetTileEdge, 4> edges{};
         edges[2] = {&coarse, {}, 2};
@@ -302,6 +304,8 @@ int main(int argc, char *argv[])
             const double expected_y = a * a + (x - a) * (2 * a + 1);
             assert(std::fabs(v.position[1] - expected_y) < 1e-6);
             assert(std::fabs(v.uv[0] - (x - 1.5) / 1.5) < 1e-6);
+            assert(std::fabs(v.extra[0] - (x - 1.5) / 1.5) < 1e-6);
+            assert(v.extra[0] == fine[static_cast<std::size_t>(stride * stride + k)].extra[0]);
             contains_knot = contains_knot || x == 2.0;
         }
         assert(contains_knot);
@@ -311,8 +315,11 @@ int main(int argc, char *argv[])
             for (int j = 0; j <= n; ++j)
                 for (int i = 0; i <= n; ++i)
                 {
-                    boundary[static_cast<std::size_t>(j * stride + i)].uv[0] = static_cast<float>(i) / n;
-                    boundary[static_cast<std::size_t>(j * stride + i)].uv[1] = static_cast<float>(j) / n;
+                    auto &v = boundary[static_cast<std::size_t>(j * stride + i)];
+                    v.extra[0] = static_cast<float>(i) / n;
+                    v.extra[1] = static_cast<float>(j) / n;
+                    v.uv[0] = 0.125f + 0.5f * v.extra[0];
+                    v.uv[1] = 0.25f + 0.25f * v.extra[1];
                 }
             std::vector<sl::Vertex3D> neighbour(stride * stride);
             for (int k = 0; k <= n; ++k)
@@ -333,7 +340,12 @@ int main(int argc, char *argv[])
                 const auto &v = boundary[static_cast<std::size_t>(j * stride + i)];
                 const int axis = side < 2 ? 1 : 0;
                 const double x = v.position[0];
-                assert(std::fabs(v.uv[axis] - (x - 1.5) / 1.5) < 1e-6);
+                const double along = (x - 1.5) / 1.5;
+                assert(std::fabs(v.extra[axis] - along) < 1e-6);
+                assert(std::fabs(v.uv[axis] - (axis == 0 ? 0.125 + 0.5 * along : 0.25 + 0.25 * along)) < 1e-6);
+                const int ring = j == 0 && i < n ? i : i == n && j < n ? n + j :
+                                 j == n && i > 0 ? 3 * n - i : 4 * n - j;
+                assert(v.extra[axis] == boundary[static_cast<std::size_t>(stride * stride + ring)].extra[axis]);
                 knot_found = knot_found || x == 2.0;
             }
             assert(knot_found);
@@ -612,6 +624,39 @@ int main(int argc, char *argv[])
             matched = matched || shot.stats.matched_edges > 0;
         }
         assert(matched);
+        {
+            sl::PlanetTilesOptions coarse = elevated;
+            coarse.segments = 4;
+            coarse.geometry_pixels = 0.0f;
+            coarse.max_level = 0;
+            coarse.geometry_max_level = 0;
+            coarse.texel_pixels = 1.0e12f;
+            coarse.elevation = [](const glm::dvec3 &) { return 0.02; };
+            coarse.elevation_lod = {};
+            auto sphere = sl::PlanetTiles::create(coarse);
+            assert(sphere);
+            look(surface, *sphere, 0.15, 0.37, 1.8f, 0, coarse.texel_pixels, false, 1);
+            const glm::dvec3 direction = sl::detail::planet_tile_sphere_point(0.15, 0.37);
+            const glm::dvec3 a = sl::detail::planet_tile_sphere_point(1.0 / 8.0, 1.0 / 4.0) * 1.02;
+            const glm::dvec3 b = sl::detail::planet_tile_sphere_point(1.0 / 8.0, 2.0 / 4.0) * 1.02;
+            const glm::dvec3 c = sl::detail::planet_tile_sphere_point(2.0 / 8.0, 1.0 / 4.0) * 1.02;
+            const glm::dvec3 normal = glm::cross(b - a, c - a);
+            const double expected = glm::dot(normal, a) / glm::dot(normal, direction) - 1.0;
+            double actual = 0.0;
+            assert(sphere->drawn_elevation(direction, actual));
+            assert(std::fabs(actual - expected) < 1e-7);
+            assert(std::fabs(actual - 0.02) > 0.001); // The drawn triangle is a chord, not the height callback.
+            for (const double u : {0.0, 1e-9, 0.5, 1.0 - 1e-9})
+                for (const double v : {0.0, 1e-6, 0.37, 1.0 - 1e-6, 1.0})
+                {
+                    const glm::dvec3 point = sl::detail::planet_tile_sphere_point(u, v);
+                    sphere->update_relative(point * 1.8, glm::radians(40.0), view_size);
+                    assert(sphere->drawn_elevation(point, actual));
+                    assert(actual <= 0.0200001 && actual > -0.5);
+                    if (v == 0.0 || v == 1.0)
+                        assert(std::fabs(actual - 0.02) < 1e-7);
+                }
+        }
         {
             sl::PlanetTilesOptions invalid_border = elevated;
             const glm::dvec3 outside_north = sl::detail::planet_tile_sphere_point(
@@ -1298,6 +1343,8 @@ int main(int argc, char *argv[])
         close.elevation = [](const glm::dvec3 &p) { return 0.0001 * std::sin(300.0 * p.x) * std::cos(300.0 * p.y); };
         auto screen_resolution = sl::PlanetTiles::create(close);
         assert(screen_resolution);
+        double sampled_height = 0.0;
+        assert(!screen_resolution->drawn_elevation(glm::dvec3(0.0), sampled_height));
         for (int i = 0; i < 250; ++i)
         {
             shot = look(surface, *screen_resolution, 0.137, 0.53, 1.0001f, 14, close.texel_pixels,
@@ -1308,6 +1355,17 @@ int main(int argc, char *argv[])
             assert(shot.stats.tiles_loaded + shot.stats.tiles_loading <= close.max_resident_tiles);
             assert(shot.coloured_pixels == view_size * view_size);
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        {
+            for (const double du : {-0.000001, 0.0, 0.000001})
+                for (const double dv : {-0.000001, 0.0, 0.000001})
+                {
+                    const glm::dvec3 direction = sl::detail::planet_tile_sphere_point(0.137 + du, 0.53 + dv);
+                    assert(screen_resolution->drawn_elevation(direction, sampled_height));
+                    const double expected = close.elevation(direction);
+                    assert(std::fabs(sampled_height - expected) < 1e-6);
+                }
+            assert(!screen_resolution->drawn_elevation(-sl::detail::planet_tile_sphere_point(0.137, 0.53), sampled_height));
         }
         std::fprintf(stderr, "close-range 1080p LOD: level %d, patches %d, meshes %d, pixels %d\n",
                      shot.stats.deepest_geometry_level, shot.stats.patches, shot.stats.meshes, shot.coloured_pixels);

@@ -2,11 +2,13 @@
 #include "sl.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 #include <vector>
 
 namespace
@@ -47,6 +49,41 @@ namespace
         sl::end_frame();
         assert(sl::download_bitmap(target));
         return sl::getpixel(target, 4, 4);
+    }
+
+    sl::Colour mesh_sample(sl::Bitmap *texture, float u, float v)
+    {
+        std::vector<sl::Vertex3D> vertices(4);
+        const float xy[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+        for (int i = 0; i < 4; ++i)
+        {
+            vertices[i].position[0] = xy[i][0];
+            vertices[i].position[1] = xy[i][1];
+            vertices[i].uv[0] = u;
+            vertices[i].uv[1] = v;
+        }
+        sl::Mesh *mesh = sl::create_mesh(vertices, {0, 1, 2, 0, 2, 3});
+        sl::Surface3D *surface = sl::create_surface_3d(32, 32, 1);
+        assert(mesh && surface);
+        sl::Camera camera;
+        camera.position = {0, 0, 3};
+        sl::Material material;
+        material.texture = texture;
+        material.lit = false;
+        material.fog = false;
+        material.cull = sl::CullMode::none;
+        assert(sl::begin_surface_3d(surface, camera));
+        sl::clear_surface_3d({0, 0, 0, 255});
+        assert(sl::draw_mesh(mesh, glm::mat4(1.0f), material));
+        sl::end_surface_3d();
+        sl::show_video_bitmap();
+        sl::end_frame();
+        sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+        assert(sl::download_bitmap(image));
+        const sl::Colour result = sl::getpixel(image, 16, 16);
+        sl::destroy_surface_3d(surface);
+        sl::destroy_mesh(mesh);
+        return result;
     }
 }
 
@@ -90,6 +127,79 @@ int main(int argc, char *argv[])
     assert(memory_gpu && memory_gpu->width == 8 && memory_gpu->height == 8);
     pixel = draw_and_read(memory_gpu, target);
     assert(pixel.red > 240 && pixel.green < 16 && pixel.blue < 16);
+    {
+        std::vector<std::uint8_t> image = bytes;
+        for (int block = 1; block < 4; ++block)
+        {
+            image[128 + block * 8] = 0xe0;
+            image[129 + block * 8] = 0x07;
+        }
+        for (bool compressed : {false, true})
+        {
+            for (bool repeat : {false, true})
+            {
+                sl::DdsOptions opts;
+                opts.allow_compressed_upload = compressed;
+                opts.smooth = false;
+                opts.repeat = repeat;
+                sl::Bitmap *texture = sl::load_dds_from_memory(image.data(), image.size(), opts);
+                assert(texture && texture->repeat == repeat);
+                for (const auto &uv : {std::pair<float, float>{1.125f, 0.125f},
+                                       std::pair<float, float>{0.125f, 1.125f},
+                                       std::pair<float, float>{1.125f, 1.125f}})
+                {
+                    pixel = mesh_sample(texture, uv.first, uv.second);
+                    assert(repeat ? pixel.red > 240 && pixel.green < 16 : pixel.green > 240 && pixel.red < 16);
+                }
+                if (repeat)
+                {
+                    pixel = mesh_sample(texture, -0.875f, -0.875f);
+                    assert(pixel.red > 240 && pixel.green < 16);
+                }
+                sl::destroy_bitmap(texture);
+            }
+            sl::DdsOptions opts;
+            opts.allow_compressed_upload = compressed;
+            opts.smooth = true;
+            opts.repeat = true;
+            sl::Bitmap *texture = sl::load_dds_from_memory(image.data(), image.size(), opts);
+            assert(texture);
+            const sl::Colour before_seam = mesh_sample(texture, -0.01f, 0.125f);
+            const sl::Colour after_seam = mesh_sample(texture, 0.99f, 0.125f);
+            assert(std::abs(int(before_seam.red) - int(after_seam.red)) <= 2);
+            assert(std::abs(int(before_seam.green) - int(after_seam.green)) <= 2);
+            assert(before_seam.red > 20 && before_seam.green > 20);
+            sl::destroy_bitmap(texture);
+        }
+        for (bool repeat : {false, true})
+        {
+            sl::Bitmap *texture = sl::create_bitmap(8, 8);
+            assert(texture);
+            sl::clear_to_colour(texture, {0, 255, 0, 255});
+            for (int y = 0; y < 4; ++y)
+                for (int x = 0; x < 4; ++x)
+                    sl::putpixel(texture, x, y, {255, 0, 0, 255});
+            texture->repeat = repeat;
+            texture->mipmaps = true;
+            pixel = mesh_sample(texture, 1.125f, 1.125f);
+            assert(repeat ? pixel.red > 240 && pixel.green < 16 : pixel.green > 240 && pixel.red < 16);
+            sl::destroy_bitmap(texture);
+        }
+        sl::AsyncBitmapOptions async_options;
+        async_options.repeat = true;
+        sl::AsyncBitmap async = sl::load_bitmap_async([image]
+        {
+            sl::DdsOptions opts;
+            opts.allow_compressed_upload = false;
+            return sl::load_dds_from_memory(image.data(), image.size(), opts);
+        }, async_options);
+        assert(async.wait());
+        sl::Bitmap *texture = async.get();
+        assert(texture && texture->repeat);
+        pixel = mesh_sample(texture, 1.125f, 1.125f);
+        assert(pixel.red > 240 && pixel.green < 16);
+        sl::destroy_bitmap(texture);
+    }
     for (int kind = 0; kind < 4; ++kind)
     {
         std::vector<std::uint8_t> image(bytes.begin(), bytes.begin() + 128);
