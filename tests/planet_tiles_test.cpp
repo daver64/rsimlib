@@ -751,6 +751,19 @@ int main(int argc, char *argv[])
                              segments, static_cast<double>(skirt), i, shot.coloured_pixels, shot.stats.patches,
                              shot.stats.deepest_geometry_level);
             assert(shot.coloured_pixels == view_size * view_size);
+            if (skirt > 0.0f)
+            {
+                constexpr std::array<std::pair<double, double>, 4> views{{
+                    {0.149, 0.529}, {0.151, 0.531}, {0.149, 0.531}, {0.151, 0.529}
+                }};
+                const auto &view = views[static_cast<std::size_t>(i) % views.size()];
+                const Shot moving = look(surface, *planet, view.first, view.second, 1.5f, 3, 1.0f, false, 1);
+                if (moving.coloured_pixels != view_size * view_size)
+                    std::fprintf(stderr, "moving imagery uncovered: segments %d skirt %g frame %d, pixels %d, patches %d, level %d\n",
+                                 segments, static_cast<double>(skirt), i, moving.coloured_pixels, moving.stats.patches,
+                                 moving.stats.deepest_geometry_level);
+                assert(moving.coloured_pixels == view_size * view_size);
+            }
             if (near_colour(shot.centre, 0, 255, 0))
                 detailed = true;
             if (detailed && ((!probe_skirtless_gap && segments == 6 && skirt == 0.0f) ||
