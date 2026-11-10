@@ -55,10 +55,10 @@ float3 pbr_direct(float3 N, float3 V, float3 L, float3 albedo, float metallic, f
 {
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
     float3 H = normalize(L + V);
-    float NdL = max(dot(N, L), 0.0);
-    float NdV = max(dot(N, V), 1e-4);
-    float NdH = max(dot(N, H), 0.0);
-    float VdH = max(dot(V, H), 0.0);
+    float NdL = clamp(dot(N, L), 0.0, 1.0);
+    float NdV = clamp(dot(N, V), 1e-4, 1.0);
+    float NdH = clamp(dot(N, H), 0.0, 1.0);
+    float VdH = clamp(dot(V, H), 0.0, 1.0);
     float a = roughness * roughness;
     float a2 = a * a;
     float d = NdH * NdH * (a2 - 1.0) + 1.0;
@@ -76,7 +76,7 @@ float3 shade_pbr(float3 N, float3 V, float3 L, float3 albedo, float metallic, fl
                  float ambient, float3 light_rgb)
 {
     float3 F0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
-    float NdV = max(dot(N, V), 1e-4);
+    float NdV = clamp(dot(N, V), 1e-4, 1.0);
     float3 direct = pbr_direct(N, V, L, albedo, metallic, roughness) * light_rgb * (1.0 - ambient);
     float3 Fa = F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - NdV, 5.0);
     float3 indirect = ambient * occlusion * ((1.0 - Fa) * (1.0 - metallic) * albedo + Fa * (1.0 - 0.5 * roughness));

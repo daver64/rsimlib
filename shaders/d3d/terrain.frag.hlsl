@@ -51,10 +51,10 @@ float3 pbr_specular(float3 N, float3 V, float3 L, float roughness)
 {
     float3 F0 = float3(0.04, 0.04, 0.04);
     float3 H = normalize(L + V);
-    float NdL = max(dot(N, L), 0.0);
-    float NdV = max(dot(N, V), 1e-4);
-    float NdH = max(dot(N, H), 0.0);
-    float VdH = max(dot(V, H), 0.0);
+    float NdL = clamp(dot(N, L), 0.0, 1.0);
+    float NdV = clamp(dot(N, V), 1e-4, 1.0);
+    float NdH = clamp(dot(N, H), 0.0, 1.0);
+    float VdH = clamp(dot(V, H), 0.0, 1.0);
     float a = roughness * roughness;
     float a2 = a * a;
     float d = NdH * NdH * (a2 - 1.0) + 1.0;

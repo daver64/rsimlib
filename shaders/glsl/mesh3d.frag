@@ -54,10 +54,10 @@ vec3 pbr_direct(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float rough
 {
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
     vec3 H = normalize(L + V);
-    float NdL = max(dot(N, L), 0.0);
-    float NdV = max(dot(N, V), 1e-4);
-    float NdH = max(dot(N, H), 0.0);
-    float VdH = max(dot(V, H), 0.0);
+    float NdL = clamp(dot(N, L), 0.0, 1.0);
+    float NdV = clamp(dot(N, V), 1e-4, 1.0);
+    float NdH = clamp(dot(N, H), 0.0, 1.0);
+    float VdH = clamp(dot(V, H), 0.0, 1.0);
     float a = roughness * roughness;
     float a2 = a * a;
     float d = NdH * NdH * (a2 - 1.0) + 1.0;
@@ -76,7 +76,7 @@ vec3 shade_pbr(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float roughn
                float ambient, vec3 lightColour)
 {
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
-    float NdV = max(dot(N, V), 1e-4);
+    float NdV = clamp(dot(N, V), 1e-4, 1.0);
     vec3 direct = pbr_direct(N, V, L, albedo, metallic, roughness) * lightColour * (1.0 - ambient);
     vec3 Fa = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - NdV, 5.0);
     vec3 indirect = ambient * occlusion * ((1.0 - Fa) * (1.0 - metallic) * albedo + Fa * (1.0 - 0.5 * roughness));

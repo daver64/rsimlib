@@ -55,6 +55,44 @@ namespace
                 pixels.push_back(sl::getpixel(image, x, y).red);
         return pixels;
     }
+
+    std::vector<int> render_distant_floor(sl::Surface3D *surface, sl::Mesh *floor, bool with_lamp)
+    {
+        sl::Camera camera;
+        camera.position = {0.0f, 3000.0f, 0.0f};
+        camera.target = {0.0f, 0.0f, -2500.0f};
+        camera.near_plane = 1.0f;
+        camera.far_plane = 30000.0f;
+        sl::Light3D sun;
+        sun.direction = {0.3f, -1.0f, -0.3f};
+        sun.ambient = 0.5f;
+        sl::set_light_3d(sun);
+        sl::LocalLight3D lamp;
+        lamp.position = {0.1f, 2999.7f, -7.5f};
+        lamp.direction = {0.0f, -0.17365f, -0.98481f};
+        lamp.inner_angle = 25.0f;
+        lamp.outer_angle = 40.0f;
+        lamp.range = 7000.0f;
+        lamp.intensity = 16.0f;
+        sl::set_local_lights_3d(with_lamp ? std::vector<sl::LocalLight3D>{lamp} : std::vector<sl::LocalLight3D>{});
+        sl::Material material;
+        material.pbr = true;
+        material.metallic = 0.0f;
+        material.roughness = 0.4f;
+        assert(sl::begin_surface_3d(surface, camera));
+        sl::clear_surface_3d({0, 0, 0, 255});
+        assert(sl::draw_mesh(floor, glm::mat4(1.0f), material));
+        sl::end_surface_3d();
+        sl::show_video_bitmap();
+        sl::end_frame();
+        sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+        assert(sl::download_bitmap(image));
+        std::vector<int> pixels;
+        for (int y = 0; y < size; ++y)
+            for (int x = 0; x < size; ++x)
+                pixels.push_back(sl::getpixel(image, x, y).red);
+        return pixels;
+    }
 }
 
 // Local lights must brighten what they reach, and a sun shadow map must darken the floor behind a caster while leaving
@@ -103,6 +141,23 @@ int main(int argc, char *argv[])
     assert(lamp_brighter > 200);
     sl::set_local_lights_3d({});
     assert(sl::get_local_lights_3d().empty());
+
+    sl::Mesh *distant_floor = sl::create_plane_mesh(20000.0f, 20000.0f, {200, 200, 200, 255});
+    assert(distant_floor);
+    const std::vector<int> distant_unlit = render_distant_floor(surface, distant_floor, false);
+    const std::vector<int> distant_lit = render_distant_floor(surface, distant_floor, true);
+    int black_speckles = 0, floor_pixels = 0;
+    for (std::size_t i = 0; i < distant_unlit.size(); ++i)
+        if (distant_unlit[i] > 40)
+        {
+            ++floor_pixels;
+            if (distant_lit[i] < 10)
+                ++black_speckles;
+        }
+    std::printf("distant PBR floor: %d pixels, %d black speckles\n", floor_pixels, black_speckles);
+    assert(floor_pixels > 1000 && black_speckles == 0);
+    sl::set_local_lights_3d({});
+    sl::destroy_mesh(distant_floor);
 
     sl::destroy_shadow_map_3d(map);
     sl::destroy_surface_3d(surface);
