@@ -4,12 +4,17 @@ in vec3 vNormal;
 in vec4 vTangent;
 in vec4 vColour;
 in vec2 vUv;
+in vec2 vTileUv;
 in float vTerrain;
 in float vViewDepth;
 
 uniform sampler2D uTexture;
 uniform sampler2D uNormalMap;
 uniform sampler2D uMaterial;
+uniform sampler2DArray uMicrodetail;
+uniform int uMicrodetailMode;
+uniform int uMicrodetailBlendMode;
+uniform vec4 uMicrodetailRanges[3];
 // Sun shadow map: packed 24-bit depth in rgb, fetched texel by texel.
 uniform sampler2D uShadowMap;
 // x: 0 off, 1 receive shadows, 2 shadow-pass draw (writes packed depth); y: depth bias; z: texel world size.
@@ -219,6 +224,49 @@ void main()
         if (uLightColour.w > 0.0 && vColour.a * sampled.a < uLightColour.w)
             discard;
     }
+    vec3 micro_base_normal = normal;
+    vec3 micro_perturbed_normal = normal;
+    bool micro_normal_active = false;
+    if (uMicrodetailMode != 0 && vTerrain < 0.0 && uShadow.x < 1.5)
+    {
+        vec2 ndc = gl_FragCoord.xy * uFogView.zw * 2.0 - 1.0;
+        vec3 position = (uCameraForward.xyz + ndc.x * uCameraRight.xyz + ndc.y * uCameraUp.xyz) * vViewDepth;
+        float fade = 1.0 - smoothstep(3000.0, 15000.0, length(position));
+        fade = fade * fade * fade;
+        vec4 a = texture(uMicrodetail, vec3(vTileUv * uMicrodetailRanges[0].zw + uMicrodetailRanges[0].xy, 0.0));
+        vec4 b = texture(uMicrodetail, vec3(vTileUv * uMicrodetailRanges[1].zw + uMicrodetailRanges[1].xy, 1.0));
+        vec4 c = texture(uMicrodetail, vec3(vTileUv * uMicrodetailRanges[2].zw + uMicrodetailRanges[2].xy, 2.0));
+        vec3 modulation = uMicrodetailMode == 2 ? vec3(clamp(1.333 * (a.b + b.b + c.b) - 1.0, 0.0, 2.0)) :
+                                                  clamp(1.333 * (a.rgb + b.rgb + c.rgb) - 1.0, 0.0, 2.0);
+        albedo *= mix(vec3(1.0), modulation, fade);
+        if (uMicrodetailMode == 2 && uLight.w < 1.0)
+        {
+            vec3 dpdx = dFdx(position), dpdy = dFdy(position);
+            vec2 dudx = dFdx(vTileUv), dudy = dFdy(vTileUv);
+            float determinant = dudx.x * dudy.y - dudx.y * dudy.x;
+            float orientation = determinant < 0.0 ? -1.0 : 1.0;
+            vec3 t = (dpdx * dudy.y - dpdy * dudx.y) * orientation;
+            vec3 bit = (dpdy * dudx.x - dpdx * dudy.x) * orientation;
+            t -= normal * dot(normal, t);
+            bit -= normal * dot(normal, bit);
+            if (abs(determinant) > 1e-12 && dot(t, t) > 1e-12 && dot(bit, bit) > 1e-12)
+            {
+                vec2 blend;
+                if (uMicrodetailBlendMode == 0)
+                    blend = (a.ag + b.ag + c.ag) * 0.6666;
+                else if (uMicrodetailBlendMode == 2)
+                    blend = a.ag * b.ag * c.ag * 8.0;
+                else
+                    blend = (a.ag + 0.5) * (b.ag + 0.5) * (c.ag + 0.5);
+                vec2 slope = (blend - 1.0) * (2.0 * fade);
+                float z = cos(slope.x * slope.y * 1.57);
+                normal = normalize(normalize(t) * slope.x + normalize(bit) * slope.y + normal * z);
+            }
+            normal = normalize(normal + uLight.xyz * 0.06);
+            micro_perturbed_normal = normal;
+            micro_normal_active = true;
+        }
+    }
     if (uShadow.x > 1.5)
     {
         float v = gl_FragCoord.z * 255.0;
@@ -244,7 +292,8 @@ void main()
     }
     vec3 sun_rgb = uLightColour.rgb;
     if (uShadow.x > 0.5 && uLight.w < 1.0)
-        sun_rgb *= sun_visibility(uCameraPosition.xyz + ray * vViewDepth, normal);
+        sun_rgb *= sun_visibility(uCameraPosition.xyz + ray * vViewDepth,
+                                  uPbr.x < -0.5 ? micro_base_normal : normal);
     if (pbr)
     {
         vec3 orm = texture(uMaterial, vUv).rgb;
@@ -261,8 +310,17 @@ void main()
         {
             // Lommel-Seeliger with an opposition surge, for airless bodies.
             vec3 view_dir = normalize(-ray);
-            float seen = max(dot(normal, view_dir), 0.0);
-            diffuse = 2.5 * diffuse / (diffuse + seen + 0.5) + pow(clamp(dot(view_dir, uLight.xyz), 0.0, 1.0), 4.0) * uPbr.y * diffuse;
+            float base_sun = max(dot(micro_base_normal, uLight.xyz), 0.0);
+            float seen = max(dot(micro_base_normal, view_dir), 0.0);
+            diffuse = 2.0 * base_sun / (base_sun + seen + 0.5);
+            if (micro_normal_active)
+            {
+                float amplitude = uMicrodetailBlendMode == 0 ? 1.0 : uMicrodetailBlendMode == 2 ? 4.0 : 2.0;
+                diffuse += dot(micro_perturbed_normal - micro_base_normal, uLight.xyz) *
+                           clamp(diffuse / 0.03, 0.0, 1.0) * amplitude;
+                diffuse = max(diffuse, 0.0);
+            }
+            diffuse += pow(clamp(dot(view_dir, uLight.xyz), 0.0, 1.0), 4.0) * uPbr.y * base_sun;
         }
         colour = albedo * (uLight.w + (1.0 - uLight.w) * diffuse * sun_rgb);
     }

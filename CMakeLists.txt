@@ -192,6 +192,27 @@ if(SIMLIB_VALIDATE_SHADERS)
                 list(APPEND VULKAN_SHADER_BINARIES "${VULKAN_SHADER_BINARY}")
             endif()
         endforeach()
+        set(VULKAN_MICRODETAIL_BINARY "${VULKAN_SHADER_BINARY_DIR}/vulkan_mesh3d_microdetail.frag.spv")
+        add_custom_command(
+            OUTPUT "${VULKAN_MICRODETAIL_BINARY}"
+            COMMAND "${SIMLIB_SHADER_COMPILER}" -V --auto-map-locations --auto-map-bindings -DPLANET_MICRODETAIL=1
+                    -S frag "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/vulkan_mesh3d.frag"
+                    -o "${VULKAN_MICRODETAIL_BINARY}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/vulkan_mesh3d.frag"
+            VERBATIM
+        )
+        if(SPIRV_VAL)
+            add_custom_command(
+                OUTPUT "${VULKAN_MICRODETAIL_BINARY}.validated"
+                COMMAND "${SPIRV_VAL}" "${VULKAN_MICRODETAIL_BINARY}"
+                COMMAND "${CMAKE_COMMAND}" -E touch "${VULKAN_MICRODETAIL_BINARY}.validated"
+                DEPENDS "${VULKAN_MICRODETAIL_BINARY}"
+                VERBATIM
+            )
+            list(APPEND VULKAN_SHADER_BINARIES "${VULKAN_MICRODETAIL_BINARY}.validated")
+        else()
+            list(APPEND VULKAN_SHADER_BINARIES "${VULKAN_MICRODETAIL_BINARY}")
+        endif()
         add_custom_target(vulkan_shader_validation DEPENDS ${VULKAN_SHADER_BINARIES})
     else()
         add_custom_target(shader_validation

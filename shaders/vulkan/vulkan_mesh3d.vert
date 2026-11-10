@@ -12,8 +12,10 @@ layout(location = 2) out vec2 vUv;
 layout(location = 3) out vec4 vTangent;
 layout(location = 4) out float vTerrain;
 layout(location = 5) out float vViewDepth;
+layout(location = 6) out vec2 vTileUv;
 void main()
 {
+    vTileUv = aExtra.xy;
     if (transform.normalRows[0].w < 0.0)
     {
         vec3 eye = transform.normalRows[1].xyz;

@@ -5,13 +5,24 @@ layout(location = 2) in vec2 vUv;
 layout(location = 3) in vec4 vTangent;
 layout(location = 4) in float vTerrain;
 layout(location = 5) in float vViewDepth;
+layout(location = 6) in vec2 vTileUv;
 layout(set = 0, binding = 0) uniform sampler2D uTexture;
 layout(set = 1, binding = 0) uniform sampler2D uNormalMap;
 layout(set = 3, binding = 0) uniform sampler2D uMaterial;
 layout(set = 4, binding = 0) uniform sampler2D uShadowMap;
 layout(set = 5, binding = 0) uniform sampler2D uLocalShadowMap;
+#ifdef PLANET_MICRODETAIL
+layout(set = 5, binding = 1) uniform sampler2DArray uMicrodetail;
+#endif
 layout(push_constant) uniform Light { layout(offset = 112) vec4 light; } lighting;
-layout(set = 2, binding = 0) uniform Environment { vec4 lightColour; vec4 fogColour; vec4 fogBeta; vec4 fogView; vec4 pbr; vec4 emissive; vec4 cameraRight; vec4 cameraUp; vec4 cameraForward; vec4 cameraPosition; vec4 shadow; mat4 shadowMatrix; vec4 locals[160]; } environment;
+layout(set = 2, binding = 0) uniform Environment {
+    vec4 lightColour; vec4 fogColour; vec4 fogBeta; vec4 fogView; vec4 pbr; vec4 emissive;
+    vec4 cameraRight; vec4 cameraUp; vec4 cameraForward; vec4 cameraPosition; vec4 shadow;
+    mat4 shadowMatrix; vec4 locals[160];
+#ifdef PLANET_MICRODETAIL
+    vec4 microdetailRanges[3]; vec4 microdetailMode;
+#endif
+} environment;
 layout(location = 0) out vec4 fragColor;
 
 const float PI = 3.14159265359;
@@ -166,6 +177,9 @@ void main()
         if (environment.lightColour.w > 0.0 && vColour.a * sampled.a < environment.lightColour.w)
             discard;
     }
+    vec3 micro_base_normal = normal;
+    vec3 micro_perturbed_normal = normal;
+    bool micro_normal_active = false;
     if (environment.shadow.x > 1.5)
     {
         float v = gl_FragCoord.z * 255.0;
@@ -195,6 +209,51 @@ void main()
         fragColor = vec4(base * lit, 1.0);
         return;
     }
+#ifdef PLANET_MICRODETAIL
+    if (vTerrain < 0.0)
+    {
+        vec2 pixel = gl_FragCoord.xy * environment.fogView.zw * 2.0;
+        vec2 ndc = vec2(pixel.x - 1.0, 1.0 - pixel.y);
+        vec3 position = (environment.cameraForward.xyz + ndc.x * environment.cameraRight.xyz +
+                         ndc.y * environment.cameraUp.xyz) * vViewDepth;
+        float fade = 1.0 - smoothstep(3000.0, 15000.0, length(position));
+        fade = fade * fade * fade;
+        vec4 a = texture(uMicrodetail, vec3(vTileUv * environment.microdetailRanges[0].zw + environment.microdetailRanges[0].xy, 0.0));
+        vec4 b = texture(uMicrodetail, vec3(vTileUv * environment.microdetailRanges[1].zw + environment.microdetailRanges[1].xy, 1.0));
+        vec4 c = texture(uMicrodetail, vec3(vTileUv * environment.microdetailRanges[2].zw + environment.microdetailRanges[2].xy, 2.0));
+        bool normals = environment.microdetailMode.x > 0.5;
+        vec3 modulation = normals ? vec3(clamp(1.333 * (a.b + b.b + c.b) - 1.0, 0.0, 2.0)) :
+                                    clamp(1.333 * (a.rgb + b.rgb + c.rgb) - 1.0, 0.0, 2.0);
+        albedo *= mix(vec3(1.0), modulation, fade);
+        if (normals && lighting.light.w < 1.0)
+        {
+            vec3 dpdx = dFdx(position), dpdy = dFdy(position);
+            vec2 dudx = dFdx(vTileUv), dudy = dFdy(vTileUv);
+            float determinant = dudx.x * dudy.y - dudx.y * dudy.x;
+            float orientation = determinant < 0.0 ? -1.0 : 1.0;
+            vec3 t = (dpdx * dudy.y - dpdy * dudx.y) * orientation;
+            vec3 bit = (dpdy * dudx.x - dpdx * dudy.x) * orientation;
+            t -= normal * dot(normal, t);
+            bit -= normal * dot(normal, bit);
+            if (abs(determinant) > 1e-12 && dot(t, t) > 1e-12 && dot(bit, bit) > 1e-12)
+            {
+                vec2 blend;
+                if (environment.microdetailMode.y < 0.5)
+                    blend = (a.ag + b.ag + c.ag) * 0.6666;
+                else if (environment.microdetailMode.y > 1.5)
+                    blend = a.ag * b.ag * c.ag * 8.0;
+                else
+                    blend = (a.ag + 0.5) * (b.ag + 0.5) * (c.ag + 0.5);
+                vec2 slope = (blend - 1.0) * (2.0 * fade);
+                float z = cos(slope.x * slope.y * 1.57);
+                normal = normalize(normalize(t) * slope.x + normalize(bit) * slope.y + normal * z);
+            }
+            normal = normalize(normal + lighting.light.xyz * 0.06);
+            micro_perturbed_normal = normal;
+            micro_normal_active = true;
+        }
+    }
+#endif
     vec3 colour;
     bool pbr = environment.pbr.x > 0.5 && vTerrain < 0.0;
     // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.
@@ -211,7 +270,8 @@ void main()
     }
     vec3 sun_rgb = environment.lightColour.rgb;
     if (environment.shadow.x > 0.5 && lighting.light.w < 1.0)
-        sun_rgb *= sun_visibility(environment.cameraPosition.xyz + ray * vViewDepth, normal);
+        sun_rgb *= sun_visibility(environment.cameraPosition.xyz + ray * vViewDepth,
+                                  environment.pbr.x < -0.5 ? micro_base_normal : normal);
     if (pbr)
     {
         vec3 orm = texture(uMaterial, vUv).rgb;
@@ -228,8 +288,23 @@ void main()
         {
             // Lommel-Seeliger with an opposition surge, for airless bodies.
             vec3 view_dir = normalize(-ray);
-            float seen = max(dot(normal, view_dir), 0.0);
-            diffuse = 2.5 * diffuse / (diffuse + seen + 0.5) + pow(clamp(dot(view_dir, lighting.light.xyz), 0.0, 1.0), 4.0) * environment.pbr.y * diffuse;
+            float base_sun = max(dot(micro_base_normal, lighting.light.xyz), 0.0);
+            float seen = max(dot(micro_base_normal, view_dir), 0.0);
+            diffuse = 2.0 * base_sun / (base_sun + seen + 0.5);
+            if (micro_normal_active)
+            {
+#ifdef PLANET_MICRODETAIL
+                float amplitude = environment.microdetailMode.y < 0.5 ? 1.0 :
+                                  environment.microdetailMode.y > 1.5 ? 4.0 : 2.0;
+#else
+                float amplitude = 2.0;
+#endif
+                diffuse += dot(micro_perturbed_normal - micro_base_normal, lighting.light.xyz) *
+                           clamp(diffuse / 0.03, 0.0, 1.0) * amplitude;
+                diffuse = max(diffuse, 0.0);
+            }
+            diffuse += pow(clamp(dot(view_dir, lighting.light.xyz), 0.0, 1.0), 4.0) *
+                       environment.pbr.y * base_sun;
         }
         colour = albedo * (lighting.light.w + (1.0 - lighting.light.w) * diffuse * sun_rgb);
     }

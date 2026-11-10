@@ -1,5 +1,8 @@
 #include "terrain.h"
 
+#include "dds.h"
+#include "error.h"
+#include "planet_tiles.h"
 #include "renderer.h"
 
 #include <glm/gtc/quaternion.hpp>
@@ -490,6 +493,43 @@ namespace sl
         {
             const int sw = source.width, sh = source.height;
             const Uint8 *in = source.pixels.data();
+            const bool shrink_x = sw > size && sh < size;
+            const bool shrink_y = sh > size && sw < size;
+            if (shrink_x || shrink_y)
+            {
+                const int reduced = shrink_x ? sw : sh;
+                const int enlarged = shrink_x ? sh : sw;
+                for (int y = 0; y < size; ++y)
+                    for (int x = 0; x < size; ++x)
+                    {
+                        const int a = shrink_x ? x : y, b = shrink_x ? y : x;
+                        const double begin = static_cast<double>(a) * reduced / size;
+                        const double end = static_cast<double>(a + 1) * reduced / size;
+                        const double pos = (b + 0.5) * enlarged / size - 0.5;
+                        const int base = static_cast<int>(std::floor(pos));
+                        const double fraction = pos - base;
+                        const int p0 = ((base % enlarged) + enlarged) % enlarged;
+                        const int p1 = (p0 + 1) % enlarged;
+                        double sum[4] = {};
+                        for (int i = static_cast<int>(std::floor(begin)); i < static_cast<int>(std::ceil(end)); ++i)
+                        {
+                            const double weight = std::min(end, static_cast<double>(i + 1)) -
+                                                  std::max(begin, static_cast<double>(i));
+                            const auto pixel = [&](int p)
+                            {
+                                const int sx = shrink_x ? i : p, sy = shrink_x ? p : i;
+                                return in + (static_cast<std::size_t>(sy) * sw + sx) * 4;
+                            };
+                            const Uint8 *left = pixel(p0), *right = pixel(p1);
+                            for (int c = 0; c < 4; ++c)
+                                sum[c] += weight * (left[c] * (1.0 - fraction) + right[c] * fraction);
+                        }
+                        Uint8 *dst = out + (static_cast<std::size_t>(y) * size + x) * 4;
+                        for (int c = 0; c < 4; ++c)
+                            dst[c] = static_cast<Uint8>(std::clamp(sum[c] / (end - begin) + 0.5, 0.0, 255.0));
+                    }
+                return;
+            }
             const bool shrink = sw >= size && sh >= size;
             for (int y = 0; y < size; ++y)
                 for (int x = 0; x < size; ++x)
@@ -739,6 +779,98 @@ namespace sl
             built.period = period;
             return true;
         }
+
+        bool microtexture_renderer_ready(detail::Renderer *renderer, int max_size)
+        {
+            if (!renderer || renderer->max_texture_array_layers() < 3)
+            {
+                detail::set_error("Planet microtextures require a renderer with three texture array layers");
+                return false;
+            }
+            if (max_size < 4 || max_size > 2048 || max_size > renderer->max_texture_size())
+            {
+                detail::set_error("Planet microtexture max_size must be between 4 and the smaller of 2048 and the renderer limit");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    std::unique_ptr<PlanetMicrotextureArray> PlanetMicrotextureArray::load_dds(const std::array<std::string, 3> &paths, int max_size)
+    {
+        if (!microtexture_renderer_ready(detail::active_renderer(), max_size))
+            return nullptr;
+        std::array<std::unique_ptr<Bitmap, decltype(&destroy_bitmap)>, 3> owned{{
+            {nullptr, destroy_bitmap}, {nullptr, destroy_bitmap}, {nullptr, destroy_bitmap}}};
+        std::array<Bitmap *, 3> maps{};
+        DdsOptions options;
+        options.allow_compressed_upload = false;
+        options.max_decoded_bytes = 16u * 1024u * 1024u;
+        for (std::size_t i = 0; i < paths.size(); ++i)
+        {
+            for (std::size_t previous = 0; previous < i; ++previous)
+                if (paths[i] == paths[previous])
+                {
+                    maps[i] = maps[previous];
+                    break;
+                }
+            if (!maps[i])
+            {
+                owned[i].reset(sl::load_dds(paths[i], options));
+                if (!owned[i])
+                    return nullptr;
+                maps[i] = owned[i].get();
+            }
+        }
+        return create(maps, max_size);
+    }
+
+    std::unique_ptr<PlanetMicrotextureArray> PlanetMicrotextureArray::create(const std::array<Bitmap *, 3> &maps, int max_size)
+    {
+        detail::Renderer *renderer = detail::active_renderer();
+        if (!microtexture_renderer_ready(renderer, max_size))
+            return nullptr;
+        int dimension = 4;
+        for (const Bitmap *map : maps)
+        {
+            if (!map || map->width <= 0 || map->height <= 0 ||
+                static_cast<std::size_t>(map->width) > std::numeric_limits<std::size_t>::max() /
+                                                          static_cast<std::size_t>(map->height) / 4 ||
+                map->pixels.size() < static_cast<std::size_t>(map->width) * map->height * 4)
+            {
+                detail::set_error("Planet microtextures require three RAM-backed RGBA bitmaps");
+                return nullptr;
+            }
+            dimension = std::max({dimension, map->width, map->height});
+        }
+        int size = 4;
+        while (size < dimension && size * 2 <= max_size)
+            size *= 2;
+        int mips = 1;
+        while ((size >> mips) >= 1)
+            ++mips;
+        ArrayPixels pixels;
+        pixels.desc = {size, size, 3, mips};
+        pixels.data.resize(detail::texture_array_byte_count(pixels.desc));
+        for (int layer = 0; layer < 3; ++layer)
+            resample_to(*maps[static_cast<std::size_t>(layer)], pixels.layer_at(0, layer), size);
+        pixels.build_mips();
+        auto result = std::unique_ptr<PlanetMicrotextureArray>(new PlanetMicrotextureArray());
+        if (!renderer->create_texture_array(pixels.desc, pixels.data.data(), result->handle_))
+        {
+            detail::set_error("Unable to create planet microtexture array");
+            return nullptr;
+        }
+        result->owner_ = renderer;
+        for (int layer = 0; layer < 3; ++layer)
+            result->widths_[layer] = maps[static_cast<std::size_t>(layer)]->width;
+        return result;
+    }
+
+    PlanetMicrotextureArray::~PlanetMicrotextureArray()
+    {
+        if (owner_ && handle_)
+            owner_->destroy_texture_array(handle_);
     }
 
     struct Terrain::Impl

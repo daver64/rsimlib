@@ -19,8 +19,10 @@ layout(location = 2) out vec2 vUv;
 layout(location = 3) out vec4 vTangent;
 layout(location = 4) out float vTerrain;
 layout(location = 5) out float vViewDepth;
+layout(location = 6) out vec2 vTileUv;
 void main()
 {
+    vTileUv = aExtra.xy;
     mat4 model = mat4(aModel0, aModel1, aModel2, aModel3);
     gl_Position = transform.mvp * (model * vec4(aPosition, 1.0));
     vViewDepth = gl_Position.w;

@@ -693,10 +693,36 @@ namespace sl
             detail::set_error("Terrain shading cannot be drawn with draw_mesh_instanced");
             return false;
         }
+        if (material.microdetail.array != 0 && (material.terrain.enabled || instance_buffer != 0 || !renderer->supports_planet_microdetail()))
+        {
+            detail::set_error("Planet microdetail requires a supported backend and a non-instanced ordinary mesh");
+            return false;
+        }
         const bool shadow_pass = active.shadow_pass != nullptr || active.local_shadow_pass;
         if (shadow_pass && (material.blend != MaterialBlend::opaque || !material.lit || material.terrain.enabled))
             return true;
         detail::MeshDrawParams params{};
+        if (material.microdetail.array != 0)
+        {
+            params.microdetail_array = material.microdetail.array;
+            params.microdetail_normals = material.microdetail.normals;
+            params.microdetail_blend_mode = static_cast<int>(material.microdetail.blend_mode);
+            if (params.microdetail_blend_mode < 0 || params.microdetail_blend_mode > 2)
+            {
+                detail::set_error("Planet microdetail blend mode must be soft, medium or hard");
+                return false;
+            }
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 4; ++j)
+                {
+                    if (!std::isfinite(material.microdetail.ranges[i][j]))
+                    {
+                        detail::set_error("Planet microdetail ranges must be finite");
+                        return false;
+                    }
+                    params.microdetail_ranges[i][j] = material.microdetail.ranges[i][j];
+                }
+        }
         params.style = shadow_pass ? 0u : static_cast<std::uint32_t>(g_render_style);
         const glm::mat4 mvp = active.view_projection * model;
         for (int column = 0; column < 4; ++column)
@@ -804,7 +830,12 @@ namespace sl
         const bool want_local_shadow = want_locals && current_local_shadow && current_local_shadow->slots_used > 0;
         // The flat style rebuilds face normals from the camera rays, so it needs them too.
         const bool want_airless = material.airless && material.lit && !material.pbr;
-        const bool have_camera = (want_pbr || want_airless || want_locals || want_shadow || params.style != 0) && detail::apply_pbr_camera(params);
+        const bool have_camera = (want_pbr || want_airless || want_locals || want_shadow || params.style != 0 || params.microdetail_array != 0) && detail::apply_pbr_camera(params);
+        if (params.microdetail_array != 0 && !have_camera)
+        {
+            detail::set_error("Planet microdetail requires an active camera");
+            return false;
+        }
         if (want_shadow && have_camera)
         {
             params.shadow[0] = 1.0f;

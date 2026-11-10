@@ -19,6 +19,7 @@ struct VertexInput
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
     float4 tangent : TANGENT;
+    float4 extra : EXTRA;
 };
 
 struct VertexOutput
@@ -32,11 +33,13 @@ struct VertexOutput
     float4 terrain : TEXCOORD2;
     // View-space depth, for fog.
     float view_depth : TEXCOORD3;
+    float2 tile_uv : TEXCOORD4;
 };
 
 VertexOutput main(VertexInput input)
 {
     VertexOutput output;
+    output.tile_uv = input.extra.xy;
     if (normal_rows[0].w < 0.0)
     {
         float3 eye = normal_rows[1].xyz;

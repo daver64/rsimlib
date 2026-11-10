@@ -5,6 +5,7 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec4 aColour;
 layout(location = 3) in vec2 aUv;
 layout(location = 4) in vec4 aTangent;
+layout(location = 5) in vec4 aExtra;
 
 uniform mat4 uMvp;
 // Rows of the normal matrix; w holds the tint colour. A negative uNormalRows[0].w selects untextured terrain, where
@@ -15,6 +16,7 @@ out vec3 vNormal;
 out vec4 vTangent;
 out vec4 vColour;
 out vec2 vUv;
+out vec2 vTileUv;
 // -1 for ordinary meshes, 0 for terrain, which is coloured by its vertex colour alone.
 out float vTerrain;
 // View-space depth, for fog.
@@ -22,6 +24,7 @@ out float vViewDepth;
 
 void main()
 {
+    vTileUv = aExtra.xy;
     if (uNormalRows[0].w < 0.0)
     {
         // The tangent attribute holds the offset to the coarser level's surface.

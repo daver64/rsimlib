@@ -8,6 +8,10 @@ SamplerState material_sampler : register(s2);
 Texture2D shadow_value : register(t3);
 // Local-light shadow atlas: packed 24-bit depth, fetched texel by texel.
 Texture2D local_shadow_value : register(t4);
+#ifdef PLANET_MICRODETAIL
+Texture2DArray microdetail_value : register(t5);
+SamplerState microdetail_sampler : register(s3);
+#endif
 
 cbuffer MeshParameters : register(b0)
 {
@@ -38,6 +42,10 @@ cbuffer PbrParameters : register(b1)
     float4 shadow;
     float4x4 shadow_matrix;
     float4 locals[160];
+#ifdef PLANET_MICRODETAIL
+    float4 microdetail_ranges[3];
+    float4 microdetail_mode;
+#endif
 };
 
 static const float PI = 3.14159265359;
@@ -185,6 +193,7 @@ struct PixelInput
     float4 tangent : TEXCOORD1;
     float4 terrain : TEXCOORD2;
     float view_depth : TEXCOORD3;
+    float2 tile_uv : TEXCOORD4;
 };
 
 float4 main(PixelInput input) : SV_TARGET
@@ -213,6 +222,9 @@ float4 main(PixelInput input) : SV_TARGET
         if (light_colour.w > 0.0 && input.color.a * sampled.a < light_colour.w)
             discard;
     }
+    float3 micro_base_normal = normal;
+    float3 micro_perturbed_normal = normal;
+    bool micro_normal_active = false;
     if (shadow.x > 1.5)
     {
         float v = input.position.z * 255.0;
@@ -240,6 +252,51 @@ float4 main(PixelInput input) : SV_TARGET
         float3 base = input.terrain.x < 0.0 ? input.color.rgb * texture_value.SampleLevel(texture_sampler, input.texcoord, 3.0).rgb : input.color.rgb;
         return float4(base * lit, 1.0);
     }
+#ifdef PLANET_MICRODETAIL
+    if (input.terrain.x < 0.0)
+    {
+        float2 detail_pixel = input.position.xy * fog_view.zw * 2.0;
+        float2 detail_ndc = float2(detail_pixel.x - 1.0, 1.0 - detail_pixel.y);
+        float3 position = (camera_forward.xyz + detail_ndc.x * camera_right.xyz +
+                           detail_ndc.y * camera_up.xyz) * input.view_depth;
+        float fade = 1.0 - smoothstep(3000.0, 15000.0, length(position));
+        fade = fade * fade * fade;
+        float4 a = microdetail_value.Sample(microdetail_sampler, float3(input.tile_uv * microdetail_ranges[0].zw + microdetail_ranges[0].xy, 0.0));
+        float4 b = microdetail_value.Sample(microdetail_sampler, float3(input.tile_uv * microdetail_ranges[1].zw + microdetail_ranges[1].xy, 1.0));
+        float4 c = microdetail_value.Sample(microdetail_sampler, float3(input.tile_uv * microdetail_ranges[2].zw + microdetail_ranges[2].xy, 2.0));
+        bool normals = microdetail_mode.x > 0.5;
+        float3 modulation = normals ? float3(1.0, 1.0, 1.0) * clamp(1.333 * (a.b + b.b + c.b) - 1.0, 0.0, 2.0) :
+                                      clamp(1.333 * (a.rgb + b.rgb + c.rgb) - 1.0, 0.0, 2.0);
+        albedo *= lerp(float3(1.0, 1.0, 1.0), modulation, fade);
+        if (normals && light.w < 1.0)
+        {
+            float3 dpdx = ddx(position), dpdy = ddy(position);
+            float2 dudx = ddx(input.tile_uv), dudy = ddy(input.tile_uv);
+            float determinant = dudx.x * dudy.y - dudx.y * dudy.x;
+            float orientation = determinant < 0.0 ? -1.0 : 1.0;
+            float3 t = (dpdx * dudy.y - dpdy * dudx.y) * orientation;
+            float3 bit = (dpdy * dudx.x - dpdx * dudy.x) * orientation;
+            t -= normal * dot(normal, t);
+            bit -= normal * dot(normal, bit);
+            if (abs(determinant) > 1e-12 && dot(t, t) > 1e-12 && dot(bit, bit) > 1e-12)
+            {
+                float2 blend;
+                if (microdetail_mode.y < 0.5)
+                    blend = (a.ag + b.ag + c.ag) * 0.6666;
+                else if (microdetail_mode.y > 1.5)
+                    blend = a.ag * b.ag * c.ag * 8.0;
+                else
+                    blend = (a.ag + 0.5) * (b.ag + 0.5) * (c.ag + 0.5);
+                float2 slope = (blend - 1.0) * (2.0 * fade);
+                float z = cos(slope.x * slope.y * 1.57);
+                normal = normalize(normalize(t) * slope.x + normalize(bit) * slope.y + normal * z);
+            }
+            normal = normalize(normal + light.xyz * 0.06);
+            micro_perturbed_normal = normal;
+            micro_normal_active = true;
+        }
+    }
+#endif
     float3 colour;
     bool use_pbr = pbr.x > 0.5 && input.terrain.x < 0.0;
     // Untextured terrain carries a specular strength in its vertex alpha, shown when the material is pbr.
@@ -256,7 +313,8 @@ float4 main(PixelInput input) : SV_TARGET
     }
     float3 sun_rgb = light_colour.rgb;
     if (shadow.x > 0.5 && light.w < 1.0)
-        sun_rgb *= sun_visibility(camera_position.xyz + ray * input.view_depth, normal);
+        sun_rgb *= sun_visibility(camera_position.xyz + ray * input.view_depth,
+                                  pbr.x < -0.5 ? micro_base_normal : normal);
     if (use_pbr)
     {
         float3 orm = material_value.Sample(material_sampler, input.texcoord).rgb;
@@ -273,8 +331,22 @@ float4 main(PixelInput input) : SV_TARGET
         {
             // Lommel-Seeliger with an opposition surge, for airless bodies.
             float3 view_dir = normalize(-ray);
-            float seen = max(dot(normal, view_dir), 0.0);
-            diffuse = 2.5 * diffuse / (diffuse + seen + 0.5) + pow(saturate(dot(view_dir, light.xyz)), 4.0) * pbr.y * diffuse;
+            float base_sun = max(dot(micro_base_normal, light.xyz), 0.0);
+            float seen = max(dot(micro_base_normal, view_dir), 0.0);
+            diffuse = 2.0 * base_sun / (base_sun + seen + 0.5);
+            if (micro_normal_active)
+            {
+#ifdef PLANET_MICRODETAIL
+                float amplitude = microdetail_mode.y < 0.5 ? 1.0 :
+                                  microdetail_mode.y > 1.5 ? 4.0 : 2.0;
+#else
+                float amplitude = 2.0;
+#endif
+                diffuse += dot(micro_perturbed_normal - micro_base_normal, light.xyz) *
+                           saturate(diffuse / 0.03) * amplitude;
+                diffuse = max(diffuse, 0.0);
+            }
+            diffuse += pow(saturate(dot(view_dir, light.xyz)), 4.0) * pbr.y * base_sun;
         }
         colour = albedo * (light.w + (1.0 - light.w) * diffuse * sun_rgb);
     }

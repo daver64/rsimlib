@@ -292,7 +292,8 @@ namespace sl::detail
                                       bool instanced = false,
                                       int blend_variant = 0,
                                       bool depth_write = true,
-                                      bool wireframe = false);
+                                      bool wireframe = false,
+                                      const VulkanDescriptorSetLayout *microdetail_layout = nullptr);
         void destroy_graphics_pipeline(VulkanGraphicsPipeline &pipeline);
         bool create_compute_pipeline(const VulkanShaderModule &compute,
                                      const VulkanStorageDescriptorLayout &descriptor_layout,

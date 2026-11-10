@@ -18,6 +18,7 @@ struct VertexInput
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
     float4 tangent : TANGENT;
+    float4 extra : EXTRA;
     // Per-instance model matrix (columns) and tint, from the second vertex stream.
     float4 model0 : INSTANCE0;
     float4 model1 : INSTANCE1;
@@ -35,11 +36,13 @@ struct VertexOutput
     float4 tangent : TEXCOORD1;
     float4 terrain : TEXCOORD2;
     float view_depth : TEXCOORD3;
+    float2 tile_uv : TEXCOORD4;
 };
 
 VertexOutput main(VertexInput input)
 {
     VertexOutput output;
+    output.tile_uv = input.extra.xy;
     float4 world = input.model0 * input.position.x + input.model1 * input.position.y +
                    input.model2 * input.position.z + input.model3;
     output.position = mul(mvp, world);

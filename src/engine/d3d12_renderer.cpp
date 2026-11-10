@@ -68,6 +68,7 @@ namespace sl::detail
             std::uint32_t descriptor = 0;
             std::uint32_t sampler = 0;
             D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
+            bool array = false;
         };
 
         struct RenderTarget
@@ -552,6 +553,12 @@ namespace sl::detail
                         pipeline->Release();
                     pipeline = nullptr;
                 }
+                for (ID3D12PipelineState *&pipeline : mesh_microdetail_pipelines_)
+                {
+                    if (pipeline)
+                        pipeline->Release();
+                    pipeline = nullptr;
+                }
                 for (ID3D12PipelineState *&pipeline : mesh_instanced_pipelines_)
                 {
                     if (pipeline)
@@ -592,10 +599,13 @@ namespace sl::detail
                     mesh_vertex_blob_->Release();
                 if (mesh_pixel_blob_)
                     mesh_pixel_blob_->Release();
+                if (mesh_microdetail_pixel_blob_)
+                    mesh_microdetail_pixel_blob_->Release();
                 if (mesh_instanced_vertex_blob_)
                     mesh_instanced_vertex_blob_->Release();
                 mesh_vertex_blob_ = nullptr;
                 mesh_pixel_blob_ = nullptr;
+                mesh_microdetail_pixel_blob_ = nullptr;
                 mesh_instanced_vertex_blob_ = nullptr;
                 for (auto &[handle, texture] : textures_)
                     release_texture(texture);
@@ -1059,6 +1069,7 @@ namespace sl::detail
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
                 srv_desc.Texture2DArray.MipLevels = resource_desc.MipLevels;
                 srv_desc.Texture2DArray.ArraySize = resource_desc.DepthOrArraySize;
+                resource.array = true;
                 context_.device()->CreateShaderResourceView(
                     resource.resource, &srv_desc, cpu_descriptor(srv_staging_heap_, srv_descriptor_size_, descriptor));
                 context_.device()->CopyDescriptorsSimple(
@@ -1537,6 +1548,7 @@ namespace sl::detail
             {
                 return draw_mesh_common(handle, params, nullptr, 0);
             }
+            bool supports_planet_microdetail() const override { return true; }
             bool create_instance_buffer(std::size_t capacity, std::uint32_t &handle) override
             {
                 handle = 0;
@@ -1646,6 +1658,17 @@ namespace sl::detail
                 // Terrain draws append the layer table after the lights: layers (32), averages (32), macro (4).
                 constexpr std::size_t terrain_floats = 44 + local_light_vec4s * 4 + 68;
                 const bool terrain = params.terrain_albedo != 0 && instances == nullptr;
+                auto detail = textures_.end();
+                if (params.microdetail_array != 0)
+                {
+                    detail = textures_.find(params.microdetail_array);
+                    if (detail == textures_.end() || !detail->second.array ||
+                        detail->second.state != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    {
+                        last_error_ = "D3D12 planet microdetail array handle is not registered or ready.";
+                        return false;
+                    }
+                }
                 if (terrain)
                 {
                     texture = textures_.find(params.terrain_albedo);
@@ -1685,9 +1708,18 @@ namespace sl::detail
                     std::copy(std::begin(params.terrain_macro), std::end(params.terrain_macro), table + 64);
                     table[67] = params.terrain_normals != 0 ? 1.0f : 0.0f;
                 }
+                else if (detail != textures_.end())
+                {
+                    float *table = pbr_constants.data() + 44 + local_light_vec4s * 4;
+                    std::memcpy(table, params.microdetail_ranges, sizeof(params.microdetail_ranges));
+                    table[12] = params.microdetail_normals ? 1.0f : 0.0f;
+                    table[13] = static_cast<float>(params.microdetail_blend_mode);
+                }
                 const D3D12_GPU_VIRTUAL_ADDRESS pbr_address =
                     allocate_constants(pbr_constants.data(),
-                                       sizeof(float) * (terrain ? terrain_floats : 44 + local_vec4s * 4));
+                                       sizeof(float) * (terrain ? terrain_floats :
+                                                        detail != textures_.end() ? 44 + local_light_vec4s * 4 + 16 :
+                                                        44 + local_vec4s * 4));
                 if (pbr_address == 0)
                     return false;
 
@@ -1704,7 +1736,8 @@ namespace sl::detail
 
                 ID3D12PipelineState *mesh_pipeline =
                     get_mesh_pipeline(static_cast<std::size_t>(params.cull), target->second.samples, instances != nullptr,
-                                      std::min<std::uint32_t>(params.blend, 2), params.style == 2, terrain);
+                                      std::min<std::uint32_t>(params.blend, 2), params.style == 2, terrain,
+                                      detail != textures_.end());
                 if (!mesh_pipeline)
                     return false;
 
@@ -1719,6 +1752,11 @@ namespace sl::detail
                 draw.shadow_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, shadow_map->second.descriptor);
                 draw.local_shadow_srv =
                     gpu_descriptor(srv_heap_, srv_descriptor_size_, local_shadow_map->second.descriptor);
+                if (detail != textures_.end())
+                {
+                    draw.microdetail_srv = gpu_descriptor(srv_heap_, srv_descriptor_size_, detail->second.descriptor);
+                    draw.microdetail_sampler = gpu_descriptor(sampler_heap_, sampler_descriptor_size_, detail->second.sampler);
+                }
                 draw.pbr_address = pbr_address;
                 draw.pipeline = mesh_pipeline;
                 draw.views[0] = mesh->second.vertex_view;
@@ -1748,6 +1786,7 @@ namespace sl::detail
                 std::array<float, 48> constants;
                 D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, texture_sampler, normal_srv, normal_sampler,
                     material_srv, material_sampler, shadow_srv, local_shadow_srv;
+                D3D12_GPU_DESCRIPTOR_HANDLE microdetail_srv{}, microdetail_sampler{};
                 D3D12_GPU_VIRTUAL_ADDRESS pbr_address;
                 ID3D12PipelineState *pipeline;
                 D3D12_VERTEX_BUFFER_VIEW views[2];
@@ -1779,6 +1818,11 @@ namespace sl::detail
                 commands->SetGraphicsRootConstantBufferView(7, draw.pbr_address);
                 commands->SetGraphicsRootDescriptorTable(8, draw.shadow_srv);
                 commands->SetGraphicsRootDescriptorTable(9, draw.local_shadow_srv);
+                if (draw.microdetail_srv.ptr != 0)
+                {
+                    commands->SetGraphicsRootDescriptorTable(10, draw.microdetail_srv);
+                    commands->SetGraphicsRootDescriptorTable(11, draw.microdetail_sampler);
+                }
                 commands->SetPipelineState(draw.pipeline);
                 commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 commands->IASetVertexBuffers(0, draw.view_count, draw.views);
@@ -2819,9 +2863,8 @@ namespace sl::detail
                     return false;
                 }
 
-                // Tables 1-6: colour SRV t0, colour sampler s0, normal SRV t1, normal sampler s1, and the PBR
-                // occlusion-roughness-metalness SRV t2 and sampler s2. Parameters 7-9 bind PBR constants and
-                // the sun and local shadow maps.
+                // Tables 1-6 bind colour, normal and PBR textures and samplers. Parameters 7-9 bind PBR constants
+                // and shadow maps; 10-11 bind the optional microdetail texture array and sampler.
                 D3D12_DESCRIPTOR_RANGE ranges[6]{};
                 for (UINT index = 0; index < 6; ++index)
                 {
@@ -2839,10 +2882,13 @@ namespace sl::detail
                     shadow_ranges[index].BaseShaderRegister = index + 3;
                     shadow_ranges[index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
                 }
-                D3D12_ROOT_PARAMETER parameters[10]{};
+                D3D12_DESCRIPTOR_RANGE detail_ranges[2]{};
+                detail_ranges[0] = {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND};
+                detail_ranges[1] = {D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 3, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND};
+                D3D12_ROOT_PARAMETER parameters[12]{};
                 parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
                 parameters[0].Constants.ShaderRegister = 0;
-                // 32 mesh constants plus 16 for the environment, eight tables, and one CBV use 58 of 64 DWORDs.
+                // 48 constants, ten tables and one CBV use 60 of 64 DWORDs.
                 parameters[0].Constants.Num32BitValues = 48;
                 parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
                 for (UINT index = 0; index < 6; ++index)
@@ -2863,6 +2909,13 @@ namespace sl::detail
                 parameters[9].DescriptorTable.NumDescriptorRanges = 1;
                 parameters[9].DescriptorTable.pDescriptorRanges = &shadow_ranges[1];
                 parameters[9].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                for (UINT index = 0; index < 2; ++index)
+                {
+                    parameters[index + 10].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    parameters[index + 10].DescriptorTable.NumDescriptorRanges = 1;
+                    parameters[index + 10].DescriptorTable.pDescriptorRanges = &detail_ranges[index];
+                    parameters[index + 10].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                }
                 D3D12_ROOT_SIGNATURE_DESC signature_desc{};
                 signature_desc.NumParameters = static_cast<UINT>(std::size(parameters));
                 signature_desc.pParameters = parameters;
@@ -2942,15 +2995,28 @@ namespace sl::detail
             }
 
             ID3D12PipelineState *get_mesh_pipeline(std::size_t cull, int samples, bool instanced = false, std::uint32_t blend = 0,
-                                                   bool wire = false, bool terrain = false)
+                                                   bool wire = false, bool terrain = false, bool microdetail = false)
             {
                 ID3D12PipelineState *&slot =
-                    (terrain ? terrain_pipelines_ : instanced ? mesh_instanced_pipelines_ : mesh_pipelines_)
+                    (terrain ? terrain_pipelines_ : instanced ? mesh_instanced_pipelines_ :
+                     microdetail ? mesh_microdetail_pipelines_ : mesh_pipelines_)
                         [(wire ? 9 * sample_slot_count : 0) + sample_slot(samples) * 9 + blend * 3 + cull];
                 if (slot)
                     return slot;
                 if (terrain && !initialise_terrain_shaders())
                     return nullptr;
+                if (microdetail && !mesh_microdetail_pixel_blob_)
+                {
+                    const std::string source = load_shader("mesh3d.frag.hlsl");
+                    if (source.find("#ifdef PLANET_MICRODETAIL") == std::string::npos)
+                    {
+                        last_error_ = "D3D12 mesh shader does not support planet microdetail.";
+                        return nullptr;
+                    }
+                    if (!compile_shader("#define PLANET_MICRODETAIL 1\n" + source, "main", "ps_5_0",
+                                        &mesh_microdetail_pixel_blob_, last_error_))
+                        return nullptr;
+                }
                 static const D3D12_INPUT_ELEMENT_DESC elements[] = {
                     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex3D, position)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -2962,23 +3028,21 @@ namespace sl::detail
                      static_cast<UINT>(offsetof(Vertex3D, uv)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
                      static_cast<UINT>(offsetof(Vertex3D, tangent)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                    {"EXTRA", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+                     static_cast<UINT>(offsetof(Vertex3D, extra)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                     // Slot 1: the instance's model matrix columns and tint, advancing once per instance.
                     {"INSTANCE", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
                     {"INSTANCE", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
                     {"INSTANCE", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
                     {"INSTANCE", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
                     {"INSTANCE", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 64, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1}};
-                constexpr UINT vertex_element_count = 5;
-                // Terrain adds the weights of layers 4-7 after the five common elements.
-                static const D3D12_INPUT_ELEMENT_DESC terrain_elements[] = {
-                    elements[0], elements[1], elements[2], elements[3], elements[4],
-                    {"EXTRA", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-                     static_cast<UINT>(offsetof(Vertex3D, extra)), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+                constexpr UINT vertex_element_count = 6;
                 D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc{};
                 pipeline_desc.pRootSignature = mesh_root_signature_;
                 ID3DBlob *vertex_blob = terrain ? terrain_vertex_blob_
                                                 : instanced ? mesh_instanced_vertex_blob_ : mesh_vertex_blob_;
-                ID3DBlob *pixel_blob = terrain ? terrain_pixel_blob_ : mesh_pixel_blob_;
+                ID3DBlob *pixel_blob = terrain ? terrain_pixel_blob_ :
+                                       microdetail ? mesh_microdetail_pixel_blob_ : mesh_pixel_blob_;
                 pipeline_desc.VS = {vertex_blob->GetBufferPointer(), vertex_blob->GetBufferSize()};
                 pipeline_desc.PS = {pixel_blob->GetBufferPointer(), pixel_blob->GetBufferSize()};
                 pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
@@ -3006,10 +3070,8 @@ namespace sl::detail
                     blend == 0 ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
                 pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
                 pipeline_desc.DepthStencilState.StencilEnable = FALSE;
-                pipeline_desc.InputLayout =
-                    terrain ? D3D12_INPUT_LAYOUT_DESC{terrain_elements, static_cast<UINT>(std::size(terrain_elements))}
-                            : D3D12_INPUT_LAYOUT_DESC{elements, instanced ? static_cast<UINT>(std::size(elements))
-                                                                          : vertex_element_count};
+                pipeline_desc.InputLayout = {elements, instanced ? static_cast<UINT>(std::size(elements))
+                                                                : vertex_element_count};
                 pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
                 pipeline_desc.NumRenderTargets = 1;
                 pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -4149,6 +4211,7 @@ namespace sl::detail
             bool premultiplied_alpha_ = false;
             ID3D12RootSignature *mesh_root_signature_ = nullptr;
             std::array<ID3D12PipelineState *, 18 * sample_slot_count> mesh_pipelines_{}; // The second half is wireframe.
+            std::array<ID3D12PipelineState *, 18 * sample_slot_count> mesh_microdetail_pipelines_{};
             std::array<ID3D12PipelineState *, 18 * sample_slot_count> mesh_instanced_pipelines_{};
             std::array<ID3D12PipelineState *, 18 * sample_slot_count> terrain_pipelines_{};
             ID3DBlob *terrain_vertex_blob_ = nullptr;
@@ -4164,6 +4227,7 @@ namespace sl::detail
             std::uint32_t next_instance_buffer_ = 1;
             ID3DBlob *mesh_vertex_blob_ = nullptr;
             ID3DBlob *mesh_pixel_blob_ = nullptr;
+            ID3DBlob *mesh_microdetail_pixel_blob_ = nullptr;
             ID3D12RootSignature *sky_root_signature_ = nullptr;
             std::array<ID3D12PipelineState *, sample_slot_count> sky_pipelines_{};
             ID3DBlob *sky_vertex_blob_ = nullptr;

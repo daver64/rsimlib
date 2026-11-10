@@ -47,6 +47,20 @@ namespace sl::detail
         const std::vector<std::uint8_t> *diagonals = nullptr;
     };
 
+    struct PlanetTileEdgeUpload
+    {
+        bool failed = false;
+
+        template <class Upload>
+        bool update(bool changed, Upload &&upload)
+        {
+            if (!changed && !failed)
+                return true;
+            failed = !upload();
+            return !failed;
+        }
+    };
+
     inline bool planet_tile_flipped_diagonal(double a, double b, double c, double d,
                                               double outer_a, double outer_b, double outer_c, double outer_d)
     {

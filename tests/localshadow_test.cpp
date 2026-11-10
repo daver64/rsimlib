@@ -20,7 +20,7 @@ namespace
 
     // Lights a floor with a cube hovering above it by one local light and returns the red channel of every pixel.
     std::vector<int> render(sl::Surface3D *surface, sl::Mesh *floor, sl::Mesh *cube, sl::LocalShadowMap3D *map,
-                            bool spot, bool shadows)
+                            bool spot, bool shadows, std::uint32_t microdetail)
     {
         sl::Light3D sun;
         sun.colour = {0.0f, 0.0f, 0.0f};
@@ -40,8 +40,15 @@ namespace
         sl::set_local_lights_3d({lamp});
         sl::Material material;
         material.pbr = false;
+        material.microdetail.array = microdetail;
+        for (auto &range : material.microdetail.ranges)
+            range[2] = range[3] = 1.0f;
         const glm::mat4 cube_model = glm::translate(glm::mat4(1.0f), glm::vec3(2.5f, 2.5f, 1.0f));
-        auto draw_casters = [&]() { sl::draw_mesh(cube, cube_model, material); };
+        auto draw_casters = [&]()
+        {
+            sl::Material caster;
+            assert(sl::draw_mesh(cube, cube_model, caster));
+        };
 
         sl::set_local_shadow_map_3d(nullptr);
         if (shadows)
@@ -66,10 +73,11 @@ namespace
         return pixels;
     }
 
-    void check(sl::Surface3D *surface, sl::Mesh *floor, sl::Mesh *cube, sl::LocalShadowMap3D *map, bool spot)
+    void check(sl::Surface3D *surface, sl::Mesh *floor, sl::Mesh *cube, sl::LocalShadowMap3D *map,
+               bool spot, std::uint32_t microdetail = 0)
     {
-        const std::vector<int> plain = render(surface, floor, cube, map, spot, false);
-        const std::vector<int> shadowed = render(surface, floor, cube, map, spot, true);
+        const std::vector<int> plain = render(surface, floor, cube, map, spot, false, microdetail);
+        const std::vector<int> shadowed = render(surface, floor, cube, map, spot, true, microdetail);
         int darker = 0, brighter = 0;
         for (std::size_t i = 0; i < plain.size(); ++i)
         {
@@ -78,7 +86,8 @@ namespace
             else if (shadowed[i] > plain[i] + 10)
                 ++brighter;
         }
-        std::printf("%s light: %d pixels darker, %d brighter\n", spot ? "spot" : "point", darker, brighter);
+        std::printf("%s light%s: %d pixels darker, %d brighter\n", spot ? "spot" : "point",
+                    microdetail ? " with microdetail" : "", darker, brighter);
         assert(darker > 40);
         assert(brighter < 20);
     }
@@ -101,6 +110,16 @@ int main(int argc, char *argv[])
 
     check(surface, floor, cube, map, false);
     check(surface, floor, cube, map, true);
+
+    sl::Bitmap *neutral = sl::create_bitmap(8, 8);
+    assert(neutral);
+    sl::clear_to_colour(neutral, {128, 128, 128, 255});
+    auto detail = sl::PlanetMicrotextureArray::create({neutral, neutral, neutral}, 8);
+    sl::destroy_bitmap(neutral);
+    assert(detail);
+    check(surface, floor, cube, map, false, detail->handle());
+    check(surface, floor, cube, map, true, detail->handle());
+    detail.reset();
 
     sl::destroy_local_shadow_map_3d(map);
     sl::destroy_surface_3d(surface);

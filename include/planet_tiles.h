@@ -6,12 +6,44 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <functional>
 #include <memory>
 #include <string>
 
 namespace sl
 {
+    namespace detail { class Renderer; }
+
+    /**
+     * Three repeating, mipmapped texture layers for planet microdetail. Creation resamples RAM-backed bitmaps to a
+     * common square size; the source bitmaps may be freed afterwards. Create and destroy on the rendering thread
+     * while the same renderer is active.
+     */
+    class PlanetMicrotextureArray
+    {
+    public:
+        static std::unique_ptr<PlanetMicrotextureArray> create(const std::array<Bitmap *, 3> &maps, int max_size = 2048);
+        /**
+         * Decode DDS files on the CPU and create the array. Identical paths are decoded only once. Each source is
+         * limited to 16 MiB of decoded pixels; source widths refer to the original DDS images.
+         */
+        static std::unique_ptr<PlanetMicrotextureArray> load_dds(const std::array<std::string, 3> &paths, int max_size = 2048);
+        ~PlanetMicrotextureArray();
+        PlanetMicrotextureArray(const PlanetMicrotextureArray &) = delete;
+        PlanetMicrotextureArray &operator=(const PlanetMicrotextureArray &) = delete;
+
+        /** Backend texture array handle, valid only with the renderer that created this object. */
+        std::uint32_t handle() const { return handle_; }
+        /** Width of an input map before resampling, used to calculate its physical repeat scale. */
+        int source_width(int layer) const { return layer >= 0 && layer < 3 ? widths_[layer] : 0; }
+
+    private:
+        PlanetMicrotextureArray() = default;
+        detail::Renderer *owner_ = nullptr;
+        std::uint32_t handle_ = 0;
+        std::array<int, 3> widths_{};
+    };
 
     /** Settings for PlanetTiles::create(). */
     struct PlanetTilesOptions
@@ -184,6 +216,13 @@ namespace sl
     class PlanetTiles
     {
     public:
+        /**
+         * Configure microdetail for a geometry tile and its colour owner. `levels_up` identifies the owner relative to
+         * the geometry tile, including the parent underlay during a fade. Called on the rendering thread before any
+         * patches are drawn. Return false and supply an error if the mapping cannot be calculated.
+         */
+        using MicrodetailMapper = std::function<bool(int level, int column, int row, int levels_up,
+                                                     PlanetMicrodetail &detail, std::string &error)>;
         /** Open the tile sets and load the coarsest level. Returns nullptr on failure (see last_error()). */
         static std::unique_ptr<PlanetTiles> create(const PlanetTilesOptions &options);
         ~PlanetTiles();
@@ -217,8 +256,19 @@ namespace sl
         void draw_relative(const glm::dmat4 &model, const Material &material = {});
 
         /**
+         * Experimental per-patch microdetail draw. The mapper receives a copy of material.microdetail for each colour
+         * pass; the array must remain alive through all draws. Mapping is completed before drawing starts, so a mapping
+         * failure leaves the target unchanged. Returns false with last_error() set if mapping or a draw fails; a draw
+         * failure can leave earlier patches drawn. The mapper is not used for the specular overlay.
+         * Backend restrictions on Material::microdetail still apply.
+         */
+        bool draw_relative_microdetail(const glm::dmat4 &model, const Material &material,
+                                       const MicrodetailMapper &mapper);
+
+        /**
          * Sample the currently selected elevated mesh along a body-fixed radial direction. Returns the height in
-         * planet-radius units, or false with last_error() set if that direction is not covered by a ready mesh.
+         * planet-radius units, or false with last_error() set if that direction is not covered by a ready mesh or any
+         * selected mesh edge update failed during the last update.
          * Requires match_elevation_edges and disabled tile fading/feathering. Call after update_relative().
          */
         bool drawn_elevation(const glm::dvec3 &direction, double &height) const;
@@ -243,6 +293,7 @@ namespace sl
 
     private:
         PlanetTiles();
+        bool draw_relative_impl(const glm::dmat4 &model, const Material &material, const MicrodetailMapper *mapper);
         struct Impl;
         std::unique_ptr<Impl> impl_;
     };

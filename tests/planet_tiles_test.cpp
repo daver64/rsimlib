@@ -1,6 +1,7 @@
 #undef NDEBUG
 #include "sl.h"
 #include "../src/engine/planet_tile_edges.h"
+#include "../src/engine/parallel_record.h"
 
 #include <cassert>
 #include <array>
@@ -81,6 +82,8 @@ namespace
         sl::Colour centre;
         sl::PlanetTilesStats stats;
         int coloured_pixels = 0;
+        int first_black_x = -1;
+        int first_black_y = -1;
     };
 
     // Looks at the sphere along the normal at (u, v) from `distance` radii away, for up to `frames` frames, until
@@ -128,6 +131,11 @@ namespace
                 const sl::Colour c = sl::getpixel(image, x, y);
                 if (c.red || c.green || c.blue)
                     ++shot.coloured_pixels;
+                else if (shot.first_black_x < 0)
+                {
+                    shot.first_black_x = x;
+                    shot.first_black_y = y;
+                }
             }
         return shot;
     }
@@ -142,6 +150,17 @@ namespace
 // and keeps the coarser tile wherever the deeper level has none.
 int main(int argc, char *argv[])
 {
+    {
+        sl::detail::PlanetTileEdgeUpload upload;
+        int attempts = 0;
+        const auto fail = [&] { ++attempts; return false; };
+        const auto succeed = [&] { ++attempts; return true; };
+        assert(upload.update(false, fail) && attempts == 0 && !upload.failed);
+        assert(!upload.update(true, fail) && attempts == 1 && upload.failed);
+        assert(!upload.update(false, fail) && attempts == 2 && upload.failed);
+        assert(upload.update(false, succeed) && attempts == 3 && !upload.failed);
+        assert(upload.update(false, fail) && attempts == 3 && !upload.failed);
+    }
     assert(!sl::detail::planet_tile_flipped_diagonal(0, 0, 0, 0, 0, 0, 0, 0));
     assert(!sl::detail::planet_tile_flipped_diagonal(0, 0, 0, 0, 1, 0, 0, 1));
     assert(sl::detail::planet_tile_flipped_diagonal(0, 0, 0, 0, 0, 1, 1, 0));
@@ -402,6 +421,482 @@ int main(int argc, char *argv[])
     sl::Surface3D *surface = sl::create_surface_3d(view_size, view_size, 1);
     assert(surface);
 
+    // Backend lifetime regression: deliberately update after recording a draw, beyond the portable API contract.
+    if (sl::graphics_backend() == sl::GraphicsBackend::vulkan)
+    {
+        std::vector<sl::Vertex3D> vertices(4);
+        for (int i = 0; i < 4; ++i)
+        {
+            vertices[i].position[0] = (i & 1) ? 0.5f : -0.5f;
+            vertices[i].position[1] = (i & 2) ? 0.5f : -0.5f;
+            vertices[i].colour[0] = 1.0f;
+            vertices[i].colour[1] = 0.0f;
+            vertices[i].colour[2] = 0.0f;
+        }
+        sl::Mesh *mesh = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+        assert(mesh);
+        sl::Camera camera;
+        camera.position = {0, 0, 3};
+        camera.target = {0, 0, 0};
+        sl::Material material;
+        material.lit = false;
+        material.fog = false;
+        material.cull = sl::CullMode::none;
+        assert(sl::begin_surface_3d(surface, camera));
+        sl::clear_surface_3d({0, 0, 0, 255});
+        assert(sl::draw_mesh(mesh, glm::translate(glm::mat4(1.0f), glm::vec3(-0.7f, 0, 0)), material));
+        for (auto &vertex : vertices)
+        {
+            vertex.colour[0] = 0.0f;
+            vertex.colour[1] = 1.0f;
+        }
+        assert(sl::update_mesh_vertices(mesh, vertices));
+        assert(sl::draw_mesh(mesh, glm::translate(glm::mat4(1.0f), glm::vec3(0.7f, 0, 0)), material));
+        sl::destroy_mesh(mesh);
+        sl::end_surface_3d();
+        sl::show_video_bitmap();
+        sl::end_frame();
+        sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+        assert(sl::download_bitmap(image));
+        assert(near_colour(sl::getpixel(image, 19, 32), 255, 0, 0));
+        assert(near_colour(sl::getpixel(image, 45, 32), 0, 255, 0));
+    }
+
+    {
+        sl::Bitmap *large = sl::create_bitmap(16, 8);
+        sl::Bitmap *small = sl::create_bitmap(4, 4);
+        sl::Bitmap *third = sl::create_bitmap(8, 8);
+        assert(large && small && third);
+        sl::clear_to_colour(large, {220, 10, 20, 255});
+        sl::clear_to_colour(small, {10, 210, 20, 255});
+        sl::clear_to_colour(third, {10, 20, 210, 255});
+        const std::array<sl::Bitmap *, 3> maps{large, small, third};
+        auto detail = sl::PlanetMicrotextureArray::create(maps, 16);
+        assert(detail && detail->handle() && detail->source_width(0) == 16 &&
+               detail->source_width(1) == 4 && detail->source_width(2) == 8 && detail->source_width(3) == 0);
+        assert(!sl::PlanetMicrotextureArray::create({large, nullptr, small}));
+        assert(sl::last_error().find("RAM-backed") != std::string::npos);
+        assert(!sl::PlanetMicrotextureArray::create(maps, 3));
+        sl::destroy_bitmap(large);
+        sl::destroy_bitmap(small);
+        sl::destroy_bitmap(third);
+        assert(detail->handle());
+
+        std::vector<sl::Vertex3D> vertices(4);
+        for (int i = 0; i < 4; ++i)
+        {
+            vertices[i].position[0] = (i & 1) ? 1.0f : -1.0f;
+            vertices[i].position[1] = (i & 2) ? 1.0f : -1.0f;
+            vertices[i].normal[0] = vertices[i].normal[1] = 0.0f;
+            vertices[i].normal[2] = 1.0f;
+            vertices[i].colour[0] = 1.0f;
+            vertices[i].colour[1] = vertices[i].colour[2] = vertices[i].colour[3] = 0.0f;
+            vertices[i].uv[0] = (i & 1) ? 3.75f : -2.25f;
+            vertices[i].uv[1] = (i & 2) ? 2.75f : -3.25f;
+            vertices[i].tangent[3] = 1.0f;
+        }
+        sl::Mesh *quad = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+        assert(quad);
+        sl::Camera camera;
+        camera.position = {0, 0, 3};
+        camera.target = {0, 0, 0};
+        camera.near_plane = 0.1f;
+        camera.far_plane = 100.0f;
+        sl::TerrainTextures layers;
+        layers.albedo_array = detail->handle();
+        layers.variants[0] = 1;
+        layers.tile_metres[0] = 1.0f;
+        layers.tiles_per_period[0] = 1;
+        sl::Material material;
+        material.lit = false;
+        material.fog = false;
+        material.terrain.enabled = true;
+        material.terrain.eye[2] = 3.0f;
+        material.terrain.morph_start = 1000.0f;
+        material.terrain.morph_end = 2000.0f;
+        material.terrain.fade_start = 1000.0f;
+        material.terrain.fade_end = 2000.0f;
+        material.terrain.textures = &layers;
+        for (int layer = 0; layer < 3; ++layer)
+        {
+            layers.first[0] = layer;
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({0, 0, 0, 255});
+            assert(sl::draw_mesh(quad, glm::mat4(1.0f), material));
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+            assert(sl::download_bitmap(image));
+            const sl::Colour pixel = sl::getpixel(image, view_size / 2, view_size / 2);
+            assert(layer == 0 ? near_colour(pixel, 220, 10, 20) :
+                   layer == 1 ? near_colour(pixel, 10, 210, 20) : near_colour(pixel, 10, 20, 210));
+        }
+        sl::destroy_mesh(quad);
+
+        sl::Bitmap *pattern = sl::create_bitmap(8, 8);
+        assert(pattern);
+        for (int y = 0; y < 8; ++y)
+            for (int x = 0; x < 8; ++x)
+                sl::putpixel(pattern, x, y, y < 4 ?
+                             (x < 4 ? sl::Colour{220, 10, 20, 255} : sl::Colour{10, 210, 20, 255}) :
+                             (x < 4 ? sl::Colour{10, 20, 210, 255} : sl::Colour{220, 220, 10, 255}));
+        auto repeating = sl::PlanetMicrotextureArray::create({pattern, pattern, pattern}, 8);
+        sl::destroy_bitmap(pattern);
+        assert(repeating && repeating->handle());
+        layers.albedo_array = repeating->handle();
+        layers.first[0] = 0;
+        const auto sample = [&](float u, float v, float scale)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                vertices[i].uv[0] = u + ((i & 1) ? scale : 0.0f);
+                vertices[i].uv[1] = v + ((i & 2) ? scale : 0.0f);
+            }
+            sl::Mesh *mesh = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+            assert(mesh);
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({0, 0, 0, 255});
+            assert(sl::draw_mesh(mesh, glm::mat4(1.0f), material));
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+            assert(sl::download_bitmap(image));
+            const sl::Colour pixel = sl::getpixel(image, view_size / 2, view_size / 2);
+            sl::destroy_mesh(mesh);
+            return pixel;
+        };
+        assert(near_colour(sample(0.25f, 0.25f, 0.0f), 220, 10, 20));
+        assert(near_colour(sample(2.25f, 3.25f, 0.0f), 220, 10, 20));
+        assert(near_colour(sample(-0.75f, -0.75f, 0.0f), 220, 10, 20));
+        assert(near_colour(sample(0.75f, 0.25f, 0.0f), 10, 210, 20));
+        assert(near_colour(sample(0.25f, 0.75f, 0.0f), 10, 20, 210));
+        assert(near_colour(sample(0.0f, 0.0f, 128.0f), 115, 115, 65));
+
+        sl::Bitmap *horizontal = sl::create_bitmap(32, 4);
+        sl::Bitmap *vertical = sl::create_bitmap(4, 32);
+        assert(horizontal && vertical);
+        for (int y = 0; y < 4; ++y)
+            for (int x = 0; x < 32; ++x)
+            {
+                const sl::Colour colour = x % 4 == 1 || x % 4 == 2 ? sl::Colour{200, 80, 20, 255} : sl::Colour{20, 180, 220, 255};
+                sl::putpixel(horizontal, x, y, colour);
+                sl::putpixel(vertical, y, x, colour);
+            }
+        auto mixed = sl::PlanetMicrotextureArray::create({horizontal, vertical, horizontal}, 8);
+        sl::destroy_bitmap(horizontal);
+        sl::destroy_bitmap(vertical);
+        assert(mixed && mixed->handle());
+        layers.albedo_array = mixed->handle();
+        for (int layer = 0; layer < 3; ++layer)
+        {
+            layers.first[0] = layer;
+            const sl::Colour pixel = sample(0.25f, 0.25f, 0.0f);
+            assert(std::abs(pixel.red - 110) <= 4 && std::abs(pixel.green - 130) <= 4 &&
+                   std::abs(pixel.blue - 120) <= 4);
+        }
+        layers.first[0] = 0;
+
+        std::vector<std::uint8_t> dds = dds_header(8, "DXT5");
+        const std::uint8_t block[16] = {192, 0, 0, 0, 0, 0, 0, 0, 0x96, 0x5c, 0, 0, 0, 0, 0, 0};
+        for (int i = 0; i < 4; ++i)
+            dds.insert(dds.end(), block, block + sizeof(block));
+        sl::DdsOptions dds_options;
+        dds_options.allow_compressed_upload = false;
+        dds_options.max_decoded_bytes = 8 * 8 * 4;
+        sl::Bitmap *decoded = sl::load_dds_from_memory(dds.data(), dds.size(), dds_options);
+        assert(decoded && !decoded->compressed);
+        const sl::Colour decoded_pixel = sl::getpixel(decoded, 0, 0);
+        assert(decoded_pixel.red == 90 && decoded_pixel.green == 146 &&
+               decoded_pixel.blue == 181 && decoded_pixel.alpha == 192);
+        auto dds_array = sl::PlanetMicrotextureArray::create({decoded, decoded, decoded}, 8);
+        sl::destroy_bitmap(decoded);
+        assert(dds_array && dds_array->handle());
+        layers.albedo_array = dds_array->handle();
+        assert(near_colour(sample(2.25f, -0.75f, 0.0f), 90, 146, 181));
+
+        const fs::path dds_path = root / "detail.dds";
+        {
+            std::ofstream out(dds_path, std::ios::binary);
+            assert(out.write(reinterpret_cast<const char *>(dds.data()), static_cast<std::streamsize>(dds.size())));
+        }
+        const std::string red_path = (root / "colour" / "level0" / "tx_0_0.dds").string();
+        const std::array<std::string, 3> paths{dds_path.string(), red_path, dds_path.string()};
+        auto loaded = sl::PlanetMicrotextureArray::load_dds(paths, 8);
+        assert(loaded && loaded->source_width(0) == 8 && loaded->source_width(1) == 8 && loaded->source_width(2) == 8);
+        layers.albedo_array = loaded->handle();
+        for (int layer = 0; layer < 3; ++layer)
+        {
+            layers.first[0] = layer;
+            const sl::Colour pixel = sample(0.25f, 0.25f, 0.0f);
+            assert(layer == 1 ? near_colour(pixel, 255, 0, 0) : near_colour(pixel, 90, 146, 181));
+        }
+
+        sl::Bitmap *dark = sl::create_bitmap(8, 8);
+        assert(dark);
+        sl::clear_to_colour(dark, {64, 64, 64, 128});
+        auto detail_map = sl::PlanetMicrotextureArray::create({dark, dark, dark}, 8);
+        sl::destroy_bitmap(dark);
+        assert(detail_map);
+        for (auto &vertex : vertices)
+        {
+            vertex.colour[0] = vertex.colour[1] = vertex.colour[2] = vertex.colour[3] = 1.0f;
+            vertex.extra[0] = (vertex.position[0] + 1.0f) * 0.5f;
+            vertex.extra[1] = (vertex.position[1] + 1.0f) * 0.5f;
+        }
+        sl::Mesh *detail_mesh = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+        assert(detail_mesh);
+        sl::Material micro;
+        micro.lit = false;
+        micro.fog = false;
+        micro.microdetail.array = detail_map->handle();
+        for (auto &range : micro.microdetail.ranges)
+            range[2] = range[3] = 1.0f;
+        const auto render_detail = [&](float distance, bool normals)
+        {
+            sl::Camera detail_camera = camera;
+            detail_camera.position.z = distance;
+            detail_camera.far_plane = distance * 2.0f;
+            micro.microdetail.normals = normals;
+            const glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(distance / 3.0f));
+            assert(sl::begin_surface_3d(surface, detail_camera));
+            sl::clear_surface_3d({255, 0, 0, 255});
+            const bool drawn = sl::draw_mesh(detail_mesh, transform, micro);
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            if (!drawn)
+                return std::pair<bool, sl::Colour>{false, {}};
+            sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+            assert(sl::download_bitmap(image));
+            return std::pair<bool, sl::Colour>{true, sl::getpixel(image, view_size / 2, view_size / 2)};
+        };
+        const auto near_detail = render_detail(3.0f, false);
+        if (near_detail.first)
+        {
+            assert(near_detail.first);
+            assert(near_detail.second.red < 8 && near_detail.second.green < 8 && near_detail.second.blue < 8);
+            const auto normals_detail = render_detail(3.0f, true);
+            assert(normals_detail.first && normals_detail.second.red < 8 && normals_detail.second.green < 8 &&
+                   normals_detail.second.blue < 8);
+            const auto mid_detail = render_detail(9000.0f, false);
+            assert(mid_detail.first && std::abs(mid_detail.second.red - 223) <= 6 &&
+                   std::abs(mid_detail.second.green - 223) <= 6 && std::abs(mid_detail.second.blue - 223) <= 6);
+            const auto far_detail = render_detail(18000.0f, false);
+            assert(far_detail.first && far_detail.second.red >= 250 && far_detail.second.green >= 250 &&
+                   far_detail.second.blue >= 250);
+
+            sl::Bitmap *normal_map = sl::create_bitmap(8, 8);
+            assert(normal_map);
+            sl::clear_to_colour(normal_map, {20, 128, 128, 192});
+            auto encoded = sl::PlanetMicrotextureArray::create({normal_map, normal_map, normal_map}, 8);
+            sl::destroy_bitmap(normal_map);
+            assert(encoded);
+            micro.microdetail.array = encoded->handle();
+            const auto luminance = render_detail(3.0f, true);
+            assert(luminance.first && near_colour(luminance.second, 255, 255, 255));
+            const auto colour = render_detail(3.0f, false);
+            assert(colour.first && colour.second.red < 8 && colour.second.blue > 240);
+            if (sl::graphics_backend() == sl::GraphicsBackend::vulkan)
+            {
+                sl::Bitmap *white = sl::create_bitmap(8, 8);
+                assert(white);
+                sl::clear_to_colour(white, {192, 192, 192, 255});
+                auto bright = sl::PlanetMicrotextureArray::create({white, white, white}, 8);
+                sl::destroy_bitmap(white);
+                assert(bright);
+                sl::set_parallel_recording(true);
+                sl::set_parallel_recording_threshold(1);
+                sl::set_parallel_recording_threads(2);
+                const std::uint64_t before = sl::detail::parallel_draws_recorded();
+                assert(sl::begin_surface_3d(surface, camera));
+                sl::clear_surface_3d({0, 0, 0, 255});
+                micro.microdetail.normals = false;
+                for (int i = 0; i < 260; ++i)
+                {
+                    micro.microdetail.array = (i & 1) ? bright->handle() : detail_map->handle();
+                    const float x = (i & 1) ? 0.6f : -0.6f;
+                    const glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x, 0, 0)) *
+                                                glm::scale(glm::mat4(1.0f), glm::vec3(0.45f));
+                    assert(sl::draw_mesh(detail_mesh, transform, micro));
+                }
+                bright.reset();
+                sl::end_surface_3d();
+                sl::show_video_bitmap();
+                sl::end_frame();
+                assert(sl::detail::parallel_draws_recorded() > before);
+                sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+                assert(sl::download_bitmap(image));
+                const sl::Colour left = sl::getpixel(image, 22, view_size / 2);
+                const sl::Colour right = sl::getpixel(image, 42, view_size / 2);
+                assert(left.red < 8 && left.green < 8 && left.blue < 8);
+                assert(right.red > 240 && right.green > 240 && right.blue > 240);
+                sl::set_parallel_recording_threshold(256);
+                sl::set_parallel_recording_threads(0);
+                micro.microdetail.array = encoded->handle();
+            }
+            sl::Light3D tangent_light;
+            tangent_light.direction = {-1.0f, 0.0f, 0.0f};
+            tangent_light.ambient = 0.0f;
+            sl::set_light_3d(tangent_light);
+            micro.lit = true;
+            assert(micro.microdetail.blend_mode == sl::PlanetMicrodetailBlendMode::medium);
+            const auto tilted = render_detail(3.0f, true);
+            assert(tilted.first && tilted.second.red > 120 && tilted.second.green > 120);
+            sl::Light3D airless_light;
+            airless_light.direction = {0.0f, 0.0f, -1.0f};
+            airless_light.ambient = 0.0f;
+            sl::set_light_3d(airless_light);
+            micro.airless = true;
+            const float opposition_surge = micro.opposition_surge;
+            micro.opposition_surge = 0.0f;
+            micro.microdetail.array = 0;
+            const auto airless_baseline = render_detail(3.0f, false);
+            assert(airless_baseline.first && near_colour(airless_baseline.second, 204, 204, 204));
+            airless_light.direction = {1.0f, 0.0f, -1.7320508f};
+            sl::set_light_3d(airless_light);
+            micro.opposition_surge = opposition_surge;
+            micro.microdetail.array = encoded->handle();
+            const auto airless_micro = render_detail(3.0f, true);
+            micro.microdetail.array = 0;
+            const auto airless_base = render_detail(3.0f, false);
+            micro.microdetail.array = encoded->handle();
+            sl::Bitmap *neutral_map = sl::create_bitmap(8, 8);
+            assert(neutral_map);
+            sl::clear_to_colour(neutral_map, {128, 128, 128, 128});
+            auto neutral_detail = sl::PlanetMicrotextureArray::create({neutral_map, neutral_map, neutral_map}, 8);
+            sl::destroy_bitmap(neutral_map);
+            assert(neutral_detail);
+            airless_light.direction = {1.0f, 0.0f, -0.1f};
+            sl::set_light_3d(airless_light);
+            micro.microdetail.array = neutral_detail->handle();
+            const auto distant_sun_bias = render_detail(18000.0f, true);
+            micro.microdetail.array = 0;
+            const auto airless_distant_flat = render_detail(18000.0f, false);
+            assert(distant_sun_bias.first && airless_distant_flat.first &&
+                   (std::abs(static_cast<int>(distant_sun_bias.second.red) - airless_distant_flat.second.red) > 2 ||
+                    std::abs(static_cast<int>(distant_sun_bias.second.green) - airless_distant_flat.second.green) > 2 ||
+                    std::abs(static_cast<int>(distant_sun_bias.second.blue) - airless_distant_flat.second.blue) > 2));
+            micro.microdetail.array = encoded->handle();
+            micro.airless = false;
+            sl::set_light_3d(tangent_light);
+            assert(airless_micro.first && airless_base.first &&
+                   (std::abs(static_cast<int>(airless_micro.second.red) - airless_base.second.red) > 2 ||
+                    std::abs(static_cast<int>(airless_micro.second.green) - airless_base.second.green) > 2 ||
+                    std::abs(static_cast<int>(airless_micro.second.blue) - airless_base.second.blue) > 2));
+            std::array<sl::Colour, 3> blend_pixels{};
+            const std::array<sl::PlanetMicrodetailBlendMode, 3> blend_modes{
+                sl::PlanetMicrodetailBlendMode::soft,
+                sl::PlanetMicrodetailBlendMode::medium,
+                sl::PlanetMicrodetailBlendMode::hard};
+            for (std::size_t i = 0; i < blend_modes.size(); ++i)
+            {
+                micro.microdetail.blend_mode = blend_modes[i];
+                const auto blended = render_detail(3.0f, true);
+                assert(blended.first);
+                blend_pixels[i] = blended.second;
+            }
+            const auto differs = [](sl::Colour a, sl::Colour b)
+            {
+                return std::abs(static_cast<int>(a.red) - b.red) > 2 ||
+                       std::abs(static_cast<int>(a.green) - b.green) > 2 ||
+                       std::abs(static_cast<int>(a.blue) - b.blue) > 2;
+            };
+            assert(differs(blend_pixels[0], blend_pixels[1]) || differs(blend_pixels[1], blend_pixels[2]));
+            micro.microdetail.blend_mode = sl::PlanetMicrodetailBlendMode::medium;
+            micro.microdetail.array = neutral_detail->handle();
+            const auto distant_normal = render_detail(18000.0f, true);
+            const auto distant_flat = render_detail(18000.0f, false);
+            assert(distant_normal.first && distant_flat.first && differs(distant_normal.second, distant_flat.second));
+            const auto cutoff_below = render_detail(14999.0f, true);
+            const auto cutoff_at = render_detail(15000.0f, true);
+            assert(cutoff_below.first && cutoff_at.first &&
+                   std::abs(cutoff_below.second.red - cutoff_at.second.red) <= 1 &&
+                   std::abs(cutoff_below.second.green - cutoff_at.second.green) <= 1 &&
+                   std::abs(cutoff_below.second.blue - cutoff_at.second.blue) <= 1);
+            micro.microdetail.array = encoded->handle();
+            for (auto &vertex : vertices)
+                vertex.extra[0] = 1.0f - vertex.extra[0];
+            sl::Mesh *original = detail_mesh;
+            detail_mesh = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+            assert(detail_mesh);
+            const auto mirrored = render_detail(3.0f, true);
+            assert(mirrored.first && mirrored.second.red < 8);
+            sl::destroy_mesh(detail_mesh);
+            detail_mesh = original;
+            for (auto &vertex : vertices)
+                vertex.extra[0] = 1.0f - vertex.extra[0];
+            sl::Bitmap *north_map = sl::create_bitmap(8, 8);
+            assert(north_map);
+            sl::clear_to_colour(north_map, {20, 192, 128, 128});
+            auto north_detail = sl::PlanetMicrotextureArray::create({north_map, north_map, north_map}, 8);
+            sl::destroy_bitmap(north_map);
+            assert(north_detail);
+            micro.microdetail.array = north_detail->handle();
+            tangent_light.direction = {0.0f, -1.0f, 0.0f};
+            sl::set_light_3d(tangent_light);
+            const auto north = render_detail(3.0f, true);
+            assert(north.first && north.second.red > 120 && north.second.green > 120);
+            for (auto &vertex : vertices)
+                vertex.extra[1] = 1.0f - vertex.extra[1];
+            detail_mesh = sl::create_mesh(vertices, {0, 1, 2, 1, 3, 2});
+            assert(detail_mesh);
+            const auto south = render_detail(3.0f, true);
+            assert(south.first && south.second.red < 8 && south.second.green < 8);
+            sl::destroy_mesh(detail_mesh);
+            detail_mesh = original;
+            micro.pbr = true;
+            const auto north_pbr = render_detail(3.0f, true);
+            micro.microdetail.array = 0;
+            const auto flat_pbr = render_detail(3.0f, false);
+            assert(north_pbr.first && flat_pbr.first && north_pbr.second.red > flat_pbr.second.red + 10);
+            micro.pbr = false;
+            micro.microdetail.array = 0;
+            const auto flat = render_detail(3.0f, false);
+            assert(flat.first && flat.second.red < 8);
+            sl::set_light_3d(sl::Light3D{});
+        }
+        else
+        {
+            assert(sl::graphics_backend() != sl::GraphicsBackend::opengl);
+            assert(sl::last_error().find("Planet microdetail") != std::string::npos);
+            std::printf("microdetail unsupported by this backend or device\n");
+        }
+        sl::destroy_mesh(detail_mesh);
+        const auto missing_path = (root / "missing-detail.dds").string();
+        assert(!sl::PlanetMicrotextureArray::load_dds({dds_path.string(), missing_path, dds_path.string()}, 8));
+        assert(sl::last_error().find("missing-detail.dds") != std::string::npos);
+        assert(!sl::PlanetMicrotextureArray::load_dds(paths, 3));
+        assert(sl::last_error().find("max_size") != std::string::npos);
+        const fs::path oversized = root / "oversized-detail.dds";
+        const auto oversized_header = dds_header(4096, "DXT5");
+        {
+            std::ofstream out(oversized, std::ios::binary);
+            assert(out.write(reinterpret_cast<const char *>(oversized_header.data()),
+                             static_cast<std::streamsize>(oversized_header.size())));
+        }
+        assert(!sl::PlanetMicrotextureArray::load_dds({oversized.string(), red_path, red_path}, 8));
+        assert(sl::last_error().find("byte limit") != std::string::npos);
+
+        if (const char *textures = std::getenv("SIMLIB_PLANET_MICROTEXTURE_TEST_ROOT"))
+        {
+            const fs::path directory(textures);
+            {
+                auto moon = sl::PlanetMicrotextureArray::load_dds(
+                    {(directory / "D3D9Moon_A.dds").string(), (directory / "D3D9Moon_C2.dds").string(),
+                     (directory / "D3D9Moon_C.dds").string()});
+                assert(moon && moon->source_width(0) == 2048 && moon->source_width(1) == 2048 && moon->source_width(2) == 2048);
+            }
+            {
+                auto mars = sl::PlanetMicrotextureArray::load_dds(
+                    {(directory / "D3D9Mars_A.dds").string(), (directory / "D3D9Mars_B.dds").string(),
+                     (directory / "D3D9Mars_B.dds").string()});
+                assert(mars && mars->source_width(0) == 2048 && mars->source_width(1) == 1024 && mars->source_width(2) == 1024);
+            }
+        }
+    }
+
     assert(!sl::PlanetTiles::create({}));
     sl::PlanetTilesOptions options;
     options.colour = (root / "colour.ctx").string();
@@ -409,6 +904,97 @@ int main(int argc, char *argv[])
     options.max_loads_in_flight = 4;
     options.feather = 0.0f;
     options.fade_seconds = 0.0f;
+
+    // Edge updates must preserve normal-map tangents on refined relief meshes.
+    {
+        const fs::path normal_path = root / "relief-normal";
+        for (int c = 0; c < 2; ++c)
+            write_tile(normal_path / "level0" / ("tx_" + std::to_string(c) + "_0.dds"), 0xfc10);
+        sl::PlanetTilesOptions relief = options;
+        relief.colour.clear();
+        relief.colour_max_level = 0;
+        relief.has_colour = [](int level, int, int) { return level == 0; };
+        relief.load_colour = [](int, int, int)
+        {
+            sl::Bitmap *bitmap = sl::create_bitmap(8, 8);
+            if (bitmap)
+                sl::clear_to_colour(bitmap, {255, 255, 255, 255});
+            return bitmap;
+        };
+        relief.normal = normal_path.string();
+        relief.max_elevation = 0.02;
+        relief.elevation = [](const glm::dvec3 &) { return 0.01; };
+        relief.elevation_lod = [](const glm::dvec3 &, double cell) { return 0.01 + 0.002 * std::min(cell, 1.0); };
+        relief.match_elevation_edges = true;
+        relief.normal_sample_spacing = 0.001;
+        relief.geometry_pixels = 8.0f;
+        relief.geometry_max_level = 3;
+        relief.max_relief_mesh_jobs = 2;
+        relief.skirt = 0.02f;
+        auto planet = sl::PlanetTiles::create(relief);
+        assert(planet);
+        sl::Camera camera;
+        camera.position = point_on_sphere(0.001, 0.53) * 1.8f;
+        camera.target = {0, 0, 0};
+        camera.near_plane = 0.01f;
+        camera.far_plane = 50.0f;
+        camera.field_of_view = 40.0f;
+        sl::Light3D light;
+        light.direction = {0.00628314f, 0.0f, 0.9999803f};
+        light.ambient = 0.0f;
+        sl::Material material;
+        material.fog = false;
+        sl::PlanetTilesStats stats{};
+        for (int i = 0; i < 500; ++i)
+        {
+            const glm::mat4 vp = camera.projection_matrix(1.0f) * camera.view_matrix();
+            planet->update(glm::dvec3(camera.position), glm::radians(camera.field_of_view), view_size, &vp);
+            sl::set_light_3d(light);
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({0, 0, 0, 255});
+            planet->draw(glm::mat4(1.0f), material);
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            stats = planet->stats();
+            if (stats.deepest_geometry_level == 3 && stats.mesh_jobs == 0 && stats.tiles_loading == 0 && stats.matched_edges > 0)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(stats.deepest_geometry_level == 3 && stats.mesh_jobs == 0 && stats.tiles_loading == 0 && stats.matched_edges > 0);
+        sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+        assert(sl::download_bitmap(image));
+        const sl::Colour pixel = sl::getpixel(image, 30, 15);
+        assert(pixel.red > 80);
+
+        relief.elevation = {};
+        relief.elevation_lod = {};
+        relief.match_elevation_edges = false;
+        relief.geometry_pixels = 0.0f;
+        relief.limb_fade = 1.0f;
+        relief.max_level = 0;
+        auto fading = sl::PlanetTiles::create(relief);
+        assert(fading);
+        for (int i = 0; i < 500; ++i)
+        {
+            const glm::mat4 vp = camera.projection_matrix(1.0f) * camera.view_matrix();
+            fading->update(glm::dvec3(camera.position), glm::radians(camera.field_of_view), view_size, &vp);
+            sl::set_light_3d(light);
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({0, 0, 0, 255});
+            fading->draw(glm::mat4(1.0f), material);
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            if (fading->stats().tiles_loaded >= 4 && fading->stats().tiles_loading == 0)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(fading->stats().tiles_loaded >= 4 && fading->stats().tiles_loading == 0);
+        assert(sl::download_bitmap(image));
+        const sl::Colour fade_pixel = sl::getpixel(image, 30, 15);
+        assert(fade_pixel.red > 80);
+    }
 
     {
         sl::PlanetTilesOptions invalid = options;
@@ -434,6 +1020,171 @@ int main(int argc, char *argv[])
         auto relaxed = sl::PlanetTiles::create(coarse);
         assert(relaxed);
         assert(look(surface, *relaxed, 0.15, 0.53, 4.0f, 0, 100000.0f).stats.undersampled_patches == 0);
+    }
+
+    // Each fade pass uses its own colour owner; geometry-only refinement may use a much older ancestor.
+    {
+        sl::Bitmap *dark = sl::create_bitmap(8, 8);
+        assert(dark);
+        sl::clear_to_colour(dark, {64, 64, 64, 128});
+        auto detail = sl::PlanetMicrotextureArray::create({dark, dark, dark}, 8);
+        sl::destroy_bitmap(dark);
+        assert(detail);
+        sl::Material material;
+        material.lit = false;
+        material.fog = false;
+        material.microdetail.array = detail->handle();
+        const glm::vec3 normal = point_on_sphere(0.15, 0.53);
+        sl::Camera camera;
+        camera.position = normal * 1.2f;
+        camera.target = {0, 0, 0};
+        camera.up = {0, 1, 0};
+        camera.near_plane = 0.01f;
+        camera.far_plane = 50.0f;
+        camera.field_of_view = 40.0f;
+        std::vector<std::array<int, 4>> calls;
+        sl::PlanetTiles::MicrodetailMapper mapper = [&](int level, int column, int row, int up,
+                                                        sl::PlanetMicrodetail &mapping, std::string &)
+        {
+            calls.push_back({level, column, row, up});
+            for (auto &range : mapping.ranges)
+                range[2] = range[3] = 1.0f;
+            return true;
+        };
+        const auto draw_mapped = [&](sl::PlanetTiles &planet, const sl::PlanetTiles::MicrodetailMapper &mapping)
+        {
+            assert(sl::begin_surface_3d(surface, camera));
+            sl::clear_surface_3d({255, 0, 255, 255});
+            const bool drawn = planet.draw_relative_microdetail(glm::dmat4(1.0), material, mapping);
+            sl::end_surface_3d();
+            sl::show_video_bitmap();
+            sl::end_frame();
+            return drawn;
+        };
+
+        sl::PlanetTilesOptions fading = options;
+        fading.max_level = 1;
+        fading.fade_seconds = 100.0f;
+        auto planet = sl::PlanetTiles::create(fading);
+        assert(planet);
+        Shot baseline{};
+        for (int i = 0; i < 1000; ++i)
+        {
+            baseline = look(surface, *planet, 0.15, 0.53, 1.2f, 1, 1.0f, false, 1);
+            if (baseline.stats.deepest_level == 1 && baseline.stats.tiles_loading == 0)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(baseline.stats.deepest_level == 1);
+        int mapping_count = 0;
+        const auto count_mappings = [&](int, int, int, int, sl::PlanetMicrodetail &, std::string &)
+        {
+            ++mapping_count;
+            return true;
+        };
+        assert(draw_mapped(*planet, count_mappings));
+        assert(mapping_count > 1);
+        const auto fail_mapping = [](int, int, int, int, sl::PlanetMicrodetail &, std::string &error)
+        {
+            error = "test mapping error";
+            return false;
+        };
+        assert(!draw_mapped(*planet, fail_mapping));
+        assert(sl::last_error().find("test mapping error") != std::string::npos);
+        int attempted = 0;
+        const auto fail_later = [&](int, int, int, int, sl::PlanetMicrodetail &, std::string &error)
+        {
+            if (++attempted == mapping_count)
+            {
+                error = "later mapping error";
+                return false;
+            }
+            return true;
+        };
+        assert(!draw_mapped(*planet, fail_later));
+        assert(attempted == mapping_count && sl::last_error().find("later mapping error") != std::string::npos);
+        sl::Bitmap *failed_image = sl::surface_3d_bitmap(surface);
+        assert(sl::download_bitmap(failed_image));
+        for (int y = 0; y < view_size; ++y)
+            for (int x = 0; x < view_size; ++x)
+            {
+                const sl::Colour pixel = sl::getpixel(failed_image, x, y);
+                assert(pixel.red == 255 && pixel.green == 0 && pixel.blue == 255 && pixel.alpha == 255);
+            }
+        attempted = 0;
+        const auto invalid_later = [&](int, int, int, int, sl::PlanetMicrodetail &mapping, std::string &)
+        {
+            if (++attempted == mapping_count)
+                mapping.ranges[1][0] = std::numeric_limits<float>::infinity();
+            return true;
+        };
+        assert(!draw_mapped(*planet, invalid_later));
+        assert(attempted == mapping_count && sl::last_error().find("non-finite range") != std::string::npos);
+        assert(sl::download_bitmap(failed_image));
+        for (int y = 0; y < view_size; ++y)
+            for (int x = 0; x < view_size; ++x)
+            {
+                const sl::Colour pixel = sl::getpixel(failed_image, x, y);
+                assert(pixel.red == 255 && pixel.green == 0 && pixel.blue == 255 && pixel.alpha == 255);
+            }
+        assert(!draw_mapped(*planet, {}));
+        assert(sl::last_error().find("mapping callback") != std::string::npos);
+        const bool drawn = draw_mapped(*planet, mapper);
+        if (drawn)
+        {
+            assert(drawn);
+            bool matched_fade = false;
+            for (const auto &parent : calls)
+                for (const auto &child : calls)
+                    if (parent[0] == 1 && parent[3] == 1 && child[0] == parent[0] &&
+                        child[1] == parent[1] && child[2] == parent[2] && child[3] == 0)
+                        matched_fade = true;
+            assert(matched_fade);
+            sl::Bitmap *image = sl::surface_3d_bitmap(surface);
+            assert(sl::download_bitmap(image));
+            const sl::Colour pixel = sl::getpixel(image, view_size / 2, view_size / 2);
+            assert(baseline.centre.red + baseline.centre.green + baseline.centre.blue > 100);
+            assert(pixel.red < 8 && pixel.green < 8 && pixel.blue < 8);
+
+            sl::PlanetTilesOptions ancestor = options;
+            ancestor.colour.clear();
+            ancestor.colour_max_level = 0;
+            ancestor.has_colour = [](int level, int, int) { return level == 0; };
+            ancestor.load_colour = [](int, int, int)
+            {
+                sl::Bitmap *bitmap = sl::create_bitmap(8, 8);
+                if (bitmap)
+                    sl::clear_to_colour(bitmap, {255, 255, 255, 255});
+                return bitmap;
+            };
+            ancestor.max_elevation = 0.01;
+            ancestor.elevation = [](const glm::dvec3 &) { return 0.0; };
+            ancestor.geometry_pixels = 8.0f;
+            ancestor.geometry_max_level = 3;
+            ancestor.texel_pixels = 100000.0f;
+            auto refined = sl::PlanetTiles::create(ancestor);
+            assert(refined);
+            Shot shot{};
+            for (int i = 0; i < 1000; ++i)
+            {
+                shot = look(surface, *refined, 0.15, 0.53, 1.2f, 3, 1.0f, false, 1);
+                if (shot.stats.deepest_geometry_level == 3 && shot.stats.mesh_jobs == 0)
+                    break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            assert(shot.stats.deepest_geometry_level == 3);
+            calls.clear();
+            assert(draw_mapped(*refined, mapper));
+            bool deep_ancestor = false;
+            for (const auto &call : calls)
+                deep_ancestor |= call[0] == 3 && call[3] == 3;
+            assert(deep_ancestor);
+        }
+        else
+        {
+            assert(!drawn);
+            assert(sl::last_error().find("Planet microdetail") != std::string::npos);
+        }
     }
 
     // Radial relief changes the silhouette instead of only changing the surface colour.
@@ -722,9 +1473,24 @@ int main(int argc, char *argv[])
     // Missing colour must not hold back geometry; arriving detail eventually replaces the ancestor.
     // The full skirt-free six-segment settling probe currently exposes a known raster gap.
     const bool probe_skirtless_gap = std::getenv("SIMLIB_TEST_SKIRTLESS_FULL_SETTLE") != nullptr;
-    for (const int segments : {6, 8})
+    const char *probe_segments = std::getenv("SIMLIB_TEST_SKIRTLESS_SEGMENTS");
+    int selected_segments = 0;
+    if (probe_segments)
+    {
+        assert(probe_skirtless_gap);
+        if (std::strcmp(probe_segments, "6") == 0) selected_segments = 6;
+        else if (std::strcmp(probe_segments, "7") == 0) selected_segments = 7;
+        else if (std::strcmp(probe_segments, "8") == 0) selected_segments = 8;
+        else if (std::strcmp(probe_segments, "24") == 0) selected_segments = 24;
+        else assert(false && "SIMLIB_TEST_SKIRTLESS_SEGMENTS must be 6, 7, 8, or 24");
+    }
+    for (const int segments : {6, 7, 8, 24})
     for (const float skirt : {0.0f, 0.02f})
     {
+        if (probe_segments && (segments != selected_segments || skirt != 0.0f))
+            continue;
+        if (skirt == 0.0f && (segments == 7 || segments == 24) && !probe_skirtless_gap)
+            continue;
         auto block = std::make_shared<std::atomic<bool>>(false);
         auto waiting = std::make_shared<std::atomic<int>>(0);
         sl::PlanetTilesOptions elevated = options;
@@ -792,9 +1558,9 @@ int main(int argc, char *argv[])
         {
             const Shot shot = look(surface, *planet, 0.15, 0.53, 1.5f, 3, 1.0f, false, 1);
             if (shot.coloured_pixels != view_size * view_size)
-                std::fprintf(stderr, "delayed imagery uncovered: segments %d skirt %g frame %d, pixels %d, patches %d, level %d\n",
-                             segments, static_cast<double>(skirt), i, shot.coloured_pixels, shot.stats.patches,
-                             shot.stats.deepest_geometry_level);
+                std::fprintf(stderr, "delayed imagery uncovered: segments %d skirt %g frame %d, pixels %d, first black (%d,%d), patches %d, level %d\n",
+                             segments, static_cast<double>(skirt), i, shot.coloured_pixels, shot.first_black_x,
+                             shot.first_black_y, shot.stats.patches, shot.stats.deepest_geometry_level);
             assert(shot.coloured_pixels == view_size * view_size);
             if (skirt > 0.0f)
             {
@@ -822,9 +1588,12 @@ int main(int argc, char *argv[])
         assert(detailed && settled);
     }
 
-    // Render mixed-LOD terrain without skirts: no background may show through its interior.
+    // Exercise mixed-LOD coverage across the longitude seam and near both poles.
+    for (const auto &configuration : {std::pair<int, float>{6, 0.0f}, {6, 0.02f},
+                                       {7, 0.02f}, {8, 0.02f}, {24, 0.0f}, {24, 0.02f}})
     {
         sl::PlanetTilesOptions elevated = options;
+        elevated.segments = configuration.first;
         elevated.colour.clear();
         elevated.colour_max_level = 0;
         elevated.has_colour = [](int level, int, int) { return level == 0; };
@@ -843,11 +1612,11 @@ int main(int argc, char *argv[])
         {
             return 0.01 * direction.y + std::min(cell, 1.0) * 0.04;
         };
-        elevated.geometry_pixels = 8.0f;
+        elevated.geometry_pixels = 8.0f * 6.0f / configuration.first;
         elevated.geometry_max_level = 3;
         elevated.match_elevation_edges = true;
         elevated.normal_sample_spacing = 0.001;
-        elevated.skirt = 0.0f;
+        elevated.skirt = configuration.second;
         elevated.max_relief_patches = 96;
         elevated.max_relief_meshes = 192;
         elevated.max_relief_mesh_jobs = 2;
@@ -860,10 +1629,20 @@ int main(int argc, char *argv[])
             for (int i = 0; i < 500; ++i)
             {
                 shot = look(surface, *planet, view.first, view.second, 1.8f, 3, 1.0f, false, 1);
+                if (configuration.second > 0.0f && shot.coloured_pixels != view_size * view_size)
+                    std::fprintf(stderr, "streaming mixed-LOD coverage: segments %d skirt %g view %.3f,%.3f frame %d, pixels %d, patches %d, level %d\n",
+                                 configuration.first, static_cast<double>(configuration.second), view.first, view.second,
+                                 i, shot.coloured_pixels, shot.stats.patches, shot.stats.deepest_geometry_level);
+                if (configuration.second > 0.0f)
+                    assert(shot.coloured_pixels == view_size * view_size);
                 if (shot.stats.deepest_geometry_level == 3 && shot.stats.mesh_jobs == 0)
                     break;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
+            if (shot.stats.deepest_geometry_level != 3 || shot.stats.mesh_jobs != 0)
+                std::fprintf(stderr, "mixed-LOD did not settle: segments %d skirt %g view %.3f,%.3f, patches %d, level %d, jobs %d\n",
+                             configuration.first, static_cast<double>(configuration.second), view.first, view.second,
+                             shot.stats.patches, shot.stats.deepest_geometry_level, shot.stats.mesh_jobs);
             assert(shot.stats.deepest_geometry_level == 3 && shot.stats.mesh_jobs == 0);
             matched = matched || shot.stats.matched_edges > 0;
             assert(shot.coloured_pixels == view_size * view_size);
@@ -874,6 +1653,10 @@ int main(int argc, char *argv[])
             for (int i = 0; i < 12; ++i)
             {
                 const Shot shot = look(surface, *planet, view.first, view.second, 1.8f, 3, 1.0f, false, 1);
+                if (shot.coloured_pixels != view_size * view_size)
+                    std::fprintf(stderr, "moving mixed-LOD coverage: segments %d skirt %g view %.3f,%.3f frame %d, pixels %d, patches %d, level %d\n",
+                                 configuration.first, static_cast<double>(configuration.second), view.first, view.second,
+                                 i, shot.coloured_pixels, shot.stats.patches, shot.stats.deepest_geometry_level);
                 assert(shot.coloured_pixels == view_size * view_size);
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }

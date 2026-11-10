@@ -234,6 +234,8 @@ namespace sl
             std::vector<float> base_alpha;
             bool faded = false;
             bool stitched = false;
+            bool indices_only = false;
+            detail::PlanetTileEdgeUpload edge_upload;
         };
 
         struct MeshKey
@@ -280,6 +282,7 @@ namespace sl
         int geometry_max_level = 0;
         int in_flight = 0;
         int matched_edges = 0;
+        bool edge_match_failed = false;
         int relief_patch_budget_used = 0;
         bool relief_limited = false;
         bool relief_limit_reported = false;
@@ -988,6 +991,13 @@ namespace sl
                     if (options.match_elevation_edges && options.adaptive_elevation_diagonals)
                         entry.diagonals = std::make_shared<std::vector<std::uint8_t>>();
                     const auto diagonals = entry.diagonals;
+                    const bool retain = mesh_cpu_data_retained();
+                    // Stitched normal-mapped meshes need their indices to regenerate tangents on update.
+                    const bool retain_indices = options.match_elevation_edges && sets[normal_layer].valid() &&
+                                                layer == 0 && edges == 0;
+                    entry.indices_only = retain_indices && !retain;
+                    if (retain_indices)
+                        set_mesh_cpu_data_retained(true);
                     entry.load = build_mesh_async([settings, base_split, pixels, level, column, row, up, layer, edges, original_vertices, diagonals](AsyncMeshData &data)
                     {
                         if (!build_patch(settings, base_split, pixels, level, column, row, up, layer, edges, data))
@@ -1008,6 +1018,7 @@ namespace sl
                         }
                         return true;
                     });
+                    set_mesh_cpu_data_retained(retain);
                 }
                 if (!entry.load.done())
                     return nullptr;
@@ -1023,6 +1034,8 @@ namespace sl
                     return nullptr;
                 }
                 entry.mesh = entry.load.get();
+                if (entry.mesh && entry.indices_only)
+                    std::vector<Vertex3D>().swap(entry.mesh->vertices);
                 if (entry.mesh && entry.original_vertices)
                     entry.vertices = *entry.original_vertices;
                 return entry.mesh;
@@ -1035,7 +1048,14 @@ namespace sl
                 entry.failed = true;
                 return nullptr;
             }
+            const bool retain = mesh_cpu_data_retained();
+            const bool retain_indices = options.limb_fade > 0.0f && sets[normal_layer].valid();
+            if (retain_indices)
+                set_mesh_cpu_data_retained(true);
             entry.mesh = create_mesh(data.vertices, data.indices);
+            set_mesh_cpu_data_retained(retain);
+            if (entry.mesh && retain_indices && !retain)
+                std::vector<Vertex3D>().swap(entry.mesh->vertices);
             if (options.limb_fade > 0.0f)
             {
                 entry.base_alpha.reserve(data.vertices.size());
@@ -1085,6 +1105,7 @@ namespace sl
         void match_edges()
         {
             matched_edges = 0;
+            edge_match_failed = false;
             if (!options.match_elevation_edges)
                 return;
             std::unordered_map<std::uint64_t, const Leaf *> visible_leaves;
@@ -1165,7 +1186,7 @@ namespace sl
                         break;
                     }
                 }
-                if (!has_edge && !entry.stitched)
+                if (!has_edge && !entry.stitched && !entry.edge_upload.failed)
                     continue;
                 std::vector<Vertex3D> candidate = *entry.original_vertices;
                 detail::match_planet_tile_edges(candidate, centre_of(*leaf), n, leaf->column, leaf->row, edges, corners);
@@ -1183,18 +1204,18 @@ namespace sl
                         changed = candidate[i].uv[axis] != entry.vertices[i].uv[axis] ||
                                   candidate[i].extra[axis] != entry.vertices[i].extra[axis];
                 }
-                if (changed)
+                const bool upload_needed = changed || entry.edge_upload.failed;
+                if (!entry.edge_upload.update(changed, [&] { return update_mesh_vertices(mesh, candidate); }))
                 {
-                    if (update_mesh_vertices(mesh, candidate))
-                    {
-                        entry.vertices = std::move(candidate);
-                        entry.stitched = has_edge;
-                    }
-                    else
-                        std::fprintf(stderr, "[simlib] PlanetTiles: cannot match mesh edges: %s\n", last_error().c_str());
+                    edge_match_failed = true;
+                    std::fprintf(stderr, "[simlib] PlanetTiles: cannot match mesh edges: %s\n", last_error().c_str());
                 }
                 else
+                {
+                    if (upload_needed)
+                        entry.vertices = std::move(candidate);
                     entry.stitched = has_edge;
+                }
             }
         }
 
@@ -1505,6 +1526,11 @@ namespace sl
             detail::set_error("PlanetTiles: drawn elevation requires a valid direction and edge-matched relief without fading");
             return false;
         }
+        if (m.edge_match_failed)
+        {
+            detail::set_error("PlanetTiles: drawn elevation unavailable after a mesh edge update failed");
+            return false;
+        }
         const glm::dvec3 ray = direction / length;
         double u = std::atan2(-ray.z, ray.x) / (2.0 * glm::pi<double>());
         if (u < 0.0)
@@ -1569,7 +1595,84 @@ namespace sl
 
     void PlanetTiles::draw_relative(const glm::dmat4 &model, const Material &material)
     {
+        draw_relative_impl(model, material, nullptr);
+    }
+
+    bool PlanetTiles::draw_relative_microdetail(const glm::dmat4 &model, const Material &material,
+                                                 const MicrodetailMapper &mapper)
+    {
+        if (!mapper || material.microdetail.array == 0)
+        {
+            detail::set_error("PlanetTiles: microdetail requires an array and a mapping callback");
+            return false;
+        }
+        return draw_relative_impl(model, material, &mapper);
+    }
+
+    bool PlanetTiles::draw_relative_impl(const glm::dmat4 &model, const Material &material,
+                                         const MicrodetailMapper *mapper)
+    {
         Impl &m = *impl_;
+        struct MappedPatch
+        {
+            Mesh *under = nullptr;
+            Mesh *colour = nullptr;
+            PlanetMicrodetail under_detail;
+            PlanetMicrodetail colour_detail;
+        };
+        std::vector<MappedPatch> mapped;
+        if (mapper)
+        {
+            mapped.resize(m.leaves.size());
+            const auto prepare = [&](const Impl::Leaf &leaf, int up, Mesh *mesh, PlanetMicrodetail &mapping)
+            {
+                if (!mesh)
+                    return true;
+                mapping = material.microdetail;
+                std::string error;
+                if (!(*mapper)(leaf.level, leaf.column, leaf.row, up, mapping, error))
+                {
+                    detail::set_error("PlanetTiles: microdetail mapping failed" + (error.empty() ? std::string() : ": " + error));
+                    return false;
+                }
+                for (const auto &range : mapping.ranges)
+                    for (float value : range)
+                        if (!std::isfinite(value))
+                        {
+                            detail::set_error("PlanetTiles: microdetail mapping contains a non-finite range");
+                            return false;
+                        }
+                return true;
+            };
+            for (std::size_t i = 0; i < m.leaves.size(); ++i)
+            {
+                const Impl::Leaf &leaf = m.leaves[i];
+                MappedPatch &patch = mapped[i];
+                if (leaf.under)
+                {
+                    patch.under = m.patch_mesh(leaf.level, leaf.column, leaf.row, 1, 2);
+                    if (!prepare(leaf, 1, patch.under, patch.under_detail))
+                        return false;
+                }
+                else
+                {
+                    patch.colour = m.patch_mesh(leaf.level, leaf.column, leaf.row, leaf.up, 0);
+                    if (!prepare(leaf, leaf.up, patch.colour, patch.colour_detail))
+                        return false;
+                }
+            }
+            for (std::size_t i = 0; i < m.leaves.size(); ++i)
+            {
+                const Impl::Leaf &leaf = m.leaves[i];
+                if (!leaf.under)
+                    continue;
+                MappedPatch &patch = mapped[i];
+                patch.colour = leaf.edges ? m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 3, leaf.edges)
+                                          : m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 0);
+                if (!prepare(leaf, 0, patch.colour, patch.colour_detail))
+                    return false;
+            }
+        }
         const auto patch_model = [&](const Impl::Leaf &leaf, const glm::dmat4 &transform)
         {
             if (!m.options.elevation)
@@ -1579,24 +1682,38 @@ namespace sl
             const glm::dvec3 centre = sphere_point((leaf.column + 0.5) / cols, (leaf.row + 0.5) / rows_count);
             return glm::mat4(glm::translate(transform, centre));
         };
-        // Opaque patches first; those fading in or feathered at their edges put their parent tile down here and are blended over it after.
-        for (const Impl::Leaf &leaf : m.leaves)
+        const auto draw_patch = [&](const Impl::Leaf &leaf, Material &patch, Mesh *mesh,
+                                    const PlanetMicrodetail *detail)
         {
+            if (!mesh)
+                return true;
+            if (detail)
+                patch.microdetail = *detail;
+            const bool drawn = draw_mesh(mesh, patch_model(leaf, model), patch);
+            return !mapper || drawn;
+        };
+        // Opaque patches first; those fading in or feathered at their edges put their parent tile down here and are blended over it after.
+        for (std::size_t i = 0; i < m.leaves.size(); ++i)
+        {
+            const Impl::Leaf &leaf = m.leaves[i];
             Material patch = material;
             if (leaf.under)
             {
                 patch.texture = leaf.under;
-                if (Mesh *mesh = m.patch_mesh(leaf.level, leaf.column, leaf.row, 1, 2))
-                    draw_mesh(mesh, patch_model(leaf, model), patch);
+                Mesh *mesh = mapper ? mapped[i].under : m.patch_mesh(leaf.level, leaf.column, leaf.row, 1, 2);
+                if (!draw_patch(leaf, patch, mesh, mapper ? &mapped[i].under_detail : nullptr))
+                    return false;
                 continue;
             }
             patch.texture = leaf.colour;
             patch.normal_map = leaf.normal;
-            if (Mesh *mesh = m.patch_mesh(leaf.level, leaf.column, leaf.row, leaf.up, 0))
-                draw_mesh(mesh, patch_model(leaf, model), patch);
+            Mesh *mesh = mapper ? mapped[i].colour : m.patch_mesh(leaf.level, leaf.column, leaf.row, leaf.up, 0);
+            if (!draw_patch(leaf, patch, mesh, mapper ? &mapped[i].colour_detail : nullptr))
+                return false;
         }
-        for (const Impl::Leaf &leaf : m.leaves)
+        for (std::size_t i = 0; i < m.leaves.size(); ++i)
         {
+            const Impl::Leaf &leaf = m.leaves[i];
             if (!leaf.under)
                 continue;
             Material patch = material;
@@ -1604,11 +1721,14 @@ namespace sl
             patch.normal_map = leaf.normal;
             patch.blend = MaterialBlend::alpha;
             patch.tint.alpha = static_cast<std::uint8_t>(static_cast<float>(material.tint.alpha) * leaf.fade);
-            if (Mesh *mesh = leaf.edges ? m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 3, leaf.edges) : m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 0))
-                draw_mesh(mesh, patch_model(leaf, model), patch);
+            Mesh *mesh = mapper ? mapped[i].colour :
+                         leaf.edges ? m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 3, leaf.edges) :
+                                      m.patch_mesh(leaf.level, leaf.column, leaf.row, 0, 0);
+            if (!draw_patch(leaf, patch, mesh, mapper ? &mapped[i].colour_detail : nullptr))
+                return false;
         }
         if (!m.sets[specular_layer].valid() || m.options.specular_strength <= 0.0f)
-            return;
+            return true;
         // The glint is lifted a hair off the surface because backends draw with a strict depth test.
         const glm::dmat4 lifted = model * glm::scale(glm::dmat4(1.0), glm::dvec3(1.0003));
         for (const Impl::Leaf &leaf : m.leaves)
@@ -1627,8 +1747,10 @@ namespace sl
             glint.occlusion_strength = 0.0f;
             glint.metallic_roughness = leaf.specular;
             if (Mesh *mesh = m.patch_mesh(leaf.level, leaf.column, leaf.row, leaf.spec_up, 1))
-                draw_mesh(mesh, patch_model(leaf, lifted), glint);
+                if (!draw_mesh(mesh, patch_model(leaf, lifted), glint) && mapper)
+                    return false;
         }
+        return true;
     }
 
     int PlanetTiles::deepest_level() const { return impl_->sets[colour_layer].max_level; }

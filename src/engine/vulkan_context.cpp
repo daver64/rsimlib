@@ -3069,7 +3069,8 @@ namespace sl::detail
                                                  bool instanced,
                                                  int blend_variant,
                                                  bool depth_write,
-                                                 bool wireframe)
+                                                 bool wireframe,
+                                                 const VulkanDescriptorSetLayout *microdetail_layout)
     {
         result = {};
         if (mesh_vertices || sky)
@@ -3105,8 +3106,13 @@ namespace sl::detail
             const VkDescriptorSetLayout mesh_layouts[6] = {descriptor_layout.layout, descriptor_layout.layout,
                                                            environment_layout_, descriptor_layout.layout,
                                                            descriptor_layout.layout, descriptor_layout.layout};
+            const VkDescriptorSetLayout detail_mesh_layouts[6] = {descriptor_layout.layout, descriptor_layout.layout,
+                                                                  environment_layout_, descriptor_layout.layout,
+                                                                  descriptor_layout.layout,
+                                                                  microdetail_layout ? microdetail_layout->layout : VK_NULL_HANDLE};
             layout_info.setLayoutCount = mesh_vertices ? 6u : 1u;
-            layout_info.pSetLayouts = mesh_vertices ? mesh_layouts : &descriptor_layout.layout;
+            layout_info.pSetLayouts = mesh_vertices ? (microdetail_layout ? detail_mesh_layouts : mesh_layouts)
+                                                    : &descriptor_layout.layout;
             layout_info.pushConstantRangeCount = mesh_vertices ? 2u : 1u;
             layout_info.pPushConstantRanges = ranges;
             if (vkCreatePipelineLayout(device_, &layout_info, nullptr, &result.layout) != VK_SUCCESS)

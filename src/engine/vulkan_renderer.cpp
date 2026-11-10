@@ -28,6 +28,7 @@ namespace sl::detail
         // Mesh environment block: [0] light colour, fog, pbr, emissive, camera vectors (9 vec4s), then the eye position
         // (w = local light count), the shadow parameters and matrix, and three vec4s per local light. Returns the number of bytes in use.
         constexpr std::size_t mesh_environment_floats = 60 + local_light_vec4s * 4;
+        constexpr std::size_t microdetail_environment_floats = mesh_environment_floats + 16;
         constexpr std::size_t terrain_environment_floats = 112 + local_light_vec4s * 4;
         std::size_t fill_mesh_environment(float *environment, const MeshDrawParams &params)
         {
@@ -210,6 +211,7 @@ namespace sl::detail
                     context_.destroy_shader_module(mesh_fragment_module_);
                     mesh_pipeline_ready_ = false;
                 }
+                context_.destroy_shader_module(mesh_microdetail_fragment_module_);
                 if (mesh_instanced_module_ready_)
                 {
                     context_.destroy_shader_module(mesh_instanced_vertex_module_);
@@ -319,6 +321,7 @@ namespace sl::detail
                     context_.destroy_shader_module(dynamic.compute_module);
                 }
                 dynamic_compute_programs_.clear();
+                microdetail_descriptors_.clear();
                 context_.destroy_descriptor_pool(descriptor_pool_);
                 context_.destroy_descriptor_set_layout(descriptor_layout_);
                 context_.destroy_descriptor_set_layout(lighting_descriptor_layout_);
@@ -404,6 +407,9 @@ namespace sl::detail
                 if (frame_active_)
                 {
                     vertex_buffer_cursor_ = 0;
+                    for (auto &entry : microdetail_descriptors_)
+                        context_.free_descriptor_set(descriptor_pool_, entry.combined);
+                    microdetail_descriptors_.clear();
                     for (VulkanBuffer &buffer : retired_buffers_)
                         context_.destroy_buffer(buffer);
                     retired_buffers_.clear();
@@ -710,8 +716,20 @@ namespace sl::detail
                 const auto found = meshes_.find(handle);
                 if (found == meshes_.end() || !vertices || vertex_count != found->second.vertex_count)
                     return false;
-                return context_.upload_buffer(found->second.vertices, vertices, sizeof(Vulkan3DMeshVertex) * vertex_count,
-                                              last_error_);
+                const VkDeviceSize bytes = sizeof(Vulkan3DMeshVertex) * vertex_count;
+                const auto host_visible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+                VulkanBuffer replacement;
+                if (!context_.create_buffer(bytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, host_visible, replacement, last_error_))
+                    return false;
+                if (!context_.upload_buffer(replacement, vertices, bytes, last_error_))
+                {
+                    context_.destroy_buffer(replacement);
+                    return false;
+                }
+                // Recorded or submitted draws may still reference the old buffer.
+                retired_buffers_.push_back(found->second.vertices);
+                found->second.vertices = replacement;
+                return true;
             }
             void destroy_mesh(std::uint32_t handle) override
             {
@@ -742,6 +760,14 @@ namespace sl::detail
                 flush_2d();
                 return context_.clear_active_depth_3d(last_error_);
             }
+            bool supports_planet_microdetail() const override
+            {
+                if (context_.physical_device() == VK_NULL_HANDLE)
+                    return false;
+                VkPhysicalDeviceProperties properties{};
+                vkGetPhysicalDeviceProperties(context_.physical_device(), &properties);
+                return properties.limits.maxBoundDescriptorSets >= 6;
+            }
             bool draw_mesh(std::uint32_t handle, const MeshDrawParams &params) override
             {
                 const auto found = meshes_.find(handle);
@@ -751,7 +777,7 @@ namespace sl::detail
                 const int target_samples = current_target_samples();
                 const bool wire = params.style == 2;
                 const MeshPipelineSet *pipelines = terrain ? ensure_terrain_pipelines(target_samples, wire)
-                                                           : ensure_mesh_pipelines(target_samples, wire);
+                                                           : ensure_mesh_pipelines(target_samples, wire, params.microdetail_array != 0);
                 if (!pipelines)
                     return false;
                 flush_2d();
@@ -866,8 +892,53 @@ namespace sl::detail
                 if (!sampled_descriptor(params.local_shadow_texture != 0 ? params.local_shadow_texture : white_texture_,
                                         local_shadow_descriptor))
                     return false;
-                float environment[mesh_environment_floats];
-                const std::size_t environment_bytes = fill_mesh_environment(environment, params);
+                if (params.microdetail_array != 0)
+                {
+                    const auto detail = texture_arrays_.find(params.microdetail_array);
+                    if (detail == texture_arrays_.end())
+                    {
+                        last_error_ = "Vulkan planet microdetail array handle is not registered.";
+                        return false;
+                    }
+                    if (!context_.prepare_image_for_sampling(detail->second.image, last_error_))
+                        return false;
+                    VkDescriptorSet combined = VK_NULL_HANDLE;
+                    for (const auto &entry : microdetail_descriptors_)
+                        if (entry.shadow == local_shadow_descriptor && entry.detail == detail->second.descriptor)
+                        {
+                            combined = entry.combined;
+                            break;
+                        }
+                    if (combined == VK_NULL_HANDLE)
+                    {
+                        if (!context_.allocate_descriptor_set(descriptor_pool_, composite_descriptor_layout_, combined, last_error_))
+                            return false;
+                        // Keep this pair immutable until the frame fence; queued draws may use different arrays or shadows.
+                        VkCopyDescriptorSet copies[2]{};
+                        for (std::uint32_t i = 0; i < 2; ++i)
+                        {
+                            copies[i] = {VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET};
+                            copies[i].srcSet = i == 0 ? local_shadow_descriptor : detail->second.descriptor;
+                            copies[i].srcBinding = 0;
+                            copies[i].dstSet = combined;
+                            copies[i].dstBinding = i;
+                            copies[i].descriptorCount = 1;
+                        }
+                        vkUpdateDescriptorSets(context_.device(), 0, nullptr, 2, copies);
+                        microdetail_descriptors_.push_back({local_shadow_descriptor, detail->second.descriptor, combined});
+                    }
+                    local_shadow_descriptor = combined;
+                }
+                float environment[microdetail_environment_floats]{};
+                std::size_t environment_bytes = fill_mesh_environment(environment, params);
+                if (params.microdetail_array != 0)
+                {
+                    std::memcpy(environment + mesh_environment_floats, params.microdetail_ranges,
+                                sizeof(params.microdetail_ranges));
+                    environment[mesh_environment_floats + 12] = params.microdetail_normals ? 1.0f : 0.0f;
+                    environment[mesh_environment_floats + 13] = static_cast<float>(params.microdetail_blend_mode);
+                    environment_bytes = sizeof(environment);
+                }
                 return context_.record_mesh_draw(pipeline.pipeline, pipeline.layout,
                                                  found->second.vertices.buffer, found->second.indices.buffer,
                                                  found->second.index_count, descriptor, normal_descriptor, adjusted.mvp, adjusted.light,
@@ -2924,8 +2995,10 @@ namespace sl::detail
             std::uint32_t next_mesh_ = 1;
             using MeshPipelineSet = std::array<VulkanGraphicsPipeline, 9>; // Indexed by CullMode + 3 * blend mode (opaque, alpha, additive).
             std::map<int, MeshPipelineSet> mesh_pipelines_; // Keyed by sample count.
+            std::map<int, MeshPipelineSet> mesh_microdetail_pipelines_;
             VulkanShaderModule mesh_vertex_module_;
             VulkanShaderModule mesh_fragment_module_;
+            VulkanShaderModule mesh_microdetail_fragment_module_;
             bool mesh_pipeline_ready_ = false;
             void destroy_mesh_pipelines()
             {
@@ -2933,12 +3006,16 @@ namespace sl::detail
                     for (VulkanGraphicsPipeline &culled : set)
                         context_.destroy_graphics_pipeline(culled);
                 mesh_pipelines_.clear();
+                for (auto &[samples, set] : mesh_microdetail_pipelines_)
+                    for (VulkanGraphicsPipeline &culled : set)
+                        context_.destroy_graphics_pipeline(culled);
+                mesh_microdetail_pipelines_.clear();
                 for (auto &[samples, set] : mesh_instanced_pipelines_)
                     for (VulkanGraphicsPipeline &culled : set)
                         context_.destroy_graphics_pipeline(culled);
                 mesh_instanced_pipelines_.clear();
             }
-            const MeshPipelineSet *ensure_mesh_pipelines(int samples, bool wire = false)
+            const MeshPipelineSet *ensure_mesh_pipelines(int samples, bool wire = false, bool microdetail = false)
             {
                 if (!mesh_pipeline_ready_)
                 {
@@ -2952,26 +3029,36 @@ namespace sl::detail
                     }
                     mesh_pipeline_ready_ = true;
                 }
+                if (microdetail && mesh_microdetail_fragment_module_.module == VK_NULL_HANDLE)
+                {
+                    const std::filesystem::path shader_dir = find_shader_root("vulkan/vulkan_mesh3d_microdetail.frag.spv");
+                    if (!context_.load_shader_module(shader_dir / "vulkan/vulkan_mesh3d_microdetail.frag.spv",
+                                                     mesh_microdetail_fragment_module_, last_error_))
+                        return nullptr;
+                }
                 const int pipeline_key = samples + (wire ? 1000 : 0);
-                const auto existing = mesh_pipelines_.find(pipeline_key);
-                if (existing != mesh_pipelines_.end())
+                auto &pipelines = microdetail ? mesh_microdetail_pipelines_ : mesh_pipelines_;
+                const auto existing = pipelines.find(pipeline_key);
+                if (existing != pipelines.end())
                     return &existing->second;
                 MeshPipelineSet set{};
                 const VkCullModeFlags flags[3] = {VK_CULL_MODE_BACK_BIT, VK_CULL_MODE_FRONT_BIT, VK_CULL_MODE_NONE};
                 for (int mode = 0; mode < 9; ++mode)
                 {
                     const int blend = mode / 3;
-                    if (!context_.create_graphics_pipeline(mesh_vertex_module_, mesh_fragment_module_, descriptor_layout_,
+                    const VulkanShaderModule &fragment = microdetail ? mesh_microdetail_fragment_module_ : mesh_fragment_module_;
+                    if (!context_.create_graphics_pipeline(mesh_vertex_module_, fragment, descriptor_layout_,
                                                            PrimitiveType::triangles, set[mode], last_error_, nullptr, 0,
                                                            true, false, blend == 2, true, flags[mode % 3], samples, false,
-                                                           false, 0, blend == 0, wire))
+                                                           false, 0, blend == 0, wire,
+                                                           microdetail ? &composite_descriptor_layout_ : nullptr))
                     {
                         for (VulkanGraphicsPipeline &created : set)
                             context_.destroy_graphics_pipeline(created);
                         return nullptr;
                     }
                 }
-                return &(mesh_pipelines_[pipeline_key] = set);
+                return &(pipelines[pipeline_key] = set);
             }
             struct VulkanInstanceBuffer
             {
@@ -3112,6 +3199,11 @@ namespace sl::detail
             }
             std::unordered_map<std::uint32_t, VulkanTexture> textures_;
             std::unordered_map<std::uint32_t, VulkanTextureArray> texture_arrays_;
+            struct MicrodetailDescriptors
+            {
+                VkDescriptorSet shadow, detail, combined;
+            };
+            std::vector<MicrodetailDescriptors> microdetail_descriptors_;
             std::vector<VulkanBuffer> retired_buffers_;
             std::vector<VulkanTexture> retired_textures_;
             std::vector<VulkanTextureArray> retired_texture_arrays_;

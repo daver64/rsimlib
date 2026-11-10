@@ -110,6 +110,28 @@ namespace sl
         const TerrainTextures *textures = nullptr;
     };
 
+    /**
+     * Experimental planet microdetail for ordinary mesh draws. The array must remain alive through the draw; the
+     * mesh's extra.xy carries tile-local coordinates. Supported by OpenGL, Direct3D 12 (not yet runtime-tested),
+     * and Vulkan devices with at least six descriptor sets; unsupported devices reject it.
+     * Each range is (u offset, v offset, u scale, v scale). With normals, A/G encode tangent slopes and B luminance.
+     * The blend mode selects Orbiter's soft, medium (default), or hard combination of its three normal maps.
+     */
+    enum class PlanetMicrodetailBlendMode : std::uint8_t
+    {
+        soft,
+        medium,
+        hard
+    };
+
+    struct PlanetMicrodetail
+    {
+        std::uint32_t array = 0;
+        float ranges[3][4] = {};
+        bool normals = false;
+        PlanetMicrodetailBlendMode blend_mode = PlanetMicrodetailBlendMode::medium;
+    };
+
     /** Global shading style for 3D draws (OpenGL backend only): flat is cheap faceted lighting, wireframe draws edges. */
     enum class RenderStyle3D
     {
@@ -180,6 +202,7 @@ namespace sl
         /** Linear rgb light the surface gives off, added after lighting. */
         float emissive[3] = {0.0f, 0.0f, 0.0f};
         TerrainShading terrain;
+        PlanetMicrodetail microdetail;
     };
 
     /** A single directional light plus ambient term, used by lit materials. */

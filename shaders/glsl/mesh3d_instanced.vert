@@ -5,6 +5,7 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec4 aColour;
 layout(location = 3) in vec2 aUv;
 layout(location = 4) in vec4 aTangent;
+layout(location = 5) in vec4 aExtra;
 // Per-instance model matrix (columns) and tint.
 layout(location = 6) in vec4 aModel0;
 layout(location = 7) in vec4 aModel1;
@@ -21,11 +22,13 @@ out vec3 vNormal;
 out vec4 vTangent;
 out vec4 vColour;
 out vec2 vUv;
+out vec2 vTileUv;
 out float vTerrain;
 out float vViewDepth;
 
 void main()
 {
+    vTileUv = aExtra.xy;
     mat4 model = mat4(aModel0, aModel1, aModel2, aModel3);
     gl_Position = uMvp * (model * vec4(aPosition, 1.0));
     vViewDepth = gl_Position.w;
