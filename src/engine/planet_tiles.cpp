@@ -1758,6 +1758,19 @@ namespace sl
     bool PlanetTiles::has_specular() const { return impl_->sets[specular_layer].valid(); }
     void PlanetTiles::set_specular_strength(float strength) { impl_->options.specular_strength = strength; }
 
+    bool PlanetTiles::set_max_relief_patches(int limit)
+    {
+        const TileSet &colour = impl_->sets[colour_layer];
+        const int roots = columns(colour.min_level, colour.base_split) * rows(colour.min_level, colour.base_split);
+        if (limit < 0 || (impl_->options.elevation && limit > 0 && limit < roots))
+        {
+            detail::set_error("PlanetTiles: invalid relief patch limit");
+            return false;
+        }
+        impl_->options.max_relief_patches = limit;
+        return true;
+    }
+
     PlanetTilesStats PlanetTiles::stats() const
     {
         const Impl &m = *impl_;
@@ -1788,6 +1801,7 @@ namespace sl
             s.mesh_jobs += entry.second.load.valid() ? 1 : 0;
         s.matched_edges = m.matched_edges;
         s.relief_limited = m.relief_limited;
+        s.max_relief_patches = m.options.max_relief_patches;
         return s;
     }
 

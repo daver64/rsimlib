@@ -1745,6 +1745,27 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         assert(reached_limit);
+        assert(!planet->set_max_relief_patches(-1));
+        assert(!planet->set_max_relief_patches(1));
+        assert(planet->stats().max_relief_patches == 14);
+        assert(planet->set_max_relief_patches(5));
+        assert(planet->stats().max_relief_patches == 5);
+        for (int i = 0; i < 50; ++i)
+        {
+            const Shot shot = look(surface, *planet, 0.15, 0.53, 1.05f, 6, 1.0f, false, 1);
+            assert(shot.stats.patches <= 5);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(planet->set_max_relief_patches(0));
+        assert(planet->stats().max_relief_patches == 0);
+        bool grew_after_unlimit = false;
+        for (int i = 0; i < 250 && !grew_after_unlimit; ++i)
+        {
+            const Shot shot = look(surface, *planet, 0.15, 0.53, 1.05f, 6, 1.0f, false, 1);
+            grew_after_unlimit = shot.stats.patches > 5;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        assert(grew_after_unlimit);
         limited.max_relief_meshes = 1;
         assert(!sl::PlanetTiles::create(limited));
         limited.max_relief_meshes = 32;

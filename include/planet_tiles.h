@@ -196,6 +196,8 @@ namespace sl
         int matched_edges = 0;
         /** True if a configured relief resource limit prevented further refinement. */
         bool relief_limited = false;
+        /** Current visible relief patch limit; zero means unlimited. */
+        int max_relief_patches = 0;
     };
 
     /**
@@ -281,6 +283,11 @@ namespace sl
         bool has_specular() const;
         /** Changes the brightness of the specular overlay, 0-1, from the next draw (so it can fade with altitude). */
         void set_specular_strength(float strength);
+        /**
+         * Change the visible relief patch limit for the next update; zero is unlimited.
+         * Returns false with last_error() set if negative or too small for the coarsest relief tiles.
+         */
+        bool set_max_relief_patches(int limit);
         PlanetTilesStats stats() const;
 
         /**
