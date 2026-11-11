@@ -5,8 +5,10 @@
 #include <SDL2/SDL_video.h>
 
 #include <cstdint>
+#include <array>
 #include <functional>
 #include <string>
+#include "system.h"
 
 struct ID3D12CommandAllocator;
 struct ID3D12CommandList;
@@ -16,6 +18,7 @@ struct ID3D12DescriptorHeap;
 struct ID3D12Device;
 struct ID3D12Fence;
 struct ID3D12Resource;
+struct ID3D12QueryHeap;
 struct ID3D12DescriptorHeap;
 struct IDXGISwapChain3;
 
@@ -45,6 +48,9 @@ namespace sl::detail
         std::uint64_t completed_value() const;
         bool is_valid() const;
         bool frame_open() const { return frame_open_; }
+        void set_gpu_diagnostics_enabled(bool enabled);
+        void gpu_diagnostics_begin_frame(std::uint64_t frame);
+        GpuDiagnostics gpu_diagnostics(bool include_memory);
         std::uint64_t frame_serial() const { return frame_serial_; }
         int width() const { return width_; }
         int height() const { return height_; }
@@ -75,6 +81,19 @@ namespace sl::detail
         ID3D12CommandQueue *command_queue() const { return command_queue_; }
 
     private:
+        struct GpuQuery
+        {
+            std::uint64_t frame = 0, fence = 0;
+            bool pending = false, current_session = false;
+        };
+        void collect_gpu_queries();
+        ID3D12QueryHeap *gpu_query_heap_ = nullptr;
+        ID3D12Resource *gpu_readback_ = nullptr;
+        std::array<GpuQuery, 8> gpu_queries_{};
+        GpuDiagnostics gpu_sample_{};
+        std::uint64_t gpu_frequency_ = 0, gpu_requested_frame_ = 0;
+        bool gpu_enabled_ = false, gpu_requested_ = false;
+        int gpu_active_ = -1;
         bool create_backbuffers(std::string &error);
         void release_backbuffers();
         bool wait_for_gpu();

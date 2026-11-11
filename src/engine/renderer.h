@@ -5,6 +5,7 @@
 #include "display.h"
 #include "draw.h"
 #include "surface3d.h"
+#include "system.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -429,6 +430,9 @@ namespace sl::detail
         /** Whether present() currently blocks to pace frames to the display refresh.
          * Used to avoid double frame-pacing against the software frame limiter. */
         virtual bool vsync_active() const { return false; }
+        virtual void set_gpu_diagnostics_enabled(bool) {}
+        virtual void gpu_diagnostics_begin_frame(std::uint64_t) {}
+        virtual GpuDiagnostics gpu_diagnostics(bool) { return {}; }
         /** Present the current backend framebuffer. */
         virtual void present() = 0;
         /** Wait for all submitted backend graphics work to complete. */

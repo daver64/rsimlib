@@ -243,6 +243,115 @@ namespace sl::detail
         return SUCCEEDED(command_list_->Reset(command_allocator_, nullptr));
     }
 
+    void D3D12Context::set_gpu_diagnostics_enabled(bool enabled)
+    {
+        if (gpu_enabled_ == enabled)
+            return;
+        gpu_enabled_ = enabled;
+        gpu_requested_ = false;
+        gpu_sample_ = {};
+        for (auto &query : gpu_queries_)
+            query.current_session = false;
+        if (!enabled || gpu_query_heap_)
+            return;
+        if (FAILED(command_queue_->GetTimestampFrequency(&gpu_frequency_)) || !gpu_frequency_)
+            return;
+        D3D12_QUERY_HEAP_DESC query_desc{};
+        query_desc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+        query_desc.Count = static_cast<UINT>(gpu_queries_.size() * 2);
+        if (FAILED(device_->CreateQueryHeap(&query_desc, IID_PPV_ARGS(&gpu_query_heap_))))
+            return;
+        D3D12_HEAP_PROPERTIES heap{};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC resource{};
+        resource.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        resource.Width = gpu_queries_.size() * 2 * sizeof(std::uint64_t);
+        resource.Height = 1;
+        resource.DepthOrArraySize = 1;
+        resource.MipLevels = 1;
+        resource.SampleDesc.Count = 1;
+        resource.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        if (FAILED(device_->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &resource,
+                                                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&gpu_readback_))))
+        {
+            gpu_query_heap_->Release();
+            gpu_query_heap_ = nullptr;
+        }
+    }
+
+    void D3D12Context::gpu_diagnostics_begin_frame(std::uint64_t frame)
+    {
+        if (gpu_enabled_)
+        {
+            gpu_requested_ = true;
+            gpu_requested_frame_ = frame;
+        }
+    }
+
+    void D3D12Context::collect_gpu_queries()
+    {
+        if (!gpu_readback_)
+            return;
+        const auto completed = completed_value();
+        if (completed == UINT64_MAX)
+        {
+            gpu_sample_.timing_valid = false;
+            return;
+        }
+        for (std::size_t i = 0; i < gpu_queries_.size(); ++i)
+        {
+            auto &query = gpu_queries_[i];
+            if (!query.pending || completed < query.fence)
+                continue;
+            void *mapped = nullptr;
+            D3D12_RANGE read_range{i * 2 * sizeof(std::uint64_t), (i * 2 + 2) * sizeof(std::uint64_t)};
+            if (SUCCEEDED(gpu_readback_->Map(0, &read_range, &mapped)))
+            {
+                const auto *times = static_cast<const std::uint64_t *>(mapped) + i * 2;
+                if (query.current_session && times[1] >= times[0] &&
+                    (!gpu_sample_.timing_valid || query.frame > gpu_sample_.frame_number))
+                {
+                    gpu_sample_.elapsed_ms = static_cast<double>(times[1] - times[0]) * 1000.0 / gpu_frequency_;
+                    gpu_sample_.frame_number = query.frame;
+                    gpu_sample_.timing_valid = true;
+                }
+                D3D12_RANGE written{0, 0};
+                gpu_readback_->Unmap(0, &written);
+            }
+            query.pending = false;
+        }
+    }
+
+    GpuDiagnostics D3D12Context::gpu_diagnostics(bool include_memory)
+    {
+        if (!gpu_enabled_)
+            return {};
+        collect_gpu_queries();
+        GpuDiagnostics result = gpu_sample_;
+        result.timing_supported = gpu_query_heap_ && gpu_readback_;
+        if (!include_memory)
+            return result;
+        IDXGIFactory4 *factory = nullptr;
+        IDXGIAdapter3 *adapter = nullptr;
+        if (SUCCEEDED(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory))))
+        {
+            if (SUCCEEDED(factory->EnumAdapterByLuid(device_->GetAdapterLuid(), IID_PPV_ARGS(&adapter))))
+            {
+                DXGI_QUERY_VIDEO_MEMORY_INFO info{};
+                if (SUCCEEDED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)))
+                {
+                    result.memory_valid = result.memory_budget_valid = true;
+                    result.memory_process_scope = true;
+                    result.memory_usage_bytes = info.CurrentUsage;
+                    result.memory_budget_bytes = info.Budget;
+                }
+                adapter->Release();
+            }
+            factory->Release();
+        }
+        return result;
+    }
+
     bool D3D12Context::begin_frame()
     {
         if (!is_valid() || frame_open_)
@@ -252,6 +361,20 @@ namespace sl::detail
             return false;
         if (FAILED(command_allocator_->Reset()) || FAILED(command_list_->Reset(command_allocator_, nullptr)))
             return false;
+        collect_gpu_queries();
+        if (gpu_enabled_ && gpu_requested_ && gpu_query_heap_)
+        {
+            for (std::size_t i = 0; i < gpu_queries_.size(); ++i)
+                if (!gpu_queries_[i].pending)
+                {
+                    gpu_active_ = static_cast<int>(i);
+                    gpu_queries_[i].frame = gpu_requested_frame_;
+                    gpu_queries_[i].current_session = true;
+                    command_list_->EndQuery(gpu_query_heap_, D3D12_QUERY_TYPE_TIMESTAMP, static_cast<UINT>(i * 2));
+                    break;
+                }
+            gpu_requested_ = false;
+        }
         D3D12_RESOURCE_BARRIER barrier{};
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Transition.pResource = back_buffers_[frame_index_];
@@ -292,6 +415,13 @@ namespace sl::detail
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         command_list_->ResourceBarrier(1, &barrier);
+        if (gpu_active_ >= 0)
+        {
+            const UINT index = static_cast<UINT>(gpu_active_ * 2);
+            command_list_->EndQuery(gpu_query_heap_, D3D12_QUERY_TYPE_TIMESTAMP, index + 1);
+            command_list_->ResolveQueryData(gpu_query_heap_, D3D12_QUERY_TYPE_TIMESTAMP, index, 2, gpu_readback_,
+                                            static_cast<UINT64>(index) * sizeof(std::uint64_t));
+        }
         if (SUCCEEDED(command_list_->Close()))
         {
             ID3D12CommandList *lists[] = {command_list_};
@@ -300,8 +430,15 @@ namespace sl::detail
             // No wait here: the CPU carries on while the GPU draws, and begin_frame() or wait_idle() waits when it must.
             if (FAILED(command_queue_->Signal(fence_, ++fence_value_)))
                 wait_for_gpu();
+            if (gpu_active_ >= 0)
+            {
+                auto &query = gpu_queries_[static_cast<std::size_t>(gpu_active_)];
+                query.fence = fence_value_;
+                query.pending = true;
+            }
             frame_index_ = swap_chain_->GetCurrentBackBufferIndex();
         }
+        gpu_active_ = -1;
         frame_open_ = false;
     }
 
@@ -357,6 +494,12 @@ namespace sl::detail
     {
         if (command_queue_ && fence_ && fence_event_)
             wait_for_gpu();
+        if (gpu_readback_)
+            gpu_readback_->Release();
+        if (gpu_query_heap_)
+            gpu_query_heap_->Release();
+        gpu_readback_ = nullptr;
+        gpu_query_heap_ = nullptr;
         release_backbuffers();
         if (fence_event_)
         {

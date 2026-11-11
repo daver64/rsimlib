@@ -6,6 +6,7 @@
 #include "renderer.h"
 
 #include <cstdint>
+#include <array>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -106,6 +107,9 @@ namespace sl::detail
         // Submits the commands recorded so far without presenting, waits for them, and resumes recording.
         bool submit_pending_work(std::string &error);
         bool frame_active() const { return frame_active_; }
+        void set_gpu_diagnostics_enabled(bool enabled);
+        void gpu_diagnostics_begin_frame(std::uint64_t frame);
+        GpuDiagnostics gpu_diagnostics(bool include_memory);
         bool begin_offscreen_render_pass(VkFramebuffer framebuffer, VulkanImage &image,
                                          int width, int height,
                                          std::string &error, int samples = 1);
@@ -320,6 +324,21 @@ namespace sl::detail
         }
 
     private:
+        struct GpuQuery
+        {
+            std::uint64_t frame = 0;
+            bool pending = false;
+            bool current_session = false;
+        };
+        void collect_gpu_queries();
+        VkQueryPool gpu_query_pool_ = VK_NULL_HANDLE;
+        std::array<GpuQuery, 8> gpu_queries_{};
+        GpuDiagnostics gpu_sample_{};
+        std::uint64_t gpu_requested_frame_ = 0;
+        bool gpu_enabled_ = false, gpu_requested_ = false, gpu_memory_budget_ = false;
+        int gpu_active_ = -1;
+        std::uint32_t gpu_timestamp_bits_ = 0;
+        float gpu_timestamp_period_ = 0;
         VkInstance instance_ = VK_NULL_HANDLE;
         VkSurfaceKHR surface_ = VK_NULL_HANDLE;
         VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;

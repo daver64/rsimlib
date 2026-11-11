@@ -132,6 +132,25 @@ namespace sl
 		return published;
 	}
 
+	void set_gpu_diagnostics_enabled(bool enabled)
+	{
+		if (detail::Renderer *renderer = detail::active_renderer())
+			renderer->set_gpu_diagnostics_enabled(enabled);
+	}
+
+	void gpu_diagnostics_begin_frame(std::uint64_t frame_number)
+	{
+		if (detail::Renderer *renderer = detail::active_renderer())
+			renderer->gpu_diagnostics_begin_frame(frame_number);
+	}
+
+	GpuDiagnostics get_gpu_diagnostics(bool include_memory)
+	{
+		if (detail::Renderer *renderer = detail::active_renderer())
+			return renderer->gpu_diagnostics(include_memory);
+		return {};
+	}
+
 	void draw_frame_stats(Font *font, int x, int y)
 	{
 		if (!font)

@@ -372,6 +372,9 @@ namespace sl::detail
             // the software frame limiter in system.cpp correctly kicks in when presentation isn't
             // really pacing us (e.g. IMMEDIATE fallback) - otherwise the app runs fully unthrottled.
             bool vsync_active() const override { return vsync_enabled_ && context_.present_mode_blocks_on_vsync(); }
+            void set_gpu_diagnostics_enabled(bool enabled) override { context_.set_gpu_diagnostics_enabled(enabled); }
+            void gpu_diagnostics_begin_frame(std::uint64_t frame) override { context_.gpu_diagnostics_begin_frame(frame); }
+            GpuDiagnostics gpu_diagnostics(bool memory) override { return context_.gpu_diagnostics(memory); }
             void present() override
             {
                 if (frame_active_)

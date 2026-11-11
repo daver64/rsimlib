@@ -17,6 +17,7 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -121,6 +122,13 @@ namespace sl::detail
 
             void shutdown() override
             {
+                if (gpu_queries_[0].start)
+                    for (auto &query : gpu_queries_)
+                    {
+                        glDeleteQueries(1, &query.start);
+                        glDeleteQueries(1, &query.end);
+                        query = {};
+                    }
                 shutdown_2d();
                 while (!meshes_.empty())
                     destroy_mesh(meshes_.begin()->first);
@@ -174,9 +182,94 @@ namespace sl::detail
                 return context_.vsync_active();
             }
 
+            void set_gpu_diagnostics_enabled(bool enabled) override
+            {
+                if (gpu_enabled_ == enabled)
+                    return;
+                gpu_enabled_ = enabled;
+                gpu_sample_ = {};
+                gpu_active_ = -1;
+                if (gpu_queries_[0].start)
+                    for (auto &query : gpu_queries_)
+                    {
+                        glDeleteQueries(1, &query.start);
+                        glDeleteQueries(1, &query.end);
+                        query = {};
+                    }
+                gpu_timestamp_bits_ = 0;
+                if (enabled)
+                    glGetQueryiv(GL_TIMESTAMP, GL_QUERY_COUNTER_BITS, &gpu_timestamp_bits_);
+            }
+
+            void gpu_diagnostics_begin_frame(std::uint64_t frame) override
+            {
+                if (!gpu_enabled_ || gpu_timestamp_bits_ <= 0)
+                    return;
+                if (!gpu_queries_[0].start)
+                {
+                    for (auto &query : gpu_queries_)
+                    {
+                        glGenQueries(1, &query.start);
+                        glGenQueries(1, &query.end);
+                    }
+                    for (const auto &query : gpu_queries_)
+                        if (!query.start || !query.end)
+                        {
+                            for (auto &allocated : gpu_queries_)
+                            {
+                                if (allocated.start)
+                                    glDeleteQueries(1, &allocated.start);
+                                if (allocated.end)
+                                    glDeleteQueries(1, &allocated.end);
+                                allocated = {};
+                            }
+                            return;
+                        }
+                }
+                collect_gpu_queries();
+                for (std::size_t i = 0; i < gpu_queries_.size(); ++i)
+                    if (!gpu_queries_[i].pending && gpu_queries_[i].start && gpu_queries_[i].end)
+                    {
+                        gpu_queries_[i].frame = frame;
+                        glQueryCounter(gpu_queries_[i].start, GL_TIMESTAMP);
+                        gpu_active_ = static_cast<int>(i);
+                        break;
+                    }
+            }
+
+            GpuDiagnostics gpu_diagnostics(bool include_memory) override
+            {
+                if (!gpu_enabled_)
+                    return {};
+                collect_gpu_queries();
+                GpuDiagnostics result = gpu_sample_;
+                result.timing_supported = gpu_timestamp_bits_ > 0 && gpu_queries_[0].start != 0;
+                if (include_memory && SDL_GL_ExtensionSupported("GL_NVX_gpu_memory_info"))
+                {
+                    GLint total = 0, available = 0;
+                    glGetIntegerv(0x9048, &total);
+                    glGetIntegerv(0x9049, &available);
+                    if (total > 0 && available >= 0)
+                    {
+                        result.memory_total_valid = true;
+                        result.memory_free_valid = true;
+                        result.memory_total_bytes = static_cast<std::uint64_t>(total) * 1024;
+                        result.memory_free_bytes = static_cast<std::uint64_t>(available) * 1024;
+                    }
+                }
+                return result;
+            }
+
             void present() override
             {
                 flush_2d();
+                if (gpu_active_ >= 0)
+                {
+                    auto &query = gpu_queries_[static_cast<std::size_t>(gpu_active_)];
+                    glQueryCounter(query.end, GL_TIMESTAMP);
+                    query.pending = true;
+                    gpu_active_ = -1;
+                }
                 context_.present();
             }
 
@@ -1807,6 +1900,59 @@ namespace sl::detail
             }
 
         private:
+            struct GpuQuery
+            {
+                GLuint start = 0, end = 0;
+                std::uint64_t frame = 0;
+                bool pending = false;
+            };
+            void collect_gpu_queries()
+            {
+                if (SDL_GL_ExtensionSupported("GL_EXT_disjoint_timer_query"))
+                {
+                    GLint disjoint = GL_FALSE;
+                    glGetIntegerv(0x8FBB, &disjoint);
+                    if (disjoint)
+                    {
+                        gpu_sample_.timing_valid = false;
+                        for (auto &query : gpu_queries_)
+                        {
+                            if (query.start)
+                                glDeleteQueries(1, &query.start);
+                            if (query.end)
+                                glDeleteQueries(1, &query.end);
+                            query = {};
+                        }
+                        gpu_active_ = -1;
+                        return;
+                    }
+                }
+                for (auto &query : gpu_queries_)
+                {
+                    if (!query.pending)
+                        continue;
+                    GLint available = GL_FALSE;
+                    glGetQueryObjectiv(query.end, GL_QUERY_RESULT_AVAILABLE, &available);
+                    if (!available)
+                        continue;
+                    GLuint64 start = 0, end = 0;
+                    glGetQueryObjectui64v(query.start, GL_QUERY_RESULT, &start);
+                    glGetQueryObjectui64v(query.end, GL_QUERY_RESULT, &end);
+                    if (!gpu_sample_.timing_valid || query.frame > gpu_sample_.frame_number)
+                    {
+                        const std::uint64_t mask = gpu_timestamp_bits_ >= 64 ? UINT64_MAX : (UINT64_C(1) << gpu_timestamp_bits_) - 1;
+                        gpu_sample_.timing_valid = true;
+                        gpu_sample_.frame_number = query.frame;
+                        gpu_sample_.elapsed_ms = static_cast<double>((end - start) & mask) / 1000000.0;
+                    }
+                    query.pending = false;
+                }
+            }
+            std::array<GpuQuery, 8> gpu_queries_{};
+            GpuDiagnostics gpu_sample_{};
+            bool gpu_enabled_ = false;
+            int gpu_active_ = -1;
+            GLint gpu_timestamp_bits_ = 0;
             struct RenderTargetState
             {
                 GLint draw_framebuffer = 0;

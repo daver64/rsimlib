@@ -38,6 +38,18 @@ int main()
 }
 ```
 
+GPU diagnostics are opt-in: call `sl::set_gpu_diagnostics_enabled(true)`, then
+`sl::gpu_diagnostics_begin_frame(frame_number)` before each frame's rendering.
+Presentation closes the markers. `sl::get_gpu_diagnostics(false)` returns the
+newest completed timestamp sample without waiting; compare its frame number
+with the current frame to detect age. It measures elapsed time between GPU
+markers, including idle time, not utilization. Query `get_gpu_diagnostics(true)`
+at a bounded interval for supported memory figures: usage and budget identify
+their process or adapter scope, while free and total describe an adapter pool.
+Each field has a validity flag and may be unavailable. Disabling diagnostics
+discards the session's results. OpenGL, Vulkan and D3D12 provide timestamp
+queries where supported; memory capabilities vary by driver and backend.
+
 Link your CMake target against the `simlib` library target:
 
 ```cmake

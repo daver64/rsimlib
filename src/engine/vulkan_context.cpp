@@ -168,7 +168,7 @@ namespace sl::detail
         VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
         device_info.queueCreateInfoCount = 1;
         device_info.pQueueCreateInfos = &queue_info;
-        const char *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        std::vector<const char *> device_extensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
         unsigned int device_extension_count = 0;
         vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &device_extension_count, nullptr);
         std::vector<VkExtensionProperties> device_extensions_available(device_extension_count);
@@ -180,8 +180,11 @@ namespace sl::detail
             shutdown();
             return false;
         }
-        device_info.enabledExtensionCount = 1;
-        device_info.ppEnabledExtensionNames = device_extensions;
+        gpu_memory_budget_ = has_extension(device_extensions_available, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+        if (gpu_memory_budget_)
+            device_extensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+        device_info.enabledExtensionCount = static_cast<unsigned int>(device_extensions.size());
+        device_info.ppEnabledExtensionNames = device_extensions.data();
         VkPhysicalDeviceFeatures supported_features{};
         vkGetPhysicalDeviceFeatures(physical_device_, &supported_features);
         VkPhysicalDeviceFeatures enabled_features{};
@@ -191,6 +194,12 @@ namespace sl::detail
         sampler_anisotropy_enabled_ = enabled_features.samplerAnisotropy == VK_TRUE;
         VkPhysicalDeviceProperties selected_properties{};
         vkGetPhysicalDeviceProperties(physical_device_, &selected_properties);
+        gpu_timestamp_period_ = selected_properties.limits.timestampPeriod;
+        unsigned int queue_count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, nullptr);
+        std::vector<VkQueueFamilyProperties> queue_properties(queue_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, queue_properties.data());
+        gpu_timestamp_bits_ = queue_properties[graphics_queue_family_].timestampValidBits;
         max_sampler_anisotropy_ = sampler_anisotropy_enabled_
                                       ? std::min(selected_properties.limits.maxSamplerAnisotropy, 16.0f)
                                       : 1.0f;
@@ -502,6 +511,86 @@ namespace sl::detail
         return true;
     }
 
+    void VulkanContext::set_gpu_diagnostics_enabled(bool enabled)
+    {
+        if (gpu_enabled_ == enabled)
+            return;
+        gpu_enabled_ = enabled;
+        gpu_requested_ = false;
+        gpu_sample_ = {};
+        for (auto &query : gpu_queries_)
+            query.current_session = false;
+        if (enabled && gpu_timestamp_bits_ && gpu_query_pool_ == VK_NULL_HANDLE)
+        {
+            VkQueryPoolCreateInfo info{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+            info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            info.queryCount = static_cast<std::uint32_t>(gpu_queries_.size() * 2);
+            if (vkCreateQueryPool(device_, &info, nullptr, &gpu_query_pool_) != VK_SUCCESS)
+                gpu_query_pool_ = VK_NULL_HANDLE;
+        }
+    }
+
+    void VulkanContext::gpu_diagnostics_begin_frame(std::uint64_t frame)
+    {
+        if (gpu_enabled_)
+        {
+            gpu_requested_frame_ = frame;
+            gpu_requested_ = true;
+        }
+    }
+
+    void VulkanContext::collect_gpu_queries()
+    {
+        if (gpu_query_pool_ == VK_NULL_HANDLE || in_flight_ == VK_NULL_HANDLE ||
+            vkGetFenceStatus(device_, in_flight_) != VK_SUCCESS)
+            return;
+        for (std::size_t i = 0; i < gpu_queries_.size(); ++i)
+        {
+            auto &query = gpu_queries_[i];
+            if (!query.pending)
+                continue;
+            std::uint64_t timestamps[2]{};
+            const VkResult result = vkGetQueryPoolResults(device_, gpu_query_pool_, static_cast<std::uint32_t>(i * 2), 2,
+                                                           sizeof(timestamps), timestamps, sizeof(std::uint64_t),
+                                                           VK_QUERY_RESULT_64_BIT);
+            if (result == VK_SUCCESS && query.current_session &&
+                (!gpu_sample_.timing_valid || query.frame > gpu_sample_.frame_number))
+            {
+                const std::uint64_t mask = gpu_timestamp_bits_ >= 64 ? UINT64_MAX : (UINT64_C(1) << gpu_timestamp_bits_) - 1;
+                gpu_sample_.elapsed_ms = static_cast<double>((timestamps[1] - timestamps[0]) & mask) * gpu_timestamp_period_ / 1000000.0;
+                gpu_sample_.frame_number = query.frame;
+                gpu_sample_.timing_valid = true;
+            }
+            query.pending = false;
+        }
+    }
+
+    GpuDiagnostics VulkanContext::gpu_diagnostics(bool include_memory)
+    {
+        if (!gpu_enabled_)
+            return {};
+        collect_gpu_queries();
+        GpuDiagnostics result = gpu_sample_;
+        result.timing_supported = gpu_query_pool_ != VK_NULL_HANDLE;
+        if (include_memory && gpu_memory_budget_)
+        {
+            VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT};
+            VkPhysicalDeviceMemoryProperties2 properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2};
+            properties.pNext = &budget;
+            vkGetPhysicalDeviceMemoryProperties2(physical_device_, &properties);
+            for (std::uint32_t i = 0; i < properties.memoryProperties.memoryHeapCount; ++i)
+                if (properties.memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+                {
+                    result.memory_usage_bytes += budget.heapUsage[i];
+                    result.memory_budget_bytes += budget.heapBudget[i];
+                    result.memory_total_bytes += properties.memoryProperties.memoryHeaps[i].size;
+                    result.memory_valid = result.memory_budget_valid = result.memory_total_valid = true;
+                }
+            result.memory_process_scope = true;
+        }
+        return result;
+    }
+
     bool VulkanContext::begin_frame(std::string &error)
     {
         if (!is_valid() || render_pass_ == VK_NULL_HANDLE)
@@ -516,6 +605,7 @@ namespace sl::detail
             error = "Unable to synchronize Vulkan frame fence.";
             return false;
         }
+        collect_gpu_queries();
         for (VulkanBuffer &buffer : upload_staging_buffers_)
             destroy_buffer(buffer);
         upload_staging_buffers_.clear();
@@ -542,6 +632,20 @@ namespace sl::detail
             return false;
         }
         command_buffer_recording_ = true;
+        if (gpu_enabled_ && gpu_requested_ && gpu_query_pool_ != VK_NULL_HANDLE)
+        {
+            for (std::size_t i = 0; i < gpu_queries_.size(); ++i)
+                if (!gpu_queries_[i].pending)
+                {
+                    gpu_active_ = static_cast<int>(i);
+                    gpu_queries_[i].frame = gpu_requested_frame_;
+                    gpu_queries_[i].current_session = true;
+                    vkCmdResetQueryPool(command_buffer_, gpu_query_pool_, static_cast<std::uint32_t>(i * 2), 2);
+                    vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_query_pool_, static_cast<std::uint32_t>(i * 2));
+                    break;
+                }
+            gpu_requested_ = false;
+        }
         VkClearValue clear_values[2]{};
         clear_values[1].depthStencil = {1.0f, 0};
         clear_values[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -575,10 +679,13 @@ namespace sl::detail
         if (command_buffer_recording_ && render_pass_active_)
             vkCmdEndRenderPass(command_buffer_);
         render_pass_active_ = false;
+        if (gpu_active_ >= 0)
+            vkCmdWriteTimestamp(command_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_query_pool_, static_cast<std::uint32_t>(gpu_active_ * 2 + 1));
         if (vkEndCommandBuffer(command_buffer_) != VK_SUCCESS)
         {
             error = "Unable to end Vulkan command buffer.";
             frame_active_ = false;
+            gpu_active_ = -1;
             return false;
         }
         command_buffer_recording_ = false;
@@ -596,7 +703,13 @@ namespace sl::detail
         {
             error = "Unable to submit Vulkan command buffer.";
             frame_active_ = false;
+            gpu_active_ = -1;
             return false;
+        }
+        if (gpu_active_ >= 0)
+        {
+            gpu_queries_[static_cast<std::size_t>(gpu_active_)].pending = true;
+            gpu_active_ = -1;
         }
         VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
         present.waitSemaphoreCount = 1;
@@ -3360,6 +3473,8 @@ namespace sl::detail
         if (device_ != VK_NULL_HANDLE)
         {
             wait_device_idle();
+            collect_gpu_queries();
+            gpu_active_ = -1;
             frame_active_ = false;
             command_buffer_recording_ = false;
             render_pass_active_ = false;
@@ -3434,6 +3549,9 @@ namespace sl::detail
         {
             wait_device_idle();
             destroy_environment_block();
+            if (gpu_query_pool_ != VK_NULL_HANDLE)
+                vkDestroyQueryPool(device_, gpu_query_pool_, nullptr);
+            gpu_query_pool_ = VK_NULL_HANDLE;
             vkDestroyDevice(device_, nullptr);
             device_ = VK_NULL_HANDLE;
         }

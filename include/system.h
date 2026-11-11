@@ -38,4 +38,34 @@ namespace sl
     /** Return the diagnostics for the last completed frame. */
     FrameStats get_frame_stats();
 
+    /** A nonblocking GPU diagnostic sample. Memory fields are independently available.
+     * Usage and budget are process-scoped when memory_process_scope is true, otherwise adapter-scoped.
+     * Free and total refer to the adapter's reported pool, not the process. */
+    struct GpuDiagnostics
+    {
+        bool timing_supported = false;
+        bool timing_valid = false;
+        double elapsed_ms = 0.0;
+        std::uint64_t frame_number = 0;
+        bool memory_valid = false;
+        bool memory_process_scope = false;
+        std::uint64_t memory_usage_bytes = 0;
+        std::uint64_t memory_budget_bytes = 0;
+        bool memory_budget_valid = false;
+        bool memory_free_valid = false;
+        std::uint64_t memory_free_bytes = 0;
+        bool memory_total_valid = false;
+        std::uint64_t memory_total_bytes = 0;
+    };
+
+    /** Enable or disable GPU diagnostics. Disabled or newly enabled diagnostics discard old samples. */
+    void set_gpu_diagnostics_enabled(bool enabled);
+    /** Mark the beginning of a frame with a monotonically increasing application frame number.
+     * The renderer closes it at presentation; frames may be skipped if no query slot is free. */
+    void gpu_diagnostics_begin_frame(std::uint64_t frame_number);
+    /** Retrieve the newest completed sample without waiting for GPU completion.
+     * GPU elapsed time is between GPU markers, including idle time between them; it is not utilization.
+     * Memory queries may be relatively expensive, so request them at a bounded interval. */
+    GpuDiagnostics get_gpu_diagnostics(bool include_memory = true);
+
 } // namespace sl
