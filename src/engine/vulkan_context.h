@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace sl::detail
@@ -51,7 +52,8 @@ namespace sl::detail
 
     struct VulkanDescriptorPool
     {
-        VkDescriptorPool pool = VK_NULL_HANDLE;
+        std::vector<VkDescriptorPool> pools;
+        std::unordered_map<VkDescriptorSet, VkDescriptorPool> owners;
     };
 
     struct VulkanSampler
@@ -227,21 +229,21 @@ namespace sl::detail
         bool create_sampler(TextureFilter filter, VulkanSampler &result, std::string &error,
                             float anisotropy = 1.0f, bool mipmaps = false, bool repeat = false);
         void destroy_sampler(VulkanSampler &sampler);
-        bool allocate_texture_descriptor(const VulkanDescriptorPool &pool,
+        bool allocate_texture_descriptor(VulkanDescriptorPool &pool,
                                          const VulkanDescriptorSetLayout &layout,
                                          const VulkanImage &image, const VulkanSampler &sampler,
                                          VkDescriptorSet &set, std::string &error);
         bool update_texture_descriptor(VkDescriptorSet set, const VulkanImage &image,
                                        const VulkanSampler &sampler, std::string &error);
-        void free_descriptor_set(const VulkanDescriptorPool &pool, VkDescriptorSet &set);
-        bool allocate_lighting_descriptor(const VulkanDescriptorPool &pool,
+        void free_descriptor_set(VulkanDescriptorPool &pool, VkDescriptorSet &set);
+        bool allocate_lighting_descriptor(VulkanDescriptorPool &pool,
                                           const VulkanDescriptorSetLayout &layout,
                                           const VulkanImage *images, const VulkanSampler *samplers,
                                           VkDescriptorSet &set, std::string &error);
         bool update_lighting_descriptor(VkDescriptorSet set, const VulkanImage *images,
                                         const VulkanSampler *samplers, std::string &error);
         bool create_composite_descriptor_layout(VulkanDescriptorSetLayout &result, std::string &error);
-        bool allocate_composite_descriptor(const VulkanDescriptorPool &pool,
+        bool allocate_composite_descriptor(VulkanDescriptorPool &pool,
                                            const VulkanDescriptorSetLayout &layout,
                                            const VulkanImage *images, const VulkanSampler *samplers,
                                            VkDescriptorSet &set, std::string &error);
@@ -249,7 +251,7 @@ namespace sl::detail
                                          const VulkanSampler *samplers, std::string &error);
         bool create_dynamic_descriptor_layout(const std::vector<VkDescriptorSetLayoutBinding> &bindings,
                                               VulkanDescriptorSetLayout &result, std::string &error);
-        bool allocate_descriptor_set(const VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
+        bool allocate_descriptor_set(VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
                                      VkDescriptorSet &set, std::string &error);
         bool update_dynamic_descriptor_set(VkDescriptorSet set, const std::vector<VulkanImage> &images,
                                            const std::vector<VulkanSampler> &samplers, std::string &error);
@@ -260,11 +262,11 @@ namespace sl::detail
                                                        std::uint32_t sampler_count,
                                                        VulkanStorageDescriptorLayout &result,
                                                        std::string &error);
-        bool allocate_storage_descriptor(const VulkanDescriptorPool &pool,
+        bool allocate_storage_descriptor(VulkanDescriptorPool &pool,
                                          const VulkanStorageDescriptorLayout &layout,
                                          const VulkanBuffer *buffers, std::size_t count,
                                          VkDescriptorSet &set, std::string &error);
-        bool allocate_compute_descriptor_set(const VulkanDescriptorPool &pool,
+        bool allocate_compute_descriptor_set(VulkanDescriptorPool &pool,
                                              const VulkanStorageDescriptorLayout &layout,
                                              VkDescriptorSet &set, std::string &error);
         bool update_storage_descriptor(VkDescriptorSet set, const VulkanBuffer *buffers,

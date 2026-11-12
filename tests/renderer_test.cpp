@@ -330,6 +330,29 @@ void test_backend(sl::GraphicsBackend backend)
     sl::destroy_bitmap(downloaded);
     sl::destroy_bitmap(tex_bmp);
 
+    // Streaming can keep more than one Vulkan descriptor pool's worth of textures resident.
+    {
+        std::vector<sl::Bitmap *> textures;
+        for (int i = 0; i < 700; ++i)
+        {
+            sl::Bitmap *bitmap = sl::create_bitmap(2, 2);
+            assert(bitmap);
+            const bool uploaded = sl::upload_bitmap(bitmap);
+            if (!uploaded)
+                std::cerr << "Texture " << i << " failed to upload: " << sl::last_error() << std::endl;
+            assert(uploaded);
+            textures.push_back(bitmap);
+        }
+        for (std::size_t i = 0; i < textures.size(); i += 2)
+        {
+            sl::destroy_bitmap(textures[i]);
+            textures[i] = sl::create_bitmap(2, 2);
+            assert(textures[i] && sl::upload_bitmap(textures[i]));
+        }
+        for (sl::Bitmap *bitmap : textures)
+            sl::destroy_bitmap(bitmap);
+    }
+
     // 6b. A mipmapped bitmap averages when minified; without mips this 1px checkerboard would alias.
     {
         sl::Bitmap *mip_bmp = sl::create_bitmap(64, 64);

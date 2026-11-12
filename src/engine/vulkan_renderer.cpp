@@ -4,6 +4,7 @@
 #include "vulkan_renderer.h"
 #include "vulkan_context.h"
 #include "shader_paths.h"
+#include "error.h"
 
 #include <vulkan/vulkan.h>
 
@@ -463,6 +464,7 @@ namespace sl::detail
                 {
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
+                    set_error(last_error_);
                     return false;
                 }
                 texture = next_texture_++;
@@ -471,6 +473,7 @@ namespace sl::detail
                 {
                     context_.destroy_sampler(resource.sampler);
                     context_.destroy_image(resource.image);
+                    set_error(last_error_);
                     return false;
                 }
                 textures_.emplace(texture, std::move(resource));
@@ -575,12 +578,23 @@ namespace sl::detail
             {
                 const auto iterator = textures_.find(texture);
                 if (iterator != textures_.end())
-                    return context_.upload_image_rgba(iterator->second.image, width, height, pixels, last_error_);
+                {
+                    if (context_.upload_image_rgba(iterator->second.image, width, height, pixels, last_error_))
+                        return true;
+                    set_error(last_error_);
+                    return false;
+                }
                 for (auto &[framebuffer, target] : render_targets_)
                 {
                     if (target.texture_handle == texture)
-                        return context_.upload_image_rgba(target.image, width, height, pixels, last_error_);
+                    {
+                        if (context_.upload_image_rgba(target.image, width, height, pixels, last_error_))
+                            return true;
+                        set_error(last_error_);
+                        return false;
+                    }
                 }
+                set_error("Invalid Vulkan texture upload handle.");
                 return false;
             }
             bool download_texture(std::uint32_t texture, int width, int height, std::uint8_t *out_pixels) override

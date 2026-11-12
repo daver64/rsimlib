@@ -226,10 +226,13 @@ namespace sl
                         return false;
                     uploaded_any = true;
                     charge(remaining, static_cast<std::size_t>(job.bitmap->width) * job.bitmap->height * 4);
+                    clear_error();
                     if (!upload_bitmap(job.bitmap))
                     {
+                        const std::string error = last_error();
                         dispose_payload(job);
-                        fail(job, "Unable to upload the texture to the graphics backend");
+                        fail(job, "Unable to upload the texture to the graphics backend" +
+                                      (error.empty() ? std::string() : ": " + error));
                         return true;
                     }
                     job.state.store(state_ready, std::memory_order_release);

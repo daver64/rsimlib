@@ -2541,9 +2541,8 @@ namespace sl::detail
         layout = {};
     }
 
-    bool VulkanContext::create_descriptor_pool(VulkanDescriptorPool &result, std::string &error)
+    static bool add_descriptor_pool(VkDevice device, VulkanDescriptorPool &result, std::string &error)
     {
-        result = {};
         VkDescriptorPoolSize pool_sizes[] = {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
@@ -2554,18 +2553,56 @@ namespace sl::detail
         pool_info.maxSets = 256;
         pool_info.poolSizeCount = 3;
         pool_info.pPoolSizes = pool_sizes;
-        if (vkCreateDescriptorPool(device_, &pool_info, nullptr, &result.pool) != VK_SUCCESS)
+        VkDescriptorPool pool = VK_NULL_HANDLE;
+        const VkResult status = vkCreateDescriptorPool(device, &pool_info, nullptr, &pool);
+        if (status != VK_SUCCESS)
         {
-            error = "Unable to create Vulkan descriptor pool.";
+            error = "Unable to create Vulkan descriptor pool (VkResult " + std::to_string(status) + ").";
             return false;
         }
+        result.pools.push_back(pool);
         return true;
+    }
+
+    static bool allocate_from_descriptor_pools(VkDevice device, VulkanDescriptorPool &pool,
+                                               VkDescriptorSetLayout layout, VkDescriptorSet &set,
+                                               std::string &error)
+    {
+        set = VK_NULL_HANDLE;
+        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocation.descriptorSetCount = 1;
+        allocation.pSetLayouts = &layout;
+        for (std::size_t i = 0;; ++i)
+        {
+            const bool fresh = i == pool.pools.size();
+            if (fresh && !add_descriptor_pool(device, pool, error))
+                return false;
+            allocation.descriptorPool = pool.pools[i];
+            const VkResult status = vkAllocateDescriptorSets(device, &allocation, &set);
+            if (status == VK_SUCCESS)
+            {
+                pool.owners.emplace(set, allocation.descriptorPool);
+                return true;
+            }
+            if (fresh || (status != VK_ERROR_OUT_OF_POOL_MEMORY && status != VK_ERROR_FRAGMENTED_POOL))
+            {
+                error = "Unable to allocate Vulkan descriptor set (VkResult " + std::to_string(status) + ").";
+                return false;
+            }
+        }
+    }
+
+    bool VulkanContext::create_descriptor_pool(VulkanDescriptorPool &result, std::string &error)
+    {
+        result = {};
+        return add_descriptor_pool(device_, result, error);
     }
 
     void VulkanContext::destroy_descriptor_pool(VulkanDescriptorPool &pool)
     {
-        if (device_ != VK_NULL_HANDLE && pool.pool != VK_NULL_HANDLE)
-            vkDestroyDescriptorPool(device_, pool.pool, nullptr);
+        if (device_ != VK_NULL_HANDLE)
+            for (VkDescriptorPool handle : pool.pools)
+                vkDestroyDescriptorPool(device_, handle, nullptr);
         pool = {};
     }
 
@@ -2609,21 +2646,13 @@ namespace sl::detail
         sampler = {};
     }
 
-    bool VulkanContext::allocate_texture_descriptor(const VulkanDescriptorPool &pool,
+    bool VulkanContext::allocate_texture_descriptor(VulkanDescriptorPool &pool,
                                                     const VulkanDescriptorSetLayout &layout,
                                                     const VulkanImage &image, const VulkanSampler &sampler,
                                                     VkDescriptorSet &set, std::string &error)
     {
-        set = VK_NULL_HANDLE;
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
-        {
-            error = "Unable to allocate Vulkan texture descriptor set.";
+        if (!allocate_from_descriptor_pools(device_, pool, layout.layout, set, error))
             return false;
-        }
         VkDescriptorImageInfo image_info{};
         image_info.imageView = image.view;
         image_info.imageLayout = image.layout == VK_IMAGE_LAYOUT_UNDEFINED
@@ -2662,14 +2691,28 @@ namespace sl::detail
         return true;
     }
 
-    void VulkanContext::free_descriptor_set(const VulkanDescriptorPool &pool, VkDescriptorSet &set)
+    void VulkanContext::free_descriptor_set(VulkanDescriptorPool &pool, VkDescriptorSet &set)
     {
-        if (device_ != VK_NULL_HANDLE && pool.pool != VK_NULL_HANDLE && set != VK_NULL_HANDLE)
-            vkFreeDescriptorSets(device_, pool.pool, 1, &set);
+        if (set == VK_NULL_HANDLE)
+            return;
+        const auto owner = pool.owners.find(set);
+        if (device_ != VK_NULL_HANDLE)
+        {
+            if (owner == pool.owners.end())
+                std::fprintf(stderr, "[simlib] Vulkan descriptor set has no owning pool.\n");
+            else
+            {
+                const VkResult status = vkFreeDescriptorSets(device_, owner->second, 1, &set);
+                if (status != VK_SUCCESS)
+                    std::fprintf(stderr, "[simlib] Unable to free Vulkan descriptor set (VkResult %d).\n", static_cast<int>(status));
+                else
+                    pool.owners.erase(owner);
+            }
+        }
         set = VK_NULL_HANDLE;
     }
 
-    bool VulkanContext::allocate_lighting_descriptor(const VulkanDescriptorPool &pool,
+    bool VulkanContext::allocate_lighting_descriptor(VulkanDescriptorPool &pool,
                                                      const VulkanDescriptorSetLayout &layout,
                                                      const VulkanImage *images, const VulkanSampler *samplers,
                                                      VkDescriptorSet &set, std::string &error)
@@ -2680,21 +2723,15 @@ namespace sl::detail
             error = "Invalid Vulkan lighting descriptor request.";
             return false;
         }
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
-        {
-            error = "Unable to allocate Vulkan lighting descriptor set.";
+        if (!allocate_from_descriptor_pools(device_, pool, layout.layout, set, error))
             return false;
-        }
         VkDescriptorImageInfo image_infos[9]{};
         for (std::uint32_t index = 0; index < 9; ++index)
         {
             if (images[index].view == VK_NULL_HANDLE || samplers[index].sampler == VK_NULL_HANDLE)
             {
                 error = "Invalid Vulkan lighting texture descriptor.";
+                free_descriptor_set(pool, set);
                 return false;
             }
             image_infos[index].imageView = images[index].view;
@@ -2776,7 +2813,7 @@ namespace sl::detail
         return true;
     }
 
-    bool VulkanContext::allocate_composite_descriptor(const VulkanDescriptorPool &pool,
+    bool VulkanContext::allocate_composite_descriptor(VulkanDescriptorPool &pool,
                                                       const VulkanDescriptorSetLayout &layout,
                                                       const VulkanImage *images, const VulkanSampler *samplers,
                                                       VkDescriptorSet &set, std::string &error)
@@ -2787,16 +2824,14 @@ namespace sl::detail
             error = "Invalid Vulkan composite descriptor request.";
             return false;
         }
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
+        if (!allocate_from_descriptor_pools(device_, pool, layout.layout, set, error))
+            return false;
+        if (!update_composite_descriptor(set, images, samplers, error))
         {
-            error = "Unable to allocate Vulkan composite descriptor set.";
+            free_descriptor_set(pool, set);
             return false;
         }
-        return update_composite_descriptor(set, images, samplers, error);
+        return true;
     }
 
     bool VulkanContext::update_composite_descriptor(VkDescriptorSet set, const VulkanImage *images,
@@ -2848,20 +2883,10 @@ namespace sl::detail
         return true;
     }
 
-    bool VulkanContext::allocate_descriptor_set(const VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
+    bool VulkanContext::allocate_descriptor_set(VulkanDescriptorPool &pool, const VulkanDescriptorSetLayout &layout,
                                                 VkDescriptorSet &set, std::string &error)
     {
-        set = VK_NULL_HANDLE;
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
-        {
-            error = "Unable to allocate Vulkan dynamic descriptor set.";
-            return false;
-        }
-        return true;
+        return allocate_from_descriptor_pools(device_, pool, layout.layout, set, error);
     }
 
     bool VulkanContext::update_dynamic_descriptor_set(VkDescriptorSet set, const std::vector<VulkanImage> &images,
@@ -2973,24 +2998,14 @@ namespace sl::detail
         layout = {};
     }
 
-    bool VulkanContext::allocate_compute_descriptor_set(const VulkanDescriptorPool &pool,
+    bool VulkanContext::allocate_compute_descriptor_set(VulkanDescriptorPool &pool,
                                                         const VulkanStorageDescriptorLayout &layout,
                                                         VkDescriptorSet &set, std::string &error)
     {
-        set = VK_NULL_HANDLE;
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
-        {
-            error = "Unable to allocate Vulkan compute descriptor set.";
-            return false;
-        }
-        return true;
+        return allocate_from_descriptor_pools(device_, pool, layout.layout, set, error);
     }
 
-    bool VulkanContext::allocate_storage_descriptor(const VulkanDescriptorPool &pool,
+    bool VulkanContext::allocate_storage_descriptor(VulkanDescriptorPool &pool,
                                                     const VulkanStorageDescriptorLayout &layout,
                                                     const VulkanBuffer *buffers, std::size_t count,
                                                     VkDescriptorSet &set, std::string &error)
@@ -3001,15 +3016,8 @@ namespace sl::detail
             error = "Invalid Vulkan storage descriptor request.";
             return false;
         }
-        VkDescriptorSetAllocateInfo allocation{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocation.descriptorPool = pool.pool;
-        allocation.descriptorSetCount = 1;
-        allocation.pSetLayouts = &layout.layout;
-        if (vkAllocateDescriptorSets(device_, &allocation, &set) != VK_SUCCESS)
-        {
-            error = "Unable to allocate Vulkan storage descriptor set.";
+        if (!allocate_from_descriptor_pools(device_, pool, layout.layout, set, error))
             return false;
-        }
         std::vector<VkDescriptorBufferInfo> infos(count);
         std::vector<VkWriteDescriptorSet> writes(count);
         for (std::size_t index = 0; index < count; ++index)
