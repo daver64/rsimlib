@@ -933,6 +933,16 @@ target_link_libraries(exconfig PRIVATE simlib)
 endif()
 
 if(BUILD_TESTING AND NOT ANDROID)
+    if(NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME package_sol2
+            COMMAND ${CMAKE_COMMAND}
+                "-DSIMLIB_BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+                "-DSIMLIB_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
+                "-DSIMLIB_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+                "-DSIMLIB_GENERATOR=${CMAKE_GENERATOR}"
+                "-DSIMLIB_CONFIG=$<CONFIG>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/package_sol2_test.cmake")
+    endif()
     add_executable(config_test tests/config_test.cpp)
     target_link_libraries(config_test PRIVATE simlib)
     target_compile_definitions(config_test PRIVATE $<$<PLATFORM_ID:Windows>:SDL_MAIN_HANDLED>)
