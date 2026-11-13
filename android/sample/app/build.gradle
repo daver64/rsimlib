@@ -5,15 +5,15 @@ plugins {
 def simlibAssetsDir = layout.buildDirectory.dir("generated/simlib-assets").get().asFile
 
 android {
-    namespace "com.daver64.simlib.android"
-    compileSdk 36
+    namespace = "com.daver64.simlib.android"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId "com.daver64.simlib.android"
-        minSdk 21
-        targetSdk 36
-        versionCode 1
-        versionName "0.1"
+        applicationId = "com.daver64.simlib.android"
+        minSdk = 21
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1"
 
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
