@@ -74,6 +74,8 @@ cmake --build build -j"$(nproc)"
 
 Dependencies, install prefixes, Windows and Visual Studio builds, consuming the installed library and packaging an app are in [docs/building.md](docs/building.md).
 
+**Android support is new and in development.** See the [Android guide](docs/android.md) for limitations, app packaging, deployment and testing.
+
 ## Running the examples
 
 Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only). Browse them in the [Example Gallery](docs/examples/README.md) or start with the [Showcase Guide](docs/showcases.md) (`./build/showcase2d`, `showcase3d`, `showcasevoxel`).

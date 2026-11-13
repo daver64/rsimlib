@@ -22,4 +22,4 @@ On Android, tap to start or restart and hold the LEFT, RIGHT, THRUST and FIRE bu
 ## Run
 `./build/exasteroids` from the repository root.
 
-For Android build, install and launch instructions, see [Building: Android](../building.md#android-opengl-es). The APK builds this same example source and has its own application ID, separate from the Android showcase.
+For Android build, install and launch instructions, see the [Android guide](../android.md). The APK builds this same example source and has its own application ID, separate from the Android showcase. The Android backend is new and in development.
