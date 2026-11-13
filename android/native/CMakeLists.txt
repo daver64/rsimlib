@@ -13,20 +13,29 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 add_subdirectory("${SIMLIB_ROOT}" simlib)
 
-# SDLActivity loads "SDL2" first; keep simlib and SDL in one native runtime and SDL_main in libmain.so.
+set(SIMLIB_ANDROID_JNI_ROOT "${SIMLIB_ROOT}/build/android/jniLibs" CACHE PATH
+    "Root directory for Android app native libraries")
+
+# SDLActivity loads "SDL2" first; keep simlib and SDL in one native runtime.
 add_library(simlib_android_sdl SHARED empty.cpp)
 set_target_properties(simlib_android_sdl PROPERTIES
     OUTPUT_NAME SDL2
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/jniLibs/${ANDROID_ABI}")
+    LIBRARY_OUTPUT_DIRECTORY "${SIMLIB_ANDROID_JNI_ROOT}/common/${ANDROID_ABI}")
 target_link_libraries(simlib_android_sdl PRIVATE "-Wl,--whole-archive" simlib "-Wl,--no-whole-archive")
 
-add_library(main SHARED main.cpp)
-set(SIMLIB_ANDROID_JNI_LIBS_DIR "${CMAKE_BINARY_DIR}/jniLibs/${ANDROID_ABI}" CACHE PATH
-    "Directory where the SDL Android app picks up its native library")
-set_target_properties(main simlib_android_sdl PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${SIMLIB_ANDROID_JNI_LIBS_DIR}")
-target_include_directories(main PRIVATE
-    "${SIMLIB_ROOT}/include"
-    "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
-target_compile_definitions(main PRIVATE SIMLIB_RENDERER_GL SIMLIB_RENDERER_GLES)
-target_link_libraries(main PRIVATE simlib_android_sdl)
+function(simlib_add_android_app name)
+    add_library("${name}_main" SHARED ${ARGN})
+    set_target_properties("${name}_main" PROPERTIES
+        OUTPUT_NAME main
+        LIBRARY_OUTPUT_DIRECTORY "${SIMLIB_ANDROID_JNI_ROOT}/${name}/${ANDROID_ABI}")
+    target_include_directories("${name}_main" PRIVATE
+        "${SIMLIB_ROOT}/include"
+        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+    target_compile_definitions("${name}_main" PRIVATE SIMLIB_RENDERER_GL SIMLIB_RENDERER_GLES)
+    target_link_libraries("${name}_main" PRIVATE simlib_android_sdl)
+endfunction()
+
+file(GLOB _android_apps CONFIGURE_DEPENDS "${SIMLIB_ROOT}/android/apps/*/app.cmake")
+foreach(_android_app IN LISTS _android_apps)
+    include("${_android_app}")
+endforeach()

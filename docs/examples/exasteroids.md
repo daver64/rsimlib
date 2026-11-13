@@ -17,5 +17,9 @@ A neon-voxel take on the classic Asteroids arcade game. Fly a thrust-and-inertia
 ## Controls
 Left and Right turn the ship, Up thrusts (the ship keeps its momentum), Space fires, Enter starts or restarts, and Esc quits. An extra ship is awarded every 10,000 points.
 
+On Android, tap to start or restart and hold the LEFT, RIGHT, THRUST and FIRE buttons at the bottom of the landscape screen. Multiple buttons can be held at once.
+
 ## Run
 `./build/exasteroids` from the repository root.
+
+For Android build, install and launch instructions, see [Building: Android](../building.md#android-opengl-es). The APK builds this same example source and has its own application ID, separate from the Android showcase.

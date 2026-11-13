@@ -98,11 +98,11 @@ cmake --install build
 
 The install contains the public headers, `simlib` static library, bundled ImGui/Lua/sol2/Box2D dependencies, shader assets, and a CMake package. SDL2, SDL2_ttf, SDL2_image, SDL2_mixer, OpenGL, Vulkan, PNG, and zlib remain system prerequisites; install their development packages on the machine building the application.
 
-On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Linux build to `~/opt` and the existing `x64-mingw-posix` cross-build to `~/opt-win`, then runs `android/build.sh` to build the Android library and debug APK. Configure `build-win` with the MinGW vcpkg toolchain and triplet first; the script preserves its cross-build settings and keeps its libraries separate from the Linux build. The Windows build covers the installable library and converter, not every example. The Android step requires the toolchain and environment described below, including a full JDK.
+On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Linux build to `~/opt` and the existing `x64-mingw-posix` cross-build to `~/opt-win`, then runs `android/build.sh` to build the Android library and all registered Android debug APKs. Configure `build-win` with the MinGW vcpkg toolchain and triplet first; the script preserves its cross-build settings and keeps its libraries separate from the Linux build. The Windows build covers the installable library and converter, not every example. The Android step requires the toolchain and environment described below, including a full JDK.
 
 ### Android (OpenGL ES)
 
-The Android target builds the static simlib library and a minimal SDL-based sample APK for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
+The Android target builds the static simlib library and separate SDL-based APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. The registered apps are `exasteroids` and `showcase`. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
 
 The sample uses its Gradle wrapper with Android Gradle Plugin 9.3.3; keep the plugin and wrapper versions compatible when upgrading either one.
 
@@ -114,18 +114,24 @@ sdkmanager "platforms;android-36" "build-tools;36.0.0" \
     "platform-tools" "system-images;android-36;google_apis;x86_64"
 ```
 
-Set the toolchain paths (replace `VCPKG_ROOT` with your vcpkg checkout), then build all three APK ABIs:
+Set the toolchain paths (replace `VCPKG_ROOT` with your vcpkg checkout), then build all registered apps for all three APK ABIs:
 
 ```bash
 git submodule update --init android/SDL2
 export ANDROID_HOME="$HOME/Android/Sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
-export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
 export VCPKG_ROOT="$HOME/vcpkg"
 android/build.sh
 ```
 
-The debug APK is written to `android/sample/app/build/outputs/apk/debug/app-debug.apk`. Its interactive orbital showcase demonstrates 2D shapes, text, animation, particle trails, and touch-driven palette changes. It is intended to exercise Android-supported simlib features rather than port the full desktop example suite.
+The debug APKs are written to `build/android/apks/exasteroids.apk` and `build/android/apks/showcase.apk`. To build only one or selected apps, run `android/build.sh exasteroids` or `android/build.sh exasteroids showcase`. The APKs have distinct application IDs and can be installed together. They are debug-signed test builds, not Play Store releases.
+
+After building both apps, run `bash android/tests/check-packages.sh` to check their identities, labels, ABIs and native programs.
+
+`exasteroids` builds the shared game source in `src/examples/exasteroids`. Tap to start or restart, and hold the on-screen LEFT, RIGHT, THRUST and FIRE buttons to play. `showcase` is the original interactive orbital demo. The old exasteroids APK used the showcase application ID; installing the new exasteroids APK creates a separate app, and installing the new showcase APK replaces that old installation if signed with the same key.
+
+To add another Android-ready program, create `android/apps/NAME/app.cmake` and `android/apps/NAME/app.properties`, using the existing app directories as examples. The CMake file calls `simlib_add_android_app(NAME ...)` with the program source and any needed target definitions; the properties specify a unique `applicationId`, display `label`, and Android `orientation`. The shared Android packaging builds each registered program into its own `libmain.so` and APK. Adapt the program's input, assets, and activity settings for Android as needed; registering a desktop example alone does not port it.
 
 For an x86_64 desktop smoke test, create and start an API 36 emulator. The emulator must expose an OpenGL ES 3.1 context; some software renderers provide only ES 3.0. On a host with compatible graphics drivers, `-gpu host` uses the host GPU:
 
@@ -133,11 +139,11 @@ For an x86_64 desktop smoke test, create and start an API 36 emulator. The emula
 avdmanager create avd --name simlib-api36-x86_64 \
     --package "system-images;android-36;google_apis;x86_64" --device pixel_6
 emulator -avd simlib-api36-x86_64 -gpu host
-adb install -r android/sample/app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.daver64.simlib.android/.SimlibActivity
+adb install -r build/android/apks/exasteroids.apk
+adb shell am start -n com.daver64.simlib.exasteroids/com.daver64.simlib.android.SimlibActivity
 ```
 
-For a Galaxy phone, enable USB debugging, authorize the computer on the device, and use `adb devices` to confirm it is listed as `device`. Then use the same `adb install` and `adb shell am start` commands. The phone needs an OpenGL ES 3.1-capable GPU.
+For a Galaxy phone, enable USB debugging, authorize the computer on the device, and use `adb devices` to confirm it is listed as `device`. Then use the same `adb install` and `adb shell am start` commands. If more than one device is connected, add `-s SERIAL` immediately after `adb` in each command. The phone needs an OpenGL ES 3.1-capable GPU.
 
 ---
 

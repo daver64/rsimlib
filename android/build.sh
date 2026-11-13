@@ -7,6 +7,31 @@ ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-$ANDROID_SDK_ROOT/ndk/29.0.14206865}"
 VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg-mingw}"
 BUILD_JOBS="${ANDROID_BUILD_JOBS:-2}"
 
+if (( $# == 0 )); then
+    shopt -s nullglob
+    app_configs=("$ROOT_DIR"/android/apps/*/app.cmake)
+    if (( ${#app_configs[@]} == 0 )); then
+        echo "No Android apps are registered in android/apps." >&2
+        exit 1
+    fi
+    set -- "${app_configs[@]%/app.cmake}"
+    apps=()
+    for app_dir in "$@"; do
+        apps+=("${app_dir##*/}")
+    done
+else
+    apps=("$@")
+fi
+
+for app in "${apps[@]}"; do
+    if [[ ! "$app" =~ ^[a-z][a-z0-9_]*$ ]] ||
+       [[ ! -f "$ROOT_DIR/android/apps/$app/app.cmake" ]] ||
+       [[ ! -f "$ROOT_DIR/android/apps/$app/app.properties" ]]; then
+        echo "Unknown Android app: $app (expected app.cmake and app.properties in android/apps/$app)." >&2
+        exit 1
+    fi
+done
+
 if [[ ! -x "$ANDROID_SDK_ROOT/cmake/3.31.6/bin/cmake" ]]; then
     echo "Android CMake 3.31.6 is missing from $ANDROID_SDK_ROOT" >&2
     exit 1
@@ -46,19 +71,32 @@ for abi in arm64-v8a armeabi-v7a x86_64; do
         -DANDROID_ABI="$abi" \
         -DANDROID_PLATFORM=android-21 \
         -DANDROID_STL=c++_shared \
-        -DSIMLIB_ANDROID_JNI_LIBS_DIR="$ROOT_DIR/build/android/jniLibs/$abi" \
+        -DSIMLIB_ANDROID_JNI_ROOT="$ROOT_DIR/build/android/jniLibs" \
         -DSIMLIB_VALIDATE_SHADERS=OFF \
         -DSIMLIB_BUILD_SHADER_COMPILER=OFF \
         -DCMAKE_BUILD_TYPE=Debug
-    "$ANDROID_SDK_ROOT/cmake/3.31.6/bin/cmake" --build "$ROOT_DIR/build/android/$abi" --parallel "$BUILD_JOBS"
+    targets=()
+    for app in "${apps[@]}"; do
+        targets+=("${app}_main")
+    done
+    "$ANDROID_SDK_ROOT/cmake/3.31.6/bin/cmake" --build "$ROOT_DIR/build/android/$abi" \
+        --parallel "$BUILD_JOBS" --target "${targets[@]}"
 
     case "$abi" in
         arm64-v8a) stl_dir=aarch64-linux-android ;;
         armeabi-v7a) stl_dir=arm-linux-androideabi ;;
         x86_64) stl_dir=x86_64-linux-android ;;
     esac
-    cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$stl_dir/libc++_shared.so" \
-        "$ROOT_DIR/build/android/jniLibs/$abi/libc++_shared.so"
+    for app in "${apps[@]}"; do
+        cp "$ROOT_DIR/build/android/jniLibs/common/$abi/libSDL2.so" \
+            "$ROOT_DIR/build/android/jniLibs/$app/$abi/libSDL2.so"
+        cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$stl_dir/libc++_shared.so" \
+            "$ROOT_DIR/build/android/jniLibs/$app/$abi/libc++_shared.so"
+    done
 done
 
-"$ROOT_DIR/android/sample/gradlew" --no-daemon -p "$ROOT_DIR/android/sample" assembleDebug
+for app in "${apps[@]}"; do
+    "$ROOT_DIR/android/sample/gradlew" --no-daemon -p "$ROOT_DIR/android/sample" \
+        -PsimlibApp="$app" exportDebugApk
+    echo "Android APK: $ROOT_DIR/build/android/apks/$app.apk"
+done

@@ -2,6 +2,42 @@ plugins {
     id "com.android.application"
 }
 
+def appName = providers.gradleProperty("simlibApp").orNull
+if (appName == null || !(appName ==~ /[a-z][a-z0-9_]*/)) {
+    throw new GradleException("Set -PsimlibApp to a supported Android app name, or use android/build.sh.")
+}
+def appConfigFile = rootProject.file("../apps/${appName}/app.properties")
+if (!appConfigFile.isFile()) {
+    throw new GradleException("Unknown Android app '${appName}': ${appConfigFile} is missing.")
+}
+def applicationIds = [:]
+rootProject.file("../apps").eachDir { appDir ->
+    if (new File(appDir, "app.cmake").isFile()) {
+        def propertiesFile = new File(appDir, "app.properties")
+        if (!propertiesFile.isFile()) {
+            throw new GradleException("Missing Android app configuration: ${propertiesFile}.")
+        }
+        def properties = new Properties()
+        propertiesFile.withInputStream { properties.load(it) }
+        def applicationId = properties.getProperty("applicationId")
+        if (!applicationId) {
+            throw new GradleException("Missing 'applicationId' in ${propertiesFile}.")
+        }
+        if (applicationIds.containsKey(applicationId)) {
+            throw new GradleException("Android apps '${applicationIds[applicationId]}' and '${appDir.name}' have the same applicationId '${applicationId}'.")
+        }
+        applicationIds[applicationId] = appDir.name
+    }
+}
+def appConfig = new Properties()
+appConfigFile.withInputStream { appConfig.load(it) }
+for (key in ["applicationId", "label", "orientation"]) {
+    if (!appConfig.getProperty(key)) {
+        throw new GradleException("Missing '${key}' in ${appConfigFile}.")
+    }
+}
+
+layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("../../build/android/gradle/${appName}"))
 def simlibAssetsDir = layout.buildDirectory.dir("generated/simlib-assets").get().asFile
 
 android {
@@ -9,11 +45,13 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.daver64.simlib.android"
+        applicationId = appConfig.getProperty("applicationId")
         minSdk = 21
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+        manifestPlaceholders = [simlibAppLabel: appConfig.getProperty("label"),
+                                simlibOrientation: appConfig.getProperty("orientation")]
 
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
@@ -23,7 +61,7 @@ android {
     sourceSets {
         main {
             java.srcDirs += file("${rootProject.projectDir}/../SDL2/android-project/app/src/main/java")
-            jniLibs.srcDir file("${rootProject.projectDir}/../../build/android/jniLibs")
+            jniLibs.srcDir file("${rootProject.projectDir}/../../build/android/jniLibs/${appName}")
             assets.srcDir simlibAssetsDir
         }
     }
@@ -41,4 +79,11 @@ tasks.register("copySimlibAssets", Sync) {
 
 tasks.named("preBuild").configure {
     dependsOn("copySimlibAssets")
+}
+
+tasks.register("exportDebugApk", Copy) {
+    dependsOn("assembleDebug")
+    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
+    into(rootProject.layout.projectDirectory.dir("../../build/android/apks"))
+    rename { "${appName}.apk" }
 }

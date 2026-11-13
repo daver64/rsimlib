@@ -59,7 +59,8 @@ namespace sl::detail
             constexpr char desktop_version[] = "#version 430 core";
             if (source.compare(0, sizeof(desktop_version) - 1, desktop_version) == 0)
             {
-                gles_source = "#version 310 es\nprecision highp float;\nprecision highp int;\n";
+                gles_source = "#version 310 es\nprecision highp float;\nprecision highp int;\n"
+                              "precision highp sampler2DArray;\n";
                 gles_source.append(source, sizeof(desktop_version) - 1, std::string::npos);
             }
             else
