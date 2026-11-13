@@ -104,6 +104,8 @@ On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Li
 
 The Android target builds the static simlib library and a minimal SDL-based sample APK for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
 
+The sample uses its Gradle wrapper with Android Gradle Plugin 9.3.3; keep the plugin and wrapper versions compatible when upgrading either one.
+
 Install the Android packages if they are not already present:
 
 ```bash

@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
 }
 
-def simlibAssetsDir = layout.buildDirectory.dir("generated/simlib-assets")
+def simlibAssetsDir = layout.buildDirectory.dir("generated/simlib-assets").get().asFile
 
 android {
     namespace "com.daver64.simlib.android"

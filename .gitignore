@@ -29,8 +29,6 @@ excafluid
 *.lib
 *.obj
 *.o
-fullbuild.sh
-fullbuild.bat
 
 # Local marketing tool and its output
 /src/examples/exreel/
