@@ -3,11 +3,11 @@
  */
 
 #include "particles.h"
+#include "gl_api.h"
 
 #include "display.h"
 #include "gl2d.h"
 
-#include <SDL2/SDL_opengl.h>
 
 #include <algorithm>
 #include <cmath>

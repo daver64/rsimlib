@@ -36,11 +36,11 @@ Dear ImGui, Lua, sol2, Box2D, and pl_mpeg are fetched automatically via CMake's 
 
 Dear ImGui is optional: configure with `-DSIMLIB_GUI=none` to build without it (the `gui_*` API becomes no-ops and the ImGui examples are skipped).
 
-Renderers are selected with `-DSIMLIB_RENDERERS="gl;vulkan;d3d12"` (default `gl;vulkan`, plus `d3d12` on Windows). At least one is required, and `d3d12` is Windows-only. Disabled renderers are not compiled or linked (so e.g. `-DSIMLIB_RENDERERS=gl` needs no Vulkan SDK), the matching examples (`ex3d_gl`, `exvulkan`/`ex3d_vulkan`) are skipped, and requesting a disabled backend with `--gl`/`--vulkan`/`--d3d12` reports an error. The default backend is the first enabled one (D3D12 on Windows when enabled).
+Renderers are selected with `-DSIMLIB_RENDERERS="gl;vulkan;d3d12"` (default `gl;vulkan`, plus `d3d12` on Windows; Android defaults to `gles`). At least one is required; `gles` is Android-only and `d3d12` is Windows-only. Disabled renderers are not compiled or linked (so e.g. `-DSIMLIB_RENDERERS=gl` needs no Vulkan SDK), the matching examples (`ex3d_gl`, `exvulkan`/`ex3d_vulkan`) are skipped, and requesting a disabled backend with `--gl`/`--vulkan`/`--d3d12` reports an error. The default backend is the first enabled one (D3D12 on Windows when enabled).
 
 | Option | Values | Default |
 |--------|--------|---------|
-| `SIMLIB_RENDERERS` | `gl`, `vulkan`, `d3d12` (list) | `gl;vulkan` (+ `d3d12` on Windows) |
+| `SIMLIB_RENDERERS` | `gl`, `gles`, `vulkan`, `d3d12` (list) | `gl;vulkan` (+ `d3d12` on Windows; `gles` on Android) |
 | `SIMLIB_GUI` | `imgui`, `none` | `imgui` |
 | `SIMLIB_VIDEO` | `plmpeg`, `ffmpeg`, `none` | `plmpeg` |
 | `SIMLIB_D3D12_BUILD_TRANSLATION` | `ON`, `OFF` | `ON` (Windows, with `d3d12`) |
@@ -99,6 +99,45 @@ cmake --install build
 The install contains the public headers, `simlib` static library, bundled ImGui/Lua/sol2/Box2D dependencies, shader assets, and a CMake package. SDL2, SDL2_ttf, SDL2_image, SDL2_mixer, OpenGL, Vulkan, PNG, and zlib remain system prerequisites; install their development packages on the machine building the application.
 
 On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Linux build to `~/opt` and the existing `x64-mingw-posix` cross-build to `~/opt-win`, using at most four build jobs. Configure `build-win` with the MinGW vcpkg toolchain and triplet first; the script preserves its cross-build settings and keeps its libraries separate from the Linux build. The Windows build covers the installable library and converter, not every example.
+
+### Android (OpenGL ES)
+
+The Android target builds the static simlib library and a minimal SDL-based sample APK for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
+
+Install the Android packages if they are not already present:
+
+```bash
+sdkmanager "platforms;android-36" "build-tools;36.0.0" \
+    "ndk;29.0.14206865" "cmake;3.31.6" "emulator" \
+    "platform-tools" "system-images;android-36;google_apis;x86_64"
+```
+
+Set the toolchain paths (replace `VCPKG_ROOT` with your vcpkg checkout), then build all three APK ABIs:
+
+```bash
+git submodule update --init android/SDL2
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+export VCPKG_ROOT="$HOME/vcpkg"
+android/build.sh
+```
+
+The debug APK is written to `android/sample/app/build/outputs/apk/debug/app-debug.apk`. Its interactive orbital showcase demonstrates 2D shapes, text, animation, particle trails, and touch-driven palette changes. It is intended to exercise Android-supported simlib features rather than port the full desktop example suite.
+
+For an x86_64 desktop smoke test, create and start an API 36 emulator. The emulator must expose an OpenGL ES 3.1 context; some software renderers provide only ES 3.0. On a host with compatible graphics drivers, `-gpu host` uses the host GPU:
+
+```bash
+avdmanager create avd --name simlib-api36-x86_64 \
+    --package "system-images;android-36;google_apis;x86_64" --device pixel_6
+emulator -avd simlib-api36-x86_64 -gpu host
+adb install -r android/sample/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.daver64.simlib.android/.SimlibActivity
+```
+
+For a Galaxy phone, enable USB debugging, authorize the computer on the device, and use `adb devices` to confirm it is listed as `device`. Then use the same `adb install` and `adb shell am start` commands. The phone needs an OpenGL ES 3.1-capable GPU.
+
+---
 
 ### Configure a Consumer
 

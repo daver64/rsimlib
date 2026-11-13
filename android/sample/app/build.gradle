@@ -1,0 +1,44 @@
+plugins {
+    id "com.android.application"
+}
+
+def simlibAssetsDir = layout.buildDirectory.dir("generated/simlib-assets")
+
+android {
+    namespace "com.daver64.simlib.android"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.daver64.simlib.android"
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName "0.1"
+
+        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs += file("${rootProject.projectDir}/../SDL2/android-project/app/src/main/java")
+            jniLibs.srcDir file("${rootProject.projectDir}/../../build/android/jniLibs")
+            assets.srcDir simlibAssetsDir
+        }
+    }
+}
+
+tasks.register("copySimlibAssets", Sync) {
+    from(new File(rootProject.projectDir, "../../shaders")) {
+        into "shaders"
+    }
+    from(new File(rootProject.projectDir, "../../assets/fonts")) {
+        into "assets/fonts"
+    }
+    into simlibAssetsDir
+}
+
+tasks.named("preBuild").configure {
+    dependsOn("copySimlibAssets")
+}

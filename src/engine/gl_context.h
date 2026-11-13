@@ -16,7 +16,7 @@ namespace sl::detail
         GLContext(const GLContext &) = delete;
         GLContext &operator=(const GLContext &) = delete;
 
-        /** Request a core 4.3 context; must be called before the SDL window is created. */
+        /** Request the configured OpenGL or OpenGL ES context; call before creating the SDL window. */
         static void configure_window_attributes();
 
         bool initialise(SDL_Window *window, std::string &error);

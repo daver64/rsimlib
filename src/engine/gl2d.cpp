@@ -1,7 +1,6 @@
 #include "gl2d.h"
 #include "display.h"
-
-#include <SDL2/SDL_opengl.h>
+#include "gl_api.h"
 
 namespace sl::detail
 {

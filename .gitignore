@@ -5,6 +5,9 @@ build-spv
 build-msvc
 html
 dist
+/android/sample/.gradle/
+/android/sample/build/
+/android/sample/local.properties
 imgui.ini
 .vscode
 /lib/

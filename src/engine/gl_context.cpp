@@ -2,12 +2,7 @@
  * @brief Owns the SDL/OpenGL context lifecycle: creation, viewport, vsync, and swap.
  */
 #include "gl_context.h"
-
-#ifdef _WIN32
-#include <GL/glew.h>
-#else
-#include <SDL2/SDL_opengl.h>
-#endif
+#include "gl_api.h"
 
 #include <SDL2/SDL.h>
 #include <cstdio>
@@ -21,9 +16,15 @@ namespace sl::detail
 
     void GLContext::configure_window_attributes()
     {
+#ifdef SIMLIB_RENDERER_GLES
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+#else
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
         SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     }
@@ -56,9 +57,26 @@ namespace sl::detail
             return false;
         }
         glGetError();
-#endif
+#elif defined(SIMLIB_RENDERER_GLES)
+        const auto *version = glGetString(GL_VERSION);
+        GLint major = 0;
+        GLint minor = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &major);
+        glGetIntegerv(GL_MINOR_VERSION, &minor);
+        std::fprintf(stderr, "OpenGL ES renderer: %s (%s)\n",
+                     reinterpret_cast<const char *>(glGetString(GL_RENDERER)),
+                     version ? reinterpret_cast<const char *>(version) : "unknown version");
+        if (major < 3 || (major == 3 && minor < 1))
+        {
+            error = "OpenGL ES 3.1 is required; the active driver provides " +
+                    std::string(version ? reinterpret_cast<const char *>(version) : "an unknown version") + ".";
+            shutdown();
+            return false;
+        }
+#else
         std::fprintf(stderr, "OpenGL renderer: %s (%s)\n", reinterpret_cast<const char *>(glGetString(GL_RENDERER)),
-                reinterpret_cast<const char *>(glGetString(GL_VERSION)));
+                     reinterpret_cast<const char *>(glGetString(GL_VERSION)));
+#endif
         return true;
     }
 

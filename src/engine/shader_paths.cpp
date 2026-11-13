@@ -3,6 +3,8 @@
 #include <SDL2/SDL.h>
 
 #include <system_error>
+#include <fstream>
+#include <iterator>
 
 namespace sl::detail
 {
@@ -58,5 +60,26 @@ namespace sl::detail
         }
         const auto &dirs = data_dirs();
         return dirs.empty() ? std::filesystem::path("shaders") : dirs.front() / "shaders";
+    }
+
+    std::string load_glsl_shader(const char *name)
+    {
+        const std::filesystem::path relative = std::filesystem::path("glsl") / name;
+#ifdef __ANDROID__
+        std::ifstream external_file(find_shader_root(relative) / relative);
+        if (external_file)
+            return std::string(std::istreambuf_iterator<char>(external_file), {});
+        const std::string asset_path = (std::filesystem::path("shaders") / relative).generic_string();
+        std::size_t size = 0;
+        void *data = SDL_LoadFile(asset_path.c_str(), &size);
+        if (!data)
+            return {};
+        std::string source(static_cast<const char *>(data), size);
+        SDL_free(data);
+        return source;
+#else
+        std::ifstream file(find_shader_root(relative) / relative);
+        return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
+#endif
     }
 } // namespace sl::detail

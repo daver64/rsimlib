@@ -1,0 +1,14 @@
+{
+  "name": "simlib",
+  "version-string": "0.1.0",
+  "builtin-baseline": "0c2a9ace1964b818b15f7ae50ba1c42404918a7b",
+  "dependencies": [
+    "libpng",
+    "sdl2",
+    "sdl2-image",
+    "sdl2-mixer",
+    "sdl2-ttf",
+    "sqlite3",
+    "zlib"
+  ]
+}

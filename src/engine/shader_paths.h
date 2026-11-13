@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 #include <vector>
 
 namespace sl::detail
@@ -19,4 +20,5 @@ namespace sl::detail
      * Falls back to the first candidate when nothing matches so callers still produce a sensible error path.
      */
     std::filesystem::path find_shader_root(const std::filesystem::path &probe);
+    std::string load_glsl_shader(const char *name);
 } // namespace sl::detail

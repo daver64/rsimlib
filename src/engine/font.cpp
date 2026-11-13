@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <array>
 #include <memory>
+#include <utility>
 
 namespace sl
 {
@@ -489,6 +490,18 @@ namespace
 
     std::optional<std::vector<unsigned char>> load_font()
     {
+#ifdef __ANDROID__
+        std::size_t size = 0;
+        void *data = SDL_LoadFile("assets/fonts/DejaVuSansMono.ttf", &size);
+        if (!data)
+            return std::nullopt;
+        std::vector<unsigned char> bytes(static_cast<unsigned char *>(data),
+                                         static_cast<unsigned char *>(data) + size);
+        SDL_free(data);
+        if (bytes.empty())
+            return std::nullopt;
+        return bytes;
+#else
         std::vector<std::filesystem::path> candidates;
 
 #ifdef _WIN32
@@ -529,6 +542,7 @@ namespace
         }
 
         return std::nullopt;
+#endif
     }
 
     Font *sl_default_monospace_font = nullptr;
@@ -558,6 +572,22 @@ namespace
 
     Font *open_sans_font(int pointSize)
     {
+#ifdef __ANDROID__
+        static const std::optional<std::vector<unsigned char>> fontBytes = []()
+        {
+            std::size_t size = 0;
+            void *data = SDL_LoadFile("assets/fonts/DejaVuSans.ttf", &size);
+            if (!data)
+                return std::optional<std::vector<unsigned char>>{};
+            std::vector<unsigned char> bytes(static_cast<unsigned char *>(data),
+                                             static_cast<unsigned char *>(data) + size);
+            SDL_free(data);
+            if (bytes.empty())
+                return std::optional<std::vector<unsigned char>>{};
+            return std::optional<std::vector<unsigned char>>(std::move(bytes));
+        }();
+        return fontBytes ? open_font_from_memory(fontBytes->data(), fontBytes->size(), pointSize) : nullptr;
+#else
 #ifdef _WIN32
         static const std::vector<std::filesystem::path> candidates = {
             R"(C:\Windows\Fonts\segoeui.ttf)",
@@ -580,6 +610,7 @@ namespace
             }
         }
         return nullptr;
+#endif
     }
 
     Font *open_font(const std::string &path, int pointSize)

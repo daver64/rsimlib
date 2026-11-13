@@ -1,18 +1,11 @@
 /** @file
- * @brief Implements the OpenGL 4.3 Renderer backend.
+ * @brief Implements the OpenGL and OpenGL ES Renderer backend.
  */
 
 #include "gl_renderer.h"
 #include "gl_context.h"
+#include "gl_api.h"
 #include "shader_paths.h"
-
-#ifdef _WIN32
-#include <GL/glew.h>
-#else
-#define GL_GLEXT_PROTOTYPES
-#include <SDL2/SDL_opengl.h>
-#include <SDL2/SDL_opengl_glext.h>
-#endif
 
 #include <SDL2/SDL.h>
 
@@ -23,9 +16,6 @@
 #include <cstring>
 #include <vector>
 #include <cstddef>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <limits>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,13 +24,6 @@ namespace sl::detail
 {
     namespace
     {
-        std::string load_glsl_shader(const char *name)
-        {
-            const std::filesystem::path relative = std::filesystem::path("glsl") / name;
-            std::ifstream file(find_shader_root(relative) / relative);
-            return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
-        }
-
         std::string shader_log(GLuint shader)
         {
             GLint length = 0;
@@ -71,7 +54,22 @@ namespace sl::detail
                 error = "Unable to create shader.";
                 return 0;
             }
+            std::string gles_source;
+#ifdef SIMLIB_RENDERER_GLES
+            constexpr char desktop_version[] = "#version 430 core";
+            if (source.compare(0, sizeof(desktop_version) - 1, desktop_version) == 0)
+            {
+                gles_source = "#version 310 es\nprecision highp float;\nprecision highp int;\n";
+                gles_source.append(source, sizeof(desktop_version) - 1, std::string::npos);
+            }
+            else
+            {
+                gles_source = source;
+            }
+            const char *source_text = gles_source.c_str();
+#else
             const char *source_text = source.c_str();
+#endif
             glShaderSource(shader, 1, &source_text, nullptr);
             glCompileShader(shader);
             GLint compiled = GL_FALSE;
@@ -184,6 +182,13 @@ namespace sl::detail
 
             void set_gpu_diagnostics_enabled(bool enabled) override
             {
+#ifdef SIMLIB_RENDERER_GLES
+                gpu_enabled_ = enabled;
+                gpu_sample_ = {};
+                gpu_active_ = -1;
+                gpu_timestamp_bits_ = 0;
+                return;
+#else
                 if (gpu_enabled_ == enabled)
                     return;
                 gpu_enabled_ = enabled;
@@ -199,10 +204,15 @@ namespace sl::detail
                 gpu_timestamp_bits_ = 0;
                 if (enabled)
                     glGetQueryiv(GL_TIMESTAMP, GL_QUERY_COUNTER_BITS, &gpu_timestamp_bits_);
+#endif
             }
 
             void gpu_diagnostics_begin_frame(std::uint64_t frame) override
             {
+#ifdef SIMLIB_RENDERER_GLES
+                (void)frame;
+                return;
+#else
                 if (!gpu_enabled_ || gpu_timestamp_bits_ <= 0)
                     return;
                 if (!gpu_queries_[0].start)
@@ -235,10 +245,15 @@ namespace sl::detail
                         gpu_active_ = static_cast<int>(i);
                         break;
                     }
+#endif
             }
 
             GpuDiagnostics gpu_diagnostics(bool include_memory) override
             {
+#ifdef SIMLIB_RENDERER_GLES
+                (void)include_memory;
+                return {};
+#else
                 if (!gpu_enabled_)
                     return {};
                 collect_gpu_queries();
@@ -258,11 +273,13 @@ namespace sl::detail
                     }
                 }
                 return result;
+#endif
             }
 
             void present() override
             {
                 flush_2d();
+#ifndef SIMLIB_RENDERER_GLES
                 if (gpu_active_ >= 0)
                 {
                     auto &query = gpu_queries_[static_cast<std::size_t>(gpu_active_)];
@@ -270,6 +287,7 @@ namespace sl::detail
                     query.pending = true;
                     gpu_active_ = -1;
                 }
+#endif
                 context_.present();
             }
 
@@ -519,7 +537,27 @@ namespace sl::detail
                 glPixelStorei(GL_PACK_SKIP_ROWS, 0);
                 glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+#ifdef SIMLIB_RENDERER_GLES
+                GLint previous_draw_framebuffer = 0;
+                GLint previous_read_framebuffer = 0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previous_draw_framebuffer);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous_read_framebuffer);
+                GLuint framebuffer = 0;
+                glGenFramebuffers(1, &framebuffer);
+                glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                       static_cast<GLuint>(texture), 0);
+                const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+                if (complete)
+                    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
+                const bool downloaded = complete && glGetError() == GL_NO_ERROR;
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(previous_draw_framebuffer));
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previous_read_framebuffer));
+                glDeleteFramebuffers(1, &framebuffer);
+#else
                 glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, out_pixels);
+                const bool downloaded = glGetError() == GL_NO_ERROR;
+#endif
                 glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous_texture));
                 glBindBuffer(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(previous_pack_buffer));
                 glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment);
@@ -527,7 +565,7 @@ namespace sl::detail
                 glPixelStorei(GL_PACK_SKIP_ROWS, previous_pack_skip_rows);
                 glPixelStorei(GL_PACK_SKIP_PIXELS, previous_pack_skip_pixels);
                 glActiveTexture(static_cast<GLenum>(previous_active_texture));
-                return true;
+                return downloaded;
             }
 
             void destroy_texture(std::uint32_t texture) override
@@ -877,22 +915,38 @@ namespace sl::detail
             {
                 flush_2d();
                 GLfloat previous_clear_color[4] = {};
+#ifdef SIMLIB_RENDERER_GLES
+                GLfloat previous_clear_depth = 1.0f;
+#else
                 GLdouble previous_clear_depth = 1.0;
+#endif
                 GLboolean previous_color_mask[4] = {};
                 GLboolean previous_depth_mask = GL_TRUE;
                 const GLboolean scissor_was_enabled = glIsEnabled(GL_SCISSOR_TEST);
                 glGetFloatv(GL_COLOR_CLEAR_VALUE, previous_clear_color);
+#ifdef SIMLIB_RENDERER_GLES
+                glGetFloatv(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+#else
                 glGetDoublev(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+#endif
                 glGetBooleanv(GL_COLOR_WRITEMASK, previous_color_mask);
                 glGetBooleanv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
                 glDisable(GL_SCISSOR_TEST);
                 glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
                 glDepthMask(GL_TRUE);
                 glClearColor(red, green, blue, alpha);
+#ifdef SIMLIB_RENDERER_GLES
+                glClearDepthf(1.0f);
+#else
                 glClearDepth(1.0);
+#endif
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 glClearColor(previous_clear_color[0], previous_clear_color[1], previous_clear_color[2], previous_clear_color[3]);
+#ifdef SIMLIB_RENDERER_GLES
+                glClearDepthf(previous_clear_depth);
+#else
                 glClearDepth(previous_clear_depth);
+#endif
                 glColorMask(previous_color_mask[0], previous_color_mask[1], previous_color_mask[2], previous_color_mask[3]);
                 glDepthMask(previous_depth_mask);
                 if (scissor_was_enabled)
@@ -903,16 +957,32 @@ namespace sl::detail
             bool clear_depth_3d() override
             {
                 flush_2d();
+#ifdef SIMLIB_RENDERER_GLES
+                GLfloat previous_clear_depth = 1.0f;
+#else
                 GLdouble previous_clear_depth = 1.0;
+#endif
                 GLboolean previous_depth_mask = GL_TRUE;
                 const GLboolean scissor_was_enabled = glIsEnabled(GL_SCISSOR_TEST);
+#ifdef SIMLIB_RENDERER_GLES
+                glGetFloatv(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+#else
                 glGetDoublev(GL_DEPTH_CLEAR_VALUE, &previous_clear_depth);
+#endif
                 glGetBooleanv(GL_DEPTH_WRITEMASK, &previous_depth_mask);
                 glDisable(GL_SCISSOR_TEST);
                 glDepthMask(GL_TRUE);
+#ifdef SIMLIB_RENDERER_GLES
+                glClearDepthf(1.0f);
+#else
                 glClearDepth(1.0);
+#endif
                 glClear(GL_DEPTH_BUFFER_BIT);
+#ifdef SIMLIB_RENDERER_GLES
+                glClearDepthf(previous_clear_depth);
+#else
                 glClearDepth(previous_clear_depth);
+#endif
                 glDepthMask(previous_depth_mask);
                 if (scissor_was_enabled)
                     glEnable(GL_SCISSOR_TEST);
@@ -1097,8 +1167,10 @@ namespace sl::detail
                 glUniformMatrix4fv(glGetUniformLocation(program, "uShadowMatrix"), 1, GL_FALSE, params.shadow_matrix);
                 glUniform4fv(glGetUniformLocation(program, "uPbr"), 1, params.pbr);
                 glUniform1f(glGetUniformLocation(program, "uStyle"), static_cast<float>(params.style));
+#ifndef SIMLIB_RENDERER_GLES
                 if (params.style == 2)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+#endif
                 glUniform4fv(glGetUniformLocation(program, "uEmissive"), 1, params.emissive);
                 glUniform4fv(glGetUniformLocation(program, "uCameraRight"), 1, params.camera_right);
                 glUniform4fv(glGetUniformLocation(program, "uCameraUp"), 1, params.camera_up);
@@ -1154,8 +1226,10 @@ namespace sl::detail
                 {
                     glDrawElements(GL_TRIANGLES, found->second.index_count, GL_UNSIGNED_INT, nullptr);
                 }
+#ifndef SIMLIB_RENDERER_GLES
                 if (params.style == 2)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));
@@ -1281,8 +1355,10 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uMacro"), 1, macro);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uPbr"), 1, params.pbr);
                 glUniform1f(glGetUniformLocation(terrain_program_, "uStyle"), static_cast<float>(params.style));
+#ifndef SIMLIB_RENDERER_GLES
                 if (params.style == 2)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+#endif
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLight"), 1, params.light);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uLightColour"), 1, params.light_colour);
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uFogColour"), 1, params.fog_colour);
@@ -1290,8 +1366,10 @@ namespace sl::detail
                 glUniform4fv(glGetUniformLocation(terrain_program_, "uFogView"), 1, params.fog_view);
                 glBindVertexArray(mesh.vao);
                 glDrawElements(GL_TRIANGLES, mesh.index_count, GL_UNSIGNED_INT, nullptr);
+#ifndef SIMLIB_RENDERER_GLES
                 if (params.style == 2)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
                 glBindVertexArray(static_cast<GLuint>(previous_vertex_array));
                 glUseProgram(static_cast<GLuint>(previous_program));
                 glDepthFunc(static_cast<GLenum>(previous_depth_func));
@@ -1739,12 +1817,21 @@ namespace sl::detail
             }
             bool readback_storage_buffer(std::uint32_t buffer, std::size_t offset, std::size_t size, void *out_data) override
             {
-                if (buffer == 0 || !out_data)
+                if (buffer == 0 || !out_data || size == 0)
                     return false;
                 flush_2d();
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, static_cast<GLuint>(buffer));
+#ifdef SIMLIB_RENDERER_GLES
+                void *mapped = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, static_cast<GLintptr>(offset),
+                                                static_cast<GLsizeiptr>(size), GL_MAP_READ_BIT);
+                if (!mapped)
+                    return false;
+                std::memcpy(out_data, mapped, size);
+                return glUnmapBuffer(GL_SHADER_STORAGE_BUFFER) == GL_TRUE;
+#else
                 glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(size), out_data);
                 return true;
+#endif
             }
             void bind_storage_buffer(unsigned int binding, std::uint32_t buffer) override
             {
@@ -1760,10 +1847,7 @@ namespace sl::detail
             void bind_storage_texture(unsigned int binding, std::uint32_t texture) override
             {
                 flush_2d();
-                if (glBindImageTexture)
-                {
-                    glBindImageTexture(binding, static_cast<GLuint>(texture), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
-                }
+                glBindImageTexture(binding, static_cast<GLuint>(texture), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
             }
             void storage_barrier() override
             {
@@ -1908,6 +1992,9 @@ namespace sl::detail
             };
             void collect_gpu_queries()
             {
+#ifdef SIMLIB_RENDERER_GLES
+                return;
+#else
                 if (SDL_GL_ExtensionSupported("GL_EXT_disjoint_timer_query"))
                 {
                     GLint disjoint = GL_FALSE;
@@ -1947,6 +2034,7 @@ namespace sl::detail
                     }
                     query.pending = false;
                 }
+#endif
             }
             std::array<GpuQuery, 8> gpu_queries_{};
             GpuDiagnostics gpu_sample_{};

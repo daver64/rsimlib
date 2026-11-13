@@ -97,13 +97,6 @@ namespace sl
 
 	namespace detail
 	{
-		std::string load_glsl_shader(const char *name)
-		{
-			const std::filesystem::path relative = std::filesystem::path("glsl") / name;
-			std::ifstream file(find_shader_root(relative) / relative);
-			return file ? std::string(std::istreambuf_iterator<char>(file), {}) : std::string{};
-		}
-
 		void submit_fullscreen_quad(int x, int y, int width, int height, GLuint texture,
 									bool flipVertical, bool premultipliedAlpha)
 		{
