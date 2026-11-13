@@ -98,7 +98,7 @@ cmake --install build
 
 The install contains the public headers, `simlib` static library, bundled ImGui/Lua/sol2/Box2D dependencies, shader assets, and a CMake package. SDL2, SDL2_ttf, SDL2_image, SDL2_mixer, OpenGL, Vulkan, PNG, and zlib remain system prerequisites; install their development packages on the machine building the application.
 
-On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Linux build to `~/opt` and the existing `x64-mingw-posix` cross-build to `~/opt-win`, using at most four build jobs. Configure `build-win` with the MinGW vcpkg toolchain and triplet first; the script preserves its cross-build settings and keeps its libraries separate from the Linux build. The Windows build covers the installable library and converter, not every example.
+On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Linux build to `~/opt` and the existing `x64-mingw-posix` cross-build to `~/opt-win`, then runs `android/build.sh` to build the Android library and debug APK. Configure `build-win` with the MinGW vcpkg toolchain and triplet first; the script preserves its cross-build settings and keeps its libraries separate from the Linux build. The Windows build covers the installable library and converter, not every example. The Android step requires the toolchain and environment described below, including a full JDK.
 
 ### Android (OpenGL ES)
 
