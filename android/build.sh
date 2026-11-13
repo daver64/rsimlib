@@ -32,6 +32,17 @@ for app in "${apps[@]}"; do
     fi
 done
 
+if [[ -n "${JAVA_HOME:-}" ]]; then
+    javac_bin="$JAVA_HOME/bin/javac"
+else
+    javac_bin="$(command -v javac || true)"
+fi
+if [[ -z "$javac_bin" || ! -x "$javac_bin" ]]; then
+    echo "A full JDK (Java 17 or newer, including javac) is required; a JRE is not enough." >&2
+    echo "Install one (for example: sudo apt install openjdk-21-jdk-headless) or set JAVA_HOME to a JDK." >&2
+    exit 1
+fi
+
 if [[ ! -x "$ANDROID_SDK_ROOT/cmake/3.31.6/bin/cmake" ]]; then
     echo "Android CMake 3.31.6 is missing from $ANDROID_SDK_ROOT" >&2
     exit 1
