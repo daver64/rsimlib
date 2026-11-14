@@ -1,0 +1,4 @@
+simlib_add_example_app(exluaconsole)
+get_target_property(_lua_includes lua INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(exluaconsole_main PRIVATE ${_lua_includes})
+target_link_libraries(exluaconsole_main PRIVATE sol2)

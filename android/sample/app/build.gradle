@@ -74,6 +74,19 @@ tasks.register("copySimlibAssets", Sync) {
     from(new File(rootProject.projectDir, "../../assets/fonts")) {
         into "assets/fonts"
     }
+    // Optional runtime files listed in app.properties as repository-relative paths, e.g. "assets/textures,resource_demo.zip".
+    def repoRoot = new File(rootProject.projectDir, "../..").canonicalFile
+    (appConfig.getProperty("data") ?: "").split(",").collect { it.trim() }.findAll { it }.each { entry ->
+        def source = new File(repoRoot, entry).canonicalFile
+        if (!source.exists() || !source.path.startsWith(repoRoot.path + File.separator)) {
+            throw new GradleException("Invalid 'data' entry '${entry}' in ${appConfigFile}.")
+        }
+        if (source.isDirectory()) {
+            from(source) { into "data/${entry}" }
+        } else {
+            from(source) { into "data/${new File(entry).parent ?: ''}" }
+        }
+    }
     into simlibAssetsDir
 }
 

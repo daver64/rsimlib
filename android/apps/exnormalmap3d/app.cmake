@@ -1,0 +1,1 @@
+simlib_add_example_app(exnormalmap3d)

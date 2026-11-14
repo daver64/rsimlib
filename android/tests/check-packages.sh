@@ -23,13 +23,21 @@ check_app() {
     done
 }
 
-check_app exasteroids com.daver64.simlib.exasteroids exasteroids
-check_app showcase com.daver64.simlib.android "simlib Android Showcase"
-
-asteroids_main="$(unzip -p "$ROOT_DIR/build/android/apks/exasteroids.apk" lib/x86_64/libmain.so | sha256sum)"
-showcase_main="$(unzip -p "$ROOT_DIR/build/android/apks/showcase.apk" lib/x86_64/libmain.so | sha256sum)"
-if [[ "$asteroids_main" == "$showcase_main" ]]; then
-    echo "The two APKs contain the same native program." >&2
+hashes=()
+for properties in "$ROOT_DIR"/android/apps/*/app.properties; do
+    name="$(basename "$(dirname "$properties")")"
+    [[ -f "$ROOT_DIR/build/android/apks/$name.apk" ]] || continue
+    id="$(sed -n 's/^applicationId=//p' "$properties")"
+    label="$(sed -n 's/^label=//p' "$properties")"
+    check_app "$name" "$id" "$label"
+    hashes+=("$(unzip -p "$ROOT_DIR/build/android/apks/$name.apk" lib/x86_64/libmain.so | sha256sum)")
+done
+if (( ${#hashes[@]} == 0 )); then
+    echo "No built APKs found in build/android/apks." >&2
     exit 1
 fi
-echo "Android APK identities, labels, ABIs and native programs are distinct."
+if [[ "$(printf '%s\n' "${hashes[@]}" | sort | uniq -d)" != "" ]]; then
+    echo "Two APKs contain the same native program." >&2
+    exit 1
+fi
+echo "Android APK identities, labels, ABIs and native programs are distinct (${#hashes[@]} APKs)."

@@ -726,8 +726,13 @@ namespace
     {
         sl::Camera camera;
         camera.position = {g.x + std::sin(g.time * 0.23f) * 9.0f, 56 + std::sin(g.time * 0.17f) * 3.0f, 132};
+#ifdef __ANDROID__
+        camera.target = {g.x, 28, 0}; // frames the whole play height above the touch buttons
+        camera.field_of_view = 46;
+#else
         camera.target = {g.x, 33, 0};
         camera.field_of_view = 36;
+#endif
         camera.near_plane = 1;
         camera.far_plane = 350;
         if (!sl::begin_surface_3d(r.surface, camera))

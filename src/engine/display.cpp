@@ -15,6 +15,10 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
+#ifdef __ANDROID__
+#include <unistd.h>
+#endif
+
 #include <memory>
 #include <string_view>
 
@@ -161,6 +165,19 @@ namespace sl
             sl::detail::set_error(SDL_GetError());
             return false;
         }
+#ifdef __ANDROID__
+        // The window always fills the screen, so a plain width x height request becomes the logical size
+        // (stretched to the screen) and apps keep their desktop layout.
+        if (!use_desktop_resolution && virtualWidth <= 0 && virtualHeight <= 0)
+        {
+            virtualWidth = requestedWidth;
+            virtualHeight = requestedHeight;
+        }
+        // SimlibActivity unpacks the APK's bundled assets into the app's files directory; relative paths such
+        // as "assets/textures/x.png" resolve there.
+        if (const char *files_dir = SDL_AndroidGetInternalStoragePath())
+            (void)chdir(files_dir);
+#endif
 
         if (use_desktop_resolution)
         {
