@@ -15,7 +15,7 @@ Follow [Android build prerequisites](building.md#android-opengl-es) for the SDK,
 ./android/build.sh exasteroids
 ```
 
-The result is `build/android/apks/exasteroids.apk`. The separate `showcase` app builds with `./android/build.sh showcase`; `./android/build.sh` builds both. APKs are named after their registered app and have separate application IDs, so they can coexist. `fullbuild.sh` also runs the Android build for all registered apps.
+The result is `build/android/apks/exasteroids.apk`. The separate `showcase` app builds with `./android/build.sh showcase`; `./android/build.sh` builds every registered app (`exasteroids`, `exinvaders`, `exdefender` and `showcase`). APKs are named after their registered app and have separate application IDs, so they can coexist. `fullbuild.sh` also runs the Android build for all registered apps.
 
 These are debug-signed APKs for testing, not Play Store releases. You can share an APK with a tester, who may need to allow their file-opening app to install unknown apps. An existing app signed with a different key cannot be updated with `adb install -r`; it must be removed first, which also removes its app data.
 
@@ -55,7 +55,7 @@ The shared Android project packages each program's `main` as its own `libmain.so
 
 ## Input, display and lifecycle
 
-Use the normal simlib event loop, including `sl::display_handle_event(event)`. Touch events include `sl::Event::Type::finger_down`, `finger_motion` and `finger_up`. For held on-screen controls, `sl::touch_points()` returns current finger positions in virtual-screen coordinates; `sl::touch_to_screen()` converts normalized SDL coordinates. [exasteroids](../src/examples/exasteroids/exasteroids.cpp) demonstrates simultaneous touch controls and Android-specific code guarded by `__ANDROID__`.
+Use the normal simlib event loop, including `sl::display_handle_event(event)`. Touch events include `sl::Event::Type::finger_down`, `finger_motion` and `finger_up`. For held on-screen controls, `sl::touch_points()` returns current finger positions in virtual-screen coordinates; `sl::touch_to_screen()` converts normalized SDL coordinates. [exasteroids](../src/examples/exasteroids/exasteroids.cpp), [exinvaders](../src/examples/exinvaders/exinvaders.cpp) and [exdefender](../src/examples/exdefender/exdefender.cpp) demonstrate simultaneous touch controls and Android-specific code guarded by `__ANDROID__`; the on-screen buttons come from the shared [example_touch.h](../src/examples/common/example_touch.h), which splits the bottom fifth of the screen into equal buttons.
 
 Do not assume the desktop window dimensions or keyboard are available. Choose a suitable logical size with the virtual width and height arguments to `sl::set_gfx_mode`, and test the layout and touch targets on devices with different aspect ratios. Exasteroids uses a fixed logical size and requests landscape both in its registration and through an SDL orientation environment hint before display initialization.
 

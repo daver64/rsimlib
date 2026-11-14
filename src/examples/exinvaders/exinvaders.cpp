@@ -7,6 +7,7 @@
 #include "sl.h"
 
 #include "audio_synth.h"
+#include "../common/example_touch.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -810,8 +811,16 @@ namespace
         sl::Camera camera;
         const float sway = std::sin(g.time * 0.23f);
         camera.position = {g.player_x * 0.2f + sway * 11.0f + std::sin(g.time * 71.0f) * shake, 44.0f + std::sin(g.time * 0.17f) * 3.0f + std::cos(g.time * 53.0f) * shake, 108.0f};
+#ifdef __ANDROID__
+        camera.target = {0.0f, 25.0f, 0.0f}; // lifts the playfield clear of the touch buttons
+#else
         camera.target = {0.0f, 31.0f, 0.0f};
+#endif
+#ifdef __ANDROID__
+        camera.field_of_view = 46.0f;
+#else
         camera.field_of_view = 40.0f;
+#endif
         camera.near_plane = 1.0f;
         camera.far_plane = 500.0f;
         if (!sl::begin_surface_3d(r.surface, camera))
@@ -991,19 +1000,32 @@ namespace
         sl::gprintf_center(30, white, "%06d", g.hiscore);
         sl::gprintf(window_w - 150, 10, pink, "WAVE");
         sl::gprintf(window_w - 150, 30, white, "%d", std::max(g.wave, 1));
+#ifdef __ANDROID__
+        sl::gprintf(24, static_cast<int>(window_h * example_touch::strip_top) - 28, cyan, "LIVES");
+#else
         sl::gprintf(24, window_h - 30, cyan, "LIVES");
+#endif
         if (g.message_time > 0 && !g.message.empty())
             sl::gprintf_center(300, lime, "%s", g.message.c_str());
         if (g.state == State::title)
         {
             sl::gprintf_center(220, cyan, "E X I N V A D E R S");
+#ifdef __ANDROID__
+            sl::gprintf_center(260, white, "Tap to play");
+            sl::gprintf_center(284, white, "Hold the buttons to move and fire");
+#else
             sl::gprintf_center(260, white, "Press ENTER or SPACE to play");
             sl::gprintf_center(284, white, "Left / Right move, Space fires");
+#endif
         }
         else if (g.state == State::game_over)
         {
             sl::gprintf_center(250, pink, "G A M E   O V E R");
+#ifdef __ANDROID__
+            sl::gprintf_center(280, white, "Tap to play again");
+#else
             sl::gprintf_center(280, white, "Press ENTER to play again");
+#endif
         }
         else if (g.state == State::wave_clear)
             sl::gprintf_center(280, lime, "WAVE CLEARED");
@@ -1018,6 +1040,13 @@ namespace
 
 int main(int argc, char *argv[])
 {
+#ifdef __ANDROID__
+    if (SDL_setenv(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight", 1) != 0)
+    {
+        std::fprintf(stderr, "Unable to set Android screen orientation: %s\n", SDL_GetError());
+        return -1;
+    }
+#endif
     bool autoplay = false;
     std::string shot_path;
     float shot_at = 10.0f;
@@ -1034,7 +1063,11 @@ int main(int argc, char *argv[])
             backend_args.push_back(argv[i]);
     }
     if (!sl::configure_graphics_backend_from_args(static_cast<int>(backend_args.size()), backend_args.data()) ||
+#ifdef __ANDROID__
+        !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, window_w, window_h, window_w, window_h))
+#else
         !sl::set_gfx_mode(sl::GFX_AUTODETECT_WINDOWED, window_w, window_h))
+#endif
         return -1;
     sl::set_window_title("exinvaders v" EXINVADERS_VERSION);
 
@@ -1082,6 +1115,11 @@ int main(int argc, char *argv[])
                 if (g.state == State::title || g.state == State::game_over)
                     new_game(g);
             }
+#ifdef __ANDROID__
+            else if (event.type() == sl::Event::Type::finger_down &&
+                     (g.state == State::title || g.state == State::game_over))
+                new_game(g);
+#endif
             sl::display_handle_event(event);
         }
         const float now = static_cast<float>(sl::time_ms()) * 0.001f;
@@ -1102,6 +1140,9 @@ int main(int argc, char *argv[])
             in.left = sl::key_down(sl::Event::Key::arrow_left);
             in.right = sl::key_down(sl::Event::Key::arrow_right);
             in.fire = sl::key_down(sl::Event::Key::space);
+#ifdef __ANDROID__
+            example_touch::poll({{"LEFT", &in.left}, {"RIGHT", &in.right}, {"FIRE", &in.fire}});
+#endif
         }
         update(g, dt, in);
 
@@ -1109,6 +1150,9 @@ int main(int argc, char *argv[])
         sl::clear_to_colour(sl::screen, {0, 0, 0});
         sl::draw_sprite(sl::surface_3d_bitmap(r.surface), 0, 0);
         draw_hud(g);
+#ifdef __ANDROID__
+        example_touch::draw({{"LEFT", &in.left}, {"RIGHT", &in.right}, {"FIRE", &in.fire}}, window_w, window_h);
+#endif
         if (!shot_path.empty() && !saved && elapsed >= shot_at)
         {
             sl::save_bitmap(sl::screen, shot_path);

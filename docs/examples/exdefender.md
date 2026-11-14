@@ -19,3 +19,6 @@ Arrow keys accelerate the ship up, down, left and right. It keeps its momentum a
 
 ## Run
 `./build/exdefender` from the repository root.
+
+## Android
+Tap to start or restart and hold the LEFT, RIGHT, UP, DOWN, FIRE and BOMB buttons at the bottom of the landscape screen. Multiple buttons can be held at once. For build, install and launch instructions, see the [Android guide](../android.md). The Android backend is new and in development.

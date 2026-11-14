@@ -104,7 +104,7 @@ On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Li
 
 **New and in development:** the Android backend is experimental and less tested than the desktop backends. See the [Android guide](android.md) for application development, deployment and current limitations.
 
-The Android target builds the static simlib library and separate SDL-based APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. The registered apps are `exasteroids` and `showcase`. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
+The Android target builds the static simlib library and separate SDL-based APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. The registered apps are `exasteroids`, `exinvaders`, `exdefender` and `showcase`. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
 
 The sample uses its Gradle wrapper with Android Gradle Plugin 9.3.3; keep the plugin and wrapper versions compatible when upgrading either one.
 
@@ -127,11 +127,11 @@ export VCPKG_ROOT="$HOME/vcpkg"
 android/build.sh
 ```
 
-The debug APKs are written to `build/android/apks/exasteroids.apk` and `build/android/apks/showcase.apk`. To build only one or selected apps, run `android/build.sh exasteroids` or `android/build.sh exasteroids showcase`. The APKs have distinct application IDs and can be installed together. They are debug-signed test builds, not Play Store releases.
+The debug APKs are written to `build/android/apks/<app>.apk`, for example `exasteroids.apk`. To build only one or selected apps, run `android/build.sh exasteroids` or `android/build.sh exasteroids showcase`. The APKs have distinct application IDs and can be installed together. They are debug-signed test builds, not Play Store releases.
 
 After building both apps, run `bash android/tests/check-packages.sh` to check their identities, labels, ABIs and native programs.
 
-`exasteroids` builds the shared game source in `src/examples/exasteroids`. Tap to start or restart, and hold the on-screen LEFT, RIGHT, THRUST and FIRE buttons to play. `showcase` is the original interactive orbital demo. The old exasteroids APK used the showcase application ID; installing the new exasteroids APK creates a separate app, and installing the new showcase APK replaces that old installation if signed with the same key.
+`exasteroids` builds the shared game source in `src/examples/exasteroids`. Tap to start or restart, and hold the on-screen LEFT, RIGHT, THRUST and FIRE buttons to play. `exinvaders` uses LEFT, RIGHT and FIRE; `exdefender` uses LEFT, RIGHT, UP, DOWN, FIRE and BOMB (smart bomb). `showcase` is the original interactive orbital demo. The old exasteroids APK used the showcase application ID; installing the new exasteroids APK creates a separate app, and installing the new showcase APK replaces that old installation if signed with the same key.
 
 To add another Android-ready program, create `android/apps/NAME/app.cmake` and `android/apps/NAME/app.properties`, using the existing app directories as examples. The CMake file calls `simlib_add_android_app(NAME ...)` with the program source and any needed target definitions; the properties specify a unique `applicationId`, display `label`, and Android `orientation`. The shared Android packaging builds each registered program into its own `libmain.so` and APK. Adapt the program's input, assets, and activity settings for Android as needed; registering a desktop example alone does not port it.
 

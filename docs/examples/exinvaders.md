@@ -37,3 +37,6 @@ Left and Right arrows move, Space fires, Enter starts or restarts, Esc quits. `-
 
 ## Run
 `./build/exinvaders` from the repository root.
+
+## Android
+Tap to start or restart and hold the LEFT, RIGHT and FIRE buttons at the bottom of the landscape screen. Multiple buttons can be held at once. For build, install and launch instructions, see the [Android guide](../android.md). The Android backend is new and in development.

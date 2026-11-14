@@ -7,6 +7,7 @@
 #include "sl.h"
 
 #include "audio_synth.h"
+#include "../common/example_touch.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -911,46 +912,6 @@ namespace
             sl::gprintf_center(280, lime, "WAVE CLEARED");
     }
 
-#ifdef __ANDROID__
-    void touch_input(Input &input)
-    {
-        for (int device = 0; device < SDL_GetNumTouchDevices(); ++device)
-        {
-            const SDL_TouchID id = SDL_GetTouchDevice(device);
-            for (int finger = 0; finger < SDL_GetNumTouchFingers(id); ++finger)
-            {
-                const SDL_Finger *touch = SDL_GetTouchFinger(id, finger);
-                if (!touch || touch->y < 0.80f)
-                    continue;
-                if (touch->x < 0.25f)
-                    input.left = true;
-                else if (touch->x < 0.5f)
-                    input.right = true;
-                else if (touch->x < 0.75f)
-                    input.thrust = true;
-                else
-                    input.fire = true;
-            }
-        }
-    }
-
-    void draw_touch_controls(const Input &input)
-    {
-        const char *labels[] = {"LEFT", "RIGHT", "THRUST", "FIRE"};
-        const bool active[] = {input.left, input.right, input.thrust, input.fire};
-        for (int i = 0; i < 4; ++i)
-        {
-            const float left = i * (window_w / 4.0f) + 4.0f;
-            const float right = (i + 1) * (window_w / 4.0f) - 4.0f;
-            const float top = window_h * 0.80f + 4.0f;
-            sl::rectfill(sl::screen, left, top, right, window_h - 6.0f,
-                         active[i] ? sl::Colour{35, 75, 110, 220} : sl::Colour{12, 20, 40, 190});
-            sl::rect(sl::screen, left, top, right, window_h - 6.0f, {90, 190, 225, 220}, 2.0f);
-            sl::gprintf(static_cast<int>(left + 14.0f), static_cast<int>(top + 20.0f),
-                        {225, 245, 255}, "%s", labels[i]);
-        }
-    }
-#endif
 } // namespace
 
 int main(int argc, char *argv[])
@@ -1054,7 +1015,7 @@ int main(int argc, char *argv[])
             in.thrust = sl::key_down(sl::Event::Key::arrow_up);
             in.fire = sl::key_down(sl::Event::Key::space);
 #ifdef __ANDROID__
-            touch_input(in);
+            example_touch::poll({{"LEFT", &in.left}, {"RIGHT", &in.right}, {"THRUST", &in.thrust}, {"FIRE", &in.fire}});
 #endif
         }
         update(g, dt, in);
@@ -1064,7 +1025,7 @@ int main(int argc, char *argv[])
         sl::draw_sprite(sl::surface_3d_bitmap(r.surface), 0, 0);
         draw_hud(g);
 #ifdef __ANDROID__
-        draw_touch_controls(in);
+        example_touch::draw({{"LEFT", &in.left}, {"RIGHT", &in.right}, {"THRUST", &in.thrust}, {"FIRE", &in.fire}}, window_w, window_h);
 #endif
         if (!shot_path.empty() && !saved && elapsed >= shot_at)
         {
