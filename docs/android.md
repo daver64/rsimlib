@@ -49,9 +49,21 @@ label=My Game
 orientation=landscape
 ```
 
+To bundle data files, add `data=` with comma-separated repository-relative paths (for example `data=assets/textures,assets/models`). They are packaged under `assets/data/`, unpacked into the app's private files directory on first launch (and after each update), and the working directory is set there during `sl::set_gfx_mode`, so relative paths such as `assets/textures/atlas_grid.png` work. Load them after `set_gfx_mode`. For an unmodified `src/examples/NAME/*.cpp` example, `app.cmake` can be just `simlib_add_example_app(NAME)`.
+
 Choose a unique, valid Android application ID you control. The build rejects duplicate registered IDs. Use an Android `screenOrientation` value such as `landscape` or `unspecified`. Add any other source files to the CMake call and, if needed, configure `mygame_main` with target-specific includes, definitions or libraries, as in [exasteroids](../android/apps/exasteroids/app.cmake). Then run `./android/build.sh mygame` to produce `build/android/apks/mygame.apk`.
 
 The shared Android project packages each program's `main` as its own `libmain.so`; SDL's activity starts it. Each app has separate native and Gradle outputs, while the simlib/SDL runtime is built for each ABI. The shared Gradle configuration currently sets the same version code and version name for all apps. Registration alone does not port a desktop application: adapt and test its controls, screen layout, assets and Android lifecycle.
+
+## Example apps
+
+Most `ex*` examples are registered as Android apps (see `android/apps/`) and each builds to its own `build/android/apks/NAME.apk`. Building all of them is slow and produces many APKs of roughly 70 MB (the whole library is linked for three ABIs); build only the ones you need with `./android/build.sh NAME...`. Only exasteroids, exinvaders and exdefender have touch controls; the others were checked only for starting and rendering on a Galaxy A13, and examples that need a keyboard are not usable without one.
+
+Not ported: the ImGui examples (`exgui`, `exlobby`, `exspriteeditor`), the desktop-API examples (`ex3d_gl`, `ex3d_d3d12`, `ex3d_vulkan`, `exvulkan`, `exdb`, `exvideo`, `exreel`) and the non-example tools.
+
+A plain `set_gfx_mode(..., width, height)` request on Android becomes the logical screen size and is stretched to fill the display, so a 4:3 program looks stretched on a wide phone. Letterboxing is not implemented.
+
+`android/tests/smoke.sh` installs, launches and screenshots every built APK on the device named by `ANDROID_SERIAL` (`SMOKE_SECONDS`, default 6, sets how long each runs; slower apps may still be loading, so raise it) and uninstalls each afterwards. `android/tests/check-packages.sh` verifies each APK's ID, label and ABIs. Engine errors are written to logcat as `simlib error: ...`.
 
 ## Input, display and lifecycle
 

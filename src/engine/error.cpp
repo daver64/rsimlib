@@ -4,6 +4,10 @@
 
 #include "error.h"
 
+#ifdef __ANDROID__
+#include <SDL.h>
+#endif
+
 namespace sl
 {
 	namespace
@@ -27,6 +31,10 @@ namespace sl
 		void set_error(const std::string &message)
 		{
 			error = message;
+#ifdef __ANDROID__
+			// stderr is not visible on Android, so surface engine errors in logcat.
+			SDL_Log("simlib error: %s", message.c_str());
+#endif
 		}
 
 	} // namespace detail

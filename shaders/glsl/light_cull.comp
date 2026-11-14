@@ -49,7 +49,7 @@ void main()
 
         if (dot(delta, delta) <= radius * radius && count < 128u)
         {
-            tileIndices[tileIndex * 128 + count] = uint(index);
+            tileIndices[uint(tileIndex) * 128u + count] = uint(index);
             count++;
         }
     }

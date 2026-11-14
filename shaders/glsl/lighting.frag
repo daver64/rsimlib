@@ -82,7 +82,7 @@ void main()
 
     for (uint tileLight = 0u; tileLight < tileLightCount; ++tileLight)
     {
-        int index = int(tileIndices[tileIndex * 128 + tileLight]);
+        int index = int(tileIndices[uint(tileIndex) * 128u + tileLight]);
         GpuLight light = lights[index];
         float distanceToLight = distance(pixelPosition, light.positionRadius.xy);
         float falloff = 1.0 - smoothstep(0.0, max(light.positionRadius.z, 0.0001), distanceToLight);

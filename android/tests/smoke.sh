@@ -41,7 +41,11 @@ for app in "$@"; do
         failed+=("$app")
     else
         echo "$app: running"
-        "$ADB" exec-out screencap -p > "$OUT_DIR/$app.png"
+        for _ in 1 2 3; do
+            "$ADB" exec-out screencap -p > "$OUT_DIR/$app.png" || true
+            [ -s "$OUT_DIR/$app.png" ] && break
+            sleep 1
+        done
     fi
     "$ADB" shell am force-stop "$id"
     "$ADB" uninstall "$id" > /dev/null
