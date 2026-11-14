@@ -59,7 +59,7 @@ The shared Android project packages each program's `main` as its own `libmain.so
 
 Most `ex*` examples are registered as Android apps (see `android/apps/`) and each builds to its own `build/android/apks/NAME.apk`. Building all of them is slow and produces many APKs of roughly 70 MB (the whole library is linked for three ABIs); build only the ones you need with `./android/build.sh NAME...`. Only exasteroids, exinvaders and exdefender have touch controls; the others were checked only for starting and rendering on a Galaxy A13, and examples that need a keyboard are not usable without one.
 
-Not ported: the ImGui examples (`exgui`, `exlobby`, `exspriteeditor`), the desktop-API examples (`ex3d_gl`, `ex3d_d3d12`, `ex3d_vulkan`, `exvulkan`, `exdb`, `exvideo`, `exreel`) and the non-example tools.
+`exgui` demonstrates Dear ImGui on Android (OpenGL ES 3 backend; touch acts as the mouse, and sizes and fonts are scaled 2x). `exlobby` and `exspriteeditor` are not registered but the library's networking code is built in and the manifest declares the `INTERNET` permission. Not ported: `exlobby`, `exspriteeditor`, the desktop-API examples (`ex3d_gl`, `ex3d_d3d12`, `ex3d_vulkan`, `exvulkan`, `exdb`, `exvideo`, `exreel`) and the non-example tools.
 
 A plain `set_gfx_mode(..., width, height)` request on Android becomes the logical screen size and is stretched to fill the display, so a 4:3 program looks stretched on a wide phone. Letterboxing is not implemented.
 
@@ -77,4 +77,4 @@ Android can pause, resume or terminate an app independently of its game loop. Te
 
 The shared Gradle project currently packages simlib's `shaders` and `assets/fonts` directories. Add your own assets to the Gradle asset-copy configuration before relying on them. APK assets are not ordinary writable desktop files: check that each loader supports packaged assets, and use an appropriate Android app-private writable location for saves. Some simlib loaders use ordinary filesystem streams, so don't assume every desktop path works inside an APK. Test asset loading on the device.
 
-The supplied Android CMake configuration enables only `gles` and disables ImGui integration and video decoding. Desktop polygon wireframe mode and GPU timer diagnostics are unavailable on GLES. Other desktop examples and APIs are not automatically Android-validated; adapt them and test rendering, input, audio, assets and lifecycle on the intended hardware.
+The supplied Android CMake configuration enables only `gles` and ImGui, and disables video decoding. Desktop polygon wireframe mode and GPU timer diagnostics are unavailable on GLES. Other desktop examples and APIs are not automatically Android-validated; adapt them and test rendering, input, audio, assets and lifecycle on the intended hardware.

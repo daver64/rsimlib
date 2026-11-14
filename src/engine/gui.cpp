@@ -56,11 +56,20 @@ namespace sl
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGui::StyleColorsDark();
+#ifdef __ANDROID__
+        // Phone-sized touch targets and text.
+        ImGui::GetStyle().ScaleAllSizes(2.0f);
+        ImGui::GetIO().FontGlobalScale = 2.0f;
+#endif
 #ifdef SIMLIB_RENDERER_GL
         if (graphics_backend() == GraphicsBackend::opengl && get_gl_context())
         {
             ImGui_ImplSDL2_InitForOpenGL(get_window(), get_gl_context());
+#ifdef SIMLIB_RENDERER_GLES
+            ImGui_ImplOpenGL3_Init("#version 300 es");
+#else
             ImGui_ImplOpenGL3_Init("#version 430 core");
+#endif
         }
         else
 #endif

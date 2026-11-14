@@ -7,7 +7,7 @@ get_filename_component(SIMLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(SIMLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build simlib examples and host tools" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Build simlib tests" FORCE)
 set(SIMLIB_RENDERERS gles CACHE STRING "Android renderer" FORCE)
-set(SIMLIB_GUI none CACHE STRING "Disable desktop GUI integration on Android" FORCE)
+set(SIMLIB_GUI imgui CACHE STRING "Dear ImGui GUI backend (OpenGL ES 3)" FORCE)
 set(SIMLIB_VIDEO none CACHE STRING "Disable video decoder on Android" FORCE)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
