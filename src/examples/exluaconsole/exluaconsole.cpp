@@ -101,6 +101,8 @@ void handle_lua_console_input(const sl::Event &event)
             if (!input_line.empty())
                 input_line.pop_back();
             break;
+        default:
+            break;
         }
     }
 }

@@ -169,7 +169,7 @@ namespace sl
         set_local_lights_3d(previous_locals);
         set_shadow_map_3d(previous_shadow, previous_bias);
         set_local_shadow_map_3d(previous_local_shadow);
-        destroy_mesh(mesh);(mesh);
+        destroy_mesh(mesh);
         if (!ok)
         {
             destroy_impostor(impostor);
