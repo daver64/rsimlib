@@ -344,8 +344,10 @@ namespace sl
 
         /** Background threads that build chunks: -1 chooses automatically, 0 builds on the calling thread. */
         int worker_threads = -1;
-        /** Finished chunks uploaded to the GPU per update() call. */
+        /** Maximum chunks uploaded to the GPU in one update() call. */
         int max_uploads_per_frame = 2;
+        /** Optional upload rate in chunks per second; 0 disables rate-based budgeting. */
+        double max_uploads_per_second = 0.0;
         /** Chunks kept in memory before unused ones are evicted. */
         int max_cached_chunks = 1500;
         /** Frames a chunk must go unused before it can be evicted. */

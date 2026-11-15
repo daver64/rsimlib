@@ -979,6 +979,8 @@ namespace sl
         std::vector<Result> done;
         bool stop = false;
         int in_flight = 0;
+        std::chrono::steady_clock::time_point last_upload_update{};
+        double upload_credit = 0.0;
 
         TerrainChunkData build_chunk(const TerrainNodeKey &key) const
         {
@@ -1264,9 +1266,39 @@ namespace sl
             return true;
         }
 
+        int upload_budget()
+        {
+            const int limit = std::max(config.max_uploads_per_frame, 1);
+            const double rate = config.max_uploads_per_second;
+            if (!std::isfinite(rate) || rate <= 0.0)
+                return limit;
+
+            const auto now = std::chrono::steady_clock::now();
+            if (last_upload_update.time_since_epoch().count() == 0)
+            {
+                last_upload_update = now;
+                return 0;
+            }
+
+            const double elapsed = std::clamp(std::chrono::duration<double>(now - last_upload_update).count(), 0.0, 0.1);
+            last_upload_update = now;
+            // Bound catch-up after a stall so a single update cannot monopolize the render thread.
+            const double credit_limit = std::max(1.0, std::min(static_cast<double>(limit), rate * 0.1));
+            upload_credit = std::min(credit_limit, upload_credit + rate * elapsed);
+            return std::min(limit, static_cast<int>(upload_credit));
+        }
+
+        void consume_upload_credit()
+        {
+            if (config.max_uploads_per_second > 0.0 && std::isfinite(config.max_uploads_per_second))
+                upload_credit = std::max(0.0, upload_credit - 1.0);
+        }
+
         void process_uploads()
         {
-            int budget = std::max(config.max_uploads_per_frame, 1);
+            int budget = upload_budget();
+            if (budget <= 0)
+                return;
             if (thread_count == 0)
             {
                 while (budget > 0)
@@ -1290,7 +1322,10 @@ namespace sl
                     result.version = job.version;
                     result.data = build_chunk(key);
                     if (upload(result))
+                    {
                         --budget;
+                        consume_upload_credit();
+                    }
                 }
                 return;
             }
@@ -1311,7 +1346,10 @@ namespace sl
                     continue;
                 }
                 if (upload(result))
+                {
                     --budget;
+                    consume_upload_credit();
+                }
             }
             if (!deferred.empty())
             {
