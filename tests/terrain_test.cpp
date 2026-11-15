@@ -1,4 +1,5 @@
 #include "sl.h"
+#include "../src/engine/terrain_upload_budget.h"
 
 #include <cmath>
 #include <cstdio>
@@ -70,6 +71,30 @@ static void test_lod()
     view.forward = {0.0, -0.2, -1.0};
     view.up = {0.0, 1.0, 0.0};
     CHECK(coarse.select_nodes(view).size() < near_nodes.size());
+}
+
+static void test_upload_budget()
+{
+    detail::TerrainUploadBudget normal;
+    CHECK(normal.next(8, 120.0, 1.0 / 60.0) == 2);
+    normal.consume();
+    normal.consume();
+    CHECK(normal.next(8, 120.0, 1.0 / 60.0) == 2);
+
+    detail::TerrainUploadBudget slow;
+    CHECK(slow.next(8, 120.0, 1.0 / 24.0) == 5);
+    for (int i = 0; i < 5; ++i)
+        slow.consume();
+    CHECK(slow.next(8, 120.0, 1.0 / 24.0) == 5);
+
+    detail::TerrainUploadBudget bounded;
+    CHECK(bounded.next(8, 120.0, 1.0) == 8);
+    for (int i = 0; i < 8; ++i)
+        bounded.consume();
+    CHECK(bounded.next(8, 120.0, 1.0 / 60.0) == 2);
+
+    detail::TerrainUploadBudget legacy;
+    CHECK(legacy.next(2, 0.0, 0.0) == 2);
 }
 
 static void test_flat_chunks()
@@ -312,6 +337,7 @@ static void test_flight_integration()
 
 int main()
 {
+    test_upload_budget();
     test_lod();
     test_flat_chunks();
     test_geomorph();

@@ -4,6 +4,7 @@
 #include "error.h"
 #include "planet_tiles.h"
 #include "renderer.h"
+#include "terrain_upload_budget.h"
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -980,7 +981,7 @@ namespace sl
         bool stop = false;
         int in_flight = 0;
         std::chrono::steady_clock::time_point last_upload_update{};
-        double upload_credit = 0.0;
+        detail::TerrainUploadBudget upload_budget;
 
         TerrainChunkData build_chunk(const TerrainNodeKey &key) const
         {
@@ -1266,37 +1267,33 @@ namespace sl
             return true;
         }
 
-        int upload_budget()
+        int upload_budget_for_update()
         {
             const int limit = std::max(config.max_uploads_per_frame, 1);
             const double rate = config.max_uploads_per_second;
             if (!std::isfinite(rate) || rate <= 0.0)
-                return limit;
+                return upload_budget.next(limit, rate, 0.0);
 
             const auto now = std::chrono::steady_clock::now();
             if (last_upload_update.time_since_epoch().count() == 0)
             {
                 last_upload_update = now;
-                return 0;
+                return upload_budget.next(limit, rate, 0.0);
             }
 
             const double elapsed = std::clamp(std::chrono::duration<double>(now - last_upload_update).count(), 0.0, 0.1);
             last_upload_update = now;
-            // Bound catch-up after a stall so a single update cannot monopolize the render thread.
-            const double credit_limit = std::max(1.0, std::min(static_cast<double>(limit), rate * 0.1));
-            upload_credit = std::min(credit_limit, upload_credit + rate * elapsed);
-            return std::min(limit, static_cast<int>(upload_credit));
+            return upload_budget.next(limit, rate, elapsed);
         }
 
         void consume_upload_credit()
         {
-            if (config.max_uploads_per_second > 0.0 && std::isfinite(config.max_uploads_per_second))
-                upload_credit = std::max(0.0, upload_credit - 1.0);
+            upload_budget.consume();
         }
 
         void process_uploads()
         {
-            int budget = upload_budget();
+            int budget = upload_budget_for_update();
             if (budget <= 0)
                 return;
             if (thread_count == 0)
