@@ -256,11 +256,68 @@ namespace sl
 
     // ---- Small types ----
 
+    bool Atmosphere::set_profile(const std::vector<AtmospherePoint> &points, std::string &error)
+    {
+        if (points.size() < 2)
+        {
+            error = "atmosphere profile needs at least two points";
+            return false;
+        }
+        for (std::size_t i = 0; i < points.size(); ++i)
+        {
+            const AtmospherePoint &p = points[i];
+            if (!std::isfinite(p.altitude) || !std::isfinite(p.density) || !std::isfinite(p.pressure) ||
+                !std::isfinite(p.temperature) || p.density <= 0.0 || p.pressure <= 0.0 || p.temperature <= 0.0 ||
+                (i > 0 && (p.altitude <= points[i - 1].altitude || p.density >= points[i - 1].density ||
+                           p.pressure >= points[i - 1].pressure)))
+            {
+                error = "invalid atmosphere profile point " + std::to_string(i);
+                return false;
+            }
+        }
+        profile_ = points;
+        error.clear();
+        return true;
+    }
+
+    void Atmosphere::clear_profile() { profile_.clear(); }
+    bool Atmosphere::has_profile() const { return !profile_.empty(); }
+    const std::vector<AtmospherePoint> &Atmosphere::profile() const { return profile_; }
+
+    AtmosphereSample Atmosphere::sample(double altitude) const
+    {
+        if (!std::isfinite(altitude))
+            throw std::invalid_argument("atmosphere altitude must be finite");
+        const double unavailable = std::numeric_limits<double>::quiet_NaN();
+        if (profile_.empty())
+        {
+            const double rho = surface_density > 0.0 && scale_height > 0.0
+                                   ? surface_density * std::exp(-std::max(altitude, 0.0) / scale_height) : 0.0;
+            return {AtmosphereSampleStatus::legacy, rho, unavailable, unavailable};
+        }
+        if (altitude < profile_.front().altitude)
+            return {AtmosphereSampleStatus::below_profile, unavailable, unavailable, unavailable};
+        auto upper = std::upper_bound(profile_.begin(), profile_.end(), altitude,
+                                      [](double h, const AtmospherePoint &p) { return h < p.altitude; });
+        const bool above = upper == profile_.end() && altitude > profile_.back().altitude;
+        if (upper == profile_.end())
+            upper = profile_.end() - 1;
+        const AtmospherePoint &hi = *upper, &lo = *(upper - 1);
+        const double fraction = (altitude - lo.altitude) / (hi.altitude - lo.altitude);
+        const auto interpolate = [fraction](double a, double b) {
+            return std::exp(std::log(a) + fraction * (std::log(b) - std::log(a)));
+        };
+        return {above ? AtmosphereSampleStatus::above_profile : AtmosphereSampleStatus::in_profile,
+                interpolate(lo.density, hi.density), interpolate(lo.pressure, hi.pressure),
+                above ? hi.temperature : lo.temperature + fraction * (hi.temperature - lo.temperature)};
+    }
+
     double Atmosphere::density(double altitude) const
     {
-        if (surface_density <= 0.0 || scale_height <= 0.0)
-            return 0.0;
-        return surface_density * std::exp(-std::max(altitude, 0.0) / scale_height);
+        const AtmosphereSample result = sample(altitude);
+        if (result.status == AtmosphereSampleStatus::below_profile)
+            throw std::out_of_range("altitude below atmosphere profile");
+        return result.density;
     }
 
     double FlightBody::mass() const
@@ -693,16 +750,16 @@ namespace sl
     {
         density = 0.0;
         velocity = wind;
-        if (flat_atmosphere.surface_density > 0.0)
+        if (flat_atmosphere.surface_density > 0.0 || flat_atmosphere.has_profile())
             density = flat_atmosphere.density(point.y - (flat_terrain ? flat_terrain->height_at(point.x, point.z) : flat_ground_height));
         for (std::size_t j = 0; j < bodies_.size(); ++j)
         {
             const FlightBody &planet = bodies_[j];
-            if (!planet.active || planet.atmosphere.surface_density <= 0.0 || planet.radius <= 0.0)
+            if (!planet.active || (planet.atmosphere.surface_density <= 0.0 && !planet.atmosphere.has_profile()) || planet.radius <= 0.0)
                 continue;
             const dvec3 d = point - kin[j].position;
             const double rho = planet.atmosphere.density(glm::length(d) - planet.radius -
-                                                         (planet.terrain ? planet.terrain->height_at_direction(d) : 0.0));
+                                                         (planet.solid_surface && planet.terrain ? planet.terrain->height_at_direction(d) : 0.0));
             if (rho > density)
             {
                 density = rho;
@@ -719,7 +776,7 @@ namespace sl
         if (flat_ground)
             best = point.y - (flat_terrain ? flat_terrain->height_at(point.x, point.z) : flat_ground_height);
         for (std::size_t j = 0; j < bodies_.size(); ++j)
-            if (bodies_[j].active && bodies_[j].radius > 0.0)
+            if (bodies_[j].active && bodies_[j].solid_surface && bodies_[j].radius > 0.0)
             {
                 const dvec3 d = point - kin[j].position;
                 double altitude = glm::length(d) - bodies_[j].radius;
@@ -1029,7 +1086,7 @@ namespace sl
             for (std::size_t j = 0; j < bodies_.size(); ++j)
             {
                 const FlightBody &planet = bodies_[j];
-                if (!planet.active || planet.radius <= 0.0 || static_cast<int>(j) == index)
+                if (!planet.active || !planet.solid_surface || planet.radius <= 0.0 || static_cast<int>(j) == index)
                     continue;
                 const dvec3 d = point - kin[j].position;
                 const double dist = glm::length(d);

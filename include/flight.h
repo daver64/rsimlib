@@ -212,7 +212,26 @@ namespace sl
         bool enabled = true;
     };
 
-    /** Atmosphere with exponentially falling density. */
+    struct AtmospherePoint
+    {
+        double altitude = 0.0;    // metres relative to the reference radius
+        double density = 0.0;     // kg/m^3
+        double pressure = 0.0;    // Pa
+        double temperature = 0.0; // K
+    };
+
+    enum class AtmosphereSampleStatus
+    {
+        legacy, in_profile, above_profile, below_profile
+    };
+
+    struct AtmosphereSample
+    {
+        AtmosphereSampleStatus status = AtmosphereSampleStatus::legacy;
+        double density = 0.0, pressure = 0.0, temperature = 0.0;
+    };
+
+    /** Exponential atmosphere, optionally replaced by a tabulated pressure, temperature and density profile. */
     struct Atmosphere
     {
         /** Density at the surface in kg/m^3 (sea level on Earth is 1.225). 0 disables the atmosphere. */
@@ -220,7 +239,22 @@ namespace sl
         /** Altitude in metres over which density falls by a factor of e (about 8500 for Earth). */
         double scale_height = 8500.0;
 
+        Atmosphere() = default;
+        Atmosphere(double density, double height = 8500.0) : surface_density(density), scale_height(height) {}
+
+        /** Points must be strictly ordered by altitude, positive and finite, with density and pressure strictly decreasing. */
+        bool set_profile(const std::vector<AtmospherePoint> &points, std::string &error);
+        void clear_profile();
+        bool has_profile() const;
+        /** The validated profile points, in ascending altitude order; empty for a legacy atmosphere. */
+        const std::vector<AtmospherePoint> &profile() const;
+        /** Legacy profiles have no pressure or temperature. Below-profile values are unavailable; callers must stop before that depth. */
+        AtmosphereSample sample(double altitude) const;
+        /** Throws std::out_of_range below a configured profile; above it density is extrapolated from the top two points. */
         double density(double altitude) const;
+
+    private:
+        std::vector<AtmospherePoint> profile_;
     };
 
     /** A rigid body: vessel, planet or moon. */
@@ -236,7 +270,7 @@ namespace sl
         dvec3 dry_inertia{1.0};
         /** Gravitational parameter G*M in m^3/s^2. Bodies with a value above zero attract everything else. */
         double gm = 0.0;
-        /** Surface radius in metres. Above zero makes the body a ground surface and the atmosphere's base. */
+        /** Reference radius in metres; also the ground radius when solid_surface is true. */
         double radius = 0.0;
         /** Dimensionless J2 gravity coefficient and its reference radius in metres; zero disables the correction. */
         double gravity_j2 = 0.0;
@@ -293,6 +327,9 @@ namespace sl
         /** RCS commands in -1..1 set by FlightWorld::set_rcs_rotation / set_rcs_translation. */
         dvec3 rcs_rotation{0.0};
         dvec3 rcs_translation{0.0};
+
+        /** Whether gear can contact the reference radius or its terrain. */
+        bool solid_surface = true;
 
         /** Dry mass plus propellant. */
         double mass() const;

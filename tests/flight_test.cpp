@@ -505,6 +505,73 @@ namespace
         check(b->position.y > 0.5, "never falls through the ground");
     }
 
+    void test_atmosphere_profiles()
+    {
+        sl::Atmosphere air{1.225, 8500.0};
+        const sl::AtmosphereSample legacy = air.sample(-1000.0);
+        check(legacy.status == sl::AtmosphereSampleStatus::legacy && legacy.density == 1.225 &&
+                  std::isnan(legacy.pressure) && std::isnan(legacy.temperature),
+              "legacy atmosphere retains density and marks thermodynamics unavailable");
+        const std::vector<sl::AtmospherePoint> points = {
+            {-1000.0, 10.0, 1000000.0, 300.0}, {0.0, 1.0, 100000.0, 200.0}, {1000.0, 0.1, 10000.0, 100.0}};
+        std::string error;
+        check(air.set_profile(points, error) && error.empty(), "valid atmosphere profile accepted");
+        check(air.profile().front().altitude == -1000.0 && air.profile().back().altitude == 1000.0,
+              "profile exposes its supported altitude range");
+        const sl::AtmosphereSample deep = air.sample(-500.0);
+        check(deep.status == sl::AtmosphereSampleStatus::in_profile &&
+                  std::fabs(deep.density - std::sqrt(10.0)) < 1e-12 &&
+                  std::fabs(deep.pressure - std::sqrt(1e11)) < 1e-6 && deep.temperature == 250.0,
+              "profile interpolates below the reference level");
+        check(std::fabs(air.density(0.0) - 1.0) < 1e-12 && std::fabs(air.density(1000.0) - 0.1) < 1e-12,
+              "profile is continuous at its points");
+        const sl::AtmosphereSample above = air.sample(2000.0);
+        check(above.status == sl::AtmosphereSampleStatus::above_profile &&
+                  std::fabs(above.density - 0.01) < 1e-12 && above.temperature == 100.0,
+              "atmosphere above profile is explicitly extrapolated");
+        check(air.sample(-1001.0).status == sl::AtmosphereSampleStatus::below_profile,
+              "unsupported depth is reported");
+        bool rejected_depth = false;
+        try { air.density(-1001.0); }
+        catch (const std::out_of_range &) { rejected_depth = true; }
+        check(rejected_depth, "unsupported depth cannot silently provide density");
+        std::vector<sl::AtmospherePoint> invalid = points;
+        invalid[1].pressure = invalid[0].pressure;
+        check(!air.set_profile(invalid, error) && !error.empty() && std::fabs(air.density(0.0) - 1.0) < 1e-12,
+              "invalid profile is rejected without replacing the existing profile");
+        air.clear_profile();
+        check(!air.has_profile() && air.density(-1000.0) == 1.225, "clearing a profile restores legacy behavior");
+
+        const auto cross_reference = [&](bool solid) {
+            sl::FlightWorld world;
+            world.max_substep = 0.01;
+            const int planet = world.create_body("planet");
+            const int ship = world.create_body("ship");
+            sl::FlightBody *p = world.body(planet);
+            p->mode = sl::FlightBodyMode::kinematic;
+            p->radius = 100.0;
+            p->solid_surface = solid;
+            std::string why;
+            check(p->atmosphere.set_profile(points, why), "flight atmosphere profile accepted");
+            check(std::fabs(world.air_density_at({99.0, 0.0, 0.0}) - p->atmosphere.density(-1.0)) < 1e-12,
+                  "world uses the profile below the reference radius");
+            if (!solid)
+                check(std::isinf(world.altitude_of({99.0, 0.0, 0.0})), "gas giant is not counted as ground");
+            sl::FlightBody *s = world.body(ship);
+            s->position = {105.0, 0.0, 0.0};
+            s->velocity = {-10.0, 0.0, 0.0};
+            sl::GearContact gear;
+            gear.stiffness = 10000.0;
+            gear.damping = 100.0;
+            s->gear.push_back(gear);
+            world.step(1.0);
+            return s->position.x;
+        };
+        check(std::fabs(cross_reference(false) - 95.0) < 1e-6,
+              "gear passes through a gas giant reference radius");
+        check(cross_reference(true) > 95.1, "solid reference radius still produces gear contact");
+    }
+
     void test_prediction()
     {
         Orbit orbit(7.0e6, sl::FlightIntegrator::rk4, 1.0);
@@ -554,6 +621,7 @@ int main()
     test_thruster_groups();
     test_aero();
     test_gear();
+    test_atmosphere_profiles();
     test_prediction();
     test_isp_pressure();
     if (failures)
