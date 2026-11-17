@@ -79,7 +79,7 @@ namespace rdb
                         std::string col_name = name_str ? name_str : "";
                         if (sqlite3_column_type(stmt->get(), col) == SQLITE_NULL)
                         {
-                            row[col_name] = sol::nil;
+                            row[col_name] = sol::lua_nil;
                         }
                         else if (sqlite3_column_type(stmt->get(), col) == SQLITE_INTEGER)
                         {

@@ -22,7 +22,7 @@ namespace sl
             case PropertyNode::Type::integer: return sol::make_object(lua, node.get_int());
             case PropertyNode::Type::real: return sol::make_object(lua, node.get_double());
             case PropertyNode::Type::string: return sol::make_object(lua, node.get_string());
-            default: return sol::nil;
+            default: return sol::lua_nil;
             }
         }
 
@@ -83,7 +83,7 @@ namespace sl
                 if (PropertyNode *node = tree->find(found->second))
                     node->remove_listener(id);
                 sol::table store = (*state)["__props_listeners"];
-                store[keys[id]] = sol::nil;
+                store[keys[id]] = sol::lua_nil;
                 keys.erase(id);
                 listeners.erase(found);
             }
@@ -122,7 +122,7 @@ namespace sl
         sol::table props = lua.create_named_table("props");
         props.set_function("get", [&tree](sol::this_state s, const std::string &path) -> sol::object {
             const PropertyNode *node = tree.find(path);
-            return node ? read_value(s, *node) : sol::object(sol::nil);
+            return node ? read_value(s, *node) : sol::object(sol::lua_nil);
         });
         props.set_function("set", [&tree](const std::string &path, sol::object value) {
             if (PropertyNode *node = tree.node(path))

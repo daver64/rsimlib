@@ -74,6 +74,10 @@ namespace sl::detail
 
         VkInstanceCreateInfo instance_info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
         instance_info.pApplicationInfo = &application_info;
+#ifdef __APPLE__
+        instance_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
         instance_info.enabledExtensionCount = static_cast<unsigned int>(extensions.size());
         instance_info.ppEnabledExtensionNames = extensions.data();
         if (vkCreateInstance(&instance_info, nullptr, &instance_) != VK_SUCCESS)

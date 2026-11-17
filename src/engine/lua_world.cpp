@@ -257,7 +257,7 @@ namespace sl
             sol::state_view lua(state);
             const TileMap *map = find_in(tilemaps, id);
             if (!map)
-                return sol::nil;
+                return sol::lua_nil;
             sol::table info = lua.create_table();
             info["width"] = map->width;
             info["height"] = map->height;
@@ -311,7 +311,7 @@ namespace sl
             sol::state_view lua(state);
             const TileObject *object = tilemap_find_object(find_in(tilemaps, id), name);
             if (!object)
-                return sol::nil;
+                return sol::lua_nil;
             sol::table result = lua.create_table();
             result["name"] = object->name;
             result["type"] = object->type;
@@ -380,7 +380,7 @@ namespace sl
                            {
             const FluidSimulation *simulation = find_in(fluids, id);
             if (!simulation || !fluid_in_bounds(simulation, x, y))
-                return sol::nil;
+                return sol::lua_nil;
             return cell_table(sol::state_view(state), fluid_get_cell(simulation, x, y)); });
         table.set_function("size", [this](const std::string &id)
                            {
@@ -448,7 +448,7 @@ namespace sl
                            {
             const FluidSimulation3D *simulation = find_in(fluids_3d, id);
             if (!simulation || !fluid3d_in_bounds(simulation, x, y, z))
-                return sol::nil;
+                return sol::lua_nil;
             return cell_table(sol::state_view(state), fluid3d_get_cell(simulation, x, y, z)); });
         table.set_function("count", [this](const std::string &id)
                            {
@@ -560,7 +560,7 @@ namespace sl
                            {
             const VoxelWorld *voxels = world(id);
             if (!voxels)
-                return sol::nil;
+                return sol::lua_nil;
             sol::table stats = sol::state_view(state).create_table();
             stats["chunks"] = static_cast<lua_Integer>(voxels->chunk_count());
             stats["triangles"] = voxels->total_triangles();
@@ -571,11 +571,11 @@ namespace sl
             const VoxelWorld *voxels = world(id);
             const glm::vec3 direction(dx, dy, dz);
             if (!voxels || glm::dot(direction, direction) < 1e-12f)
-                return sol::nil;
+                return sol::lua_nil;
             const VoxelRaycastResult hit = voxels->raycast({ox, oy, oz}, glm::normalize(direction),
                                                            std::clamp(max_distance.value_or(8.0f), 0.0f, 512.0f));
             if (!hit.hit)
-                return sol::nil;
+                return sol::lua_nil;
             sol::table result = sol::state_view(state).create_table();
             result["x"] = hit.hit_block.x;
             result["y"] = hit.hit_block.y;
@@ -874,7 +874,7 @@ namespace sl
                            {
             const TerrainEntry *entry = terrain(id);
             if (!entry)
-                return sol::nil;
+                return sol::lua_nil;
             return vector_table(state, entry->terrain->normal_at(x, z)); });
         table.set_function("height_at_direction", [this](const std::string &id, double x, double y, double z) -> sol::optional<double>
                            {
@@ -895,11 +895,11 @@ namespace sl
             const TerrainEntry *entry = terrain(id);
             const dvec3 direction(dx, dy, dz);
             if (!entry || glm::dot(direction, direction) < 1e-24)
-                return sol::nil;
+                return sol::lua_nil;
             const TerrainHit hit = entry->terrain->raycast({ox, oy, oz}, glm::normalize(direction),
                                                            std::clamp(max_distance.value_or(10000.0), 0.0, 1.0e9));
             if (!hit.hit)
-                return sol::nil;
+                return sol::lua_nil;
             sol::table result = vector_table(state, hit.position);
             result["normal"] = vector_table(state, hit.normal);
             result["distance"] = hit.distance;
@@ -940,7 +940,7 @@ namespace sl
                            {
             const TerrainEntry *entry = terrain(id);
             if (!entry)
-                return sol::nil;
+                return sol::lua_nil;
             const TerrainStats stats = entry->terrain->stats();
             sol::table result = sol::state_view(state).create_table();
             result["visible_chunks"] = stats.visible_chunks;

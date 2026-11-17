@@ -82,7 +82,7 @@ namespace sl
         LuaScriptResult invoke_callback(sol::state &state, const std::string &event_name, Arguments &&...arguments)
         {
             sol::object callback = state[event_name];
-            if (!callback.valid() || callback.get_type() == sol::type::nil)
+            if (!callback.valid() || callback.get_type() == sol::type::lua_nil)
             {
                 return {true, {}};
             }
@@ -118,9 +118,9 @@ namespace sl
             lua_sethook(state_->lua_state(), instruction_hook, LUA_MASKCOUNT, hook_interval);
         state_->open_libraries(
             sol::lib::base, sol::lib::string, sol::lib::math, sol::lib::table);
-        (*state_)["dofile"] = sol::nil;
-        (*state_)["loadfile"] = sol::nil;
-        (*state_)["load"] = sol::nil;
+        (*state_)["dofile"] = sol::lua_nil;
+        (*state_)["loadfile"] = sol::lua_nil;
+        (*state_)["load"] = sol::lua_nil;
 
         sol::table os_table = state_->create_named_table("os");
         os_table.set_function("time", []()
