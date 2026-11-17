@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) | [Android build prerequisites](building.md#android-opengl-es)
 
-**Status: new and in development.** The Android backend is experimental and less tested than the desktop backends. Features, device compatibility and packaging may change. Test your application on its target devices; a successful desktop build does not establish Android support.
+Android is a supported simlib platform alongside Windows and Linux. Platform capabilities and application controls differ, so test your application on its target devices; a successful desktop build does not establish Android compatibility.
 
 The current Android build uses SDL2 and OpenGL ES 3.1, with Android API 21 as the minimum. The supplied debug APKs contain `arm64-v8a`, `armeabi-v7a` and `x86_64` libraries. Devices must provide OpenGL ES 3.1; an emulator exposing only ES 3.0 cannot run these builds.
 
@@ -15,7 +15,7 @@ Follow [Android build prerequisites](building.md#android-opengl-es) for the SDK,
 ./android/build.sh exasteroids
 ```
 
-The result is `build/android/apks/exasteroids.apk`. The separate `showcase` app builds with `./android/build.sh showcase`; `./android/build.sh` builds every registered app (`exasteroids`, `exinvaders`, `exdefender` and `showcase`). APKs are named after their registered app and have separate application IDs, so they can coexist. `fullbuild.sh` also runs the Android build for all registered apps.
+The result is `build/android/apks/exasteroids.apk`. The separate `showcase` app builds with `./android/build.sh showcase`; `./android/build.sh` builds every registered app under `android/apps/`. APKs are named after their registered app and have separate application IDs, so they can coexist. `fullbuild.sh` also runs the Android build for all registered apps.
 
 These are debug-signed APKs for testing, not Play Store releases. You can share an APK with a tester, who may need to allow their file-opening app to install unknown apps. An existing app signed with a different key cannot be updated with `adb install -r`; it must be removed first, which also removes its app data.
 

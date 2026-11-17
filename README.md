@@ -1,8 +1,10 @@
 # simlib
 
-`simlib` is an easy-to-use, feature-rich C++ multimedia and rendering framework for 2D and 3D applications, with an Allegro 4-style API built on SDL2 and selectable OpenGL, Vulkan and Direct3D 12 backends.
+`simlib` is an easy-to-use, feature-rich C++ multimedia and rendering framework for 2D and 3D applications, with an Allegro 4-style API built on SDL2 and OpenGL, OpenGL ES, Vulkan and Direct3D 12 backends.
 
 It combines immediate-mode 2D drawing and automatic batching with a powerful 3D rendering system, including meshes, materials, terrain, voxel worlds, lighting, normal mapping, post-processing and GPU compute. Beyond graphics, simlib provides integrated audio, video playback, physics, fluid simulation, procedural generation and Lua scripting — giving you the building blocks to create games, visual simulations and interactive applications in one library.
+
+**Platforms:** Windows, Linux and Android are supported. Apple platform support is planned but is not yet available. Features and rendering backends vary by platform; see the [build guide](docs/building.md) and [Android guide](docs/android.md).
 
 **Documentation lives in the [simlib wiki](https://github.com/daver64/rsimlib/wiki)**: tutorial, API reference, guides, the example gallery and the showreels. The pages are kept in [docs/](docs/tutorial/README.md) and regenerated into the wiki by `tools/sync-wiki.py`.
 
@@ -74,8 +76,8 @@ cmake --build build -j"$(nproc)"
 
 Dependencies, install prefixes, Windows and Visual Studio builds, consuming the installed library and packaging an app are in [docs/building.md](docs/building.md).
 
-**Android support is new and in development.** See the [Android guide](docs/android.md) for limitations, app packaging, deployment and testing.
+See the [Android guide](docs/android.md) for prerequisites, platform-specific limitations, app packaging, deployment and testing.
 
 ## Running the examples
 
-Every graphical example runs on OpenGL by default on Linux and Direct3D 12 on Windows, and accepts `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only). Browse them in the [Example Gallery](docs/examples/README.md) or start with the [Showcase Guide](docs/showcases.md) (`./build/showcase2d`, `showcase3d`, `showcasevoxel`).
+Desktop graphical examples use OpenGL by default on Linux and Direct3D 12 on Windows, and accept `--gl`, `--vulkan` or `--d3d12` (`--d3d12` is Windows only). Registered Android examples use OpenGL ES; see the [Android guide](docs/android.md) for controls and packaging. Browse examples in the [Example Gallery](docs/examples/README.md) or start with the [Showcase Guide](docs/showcases.md) (`./build/showcase2d`, `showcase3d`, `showcasevoxel`).

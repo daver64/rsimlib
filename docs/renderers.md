@@ -8,11 +8,11 @@ The window/context, presentation lifecycle, 2D texture and render-target resourc
 
 ## Backend Selection
 
-**Backend status.** OpenGL and Vulkan are built and tested on Linux (the `ctest` suite includes pixel-level 3D blending checks that run on both). Direct3D 12 implements the same API but is Windows-only and is not covered by the Linux test runs, so treat it as less proven until you have run the suite on your own hardware. The Android OpenGL ES backend is new, experimental and in development; see the [Android guide](android.md). Use `ex3d_surface --gl`, `--vulkan` or `--d3d12` to compare desktop backends. While developing, `sl::draw_frame_stats()` shows FPS and per-frame 3D draw counts.
+**Backend status.** OpenGL and Vulkan are built and tested on Linux (the `ctest` suite includes pixel-level 3D blending checks that run on both). Direct3D 12 implements the same API but is Windows-only and is not covered by the Linux test runs, so treat it as less proven until you have run the suite on your own hardware. Android uses OpenGL ES 3.1; see the [Android guide](android.md) for platform-specific limitations. Use `ex3d_surface --gl`, `--vulkan` or `--d3d12` to compare desktop backends. While developing, `sl::draw_frame_stats()` shows FPS and per-frame 3D draw counts.
 
 `simlib` supports selectable rendering backends:
 - **OpenGL 4.3** (default on Linux)
-- **OpenGL ES 3.1** (Android, in development)
+- **OpenGL ES 3.1** (Android)
 - **Vulkan**
 - **Direct3D 12** (Windows only, default on Windows)
 

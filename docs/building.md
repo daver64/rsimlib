@@ -2,6 +2,8 @@
 
 [← Back to README](../README.md)
 
+simlib supports Windows, Linux and Android. Apple platform support is planned but is not yet available. Android uses its own [build and packaging setup](#android-opengl-es); features and renderers vary by platform.
+
 **Always required**
 - CMake 3.16+
 - A C++17 compiler
@@ -102,9 +104,9 @@ On the Linux release machine, `sh fullbuild.sh` clean-builds and installs the Li
 
 ### Android (OpenGL ES)
 
-**New and in development:** the Android backend is experimental and less tested than the desktop backends. See the [Android guide](android.md) for application development, deployment and current limitations.
+See the [Android guide](android.md) for application development, deployment and platform-specific limitations.
 
-The Android target builds the static simlib library and separate SDL-based APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. The registered apps are `exasteroids`, `exinvaders`, `exdefender` and `showcase`. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
+The Android target builds the static simlib library and separate SDL-based APKs for `arm64-v8a`, `armeabi-v7a`, and `x86_64`, using OpenGL ES 3.1 and Android API 21. Registered apps include `exasteroids`, `exinvaders`, `exdefender` and `showcase`; see `android/apps/` for the full list. It requires the Android command-line SDK, NDK, CMake, Ninja, a full JDK (Java 17 or newer, including `javac`), and a bootstrapped vcpkg checkout; a JRE alone is insufficient. If Gradle selects a JRE, set `JAVA_HOME` to the JDK installation. The repository manifest supplies SDL2, SDL2_image, SDL2_mixer, SDL2_ttf, SQLite, libpng, and zlib. GLES does not provide the desktop polygon wireframe mode or GPU timer diagnostics.
 
 The sample uses its Gradle wrapper with Android Gradle Plugin 9.3.3; keep the plugin and wrapper versions compatible when upgrading either one.
 
