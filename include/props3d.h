@@ -59,6 +59,14 @@ namespace sl
     MeshData make_street_lamp_data(float height = 6.0f, Colour colour = {70, 74, 80, 255});
     /** A road segment along Z with kerbs, edge lines and a dashed centre line, 0.06 m thick. */
     MeshData make_road_data(float length = 10.0f, float width = 6.0f);
+    /** A coal mine headstock (headframe): braced legs, a top platform and twin sheave wheels. */
+    MeshData make_mine_headstock_data(float height = 22.0f, float width = 10.0f, Colour colour = {88, 92, 100, 255}, std::uint32_t seed = 1);
+    /** An oil derrick: a tapered four-post lattice tower with a top crown platform. */
+    MeshData make_oil_derrick_data(float height = 28.0f, float width = 10.0f, Colour colour = {88, 92, 100, 255}, std::uint32_t seed = 1);
+    /** A small tank farm: three vertical oil storage tanks inside a low bund wall, with a small pump shed. */
+    MeshData make_oil_tanks_data(float tank_radius = 4.5f, float tank_height = 7.0f, Colour tank = {196, 198, 200, 255}, std::uint32_t seed = 1);
+    /** A coal storage bay: a concrete bunker with a piled coal heap and buttresses. */
+    MeshData make_coal_storage_data(float width = 18.0f, float depth = 14.0f, float wall_height = 4.0f, std::uint32_t seed = 1);
 
     // Small props.
     MeshData make_barrel_data(float radius = 0.4f, float height = 1.0f, Colour colour = {60, 90, 150, 255});

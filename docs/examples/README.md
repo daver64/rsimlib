@@ -47,7 +47,7 @@ Every graphical example with a screenshot, what it demonstrates, how to run it a
 | [![exnormalmap](img/exnormalmap.png)<br>**exnormalmap**](exnormalmap.md) | 2D normal mapping: sprites lit by a mouse-driven light using per-sprite normal maps, with a toggle to compare against flat lighting. |
 | [![exnormalmap3d](img/exnormalmap3d.png)<br>**exnormalmap3d**](exnormalmap3d.md) | 3D normal mapping: a cube and sphere with a procedural normal-mapped material under a 3D light, with a toggle to compare. |
 | [![exlights3d](img/exlights3d.png)<br>**exlights3d**](exlights3d.md) | Up to 16 point and spot lights plus soft sun and light shadows in a moonlit courtyard. |
-| [![exprops](img/exprops.png)<br>**exprops**](exprops.md) | A gallery of 43 low-poly parts (houses, towers, vehicles, trees, Apollo-era rockets, satellites and a Skylab) with focus, zoom and day/night. |
+| [![exprops](img/exprops.png)<br>**exprops**](exprops.md) | A gallery of 47 low-poly parts (houses, towers, industrial props, vehicles, trees, Apollo-era rockets, satellites and a Skylab) with focus, zoom and day/night. |
 | [![extown](img/extown.png)<br>**extown**](extown.md) | A town and airfield built from props, with sun shadows and lamp lights at night. |
 | [![excontrols](img/excontrols.png)<br>**excontrols**](excontrols.md) | 2D cockpit and factory control panels: dials, knobs, switches, LED meters and glowing lamps. |
 | [![excockpit](img/excockpit.png)<br>**excockpit**](excockpit.md) | 3D cockpit and control cabinet with mouse picking and emissive LEDs. |

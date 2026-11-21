@@ -74,6 +74,10 @@ int main(int argc, char **argv)
     props.push_back(make_prop("control tower", sl::make_control_tower_data()));
     props.push_back(make_prop("street lamp", sl::make_street_lamp_data()));
     props.push_back(make_prop("road", sl::make_road_data()));
+    props.push_back(make_prop("mine headstock", sl::make_mine_headstock_data()));
+    props.push_back(make_prop("oil derrick", sl::make_oil_derrick_data()));
+    props.push_back(make_prop("oil tanks", sl::make_oil_tanks_data()));
+    props.push_back(make_prop("coal storage", sl::make_coal_storage_data()));
     props.push_back(make_prop("barrel", sl::make_barrel_data()));
     props.push_back(make_prop("crate", sl::make_crate_data()));
     props.push_back(make_prop("container", sl::make_container_data()));

@@ -78,6 +78,10 @@ Each entry lists the arguments in order with their defaults.
 | `make_control_tower_data` | `height 24, seed 1` | Terminal block, shaft and glazed cab. |
 | `make_street_lamp_data` | `height 6, colour {70,74,80}` | The lamp head glows at `(0, height, 0.9)`, the place for a local light. |
 | `make_road_data` | `length 10, width 6` | Runs along Z, 0.06 m thick, with kerbs and a dashed centre line. |
+| `make_mine_headstock_data` | `height 22, width 10, colour {88,92,100}, seed 1` | Coal mine headstock (headframe): braced legs, top platform and twin sheaves. |
+| `make_oil_derrick_data` | `height 28, width 10, colour {88,92,100}, seed 1` | Tapered four-post lattice tower with a crown platform. |
+| `make_oil_tanks_data` | `tank_radius 4.5, tank_height 7, tank {196,198,200}, seed 1` | Three vertical storage tanks inside a bund wall, with manifold piping and a pump shed. |
+| `make_coal_storage_data` | `width 18, depth 14, wall_height 4, seed 1` | Concrete bunker with a piled coal heap and a short conveyor. |
 
 ## Small props
 

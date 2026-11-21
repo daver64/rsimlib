@@ -715,6 +715,215 @@ namespace sl
         return b.data;
     }
 
+    MeshData make_mine_headstock_data(float height, float width, Colour colour, std::uint32_t seed)
+    {
+        Builder b;
+        height = std::max(height, 10.0f);
+        width = std::max(width, 5.0f);
+        colour = vary(colour, seed, 0.05f);
+
+        const float hx = 0.5f * width;
+        const float hz = 0.36f * width;
+        const float top_taper = 0.35f;
+        const float post = 0.075f * width;
+        const float beam = 0.04f * width;
+        const float brace = 0.028f * width;
+
+        const V base[4] = {{-hx, 0.0f, -hz}, {hx, 0.0f, -hz}, {hx, 0.0f, hz}, {-hx, 0.0f, hz}};
+        const V top[4] = {{-hx * top_taper, height, -hz * top_taper}, {hx * top_taper, height, -hz * top_taper},
+                          {hx * top_taper, height, hz * top_taper},   {-hx * top_taper, height, hz * top_taper}};
+
+        for (int i = 0; i < 4; ++i)
+            column(b, base[i], top[i], post, post * 0.85f, 4, colour, false, false, 0.785398f);
+
+        const int levels = std::max(2, static_cast<int>(height / std::max(3.5f, height / 7.0f)));
+        for (int k = 0; k <= levels; ++k)
+        {
+            const float t = static_cast<float>(k) / static_cast<float>(levels);
+            const float y = t * height;
+            const auto lerp = [&](const V &a, const V &c) { return a * (1.0f - t) + c * t; };
+            V ring[4];
+            for (int i = 0; i < 4; ++i)
+                ring[i] = lerp(base[i], top[i]);
+            for (int i = 0; i < 4; ++i)
+            {
+                const V a = ring[i];
+                const V c = ring[(i + 1) % 4];
+                column(b, a, c, beam, beam, 4, shade(colour, 0.88f), false, false);
+                if (k < levels)
+                {
+                    const float t2 = static_cast<float>(k + 1) / static_cast<float>(levels);
+                    const auto lerp2 = [&](const V &p0, const V &p1) { return p0 * (1.0f - t2) + p1 * t2; };
+                    const V ring2[4] = {lerp2(base[0], top[0]), lerp2(base[1], top[1]), lerp2(base[2], top[2]), lerp2(base[3], top[3])};
+                    const bool flip = (k + i) % 2 == 0;
+                    column(b, flip ? a : c, (flip ? ring2[(i + 1) % 4] : ring2[i]), brace, brace, 4, shade(colour, 0.82f), false, false);
+                }
+            }
+        }
+
+        // Base footing and small hoist house on the +Z side.
+        const Colour concrete{150, 148, 142, 255};
+        box(b, {-hx * 0.78f, 0.0f, -hz * 0.85f}, {hx * 0.78f, 0.35f, hz * 0.85f}, shade(concrete, 0.9f));
+        box(b, {-hx * 0.5f, 0.0f, hz * 0.85f}, {hx * 0.5f, 3.2f, hz * 1.55f}, shade(concrete, 0.92f));
+        column(b, {0.0f, 3.2f, hz * 1.2f}, {0.0f, 3.9f, hz * 1.2f}, hx * 0.6f, hx * 0.6f, 4, shade(concrete, 0.82f), false, true, 0.785398f);
+        panel(b, {0.0f, 1.45f, hz * 1.55f + 0.02f}, {0.0f, 0.0f, 1.0f}, 2.0f, 2.1f, dark_metal);
+
+        // Top platform and sheave wheels.
+        const float deck_y = height * 0.88f;
+        box(b, {-hx * 0.42f, deck_y, -hz * 0.55f}, {hx * 0.42f, deck_y + 0.35f, hz * 0.55f}, shade(colour, 0.9f));
+        box(b, {-hx * 0.46f, deck_y + 0.35f, -hz * 0.18f}, {hx * 0.46f, deck_y + 0.65f, hz * 0.18f}, shade(colour, 0.86f));
+        const float wheel_y = deck_y + 0.8f;
+        const float wheel_r = width * 0.13f;
+        for (const float x : {-0.55f * wheel_r, 0.55f * wheel_r})
+            column(b, {x - 0.55f * wheel_r, wheel_y, 0.0f}, {x + 0.55f * wheel_r, wheel_y, 0.0f}, wheel_r, wheel_r, 12, dark_metal, true, true);
+        column(b, {-hx * 0.48f, wheel_y, 0.0f}, {hx * 0.48f, wheel_y, 0.0f}, wheel_r * 0.18f, wheel_r * 0.18f, 6, steel, false, false);
+
+        // Shaft opening.
+        box(b, {-1.3f, 0.36f, -1.3f}, {1.3f, 0.55f, 1.3f}, dark_metal);
+        return b.data;
+    }
+
+    MeshData make_oil_derrick_data(float height, float width, Colour colour, std::uint32_t seed)
+    {
+        Builder b;
+        height = std::max(height, 12.0f);
+        width = std::max(width, 6.0f);
+        colour = vary(colour, seed, 0.05f);
+
+        const float hx = 0.5f * width;
+        const float top_taper = 0.18f;
+        const float post = 0.07f * width;
+        const float beam = 0.035f * width;
+        const float brace = 0.022f * width;
+
+        const V base[4] = {{-hx, 0.0f, -hx}, {hx, 0.0f, -hx}, {hx, 0.0f, hx}, {-hx, 0.0f, hx}};
+        const V top[4] = {{-hx * top_taper, height, -hx * top_taper}, {hx * top_taper, height, -hx * top_taper},
+                          {hx * top_taper, height, hx * top_taper},   {-hx * top_taper, height, hx * top_taper}};
+
+        for (int i = 0; i < 4; ++i)
+            column(b, base[i], top[i], post, post * 0.85f, 4, colour, false, false, 0.785398f);
+
+        const int levels = std::max(4, static_cast<int>(height / 3.0f));
+        for (int k = 0; k <= levels; ++k)
+        {
+            const float t = static_cast<float>(k) / static_cast<float>(levels);
+            const float t2 = static_cast<float>(std::min(k + 1, levels)) / static_cast<float>(levels);
+            const auto lerp = [&](const V &a, const V &c, float u) { return a * (1.0f - u) + c * u; };
+            V ring[4], ring2[4];
+            for (int i = 0; i < 4; ++i)
+            {
+                ring[i] = lerp(base[i], top[i], t);
+                ring2[i] = lerp(base[i], top[i], t2);
+            }
+            for (int i = 0; i < 4; ++i)
+            {
+                const V a = ring[i];
+                const V c = ring[(i + 1) % 4];
+                column(b, a, c, beam, beam, 4, shade(colour, 0.9f), false, false);
+                if (k < levels)
+                {
+                    const bool flip = (k + i) % 2 == 0;
+                    column(b, flip ? a : c, flip ? ring2[(i + 1) % 4] : ring2[i], brace, brace, 4, shade(colour, 0.82f), false, false);
+                }
+            }
+        }
+
+        // Crown platform and drill pipe.
+        const float deck_y = height * 0.9f;
+        box(b, {-hx * 0.38f, deck_y, -hx * 0.38f}, {hx * 0.38f, deck_y + 0.32f, hx * 0.38f}, shade(colour, 0.92f));
+        box(b, {-hx * 0.22f, deck_y + 0.32f, -hx * 0.22f}, {hx * 0.22f, deck_y + 0.8f, hx * 0.22f}, dark_metal);
+        column(b, {0.0f, 0.0f, 0.0f}, {0.0f, height * 0.96f, 0.0f}, 0.18f, 0.12f, 6, steel, false, true);
+        box(b, {-hx * 0.18f, height * 0.96f, -hx * 0.18f}, {hx * 0.18f, height * 0.96f + 0.6f, hx * 0.18f}, {230, 60, 50, 255});
+        return b.data;
+    }
+
+    MeshData make_oil_tanks_data(float tank_radius, float tank_height, Colour tank, std::uint32_t seed)
+    {
+        Builder b;
+        tank_radius = std::max(tank_radius, 2.0f);
+        tank_height = std::max(tank_height, 3.0f);
+        const Colour concrete{150, 148, 142, 255};
+
+        const float pitch = tank_radius * 2.75f;
+        const V centres[3] = {{-0.5f * pitch, 0.0f, -0.32f * pitch}, {0.5f * pitch, 0.0f, -0.32f * pitch}, {0.0f, 0.0f, 0.52f * pitch}};
+
+        // Concrete pad and bund wall.
+        const float pad = pitch * 1.05f;
+        box(b, {-pad, 0.0f, -pad}, {pad, 0.25f, pad}, shade(concrete, 0.92f));
+        const float bund_h = 1.1f;
+        const float bund_t = 0.45f;
+        box(b, {-pad, 0.25f, -pad}, {pad, 0.25f + bund_h, -pad + bund_t}, shade(concrete, 0.86f));
+        box(b, {-pad, 0.25f, pad - bund_t}, {pad, 0.25f + bund_h, pad}, shade(concrete, 0.86f));
+        box(b, {-pad, 0.25f, -pad + bund_t}, {-pad + bund_t, 0.25f + bund_h, pad - bund_t}, shade(concrete, 0.84f));
+        box(b, {pad - bund_t, 0.25f, -pad + bund_t}, {pad, 0.25f + bund_h, pad - bund_t}, shade(concrete, 0.84f));
+
+        // Tanks.
+        for (int i = 0; i < 3; ++i)
+        {
+            const Colour c = vary(tank, seed + 11u + static_cast<std::uint32_t>(i), 0.04f);
+            const MeshData part = make_tank_data(tank_radius, tank_height, c);
+            b.append(part, centres[i] + V{0.0f, 0.25f, 0.0f}, 0.0f, 1.0f);
+        }
+
+        // Simple manifold piping between the rear two tanks and the front tank.
+        const float pipe_y = 0.25f + 1.0f;
+        column(b, centres[0] + V{0.0f, pipe_y, 0.0f}, centres[1] + V{0.0f, pipe_y, 0.0f}, 0.18f, 0.18f, 8, steel, false, false);
+        column(b, 0.5f * (centres[0] + centres[1]) + V{0.0f, pipe_y, 0.0f}, centres[2] + V{0.0f, pipe_y, 0.0f}, 0.18f, 0.18f, 8, steel, false, false);
+        column(b, centres[2] + V{0.0f, pipe_y, 0.0f}, centres[2] + V{0.0f, pipe_y + 1.4f, 0.0f}, 0.16f, 0.16f, 8, steel, false, false);
+        box(b, centres[2] + V{-0.35f, pipe_y + 1.2f, -0.35f}, centres[2] + V{0.35f, pipe_y + 1.9f, 0.35f}, dark_metal);
+
+        // A tiny pump shed tucked near the bund.
+        box(b, {pad - 2.4f, 0.25f, -pad + 0.9f}, {pad - 0.7f, 2.1f, -pad + 2.6f}, shade(concrete, 0.9f));
+        column(b, {pad - 1.55f, 2.1f, -pad + 1.75f}, {pad - 1.55f, 2.65f, -pad + 1.75f}, 0.95f, 0.95f, 4, shade(concrete, 0.82f), false, true, 0.785398f);
+        panel(b, {pad - 1.55f, 1.15f, -pad + 2.62f}, {0.0f, 0.0f, 1.0f}, 1.2f, 1.6f, dark_metal);
+
+        return b.data;
+    }
+
+    MeshData make_coal_storage_data(float width, float depth, float wall_height, std::uint32_t seed)
+    {
+        Builder b;
+        width = std::max(width, 8.0f);
+        depth = std::max(depth, 6.0f);
+        wall_height = std::max(wall_height, 2.5f);
+
+        const float hw = 0.5f * width;
+        const float hd = 0.5f * depth;
+        const float t = std::clamp(0.045f * width, 0.4f, 0.9f);
+        const Colour concrete{150, 148, 142, 255};
+        const Colour coal = vary({30, 30, 32, 255}, seed, 0.08f);
+
+        // Slab.
+        box(b, {-hw - 1.2f, 0.0f, -hd - 1.2f}, {hw + 1.2f, 0.25f, hd + 1.2f}, shade(concrete, 0.92f));
+
+        // U-shaped bunker (open on +Z).
+        box(b, {-hw, 0.25f, -hd}, {hw, 0.25f + wall_height, -hd + t}, shade(concrete, 0.88f));
+        box(b, {-hw, 0.25f, -hd + t}, {-hw + t, 0.25f + wall_height, hd}, shade(concrete, 0.86f));
+        box(b, {hw - t, 0.25f, -hd + t}, {hw, 0.25f + wall_height, hd}, shade(concrete, 0.86f));
+
+        // Buttresses on the outside of the side walls.
+        const int braces = std::max(2, static_cast<int>(depth / 3.5f));
+        for (int i = 0; i < braces; ++i)
+        {
+            const float z = -hd + (static_cast<float>(i) + 0.5f) * depth / static_cast<float>(braces);
+            box(b, {-hw - 0.8f, 0.25f, z - 0.55f}, {-hw, 0.25f + wall_height * 0.85f, z + 0.55f}, shade(concrete, 0.82f));
+            box(b, {hw, 0.25f, z - 0.55f}, {hw + 0.8f, 0.25f + wall_height * 0.85f, z + 0.55f}, shade(concrete, 0.82f));
+        }
+
+        // Coal pile.
+        const float pile_h = wall_height * 0.95f;
+        ellipsoid(b, {0.0f, 0.25f + pile_h * 0.45f, -hd * 0.08f}, {hw * 0.78f, pile_h * 0.55f, hd * 0.78f}, 11, 5, -0.45f * pi, 0.5f * pi, 0.14f,
+                  seed + 19u, coal, 0.08f, true);
+        ellipsoid(b, {hw * 0.18f, 0.25f + pile_h * 0.38f, hd * 0.15f}, {hw * 0.52f, pile_h * 0.45f, hd * 0.6f}, 10, 4, -0.45f * pi, 0.5f * pi, 0.18f,
+                  seed + 41u, shade(coal, 0.92f), 0.08f, true);
+
+        // Simple conveyor stub over the back wall.
+        const Colour frame = shade(steel, 0.95f);
+        box(b, {-0.65f * hw, 0.25f + wall_height + 0.1f, -hd - 1.6f}, {0.65f * hw, 0.25f + wall_height + 0.55f, -hd + 0.2f}, frame);
+        box(b, {-0.7f * hw, 0.25f + wall_height + 0.55f, -hd - 1.6f}, {0.7f * hw, 0.25f + wall_height + 0.85f, -hd - 0.9f}, dark_metal);
+        return b.data;
+    }
+
     // ----------------------------------------------------------------------------------------------- Small props
 
     MeshData make_barrel_data(float radius, float height, Colour colour)
